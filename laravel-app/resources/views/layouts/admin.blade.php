@@ -76,6 +76,14 @@
                         Patients
                     </a>
                 </li>
+                @if (in_array(auth()->user()?->role, ['superadmin', 'manager', 'staff', 'therapist'], true))
+                    <li class="nav-item">
+                        <a class="nav-link {{ request()->is('messages*') ? 'active' : '' }}" href="{{ route('messages.index') }}">
+                            <i class="bi bi-chat-dots-fill"></i>
+                            Messages
+                        </a>
+                    </li>
+                @endif
                 <li class="nav-item">
                     <a class="nav-link {{ request()->routeIs('appointments.*') || request()->is('appointments*') ? 'active' : '' }}" href="{{ route('appointments.index') }}">
                         <i class="bi bi-calendar-check"></i>

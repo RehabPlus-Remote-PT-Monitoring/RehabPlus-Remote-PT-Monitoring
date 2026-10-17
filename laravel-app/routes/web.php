@@ -6,6 +6,7 @@ use App\Http\Controllers\AuthController;
 use App\Http\Controllers\DashboardController;
 use App\Http\Controllers\ExerciseController;
 use App\Http\Controllers\InventoryController;
+use App\Http\Controllers\MessageController;
 use App\Http\Controllers\PatientController;
 use App\Http\Controllers\PatientPortalController;
 use App\Http\Controllers\PaymentController;
@@ -66,6 +67,15 @@ Route::middleware(['auth.rehab'])->group(function () {
     Route::post('/schedule/time-off/save', [StaffScheduleController::class, 'storeTimeOff'])->name('schedule.timeoff.store');
     Route::get('/notes', [AdminPageController::class, 'notes'])->name('notes');
     Route::get('/assessments', [AdminPageController::class, 'assessments'])->name('assessments');
+
+    // Patient messaging (Firestore, shared with the app). Therapists answer the
+    // "therapist" thread of their own patients; admin/manager/staff the "clinic" thread.
+    Route::middleware(['role:superadmin,manager,staff,therapist'])->group(function () {
+        Route::get('/messages', [MessageController::class, 'index'])->name('messages.index');
+        Route::get('/messages/{patientUid}', [MessageController::class, 'show'])->name('messages.show');
+        Route::get('/messages/{patientUid}/feed', [MessageController::class, 'feed'])->name('messages.feed');
+        Route::post('/messages/{patientUid}', [MessageController::class, 'reply'])->name('messages.reply');
+    });
 
     Route::middleware(['role:superadmin'])->group(function () {
         Route::get('/patient-statistics', [DashboardController::class, 'patientStatistics'])->name('patient-statistics');
