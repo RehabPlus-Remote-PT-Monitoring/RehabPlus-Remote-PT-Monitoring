@@ -10,6 +10,9 @@ class ProfileData {
   final String condition;
   final String therapist;
 
+  /// When the patient's program started (patients/{uid}.createdAt).
+  final DateTime? programStart;
+
   const ProfileData({
     required this.name,
     required this.email,
@@ -17,6 +20,7 @@ class ProfileData {
     required this.dob,
     required this.condition,
     this.therapist = '',
+    this.programStart,
   });
 }
 
@@ -99,6 +103,7 @@ class _EditProfileScreenState extends State<EditProfileScreen>
         dob: dob,
         condition: widget.initial.condition,
         therapist: widget.initial.therapist,
+        programStart: widget.initial.programStart,
       ),
     );
   }

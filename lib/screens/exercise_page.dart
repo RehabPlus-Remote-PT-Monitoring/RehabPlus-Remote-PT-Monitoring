@@ -1,10 +1,14 @@
 // lib/screens/exercise_page.dart
 import 'package:flutter/material.dart';
+import 'package:intl/intl.dart';
 import 'package:provider/provider.dart';
 
 import '../models/exercise_model.dart';
 import '../services/app_provider.dart';
 import '../services/prescription_service.dart';
+import '../widgets/today_checklist_sheet.dart';
+import '../widgets/unread_badge.dart';
+import 'notification_page.dart';
 import 'pose_detector_screen.dart';
 
 class ExercisePage extends StatefulWidget {
@@ -28,8 +32,14 @@ class _ExercisePageState extends State<ExercisePage> {
 
   final _prescriptions = PrescriptionService();
 
-  Future<List<ExerciseConfig>> _loadAssignedExercises() =>
-      _prescriptions.loadAssignedExercises();
+  /// Last successfully loaded plan, for the checklist sheet.
+  List<ExerciseConfig> _assigned = const [];
+
+  Future<List<ExerciseConfig>> _loadAssignedExercises() async {
+    final list = await _prescriptions.loadAssignedExercises();
+    if (mounted) setState(() => _assigned = list);
+    return list;
+  }
 
   Future<void> _refresh() async {
     setState(() => _exercisesFuture = _loadAssignedExercises());
@@ -102,24 +112,42 @@ class _ExercisePageState extends State<ExercisePage> {
                               color: primaryTeal,
                             ),
                           ),
-                          const SizedBox(width: 4),
-                          IconButton(
-                            onPressed: () {},
-                            icon: const Icon(
-                              Icons.add,
-                              color: primaryTeal,
-                              size: 28,
-                            ),
-                          ),
                         ],
                       ),
                       Row(
                         children: [
-                          _buildTopCircleButton(Icons.mail_rounded, true),
+                          UnreadNotifications(
+                            builder: (context, unread) => _buildTopCircleButton(
+                              Icons.notifications_rounded,
+                              tooltip: 'Notifications',
+                              hasBadge: unread > 0,
+                              onTap: () => Navigator.push(
+                                context,
+                                MaterialPageRoute(
+                                  builder: (_) => const NotificationPage(),
+                                ),
+                              ),
+                            ),
+                          ),
                           const SizedBox(width: 10),
-                          _buildTopCircleButton(
-                            Icons.assignment_turned_in_rounded,
-                            false,
+                          Consumer<AppProvider>(
+                            builder: (context, provider, _) =>
+                                _buildTopCircleButton(
+                                  Icons.assignment_turned_in_rounded,
+                                  tooltip: "Today's plan",
+                                  // Dot while something due today is not done.
+                                  hasBadge:
+                                      TodayChecklistSheet.remainingToday(
+                                        _assigned,
+                                        provider.sessionHistory,
+                                        DateTime.now(),
+                                      ) >
+                                      0,
+                                  onTap: () => TodayChecklistSheet.show(
+                                    context,
+                                    _assigned,
+                                  ),
+                                ),
                           ),
                         ],
                       ),
@@ -133,18 +161,20 @@ class _ExercisePageState extends State<ExercisePage> {
                   padding: const EdgeInsets.symmetric(horizontal: 20.0),
                   child: Column(
                     crossAxisAlignment: CrossAxisAlignment.start,
-                    children: const [
+                    children: [
                       Text(
-                        'SUNDAY, 17 MAY',
-                        style: TextStyle(
+                        DateFormat(
+                          'EEEE, d MMMM',
+                        ).format(DateTime.now()).toUpperCase(),
+                        style: const TextStyle(
                           fontSize: 11,
                           fontWeight: FontWeight.w600,
                           color: Colors.black54,
                           letterSpacing: 0.5,
                         ),
                       ),
-                      SizedBox(height: 4),
-                      Text(
+                      const SizedBox(height: 4),
+                      const Text(
                         'Select an\nExercise',
                         style: TextStyle(
                           fontSize: 24,
@@ -178,19 +208,18 @@ class _ExercisePageState extends State<ExercisePage> {
                       }
 
                       final exercises = snapshot.data ?? const [];
-                      if (exercises.isEmpty) {
-                        return _buildMessage(
-                          icon: Icons.event_note_rounded,
-                          text: 'No therapy plan assigned yet.\nCheck back once your therapist sets one up.',
-                          onRetry: _refresh,
-                        );
-                      }
+                      // Rest of the catalog, minus anything already in
+                      // the plan so no exercise appears twice.
+                      final assignedTypes = exercises.map((e) => e.type).toSet();
+                      final others = availableExercises
+                          .where((c) => !assignedTypes.contains(c.type))
+                          .toList();
 
                       return RefreshIndicator(
                         color: primaryTeal,
                         onRefresh: _refresh,
                         child: Consumer<AppProvider>(
-                          builder: (context, provider, _) => ListView.builder(
+                          builder: (context, provider, _) => ListView(
                             physics: const BouncingScrollPhysics(
                               parent: AlwaysScrollableScrollPhysics(),
                             ),
@@ -198,14 +227,27 @@ class _ExercisePageState extends State<ExercisePage> {
                               horizontal: 20,
                               vertical: 8,
                             ),
-                            itemCount: exercises.length,
-                            itemBuilder: (context, index) {
-                              return AnimatedExerciseCard(
-                                index: index,
-                                config: exercises[index],
-                                progress: _weeklyProgress(provider, exercises[index]),
-                              );
-                            },
+                            children: [
+                              _buildSectionHeader('Your Plan', exercises.length),
+                              if (exercises.isEmpty)
+                                _buildEmptyPlanNote()
+                              else
+                                for (var i = 0; i < exercises.length; i++)
+                                  AnimatedExerciseCard(
+                                    index: i,
+                                    config: exercises[i],
+                                    progress: _weeklyProgress(provider, exercises[i]),
+                                  ),
+                              if (others.isNotEmpty) ...[
+                                const SizedBox(height: 8),
+                                _buildSectionHeader('All Exercises', others.length),
+                                for (var i = 0; i < others.length; i++)
+                                  AnimatedExerciseCard(
+                                    index: exercises.length + i,
+                                    config: others[i],
+                                  ),
+                              ],
+                            ],
                           ),
                         ),
                       );
@@ -213,6 +255,63 @@ class _ExercisePageState extends State<ExercisePage> {
                   ),
                 ),
               ],
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildSectionHeader(String title, int count) {
+    return Padding(
+      padding: const EdgeInsets.only(bottom: 12, top: 4),
+      child: Row(
+        children: [
+          Text(
+            title,
+            style: const TextStyle(
+              fontSize: 16,
+              fontWeight: FontWeight.bold,
+              color: Colors.black87,
+            ),
+          ),
+          const SizedBox(width: 8),
+          Container(
+            padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
+            decoration: BoxDecoration(
+              color: lightTealBg,
+              borderRadius: BorderRadius.circular(10),
+            ),
+            child: Text(
+              '$count',
+              style: const TextStyle(
+                fontSize: 12,
+                fontWeight: FontWeight.w700,
+                color: primaryTeal,
+              ),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildEmptyPlanNote() {
+    return Container(
+      margin: const EdgeInsets.only(bottom: 16),
+      padding: const EdgeInsets.all(16),
+      decoration: BoxDecoration(
+        color: lightTealBg,
+        borderRadius: BorderRadius.circular(16),
+      ),
+      child: const Row(
+        children: [
+          Icon(Icons.event_note_rounded, color: primaryTeal),
+          SizedBox(width: 12),
+          Expanded(
+            child: Text(
+              'No therapy plan assigned yet. Check back once your therapist sets one up.',
+              style: TextStyle(fontSize: 13, color: Colors.black54, height: 1.4),
             ),
           ),
         ],
@@ -253,17 +352,29 @@ class _ExercisePageState extends State<ExercisePage> {
     );
   }
 
-  Widget _buildTopCircleButton(IconData icon, bool hasBadge) {
+  Widget _buildTopCircleButton(
+    IconData icon, {
+    required String tooltip,
+    required bool hasBadge,
+    required VoidCallback onTap,
+  }) {
     return Stack(
       children: [
-        Container(
-          width: 38,
-          height: 38,
-          decoration: BoxDecoration(
+        Tooltip(
+          message: tooltip,
+          child: Material(
             color: primaryTeal.withValues(alpha: 0.85),
-            shape: BoxShape.circle,
+            shape: const CircleBorder(),
+            child: InkWell(
+              customBorder: const CircleBorder(),
+              onTap: onTap,
+              child: SizedBox(
+                width: 38,
+                height: 38,
+                child: Icon(icon, color: Colors.white, size: 20),
+              ),
+            ),
           ),
-          child: Icon(icon, color: Colors.white, size: 20),
         ),
         if (hasBadge)
           Positioned(
@@ -287,14 +398,15 @@ class AnimatedExerciseCard extends StatefulWidget {
   final int index;
   final ExerciseConfig config;
 
-  /// 0.0–1.0 progress toward this exercise's default weekly goal.
-  final double progress;
+  /// 0.0–1.0 progress toward the prescription's weekly goal. Null for
+  /// catalog exercises that aren't in the patient's plan (no bar shown).
+  final double? progress;
 
   const AnimatedExerciseCard({
     super.key,
     required this.index,
     required this.config,
-    required this.progress,
+    this.progress,
   });
 
   @override
@@ -328,7 +440,8 @@ class _AnimatedExerciseCardState extends State<AnimatedExerciseCard>
       end: Offset.zero,
     ).animate(CurvedAnimation(parent: _controller, curve: Curves.easeOutCubic));
 
-    Future.delayed(Duration(milliseconds: widget.index * 120), () {
+    // Capped so cards far down the list don't wait seconds to appear.
+    Future.delayed(Duration(milliseconds: widget.index.clamp(0, 5) * 120), () {
       if (mounted) {
         _controller.forward();
       }
@@ -496,16 +609,18 @@ class _AnimatedExerciseCardState extends State<AnimatedExerciseCard>
                       ),
                     ],
                   ),
-                  const SizedBox(height: 14),
-                  ClipRRect(
-                    borderRadius: BorderRadius.circular(10),
-                    child: LinearProgressIndicator(
-                      value: widget.progress,
-                      minHeight: 6,
-                      backgroundColor: visuals.accent.withValues(alpha: 0.12),
-                      valueColor: AlwaysStoppedAnimation(visuals.accent),
+                  if (widget.progress != null) ...[
+                    const SizedBox(height: 14),
+                    ClipRRect(
+                      borderRadius: BorderRadius.circular(10),
+                      child: LinearProgressIndicator(
+                        value: widget.progress,
+                        minHeight: 6,
+                        backgroundColor: visuals.accent.withValues(alpha: 0.12),
+                        valueColor: AlwaysStoppedAnimation(visuals.accent),
+                      ),
                     ),
-                  ),
+                  ],
                 ],
               ),
             ),

@@ -27,6 +27,13 @@ from the dashboard:
 The app rejects any login whose `users/{uid}.role` isn't `patient`.
 Patients reset their password from the app (Firebase emails them a link).
 
+Dashboard staff sign in with Firebase Auth too (there is no SQL users table).
+The dashboard only lets in `admin`, `therapist` and `staff` roles. The first
+admin is created with `php artisan rehab:make-admin <email> "<name>"`.
+
+Archiving a patient disables their Firebase Auth login (so the app can't sign
+in) and sets `patients.archived: true`. Nothing is deleted.
+
 ---
 
 ## Collections
@@ -35,9 +42,11 @@ Patients reset their password from the app (Firebase emails them a link).
 
 | Field | Type | Notes |
 | --- | --- | --- |
-| `role` | string | `patient`, `therapist` or `admin` |
+| `role` | string | `patient`, `therapist`, `admin` or `staff` (front desk: clinic inbox and patient contact details, no clinical records) |
 | `name` | string | Display name |
-| `email` | string | Same as the Auth email |
+| `email` | string | Same as the Auth email (lowercase) |
+| `active` | bool | `false` when the login is disabled (staff disabled / patient archived) |
+| `createdAt` | timestamp | |
 
 Written by: Laravel only.
 
@@ -53,7 +62,11 @@ Written by: Laravel only.
 | `therapyPlan` | string | |
 | `phone` | string | **Patient-editable** in the app (≤ 30 chars) |
 | `dob` | string | **Patient-editable** in the app (≤ 30 chars) |
+| `email` | string | Login email (lowercase), shown on the dashboard |
+| `archived` | bool | `true` = archived on the dashboard; the Auth login is disabled |
+| `createdBy` | string | `uid` of the staff member who added the patient |
 | `createdAt` | timestamp | |
+| `updatedAt` | timestamp | Last dashboard edit |
 
 Written by: Laravel (all fields); the app (only `phone`, `dob`).
 
@@ -73,6 +86,11 @@ Written by: Laravel (all fields); the app (only `phone`, `dob`).
 | `active` | bool | ✔ | The app only loads `active == true` |
 | `assignedBy` | string | | Therapist `uid` |
 | `createdAt` | timestamp | | |
+| `updatedAt` | timestamp | | Last dashboard edit |
+
+`holdSeconds`, `schedule` and `notes` may be `null` (same as omitted).
+Assigning a prescription also writes an `exercise_assigned` notification doc
+and sends a push with `data: {type: 'exercise_assigned'}`.
 
 Written by: Laravel only. To stop an exercise, set `active: false` (don't
 delete it, because old sessions still reference its id).
@@ -108,6 +126,131 @@ pain check-in. **Never updated or deleted.**
 
 Sessions done offline are uploaded when the phone reconnects, so `createdAt`
 can be much later than `startTime`. Use `startTime` for reports.
+
+### `patients/{uid}/threads/{threadId}`: conversation summary
+
+Each patient has two conversations: `threadId` is **`therapist`** (their
+assigned therapist) or **`clinic`** (front desk: clinic visits, home-visit
+requests, app problems). The doc is created on the first message.
+
+| Field | Type | Notes |
+| --- | --- | --- |
+| `lastMessage` | string | Preview text of the newest message |
+| `lastMessageAt` | timestamp | |
+| `lastSenderRole` | string | `patient` or `staff` |
+| `unreadForPatient` | int | The app shows this as a badge and resets it to 0 when opened |
+| `unreadForStaff` | int | The app adds 1 per patient message; **the dashboard resets it to 0** when staff read the thread |
+
+### `patients/{uid}/threads/{threadId}/messages/{id}`: messages
+
+| Field | Type | Notes |
+| --- | --- | --- |
+| `text` | string | 1–1000 chars |
+| `senderId` | string | Sender's `uid` |
+| `senderRole` | string | `patient` or `staff` |
+| `sentAt` | timestamp | Sender's clock; **order by this** |
+| `createdAt` | timestamp | Server time |
+
+Messages are never edited or deleted.
+
+**When staff reply from the dashboard**, write both in one batch:
+
+1. Add a message with `senderRole: 'staff'`, `senderId: <staff uid>`, `sentAt`
+   and `createdAt` set to now.
+2. Update the thread: `lastMessage`, `lastMessageAt`,
+   `lastSenderRole: 'staff'`, and `unreadForPatient` incremented by 1.
+
+To list conversations needing a reply, query the `threads` collection group
+for `unreadForStaff > 0`. The first time, Firestore returns an error with a
+link to create the collection-group index this needs. Open it once. Appointment and home-visit requests arrive as
+messages in the `clinic` thread.
+
+### Clinic-only records (the app can't read these)
+
+The security rules don't list these subcollections, so the app is denied.
+Only the dashboard (service account) reads and writes them. Each record also
+stores `therapistId`, `therapistName` (who wrote it) and `createdAt`.
+
+| Path | Fields |
+| --- | --- |
+| `patients/{uid}/assessments/{id}` | `type` string (≤ 60, e.g. "Range of motion"), `score` int 0–100, `assessedAt` timestamp (start of the day), `notes` string (≤ 1000) |
+| `patients/{uid}/goals/{id}` | `title` string (≤ 150), `details` string, `targetDate` timestamp \| null, `status` `active` \| `achieved` \| `discontinued`, `progress` int 0–100 (100 when achieved), `achievedAt` timestamp \| null, `updatedAt` timestamp |
+| `patients/{uid}/notes/{id}` | `topic` string (≤ 100), `text` string (≤ 2000), `noteDate` timestamp (start of the day) |
+
+If patients should see their goals in the app later, add a read rule for
+`goals` (and an app screen); nothing else needs to change.
+
+### `settings/clinic`: clinic contact details
+
+| Field | Type | Notes |
+| --- | --- | --- |
+| `name` | string | e.g. "Rehab Plus Physiotherapy" |
+| `phone` | string | Number the app's call button dials. If it's empty, the button shows "not set up yet". |
+
+Written by: Laravel only. All signed-in users can read it.
+
+### `patients/{uid}/notifications/{id}`: the app's Notifications page
+
+| Field | Type | Notes |
+| --- | --- | --- |
+| `type` | string | Sets the icon: `message`, `exercise_assigned`, `appointment`, `progress`, `milestone`, `reminder`, `session_completed` (others get a generic icon) |
+| `title` | string | e.g. "New Exercise Assigned" |
+| `body` | string | |
+| `data` | map | Optional. For `message`: `{ "thread": "therapist" }`, so tapping opens that conversation |
+| `read` | bool | Write `false`; the app sets `true` when the patient opens it |
+| `createdAt` | timestamp | |
+
+Written by: Laravel (**every time it sends a push, also add one of these**,
+and also for events with no push, like a new prescription); the app (only
+`session_completed`, logged after each exercise).
+
+### `patients/{uid}/devices/{token}`: push-notification tokens
+
+One doc per phone the patient is signed in on. The doc id is the FCM
+registration token.
+
+| Field | Type | Notes |
+| --- | --- | --- |
+| `token` | string | Same as the doc id |
+| `platform` | string | `android` |
+| `updatedAt` | timestamp | |
+
+Written by: the app (added at sign-in, removed at sign-out). Read by Laravel
+to send notifications.
+
+---
+
+## Push notifications
+
+The free Spark plan can't run Cloud Functions, so **whoever writes a staff
+reply also sends the push**. After the reply batch (see messages above), add a
+`notifications` doc (type `message`, `data.thread` set), then send one FCM
+message per token in `patients/{uid}/devices`:
+
+```json
+{
+  "message": {
+    "token": "<device token>",
+    "notification": { "title": "<therapist name or 'RehabPlus Clinic'>", "body": "<message text>" },
+    "data": { "type": "chat", "thread": "therapist" },
+    "android": { "priority": "high", "notification": { "channel_id": "chat_messages" } }
+  }
+}
+```
+
+- **Endpoint:** `POST https://fcm.googleapis.com/v1/projects/rehabplus-80675/messages:send`,
+  authorised with an OAuth token from the service account (scope
+  `https://www.googleapis.com/auth/firebase.messaging`). `kreait/laravel-firebase`
+  does this for you (`Messaging::send`), and its messaging part doesn't need
+  the `grpc` extension.
+- **`channel_id: chat_messages`** is the app's high-importance "Messages"
+  channel, so the notification pops up on screen. Leave it out and Android
+  only shows it quietly in the notification shade.
+- **`data.thread`** must be `therapist` or `clinic`. Tapping the notification
+  opens that conversation in the app.
+- **Dead tokens:** if FCM answers `UNREGISTERED` or `INVALID_ARGUMENT` for a
+  token, delete that `devices` doc.
+- `tool/seed/reply.mjs` is a working reference implementation.
 
 ---
 
@@ -156,6 +299,13 @@ just a dashboard change.
 ```bash
 cd tool/seed && npm install
 node seed.mjs <service-account.json> <patient-email> [therapist-email]
+```
+
+`tool/seed/reply.mjs` sends a staff reply and push notification, standing in
+for the dashboard:
+
+```bash
+node reply.mjs <service-account.json> <patient-email> <therapist|clinic> "<message>"
 ```
 
 Service-account keys must never be committed (they're in `.gitignore`).

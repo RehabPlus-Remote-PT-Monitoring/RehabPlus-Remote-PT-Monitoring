@@ -3,6 +3,7 @@ import 'package:phosphor_flutter/phosphor_flutter.dart';
 import 'package:provider/provider.dart';
 import '../services/app_provider.dart';
 import '../services/auth_service.dart';
+import '../services/push_service.dart';
 import 'dashboard_screen.dart';
 import 'forgot_password_screen.dart';
 
@@ -71,7 +72,8 @@ class _LoginPageState extends State<LoginPage> with TickerProviderStateMixin {
     }
 
     if (!mounted) return;
-    await context.read<AppProvider>().loadHistory();
+    await context.read<AppProvider>().loadUserData();
+    PushService.I.registerForCurrentUser(); // not awaited: may show a prompt
     if (!mounted) return;
     Navigator.pushReplacement(
       context,
@@ -362,56 +364,6 @@ class _LoginPageState extends State<LoginPage> with TickerProviderStateMixin {
                                 ),
                               ],
                             ),
-                          ),
-                        ),
-                      ),
-
-                      const SizedBox(height: 20),
-
-                      // Sample credentials
-                      FadeTransition(
-                        opacity: _fadeAnim,
-                        child: Container(
-                          padding: const EdgeInsets.symmetric(horizontal: 18, vertical: 14),
-                          decoration: BoxDecoration(
-                            color: Colors.white.withValues(alpha: 0.12),
-                            borderRadius: BorderRadius.circular(16),
-                            border: Border.all(color: Colors.white.withValues(alpha: 0.2)),
-                          ),
-                          child: Row(
-                            children: [
-                              Container(
-                                padding: const EdgeInsets.all(8),
-                                decoration: BoxDecoration(
-                                  color: Colors.white.withValues(alpha: 0.15),
-                                  shape: BoxShape.circle,
-                                ),
-                                child: const PhosphorIcon(
-                                  PhosphorIconsRegular.userCircle,
-                                  color: Colors.white,
-                                  size: 20,
-                                ),
-                              ),
-                              const SizedBox(width: 12),
-                              const Column(
-                                crossAxisAlignment: CrossAxisAlignment.start,
-                                children: [
-                                  Text(
-                                    'Sample Account',
-                                    style: TextStyle(
-                                      color: Colors.white,
-                                      fontSize: 12,
-                                      fontWeight: FontWeight.bold,
-                                    ),
-                                  ),
-                                  SizedBox(height: 2),
-                                  Text(
-                                    'rob@rehabplus.com  ·  rehab123',
-                                    style: TextStyle(color: Colors.white70, fontSize: 11),
-                                  ),
-                                ],
-                              ),
-                            ],
                           ),
                         ),
                       ),

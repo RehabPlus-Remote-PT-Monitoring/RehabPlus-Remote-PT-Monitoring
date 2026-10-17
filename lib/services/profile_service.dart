@@ -32,6 +32,7 @@ class ProfileService {
       dob: (patient['dob'] ?? '') as String,
       condition: (patient['condition'] ?? '') as String,
       therapist: (patient['therapistName'] ?? '') as String,
+      programStart: (patient['createdAt'] as Timestamp?)?.toDate(),
     );
   }
 

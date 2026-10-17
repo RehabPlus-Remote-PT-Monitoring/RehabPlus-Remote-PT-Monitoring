@@ -4,16 +4,20 @@
 //   npm install
 //   node seed.mjs <path-to-service-account.json> <patient-email> [therapist-email]
 //
+// Optional: CLINIC_PHONE="+63 2 1234 5678" node seed.mjs ...  sets the number
+// the app's call button dials (settings/clinic).
+//
 // The patient (and optional therapist) must already exist in
 // Firebase Console → Authentication → Users. Safe to re-run: documents are
-// overwritten, sessions are left alone.
+// overwritten, sessions are left alone, and the welcome message is only
+// posted once.
 //
 // NEVER commit the service-account JSON.
 
 import { readFileSync } from 'node:fs';
 import { cert, initializeApp } from 'firebase-admin/app';
 import { getAuth } from 'firebase-admin/auth';
-import { FieldValue, getFirestore } from 'firebase-admin/firestore';
+import { FieldValue, Timestamp, getFirestore } from 'firebase-admin/firestore';
 
 const [keyPath, patientEmail, therapistEmail] = process.argv.slice(2);
 if (!keyPath || !patientEmail) {
@@ -91,5 +95,46 @@ for (const [id, p] of Object.entries(prescriptions)) {
   });
 }
 
+// "New exercise assigned" notifications. Fixed ids so re-running the seed
+// doesn't duplicate them.
+const NAMES = { kneeExtension: 'Knee Extension', bicepCurl: 'Bicep Curl', sideRaise: 'Side Raise' };
+for (const [id, pr] of Object.entries(prescriptions)) {
+  await db.doc(`patients/${patient.uid}/notifications/assigned_${id}`).set({
+    type: 'exercise_assigned',
+    title: 'New Exercise Assigned',
+    body: `Your therapist assigned ${NAMES[pr.exerciseType] ?? pr.exerciseType}: ${pr.targetReps} reps, ${pr.frequencyPerWeek}x a week.`,
+    read: false,
+    createdAt: FieldValue.serverTimestamp(),
+  });
+}
+
+// Clinic contact details for the app's call button.
+const clinic = { name: 'Rehab Plus Physiotherapy' };
+if (process.env.CLINIC_PHONE) clinic.phone = process.env.CLINIC_PHONE;
+await db.doc('settings/clinic').set(clinic, { merge: true });
+
+// A welcome message from the therapist so the Messages screen isn't empty.
+const thread = db.doc(`patients/${patient.uid}/threads/therapist`);
+if (!(await thread.get()).exists) {
+  const text = 'Hi! Your home exercise program is ready in the app. ' +
+    'Message me here if anything hurts or you have questions.';
+  const now = Timestamp.now();
+  await thread.collection('messages').add({
+    text,
+    senderId: therapist?.uid ?? 'clinic',
+    senderRole: 'staff',
+    sentAt: now,
+    createdAt: FieldValue.serverTimestamp(),
+  });
+  await thread.set({
+    lastMessage: text,
+    lastMessageAt: now,
+    lastSenderRole: 'staff',
+    unreadForPatient: 1,
+    unreadForStaff: 0,
+  });
+}
+
 console.log(`Seeded patient ${patientEmail} (${patient.uid}) with ${Object.keys(prescriptions).length} prescriptions.`);
 if (therapist) console.log(`Therapist ${therapistEmail} (${therapist.uid}) assigned.`);
+console.log(clinic.phone ? `Clinic phone set to ${clinic.phone}.` : 'Clinic phone not set (pass CLINIC_PHONE=... to set it).');

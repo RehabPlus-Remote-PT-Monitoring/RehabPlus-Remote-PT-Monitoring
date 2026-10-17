@@ -1,12 +1,13 @@
 import 'package:flutter/material.dart';
+import 'package:intl/intl.dart';
 import 'package:provider/provider.dart';
 import '../services/app_provider.dart';
-import '../services/profile_service.dart';
 import '../models/session.dart';
 import 'login_page.dart';
 import 'edit_profile_screen.dart';
 import 'notification_page.dart';
 import 'privacy_policy_screen.dart';
+import '../models/chat.dart';
 import 'messages_screen.dart';
 
 class ProfileScreen extends StatefulWidget {
@@ -20,7 +21,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
   static const Color primaryTeal = Color(0xFF23A8AA);
   static const Color darkTeal = Color(0xFF0D6E71);
 
-  ProfileData _profile = const ProfileData(
+  static const _emptyProfile = ProfileData(
     name: '',
     email: '',
     phone: '',
@@ -28,41 +29,29 @@ class _ProfileScreenState extends State<ProfileScreen> {
     condition: '',
   );
 
-  @override
-  void initState() {
-    super.initState();
-    _loadProfile();
-  }
-
-  Future<void> _loadProfile() async {
-    try {
-      final profile = await ProfileService().load();
-      if (profile != null && mounted) setState(() => _profile = profile);
-    } catch (_) {
-      // Offline with nothing cached: keep the empty placeholders.
-    }
-  }
+  // Loaded by AppProvider on sign-in; the Consumer in build() rebuilds this
+  // screen when it changes.
+  ProfileData get _profile =>
+      context.read<AppProvider>().profile ?? _emptyProfile;
 
   Future<void> _openEdit() async {
     final result = await Navigator.push<ProfileData>(
       context,
       MaterialPageRoute(builder: (_) => EditProfileScreen(initial: _profile)),
     );
-    if (result != null) {
-      setState(() => _profile = result);
-      if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(SnackBar(
-          content: const Row(children: [
-            Icon(Icons.check_circle_outline, color: Colors.white, size: 18),
-            SizedBox(width: 8),
-            Text('Profile updated successfully!'),
-          ]),
-          backgroundColor: primaryTeal,
-          behavior: SnackBarBehavior.floating,
-          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
-          margin: const EdgeInsets.all(16),
-        ));
-      }
+    if (result != null && mounted) {
+      context.read<AppProvider>().updateProfile(result);
+      ScaffoldMessenger.of(context).showSnackBar(SnackBar(
+        content: const Row(children: [
+          Icon(Icons.check_circle_outline, color: Colors.white, size: 18),
+          SizedBox(width: 8),
+          Text('Profile updated successfully!'),
+        ]),
+        backgroundColor: primaryTeal,
+        behavior: SnackBarBehavior.floating,
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+        margin: const EdgeInsets.all(16),
+      ));
     }
   }
 
@@ -102,8 +91,14 @@ class _ProfileScreenState extends State<ProfileScreen> {
                   icon: Icons.medical_services_outlined,
                   items: [
                     _InfoRow(icon: Icons.medical_services_outlined, label: 'Condition', value: _profile.condition),
-                    const _InfoRow(icon: Icons.person_pin_outlined, label: 'Therapist', value: 'Mr. Heintz'),
-                    const _InfoRow(icon: Icons.calendar_today_outlined, label: 'Program Start', value: 'Jan 15, 2025'),
+                    _InfoRow(icon: Icons.person_pin_outlined, label: 'Therapist', value: _profile.therapist),
+                    _InfoRow(
+                      icon: Icons.calendar_today_outlined,
+                      label: 'Program Start',
+                      value: _profile.programStart == null
+                          ? ''
+                          : DateFormat.yMMMd().format(_profile.programStart!),
+                    ),
                   ],
                 ),
                 const SizedBox(height: 14),
@@ -404,7 +399,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
                 onTap: () => Navigator.push(context, MaterialPageRoute(builder: (_) => const PrivacyPolicyScreen()))),
             const Divider(height: 1, indent: 56, endIndent: 16),
             _settingsTile(icon: Icons.help_outline_rounded, label: 'Help & Support',
-                onTap: () => Navigator.push(context, MaterialPageRoute(builder: (_) => ChatDetailScreen(contact: rehabPlusSupportContact)))),
+                onTap: () => Navigator.push(context, MaterialPageRoute(builder: (_) => const ChatDetailScreen(thread: ChatThread.clinic)))),
           ],
         ),
       ),

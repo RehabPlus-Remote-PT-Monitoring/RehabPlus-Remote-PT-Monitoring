@@ -60,6 +60,12 @@ class Prescription {
 
   bool isWithinSchedule(DateTime t) => schedule?.allows(t) ?? true;
 
+  /// Whether [t]'s weekday is a scheduled day (ignores the hour window).
+  bool isDueOn(DateTime t) {
+    final days = schedule?.days ?? const [];
+    return days.isEmpty || days.contains(t.weekday);
+  }
+
   factory Prescription.fromMap(String id, Map<String, dynamic> m) =>
       Prescription(
         id: id,

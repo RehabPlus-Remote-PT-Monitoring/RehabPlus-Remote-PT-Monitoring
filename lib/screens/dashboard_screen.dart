@@ -1,5 +1,9 @@
 import 'package:flutter/material.dart';
 import 'package:phosphor_flutter/phosphor_flutter.dart';
+import 'package:provider/provider.dart';
+import '../services/app_provider.dart';
+import '../services/progress_stats.dart';
+import '../widgets/unread_badge.dart';
 import 'messages_screen.dart';
 import 'profile_screen.dart';
 import 'notification_page.dart';
@@ -23,8 +27,10 @@ class _DashboardScreenState extends State<DashboardScreen>
   static const Color darkTeal = Color(0xFF0D6E71);
   static const Color lightTealBg = Color(0xFFE0F5F5);
 
-  final List<bool> _checkedDays = [true, true, false, true, false, false, true];
   final List<String> _days = ['M', 'T', 'W', 'T', 'F', 'S', 'S'];
+
+  /// Window sizes for the 7 / 30 / 90 day tabs.
+  static const List<int> _tabDays = [7, 30, 90];
 
   late final AnimationController _headerCtrl;
   late final AnimationController _cardsCtrl;
@@ -149,7 +155,15 @@ class _DashboardScreenState extends State<DashboardScreen>
   }
 
   // ── HEADER ─────────────────────────────────────────────────────────────────
+  String get _greeting {
+    final hour = DateTime.now().hour;
+    if (hour < 12) return 'Good morning';
+    if (hour < 18) return 'Good afternoon';
+    return 'Good evening';
+  }
+
   Widget _buildHeader() {
+    final name = context.watch<AppProvider>().profile?.name ?? '';
     return Container(
       decoration: const BoxDecoration(
         gradient: LinearGradient(
@@ -197,13 +211,15 @@ class _DashboardScreenState extends State<DashboardScreen>
                   ),
                   Row(
                     children: [
-                      _headerIconBtn(
-                        PhosphorIcons.bell(),
-                        badge: true,
-                        onTap: () => Navigator.push(
-                          context,
-                          MaterialPageRoute(
-                            builder: (_) => const NotificationPage(),
+                      UnreadNotifications(
+                        builder: (context, unread) => _headerIconBtn(
+                          PhosphorIcons.bell(),
+                          badge: unread > 0,
+                          onTap: () => Navigator.push(
+                            context,
+                            MaterialPageRoute(
+                              builder: (_) => const NotificationPage(),
+                            ),
                           ),
                         ),
                       ),
@@ -247,14 +263,14 @@ class _DashboardScreenState extends State<DashboardScreen>
                       crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
                         Text(
-                          'Good morning 👋',
+                          _greeting,
                           style: TextStyle(
                             fontSize: 12,
                             color: Colors.white.withValues(alpha: 0.75),
                           ),
                         ),
-                        const Text(
-                          'Rob Thomas',
+                        Text(
+                          name.isEmpty ? 'Welcome back' : name,
                           style: TextStyle(
                             fontSize: 20,
                             fontWeight: FontWeight.bold,
@@ -451,6 +467,14 @@ class _DashboardScreenState extends State<DashboardScreen>
 
   // ── PROGRESS CARD ────────────────────────────────────────────────────────────
   Widget _buildProgressCard() {
+    final now = DateTime.now();
+    final week = ProgressStats.currentWeek(
+      context.watch<AppProvider>().sessionHistory,
+      now,
+    );
+    final todayIndex = now.weekday - 1;
+    final activeThisWeek = week.where((d) => d).length;
+
     return Container(
       padding: const EdgeInsets.all(20),
       decoration: BoxDecoration(
@@ -489,8 +513,8 @@ class _DashboardScreenState extends State<DashboardScreen>
                   ),
                   borderRadius: BorderRadius.circular(20),
                 ),
-                child: const Text(
-                  '1 week left',
+                child: Text(
+                  '$activeThisWeek/7 days',
                   style: TextStyle(
                     fontSize: 11,
                     color: Colors.white,
@@ -507,9 +531,13 @@ class _DashboardScreenState extends State<DashboardScreen>
           Row(
             mainAxisAlignment: MainAxisAlignment.spaceBetween,
             children: List.generate(7, (i) {
-              final checked = _checkedDays[i];
-              return GestureDetector(
-                onTap: () => setState(() => _checkedDays[i] = !_checkedDays[i]),
+              // Filled = exercised that day (from saved sessions); today is
+              // outlined; days still ahead are faded.
+              final checked = week[i];
+              final isToday = i == todayIndex;
+              final isFuture = i > todayIndex;
+              return Opacity(
+                opacity: isFuture ? 0.45 : 1,
                 child: Column(
                   children: [
                     AnimatedContainer(
@@ -520,6 +548,9 @@ class _DashboardScreenState extends State<DashboardScreen>
                       decoration: BoxDecoration(
                         color: checked ? primaryTeal : Colors.grey.shade100,
                         shape: BoxShape.circle,
+                        border: isToday && !checked
+                            ? Border.all(color: primaryTeal, width: 2)
+                            : null,
                         boxShadow: checked
                             ? [
                                 BoxShadow(
@@ -627,28 +658,41 @@ class _DashboardScreenState extends State<DashboardScreen>
 
   // ── STATS ROW ────────────────────────────────────────────────────────────────
   Widget _buildStatsRow() {
+    final sessions = context.watch<AppProvider>().sessionHistory;
+    final now = DateTime.now();
+    final days = _tabDays[_selectedTab];
+    final cur = ProgressStats.period(sessions, now, days: days);
+    final prev = ProgressStats.period(sessions, now, days: days, periodsAgo: 1);
+    final timeDelta = cur.time.inMinutes - prev.time.inMinutes;
+
+    // Trend badges compare with the previous window of the same length.
+    String signed(int n, [String unit = '']) => n > 0 ? '+$n$unit' : '$n$unit';
+
     return Row(
       children: [
         _buildStatCard(
           'Active Days',
-          '3',
-          '+2',
+          '${cur.activeDays}',
+          cur.activeDays - prev.activeDays,
+          signed(cur.activeDays - prev.activeDays),
           PhosphorIcons.calendarCheck(),
           const Color(0xFFFF6B35),
         ),
         const SizedBox(width: 10),
         _buildStatCard(
           'Sessions',
-          '2',
-          '+2',
+          '${cur.sessions}',
+          cur.sessions - prev.sessions,
+          signed(cur.sessions - prev.sessions),
           PhosphorIcons.heartbeat(),
           primaryTeal,
         ),
         const SizedBox(width: 10),
         _buildStatCard(
           'Time',
-          '42m',
-          '89%',
+          ProgressStats.formatDuration(cur.time),
+          timeDelta,
+          signed(timeDelta, 'm'),
           PhosphorIcons.timer(),
           const Color(0xFF7C4DFF),
         ),
@@ -659,10 +703,16 @@ class _DashboardScreenState extends State<DashboardScreen>
   Widget _buildStatCard(
     String label,
     String value,
+    int delta,
     String sub,
     PhosphorIconData icon,
     Color color,
   ) {
+    final trendColor = delta > 0
+        ? Colors.green
+        : delta < 0
+            ? Colors.red
+            : Colors.grey;
     return Expanded(
       child: Container(
         padding: const EdgeInsets.all(16),
@@ -706,23 +756,27 @@ class _DashboardScreenState extends State<DashboardScreen>
             Container(
               padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
               decoration: BoxDecoration(
-                color: Colors.green.shade50,
+                color: trendColor.shade50,
                 borderRadius: BorderRadius.circular(6),
               ),
               child: Row(
                 mainAxisSize: MainAxisSize.min,
                 children: [
-                  const PhosphorIcon(
-                    PhosphorIconsRegular.arrowUp,
+                  PhosphorIcon(
+                    delta > 0
+                        ? PhosphorIconsRegular.arrowUp
+                        : delta < 0
+                            ? PhosphorIconsRegular.arrowDown
+                            : PhosphorIconsRegular.minus,
                     size: 10,
-                    color: Colors.green,
+                    color: trendColor,
                   ),
                   const SizedBox(width: 2),
                   Text(
                     sub,
-                    style: const TextStyle(
+                    style: TextStyle(
                       fontSize: 10,
-                      color: Colors.green,
+                      color: trendColor,
                       fontWeight: FontWeight.w700,
                     ),
                   ),
@@ -803,6 +857,7 @@ class _DashboardScreenState extends State<DashboardScreen>
 
   // ── THERAPIST CARD ───────────────────────────────────────────────────────────
   Widget _buildTherapistCard() {
+    final therapist = context.watch<AppProvider>().profile?.therapist ?? '';
     return Container(
       padding: const EdgeInsets.all(18),
       decoration: BoxDecoration(
@@ -877,8 +932,8 @@ class _DashboardScreenState extends State<DashboardScreen>
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
-                    const Text(
-                      'Mr. Heintz',
+                    Text(
+                      therapist.isEmpty ? 'Not assigned yet' : therapist,
                       style: TextStyle(
                         fontSize: 16,
                         fontWeight: FontWeight.bold,

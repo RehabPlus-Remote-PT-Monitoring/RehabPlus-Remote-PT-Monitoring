@@ -8,6 +8,8 @@ rules_version = '2';
 //   - patients can read only their own profile, prescriptions and sessions,
 //     can only add new sessions (never edit or delete them), and can only
 //     change their own phone number and date of birth;
+//   - patients can message their therapist and the clinic, but never edit or
+//     delete a message or post as staff;
 //   - therapists/admins signed in with Firebase can read and manage the
 //     patients assigned to them (admins: all patients).
 service cloud.firestore {
@@ -59,6 +61,86 @@ service cloud.firestore {
         allow create: if isSelf(patientId) && validSession(request.resource.data);
         allow update, delete: if false;
       }
+
+      // Notifications page. The server writes most of them (every push it
+      // sends); the app may only log its own "session_completed" entries and
+      // mark entries read.
+      match /notifications/{notificationId} {
+        allow read: if isSelf(patientId) || caresFor(patientId);
+        allow create: if isSelf(patientId)
+          && request.resource.data.keys().hasOnly(['type', 'title', 'body', 'createdAt', 'read'])
+          && request.resource.data.type == 'session_completed'
+          && request.resource.data.title is string && request.resource.data.title.size() <= 100
+          && request.resource.data.body is string && request.resource.data.body.size() <= 300
+          && request.resource.data.read is bool
+          && request.resource.data.createdAt == request.time;
+        allow update: if isSelf(patientId)
+          && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['read'])
+          && request.resource.data.read == true;
+        allow write: if caresFor(patientId);
+      }
+
+      // Push-notification tokens for the patient's phone(s); doc id = token.
+      // Staff read them via the service account to send notifications.
+      match /devices/{token} {
+        allow read: if isSelf(patientId);
+        allow create, update: if isSelf(patientId)
+          && request.resource.data.keys().hasOnly(['token', 'platform', 'updatedAt'])
+          && request.resource.data.token == token
+          && token.size() < 1024
+          && request.resource.data.updatedAt == request.time;
+        allow delete: if isSelf(patientId);
+      }
+
+      // threadId is 'therapist' or 'clinic'.
+      match /threads/{threadId} {
+        allow read: if isSelf(patientId) || caresFor(patientId);
+        allow create: if isSelf(patientId) && validThreadId(threadId)
+          && patientThreadFields(request.resource.data, request.resource.data.keys());
+        allow update: if isSelf(patientId)
+          && patientThreadFields(request.resource.data,
+               request.resource.data.diff(resource.data).affectedKeys());
+        allow write: if caresFor(patientId);
+
+        match /messages/{messageId} {
+          allow read: if isSelf(patientId) || caresFor(patientId);
+          allow create: if validThreadId(threadId) && (
+            (isSelf(patientId) && validMessage(request.resource.data, 'patient'))
+            || (caresFor(patientId) && validMessage(request.resource.data, 'staff')));
+          allow update, delete: if false;
+        }
+      }
+    }
+
+    // Clinic contact details shown in the app (phone for the call button).
+    match /settings/clinic {
+      allow read: if signedIn();
+      allow write: if false;
+    }
+
+    function validThreadId(threadId) {
+      return threadId in ['therapist', 'clinic'];
+    }
+
+    // What a patient may change on their thread doc: the last-message preview
+    // (as themselves), bump the staff unread count, and clear their own.
+    function patientThreadFields(d, changed) {
+      return changed.hasOnly(['lastMessage', 'lastMessageAt', 'lastSenderRole',
+                              'unreadForStaff', 'unreadForPatient'])
+        && (!('unreadForPatient' in changed) || d.unreadForPatient == 0)
+        && (!('lastSenderRole' in changed) || d.lastSenderRole == 'patient')
+        && (!('lastMessage' in changed) || (d.lastMessage is string && d.lastMessage.size() <= 1000))
+        && (!('unreadForStaff' in changed) || d.unreadForStaff is int);
+    }
+
+    function validMessage(d, role) {
+      return d.keys().hasOnly(['text', 'senderId', 'senderRole', 'sentAt', 'createdAt'])
+        && d.keys().hasAll(['text', 'senderId', 'senderRole', 'sentAt', 'createdAt'])
+        && d.text is string && d.text.size() > 0 && d.text.size() <= 1000
+        && d.senderId == request.auth.uid
+        && d.senderRole == role
+        && d.sentAt is timestamp
+        && d.createdAt == request.time;
     }
 
     function validContactEdit() {
