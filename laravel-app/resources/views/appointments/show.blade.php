@@ -1,37 +1,69 @@
-<!DOCTYPE html>
-<html lang="en">
-<head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Appointment Details</title>
-    <style>
-        body { margin: 0; font-family: Arial, sans-serif; background: #f3f4f6; color: #1f2937; }
-        .shell { max-width: 800px; margin: 0 auto; padding: 24px; }
-        .card { background: white; border-radius: 12px; padding: 24px; box-shadow: 0 6px 18px rgba(0,0,0,0.05); }
-        .meta { display: grid; grid-template-columns: 1fr 1fr; gap: 16px; }
-        a { color: #2563eb; text-decoration: none; }
-    </style>
-</head>
-<body>
-    <div class="shell">
-        <a href="{{ route('appointments.index') }}">← Back to appointments</a>
-        <div class="card" style="margin-top: 16px;">
-            <h1>{{ $appointment->session }}</h1>
-            <p><strong>Patient:</strong> {{ $appointment->patient }}</p>
-            <p><strong>Therapist:</strong> {{ $appointment->therapist }}</p>
-            <div class="meta">
-                <div>
-                    <p><strong>Date:</strong> {{ $appointment->date }}</p>
-                    <p><strong>Time:</strong> {{ $appointment->time }}</p>
+@extends('layouts.admin')
+
+@section('title', 'Appointment Details')
+
+@section('content')
+    <div class="d-flex justify-content-between align-items-center mb-4">
+        <div>
+            <a href="{{ route('appointments.index') }}" class="text-muted small text-decoration-none d-inline-flex align-items-center gap-1 mb-2">
+                <i class="bi bi-arrow-left"></i>
+                Back to Appointments
+            </a>
+            <h1 class="page-title mb-1">Appointment Details</h1>
+        </div>
+        <a href="{{ route('appointments.edit', $appointment->id) }}" class="btn btn-primary">
+            <i class="bi bi-pencil me-2"></i>Edit
+        </a>
+    </div>
+
+    <div class="card border-0 shadow-sm">
+        <div class="card-body p-4">
+            <div class="row g-4">
+                <div class="col-md-6">
+                    <div class="text-muted small">Patient</div>
+                    <div class="fs-5 fw-semibold">{{ $appointment->patient }}</div>
                 </div>
-                <div>
-                    <p><strong>Condition:</strong> {{ $appointment->patient_condition }}</p>
-                    <p><strong>Status:</strong> {{ $appointment->status }}</p>
+                <div class="col-md-6">
+                    <div class="text-muted small">Therapist</div>
+                    <div class="fs-5 fw-semibold">{{ $appointment->therapist }}</div>
+                </div>
+                <div class="col-md-6">
+                    <div class="text-muted small">Condition</div>
+                    <div class="fs-5 fw-semibold">{{ $appointment->patient_condition }}</div>
+                </div>
+                <div class="col-md-6">
+                    <div class="text-muted small">Contact</div>
+                    <div class="fs-5 fw-semibold">{{ $appointment->contact }}</div>
+                </div>
+                <div class="col-md-6">
+                    <div class="text-muted small">Date</div>
+                    <div class="fs-5 fw-semibold">{{ date('M d, Y', strtotime($appointment->date)) }}</div>
+                </div>
+                <div class="col-md-6">
+                    <div class="text-muted small">Time</div>
+                    <div class="fs-5 fw-semibold">{{ date('g:i A', strtotime($appointment->time)) }}</div>
+                </div>
+                <div class="col-md-6">
+                    <div class="text-muted small">Session</div>
+                    <div class="fs-5 fw-semibold">{{ $appointment->session }}</div>
+                </div>
+                <div class="col-md-6">
+                    <div class="text-muted small">Status</div>
+                    <div>
+                        @if ($appointment->status === 'Upcoming')
+                            <span class="badge bg-info">Upcoming</span>
+                        @elseif ($appointment->status === 'Completed')
+                            <span class="badge bg-success">Completed</span>
+                        @else
+                            <span class="badge bg-danger">Cancelled</span>
+                        @endif
+                    </div>
+                </div>
+                <div class="col-12">
+                    <div class="text-muted small">Notes</div>
+                    <div class="fs-6">{!! nl2br(e($appointment->notes ?? 'No notes provided.')) !!}</div>
                 </div>
             </div>
-            <p><strong>Contact:</strong> {{ $appointment->contact }}</p>
-            <p><strong>Notes:</strong> {{ $appointment->notes ?? 'No notes available.' }}</p>
         </div>
     </div>
-</body>
-</html>
+@endsection

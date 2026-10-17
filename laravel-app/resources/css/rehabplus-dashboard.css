@@ -602,3 +602,112 @@ html.dark-mode{
             }
 
         }
+
+        /* Detail and form pages (patient profile, forms, statistics) */
+
+        .panel{
+            background:var(--card);
+            border:1px solid var(--border);
+            border-radius:28px;
+            box-shadow:var(--shadow);
+            overflow:hidden;
+            padding:1.5rem;
+            margin-bottom:1.5rem;
+        }
+
+        .stats{
+            display:grid;
+            grid-template-columns:repeat(4, minmax(0, 1fr));
+            gap:16px;
+            margin-bottom:24px;
+        }
+
+        .stat{
+            padding:1.8rem;
+            position:relative;
+            min-height:160px;
+            background:var(--card);
+            border:1px solid var(--border);
+            border-radius:28px;
+            box-shadow:var(--shadow);
+        }
+
+        .table-wrap{
+            overflow:hidden;
+            border-radius:12px;
+            border:1px solid var(--border);
+            background:var(--card);
+        }
+
+        .panel table,
+        .table-wrap table{
+            width:100%;
+            border-collapse:collapse;
+        }
+
+        .panel table th,
+        .panel table td,
+        .table-wrap th,
+        .table-wrap td{
+            padding:12px 14px;
+            border-bottom:1px solid var(--border);
+            text-align:left;
+            color:var(--text);
+        }
+
+        .panel table th,
+        .table-wrap th{
+            color:var(--muted);
+            font-size:.82rem;
+            text-transform:uppercase;
+            letter-spacing:.06em;
+        }
+
+        .status{
+            background:#dcfce7;
+            color:#166534;
+            border-radius:999px;
+            padding:4px 8px;
+            font-size:12px;
+            font-weight:700;
+        }
+
+        .panel input:not([type="checkbox"]):not([type="radio"]):not([type="file"]):not(.form-control):not(.form-select),
+        .panel select:not(.form-select),
+        .panel textarea:not(.form-control){
+            width:100%;
+            padding:10px 12px;
+            border-radius:16px;
+            border:1px solid var(--border);
+            background:var(--card);
+            color:var(--text);
+            box-sizing:border-box;
+        }
+
+        .panel textarea:not(.form-control){
+            min-height:110px;
+            resize:vertical;
+        }
+
+        .panel button:not(.btn),
+        .panel .btn:not([class*="btn-"]){
+            background:linear-gradient(135deg, #14b8a6, #2dd4bf);
+            border:none;
+            border-radius:16px;
+            padding:.9rem 1.3rem;
+            font-weight:700;
+            color:white;
+            box-shadow:0 12px 24px rgba(20,184,166,.18);
+            cursor:pointer;
+        }
+
+        html.dark-mode .status{
+            background:#134e4a;
+            color:#a7f3d0;
+        }
+
+        @media (max-width: 800px){
+            .stats{
+                grid-template-columns:1fr;
+            }
+        }

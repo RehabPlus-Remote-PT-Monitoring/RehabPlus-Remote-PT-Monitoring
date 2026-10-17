@@ -2,116 +2,53 @@
 
 namespace App\Controllers;
 
-use App\Models\AppointmentModel;
-use App\Models\PatientModel;
-use App\Models\UserModel;
+use App\Helpers\AppointmentValidation;
+use App\Services\Appointment\AppointmentService;
 use CodeIgniter\Exceptions\PageNotFoundException;
 
 class Appointments extends BaseController
 {
-    protected $appointmentModel;
-    protected $patientModel;
-    protected $userModel;
+    protected AppointmentService $appointments;
 
     public function __construct()
     {
-        $this->appointmentModel = new AppointmentModel();
-        $this->patientModel = new PatientModel();
-        $this->userModel = new UserModel();
+        $this->appointments = new AppointmentService();
     }
 
     public function index()
     {
-        $today = date('Y-m-d');
-
-        $appointments = $this->appointmentModel
-            ->orderBy('date', 'ASC')
-            ->orderBy('time', 'ASC')
-            ->findAll();
-
-        $todayAppointments = $this->appointmentModel
-            ->where('date', $today)
-            ->countAllResults();
-
-        $upcomingAppointments = $this->appointmentModel
-            ->where('status', 'Upcoming')
-            ->countAllResults();
-
-        $activePatients = $this->patientModel
-            ->countAllResults();
-
-        $completedToday = $this->appointmentModel->db->query(
-            "SELECT COUNT(*) AS total
-             FROM appointments
-             WHERE status = 'Completed'
-             AND ((completed_at IS NOT NULL AND DATE(completed_at) = ?)
-                  OR (completed_at IS NULL AND date = ?))",
-            [$today, $today]
-        )->getRow()->total;
-
-        return view('appointments/index', [
-            'appointments' => $appointments,
-            'todayAppointments' => $todayAppointments,
-            'upcomingAppointments' => $upcomingAppointments,
-            'activePatients' => $activePatients,
-            'completedToday' => $completedToday,
-        ]);
+        return view('appointments/index', $this->appointments->overview());
     }
 
     public function create()
     {
         return view('appointments/create', [
             'appointment' => null,
-            'therapists' => $this->getTherapists(),
+            'therapists' => $this->appointments->therapists(),
             'errors' => []
         ]);
     }
 
     public function show(int $id)
     {
-        $appointment = $this->appointmentModel->find($id);
-        if ($appointment === null) {
-            throw new PageNotFoundException('Appointment not found.');
-        }
-
         return view('appointments/show', [
-            'appointment' => $appointment
+            'appointment' => $this->findOrFail($id)
         ]);
     }
 
     public function store()
     {
-        $rules = [
-            'patient' => 'required|min_length[2]|max_length[100]',
-            'therapist' => 'required|min_length[2]|max_length[100]',
-            'patient_condition' => 'required|min_length[2]|max_length[150]',
-            'contact' => 'required|min_length[5]|max_length[30]',
-            'date' => 'required|valid_date',
-            'time' => 'required',
-            'session' => 'required|max_length[100]',
-        ];
-
-        if (!$this->validate($rules)) {
+        if (! $this->validate(AppointmentValidation::RULES)) {
             return view('appointments/create', [
                 'appointment' => null,
                 'errors' => $this->validator->getErrors()
             ]);
         }
 
-        $status = $this->request->getPost('status') ?? 'Upcoming';
-
-        $this->appointmentModel->save([
-            'patient' => $this->request->getPost('patient'),
-            'therapist' => $this->request->getPost('therapist'),
-            'patient_condition' => $this->request->getPost('patient_condition'),
-            'contact' => $this->request->getPost('contact'),
-            'date' => $this->request->getPost('date'),
-            'time' => $this->request->getPost('time'),
-            'session' => $this->request->getPost('session'),
-            'notes' => $this->request->getPost('notes'),
-            'status' => $status,
-            'completed_at' => $status === 'Completed' ? date('Y-m-d H:i:s') : null
-        ]);
+        $this->appointments->create(
+            $this->request->getPost(AppointmentValidation::FIELDS),
+            $this->request->getPost('status')
+        );
 
         return redirect()->to('/appointments')
             ->with('success', 'Appointment scheduled successfully.');
@@ -119,61 +56,30 @@ class Appointments extends BaseController
 
     public function edit(int $id)
     {
-        $appointment = $this->appointmentModel->find($id);
-        if ($appointment === null) {
-            throw new PageNotFoundException('Appointment not found.');
-        }
-
         return view('appointments/create', [
-            'appointment' => $appointment,
-            'therapists' => $this->getTherapists(),
+            'appointment' => $this->findOrFail($id),
+            'therapists' => $this->appointments->therapists(),
             'errors' => []
         ]);
     }
 
     public function update(int $id)
     {
-        $appointment = $this->appointmentModel->find($id);
-        if ($appointment === null) {
-            throw new PageNotFoundException('Appointment not found.');
-        }
+        $appointment = $this->findOrFail($id);
 
-        $rules = [
-            'patient' => 'required|min_length[2]|max_length[100]',
-            'therapist' => 'required|min_length[2]|max_length[100]',
-            'patient_condition' => 'required|min_length[2]|max_length[150]',
-            'contact' => 'required|min_length[5]|max_length[30]',
-            'date' => 'required|valid_date',
-            'time' => 'required',
-            'session' => 'required|max_length[100]',
-        ];
-
-        if (!$this->validate($rules)) {
+        if (! $this->validate(AppointmentValidation::RULES)) {
             return view('appointments/create', [
                 'appointment' => $appointment,
-                'therapists' => $this->getTherapists(),
+                'therapists' => $this->appointments->therapists(),
                 'errors' => $this->validator->getErrors()
             ]);
         }
 
-        $status = $this->request->getPost('status') ?? $appointment['status'];
-
-        $this->appointmentModel->update($id, [
-            'patient' => $this->request->getPost('patient'),
-            'therapist' => $this->request->getPost('therapist'),
-            'patient_condition' => $this->request->getPost('patient_condition'),
-            'contact' => $this->request->getPost('contact'),
-            'date' => $this->request->getPost('date'),
-            'time' => $this->request->getPost('time'),
-            'session' => $this->request->getPost('session'),
-            'notes' => $this->request->getPost('notes'),
-            'status' => $status,
-            'completed_at' => $status === 'Completed'
-                ? ($appointment['status'] === 'Completed' && !empty($appointment['completed_at'])
-                    ? $appointment['completed_at']
-                    : date('Y-m-d H:i:s'))
-                : null
-        ]);
+        $this->appointments->update(
+            $appointment,
+            $this->request->getPost(AppointmentValidation::FIELDS),
+            $this->request->getPost('status')
+        );
 
         return redirect()->to('/appointments')
             ->with('success', 'Appointment updated successfully.');
@@ -181,12 +87,8 @@ class Appointments extends BaseController
 
     public function delete(int $id)
     {
-        $appointment = $this->appointmentModel->find($id);
-        if ($appointment === null) {
-            throw new PageNotFoundException('Appointment not found.');
-        }
-
-        $this->appointmentModel->delete($id);
+        $this->findOrFail($id);
+        $this->appointments->delete($id);
 
         return redirect()->to('/appointments')
             ->with('success', 'Appointment deleted successfully.');
@@ -194,32 +96,25 @@ class Appointments extends BaseController
 
     public function changeStatus(int $id)
     {
-        $appointment = $this->appointmentModel->find($id);
-        if ($appointment === null) {
-            throw new PageNotFoundException('Appointment not found.');
-        }
+        $this->findOrFail($id);
 
         $status = $this->request->getPost('status');
-        $allowed = ['Upcoming', 'Completed', 'Cancelled'];
-
-        if (!in_array($status, $allowed, true)) {
+        if (! AppointmentValidation::isValidStatus($status)) {
             return redirect()->to('/appointments')->with('error', 'Invalid appointment status.');
         }
 
-        $this->appointmentModel->update($id, [
-            'status' => $status,
-            'completed_at' => $status === 'Completed' ? date('Y-m-d H:i:s') : null
-        ]);
+        $this->appointments->changeStatus($id, $status);
 
         return redirect()->to('/appointments')->with('success', 'Appointment status updated.');
     }
 
-    private function getTherapists(): array
+    private function findOrFail(int $id): array
     {
-        return $this->userModel
-            ->where('role', 'therapist')
-            ->where('is_active', 1)
-            ->orderBy('name', 'ASC')
-            ->findAll();
+        $appointment = $this->appointments->find($id);
+        if ($appointment === null) {
+            throw new PageNotFoundException('Appointment not found.');
+        }
+
+        return $appointment;
     }
 }

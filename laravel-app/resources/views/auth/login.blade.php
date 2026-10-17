@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>{{ $patientLogin ? 'Patient Portal Login' : 'RehabPlus Login' }}</title>
+    <title>RehabPlus Login</title>
 
     <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/css/bootstrap.min.css" rel="stylesheet">
     <link href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.3/font/bootstrap-icons.min.css" rel="stylesheet">
@@ -82,7 +82,7 @@
                     </div>
                 @endif
 
-                <form action="{{ $patientLogin ? route('patient.login.submit') : route('login.submit') }}" method="post">
+                <form action="{{ route('login.submit') }}" method="post">
                     @csrf
 
                     <div>
@@ -161,14 +161,6 @@
                 <p class="footer-note">
                     <i class="bi bi-shield-check me-1"></i>
                     Secured access — authorised personnel only
-                </p>
-
-                <p class="text-center mt-3 mb-0 small">
-                    @if ($patientLogin)
-                        Staff member? <a href="{{ route('login.page') }}">Admin login</a>
-                    @else
-                        Patient? <a href="{{ route('patient.login') }}">Patient portal login</a>
-                    @endif
                 </p>
             </div>
         </section>

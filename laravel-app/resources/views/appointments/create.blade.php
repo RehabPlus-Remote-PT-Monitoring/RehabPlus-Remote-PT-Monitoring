@@ -1,4 +1,4 @@
-@extends('layouts.app')
+@extends('layouts.admin')
 
 @section('title', $appointment ? 'Edit Appointment' : 'New Appointment')
 

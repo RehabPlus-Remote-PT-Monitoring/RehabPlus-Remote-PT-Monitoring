@@ -45,37 +45,6 @@ class AdminPageController extends Controller
         ]);
     }
 
-    public function schedule(): View
-    {
-        $staffDirectory = [
-            ['name' => 'Dr. Sarah Mitchell', 'role' => 'Physical Therapist'],
-            ['name' => 'Michael Chen', 'role' => 'Occupational Therapist'],
-            ['name' => 'Alicia Gomez', 'role' => 'Speech Therapist'],
-        ];
-
-        $weekDays = [
-            ['label' => 'Monday', 'short' => 'Mon'],
-            ['label' => 'Tuesday', 'short' => 'Tue'],
-            ['label' => 'Wednesday', 'short' => 'Wed'],
-            ['label' => 'Thursday', 'short' => 'Thu'],
-            ['label' => 'Friday', 'short' => 'Fri'],
-            ['label' => 'Saturday', 'short' => 'Sat'],
-            ['label' => 'Sunday', 'short' => 'Sun'],
-        ];
-
-        return view('admin.schedule', [
-            'weekOffset' => 0,
-            'staffDirectory' => $staffDirectory,
-            'weekDays' => $weekDays,
-            'staffAvailability' => array_fill_keys(array_column($staffDirectory, 'name'), 'Unavailable'),
-            'weeklySchedule' => [],
-            'todayStaffList' => [],
-            'staffCount' => 0,
-            'todayShifts' => 0,
-            'activeRooms' => 0,
-        ]);
-    }
-
     public function notes(): View
     {
         return view('admin.notes', [

@@ -2,74 +2,53 @@
 
 namespace App\Http\Controllers;
 
+use App\Helpers\InventoryValidation;
 use App\Models\InventoryItem;
+use App\Services\Inventory\InventoryService;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
 use Illuminate\View\View;
 
 class InventoryController extends Controller
 {
+    public function __construct(private InventoryService $inventory)
+    {
+    }
+
     public function index(): View
     {
-        $items = InventoryItem::orderBy('item')->get();
-
-        return view('admin.inventory', [
-            'totalStock' => $items->sum('stock'),
-            'lowStock' => $items->where('status', 'Low')->count() + $items->where('status', 'Critical')->count(),
-            'restockNeeded' => $items->where('stock', '<=', fn ($query) => $query->from('inventory_items')->selectRaw('reorder'))->count(),
-            'items' => $items,
-        ]);
+        return view('admin.inventory', $this->inventory->overview());
     }
 
     public function create(): View
     {
-        return view('admin.inventory', [
-            'totalStock' => InventoryItem::sum('stock'),
-            'lowStock' => 0,
-            'restockNeeded' => 0,
-            'items' => InventoryItem::orderBy('item')->get(),
-        ]);
+        return view('admin.inventory', $this->inventory->overview());
     }
 
     public function store(Request $request): RedirectResponse
     {
-        $validated = $request->validate([
-            'item' => ['required', 'string', 'max:150'],
-            'category' => ['required', 'string', 'max:100'],
-            'stock' => ['required', 'integer', 'min:0'],
-            'reorder' => ['nullable', 'integer', 'min:0'],
-            'status' => ['required', 'in:Healthy,Low,Critical'],
-        ]);
-
-        InventoryItem::create($validated);
+        InventoryItem::create(InventoryValidation::item($request));
 
         return redirect()->route('inventory.index')->with('success', 'Inventory item added successfully.');
     }
 
     public function edit(InventoryItem $inventory): View
     {
-        return view('admin.inventory', [
-            'totalStock' => InventoryItem::sum('stock'),
-            'lowStock' => 0,
-            'restockNeeded' => 0,
-            'items' => InventoryItem::orderBy('item')->get(),
-            'inventoryItem' => $inventory,
-        ]);
+        return view('admin.inventory', $this->inventory->overview($inventory));
     }
 
     public function update(Request $request, InventoryItem $inventory): RedirectResponse
     {
-        $validated = $request->validate([
-            'item' => ['required', 'string', 'max:150'],
-            'category' => ['required', 'string', 'max:100'],
-            'stock' => ['required', 'integer', 'min:0'],
-            'reorder' => ['nullable', 'integer', 'min:0'],
-            'status' => ['required', 'in:Healthy,Low,Critical'],
-        ]);
-
-        $inventory->update($validated);
+        $inventory->update(InventoryValidation::item($request));
 
         return redirect()->route('inventory.index')->with('success', 'Inventory item updated successfully.');
+    }
+
+    public function updateStatus(Request $request, InventoryItem $inventory): RedirectResponse
+    {
+        $inventory->update(InventoryValidation::status($request));
+
+        return redirect()->route('inventory.index')->with('success', 'Inventory status updated successfully.');
     }
 
     public function destroy(InventoryItem $inventory): RedirectResponse

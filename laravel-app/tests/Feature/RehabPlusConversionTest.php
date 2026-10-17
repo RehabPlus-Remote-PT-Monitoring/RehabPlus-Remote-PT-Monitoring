@@ -109,6 +109,70 @@ class RehabPlusConversionTest extends TestCase
         ]);
     }
 
+    public function test_payment_status_can_be_updated(): void
+    {
+        $this->actingAs(
+            \App\Models\User::factory()->create(['role' => 'superadmin', 'is_active' => true])
+        );
+
+        $payment = \App\Models\PaymentRecord::create([
+            'patient' => 'Maria Santos',
+            'session' => 'Physical Therapy',
+            'fee' => '1500.00',
+            'status' => 'Pending',
+            'date' => '2026-10-09',
+        ]);
+
+        $this->patch("/billing/{$payment->id}/status", ['status' => 'Paid'])
+            ->assertRedirect('/billing');
+        $this->assertDatabaseHas('payment_records', ['id' => $payment->id, 'status' => 'Paid']);
+
+        $this->patch("/billing/{$payment->id}/status", ['status' => 'Refunded'])
+            ->assertSessionHasErrors('status');
+        $this->assertDatabaseHas('payment_records', ['id' => $payment->id, 'status' => 'Paid']);
+    }
+
+    public function test_payment_record_can_be_deleted(): void
+    {
+        $this->actingAs(
+            \App\Models\User::factory()->create(['role' => 'superadmin', 'is_active' => true])
+        );
+
+        $payment = \App\Models\PaymentRecord::create([
+            'patient' => 'Maria Santos',
+            'session' => 'Physical Therapy',
+            'fee' => '1500.00',
+            'status' => 'Paid',
+            'date' => '2026-10-09',
+        ]);
+
+        $this->delete("/billing/{$payment->id}")->assertRedirect('/billing');
+        $this->assertDatabaseMissing('payment_records', ['id' => $payment->id]);
+    }
+
+    public function test_inventory_status_can_be_changed_from_dropdown(): void
+    {
+        $this->actingAs(
+            \App\Models\User::factory()->create(['role' => 'superadmin', 'is_active' => true])
+        );
+
+        $item = \App\Models\InventoryItem::create([
+            'item' => 'Resistance Band',
+            'category' => 'Equipment',
+            'stock' => 20,
+            'reorder' => 10,
+            'status' => 'Healthy',
+        ]);
+
+        $this->patch("/inventory/{$item->id}/status", ['status' => 'Critical'])
+            ->assertRedirect('/inventory');
+        $this->assertDatabaseHas('inventory_items', ['id' => $item->id, 'status' => 'Critical', 'stock' => 20]);
+
+        $this->patch("/inventory/{$item->id}/status", ['status' => 'Unknown'])
+            ->assertSessionHasErrors('status');
+        $this->assertDatabaseHas('inventory_items', ['id' => $item->id, 'status' => 'Critical']);
+    }
+
     public function test_inventory_item_can_be_created(): void
     {
         $this->actingAs(

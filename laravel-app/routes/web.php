@@ -9,6 +9,7 @@ use App\Http\Controllers\InventoryController;
 use App\Http\Controllers\PatientController;
 use App\Http\Controllers\PatientPortalController;
 use App\Http\Controllers\PaymentController;
+use App\Http\Controllers\StaffScheduleController;
 use App\Http\Controllers\UserController;
 use Illuminate\Support\Facades\Route;
 
@@ -24,8 +25,6 @@ Route::get('/', function () {
 
 Route::get('/login', [AuthController::class, 'login'])->name('login.page');
 Route::post('/login', [AuthController::class, 'attempt'])->name('login.submit');
-Route::get('/patient-login', [AuthController::class, 'patientLogin'])->name('patient.login');
-Route::post('/patient-login', [AuthController::class, 'attemptPatient'])->name('patient.login.submit');
 Route::post('/logout', [AuthController::class, 'doLogout'])->name('logout');
 
 Route::middleware(['auth.rehab'])->group(function () {
@@ -58,8 +57,13 @@ Route::middleware(['auth.rehab'])->group(function () {
     Route::get('/reports', [AdminPageController::class, 'reports'])->name('reports');
     Route::get('/billing', [PaymentController::class, 'index'])->name('billing');
     Route::post('/billing', [PaymentController::class, 'store'])->name('billing.store');
+    Route::patch('/billing/{id}/status', [PaymentController::class, 'updateStatus'])->name('billing.status');
+    Route::delete('/billing/{id}', [PaymentController::class, 'delete'])->name('billing.delete');
+    Route::patch('/inventory/{inventory}/status', [InventoryController::class, 'updateStatus'])->name('inventory.status');
     Route::resource('inventory', InventoryController::class);
-    Route::get('/schedule', [AdminPageController::class, 'schedule'])->name('schedule');
+    Route::get('/schedule', [StaffScheduleController::class, 'index'])->name('schedule');
+    Route::post('/schedule/save', [StaffScheduleController::class, 'store'])->name('schedule.store');
+    Route::post('/schedule/time-off/save', [StaffScheduleController::class, 'storeTimeOff'])->name('schedule.timeoff.store');
     Route::get('/notes', [AdminPageController::class, 'notes'])->name('notes');
     Route::get('/assessments', [AdminPageController::class, 'assessments'])->name('assessments');
 

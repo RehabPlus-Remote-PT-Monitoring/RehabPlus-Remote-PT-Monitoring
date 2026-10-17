@@ -2,6 +2,7 @@
 
 namespace App\Controllers;
 
+use App\Helpers\ExerciseValidation;
 use App\Models\ExerciseRecordModel;
 use App\Models\PatientModel;
 
@@ -32,14 +33,7 @@ class ExerciseController extends BaseController
 
     public function store(int $patientId)
     {
-        $rules = [
-            'exercise_name'   => 'required|max_length[150]',
-            'sets_prescribed' => 'required|integer|greater_than[0]',
-            'sets_completed'  => 'required|integer|greater_than_equal_to[0]',
-            'pain_level'      => 'required|integer|greater_than_equal_to[0]|less_than_equal_to[10]',
-            'recorded_at'     => 'required|valid_date',
-        ];
-        if (!$this->validate($rules)) {
+        if (!$this->validate(ExerciseValidation::RULES)) {
             return view('exercises/form', [
                 'record'    => null,
                 'patient'   => $this->patients->find($patientId),
@@ -47,7 +41,7 @@ class ExerciseController extends BaseController
                 'errors'    => $this->validator->getErrors(),
             ]);
         }
-        $data = $this->request->getPost(['exercise_name', 'sets_prescribed', 'sets_completed', 'pain_level', 'notes', 'recorded_at']);
+        $data = $this->request->getPost(ExerciseValidation::FIELDS);
         $data['patient_id'] = $patientId;
         $this->records->insert($data);
         return redirect()->to("/patients/{$patientId}")->with('success', 'Record added.');
@@ -74,14 +68,7 @@ class ExerciseController extends BaseController
 
     public function update(int $patientId, int $id)
     {
-        $rules = [
-            'exercise_name'   => 'required|max_length[150]',
-            'sets_prescribed' => 'required|integer|greater_than[0]',
-            'sets_completed'  => 'required|integer|greater_than_equal_to[0]',
-            'pain_level'      => 'required|integer|greater_than_equal_to[0]|less_than_equal_to[10]',
-            'recorded_at'     => 'required|valid_date',
-        ];
-        if (!$this->validate($rules)) {
+        if (!$this->validate(ExerciseValidation::RULES)) {
             return view('exercises/form', [
                 'record'    => $this->records->find($id),
                 'patient'   => $this->patients->find($patientId),
@@ -89,7 +76,7 @@ class ExerciseController extends BaseController
                 'errors'    => $this->validator->getErrors(),
             ]);
         }
-        $this->records->update($id, $this->request->getPost(['exercise_name', 'sets_prescribed', 'sets_completed', 'pain_level', 'notes', 'recorded_at']));
+        $this->records->update($id, $this->request->getPost(ExerciseValidation::FIELDS));
         return redirect()->to("/patients/{$patientId}")->with('success', 'Record updated.');
     }
 

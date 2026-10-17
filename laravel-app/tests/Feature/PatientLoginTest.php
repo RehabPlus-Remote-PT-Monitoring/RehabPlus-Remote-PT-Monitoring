@@ -10,7 +10,14 @@ class PatientLoginTest extends TestCase
 {
     use RefreshDatabase;
 
-    public function test_patient_can_log_in(): void
+    public function test_patient_login_page_is_removed(): void
+    {
+        $this->get('/patient-login')->assertNotFound();
+
+        $this->get('/login')->assertOk()->assertDontSee('Patient portal login');
+    }
+
+    public function test_patient_cannot_log_in_through_admin_login(): void
     {
         User::create([
             'name' => 'Emily Johnson',
@@ -20,12 +27,11 @@ class PatientLoginTest extends TestCase
             'is_active' => true,
         ]);
 
-        $response = $this->post('/patient-login', [
+        $this->post('/login', [
             'email' => 'patient@rehabplus.com',
             'password' => 'admin123',
-        ]);
+        ])->assertSessionHas('error');
 
-        $response->assertRedirect('/patient-portal');
-        $this->assertAuthenticated();
+        $this->assertGuest();
     }
 }

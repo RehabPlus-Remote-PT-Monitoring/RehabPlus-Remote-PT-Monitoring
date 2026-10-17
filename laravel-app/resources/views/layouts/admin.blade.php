@@ -5,6 +5,13 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>@yield('title', 'RehabPlus Dashboard')</title>
 
+    {{-- Apply the saved theme before the page paints, so dark mode doesn't flash white. --}}
+    <script>
+        if (localStorage.getItem('rehabplus-theme') === 'dark') {
+            document.documentElement.classList.add('dark-mode');
+        }
+    </script>
+
     <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/css/bootstrap.min.css" rel="stylesheet">
     <link href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.3/font/bootstrap-icons.min.css" rel="stylesheet">
     <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.3/dist/chart.umd.min.js"></script>
@@ -121,9 +128,7 @@
         </nav>
 
         <main class="main-content">
-            <div class="p-4">
-                @yield('content')
-            </div>
+            @yield('content')
         </main>
     </div>
 </body>

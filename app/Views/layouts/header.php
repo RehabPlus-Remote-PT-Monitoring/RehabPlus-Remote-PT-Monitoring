@@ -9,6 +9,13 @@
 
     <title><?= $pageTitle ?? 'RehabPlus Dashboard' ?></title>
 
+    <!-- Apply the saved theme before the page paints, so dark mode doesn't flash white -->
+    <script>
+        if (localStorage.getItem('rehabplus-theme') === 'dark') {
+            document.documentElement.classList.add('dark-mode');
+        }
+    </script>
+
     <!-- Bootstrap -->
     <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/css/bootstrap.min.css"
           rel="stylesheet">

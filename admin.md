@@ -1,9 +1,6 @@
-SuperAdmin: superadmin@rehabplus.com / admin123
-
-Manager: manager@rehabplus.com / manager123
-
-Staff: staff@rehabplus.com / staff123
+Login credentials are not stored in this repository.
+Please ask the RehabPlus team for the admin, manager, or staff login details.
 
 #API USAGES:
 GET http://localhost:8080/api/v1/patients
-Header: X-API-KEY: rehabplus-secret-key
+Header: X-API-KEY: <ask the team for the API key>

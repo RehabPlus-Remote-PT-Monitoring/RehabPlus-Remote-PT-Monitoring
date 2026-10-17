@@ -7,6 +7,16 @@
         <div><p class="page-title mb-1">Staff Schedule</p><p class="page-subtitle mb-0">Plan staffing coverage, shift assignments, and clinic room usage.</p></div>
     </div>
 
+    @if (session('success'))
+        <div class="alert alert-success">{{ session('success') }}</div>
+    @endif
+    @if (session('error'))
+        <div class="alert alert-danger">{{ session('error') }}</div>
+    @endif
+    @if ($errors->any())
+        <div class="alert alert-danger mb-4">{{ $errors->first() }}</div>
+    @endif
+
     <div class="card shadow-sm mb-4 border-0">
         <div class="card-header d-flex justify-content-between align-items-center"><h5 class="mb-0">Add staff shift</h5><div class="d-flex gap-2"><a href="{{ url('/schedule?week_offset='.(int)($weekOffset - 1)) }}" class="btn btn-secondary btn-sm">Previous Week</a><a href="{{ url('/schedule?week_offset='.(int)($weekOffset + 1)) }}" class="btn btn-secondary btn-sm">Next Week</a></div></div>
         <div class="card-body"><form method="post" action="{{ url('/schedule/save') }}">@csrf<div class="row g-3"><div class="col-md-3"><label class="form-label small fw-semibold">Staff member</label><select name="staff" class="form-select" required><option value="">Select staff</option>@foreach ($staffDirectory as $staff)<option value="{{ $staff['name'] }}">{{ $staff['name'] }} ({{ $staff['role'] }})</option>@endforeach</select></div><div class="col-md-3"><label class="form-label small fw-semibold">Role</label><input type="text" name="role" class="form-control" placeholder="Therapist" required></div><div class="col-md-2"><label class="form-label small fw-semibold">Day</label><select name="day" class="form-select" required><option value="Monday">Monday</option><option value="Tuesday">Tuesday</option><option value="Wednesday">Wednesday</option><option value="Thursday">Thursday</option><option value="Friday">Friday</option><option value="Saturday">Saturday</option><option value="Sunday">Sunday</option></select></div><div class="col-md-2"><label class="form-label small fw-semibold">Shift</label><input type="text" name="shift" class="form-control" placeholder="08:00 - 15:00" required></div><div class="col-md-2"><label class="form-label small fw-semibold">Room</label><input type="text" name="room" class="form-control" placeholder="Room 3"></div><div class="col-12 text-end"><button type="submit" class="btn btn-primary">Add shift</button></div></div></form></div>

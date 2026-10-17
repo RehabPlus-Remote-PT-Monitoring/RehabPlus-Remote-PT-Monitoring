@@ -15,8 +15,6 @@ $routes->get('/', 'AuthController::login');
 
 $routes->get('login', 'AuthController::login');
 $routes->post('login', 'AuthController::attempt');
-$routes->get('patient-login', 'AuthController::patientLogin');
-$routes->post('patient-login', 'AuthController::attemptPatient');
 
 $routes->get('logout', 'AuthController::logout');
 $routes->post('logout', 'AuthController::doLogout');

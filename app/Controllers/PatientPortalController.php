@@ -5,6 +5,7 @@ namespace App\Controllers;
 use App\Models\AppointmentModel;
 use App\Models\ExerciseRecordModel;
 use App\Models\PatientModel;
+use App\Services\Patient\PatientService;
 
 class PatientPortalController extends BaseController
 {
@@ -30,17 +31,7 @@ class PatientPortalController extends BaseController
             ->orderBy('time', 'ASC')
             ->findAll();
 
-        $prescribed = array_sum(array_column($records, 'sets_prescribed'));
-        $completed = array_sum(array_column($records, 'sets_completed'));
-        $compliance = $prescribed ? round(($completed / $prescribed) * 100, 1) : 0;
-        $avgPain = $records ? round(array_sum(array_column($records, 'pain_level')) / count($records), 1) : 0;
-
-        return view('patient_portal/index', compact(
-            'patient',
-            'records',
-            'appointments',
-            'compliance',
-            'avgPain'
-        ));
+        return view('patient_portal/index', compact('patient', 'records', 'appointments')
+            + (new PatientService())->progress($records));
     }
 }

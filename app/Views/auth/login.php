@@ -7,7 +7,7 @@
     <meta name="viewport"
           content="width=device-width, initial-scale=1.0">
 
-    <title>RehabPlus <?= !empty($patientLogin) ? 'Patient' : 'Admin' ?> Login</title>
+    <title>RehabPlus Admin Login</title>
 
     <!-- Bootstrap -->
     <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/css/bootstrap.min.css"
@@ -718,7 +718,7 @@
 
             <?php endif ?>
 
-            <form action="<?= site_url(!empty($patientLogin) ? 'patient-login' : 'login') ?>"
+            <form action="<?= site_url('login') ?>"
                   method="post">
 
                 <?= csrf_field() ?>
@@ -838,14 +838,6 @@
 
                 Secured access — authorised personnel only
 
-            </p>
-
-            <p class="text-center mt-3 mb-0 small">
-                <?php if (!empty($patientLogin)): ?>
-                    Staff member? <a href="<?= site_url('login') ?>">Admin login</a>
-                <?php else: ?>
-                    Patient? <a href="<?= site_url('patient-login') ?>">Patient portal login</a>
-                <?php endif; ?>
             </p>
 
         </div>

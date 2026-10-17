@@ -1,4 +1,4 @@
-@extends('layouts.app')
+@extends('layouts.admin')
 
 @section('title', $user ? 'Edit User' : 'New User')
 
@@ -28,7 +28,7 @@
                     <label style="display:grid; gap:6px; font-weight:bold;">
                         Role
                         <input type="hidden" name="role" value="therapist">
-                        <div style="padding: 10px 12px; border: 1px solid #e2e8f0; border-radius: 16px; background: #f8fafc; color: #0f172a; font-weight: 700;">
+                        <div style="padding: 10px 12px; border: 1px solid var(--border); border-radius: 16px; background: var(--bg); color: var(--text); font-weight: 700;">
                             Therapist (locked)
                         </div>
                     </label>
@@ -39,7 +39,6 @@
                             <option value="staff" {{ old('role', $user->role ?? 'staff') === 'staff' ? 'selected' : '' }}>Staff</option>
                             <option value="therapist" {{ old('role', $user->role ?? 'staff') === 'therapist' ? 'selected' : '' }}>Therapist</option>
                             <option value="superadmin" {{ old('role', $user->role ?? 'staff') === 'superadmin' ? 'selected' : '' }}>Super Admin</option>
-                            <option value="patient" {{ old('role', $user->role ?? 'staff') === 'patient' ? 'selected' : '' }}>Patient</option>
                         </select>
                     </label>
                 @endif

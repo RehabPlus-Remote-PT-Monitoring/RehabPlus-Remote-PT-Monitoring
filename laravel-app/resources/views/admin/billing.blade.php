@@ -10,6 +10,10 @@
         </div>
     </div>
 
+    @if (session('success'))
+        <div class="alert alert-success">{{ session('success') }}</div>
+    @endif
+
     <div class="card shadow-sm mb-4 border-0">
         <div class="card-header">
             <h5 class="mb-0">Add payment record</h5>
@@ -88,7 +92,7 @@
             <div class="table-responsive">
                 <table class="table table-hover mb-0 align-middle">
                     <thead class="table-light">
-                        <tr><th>Patient</th><th>Session</th><th>Fee</th><th>Status</th><th>Date</th></tr>
+                        <tr><th>Patient</th><th>Session</th><th>Fee</th><th>Status</th><th>Date</th><th class="text-end">Actions</th></tr>
                     </thead>
                     <tbody>
                         @forelse ($payments as $payment)
@@ -96,11 +100,27 @@
                                 <td>{{ $payment['patient'] }}</td>
                                 <td>{{ $payment['session'] }}</td>
                                 <td>{{ $payment['fee'] }}</td>
-                                <td>@switch($payment['status']) @case('Paid')<span class="badge bg-success-subtle text-success">Paid</span>@break @case('Pending')<span class="badge bg-warning-subtle text-warning">Pending</span>@break @default<span class="badge bg-info-subtle text-info">Partial</span>@endswitch</td>
+                                <td>
+                                    <div id="status-view-{{ $payment->id }}">
+                                        @switch($payment['status']) @case('Paid')<span class="badge bg-success-subtle text-success">Paid</span>@break @case('Pending')<span class="badge bg-warning-subtle text-warning">Pending</span>@break @default<span class="badge bg-info-subtle text-info">Partial</span>@endswitch
+                                        <button type="button" class="btn btn-sm btn-link p-0 ms-1" title="Edit status" onclick="document.getElementById('status-view-{{ $payment->id }}').hidden = true; document.getElementById('status-form-{{ $payment->id }}').hidden = false;"><i class="bi bi-pencil-square"></i> Edit</button>
+                                    </div>
+                                    <form id="status-form-{{ $payment->id }}" method="post" action="{{ route('billing.status', $payment->id) }}" class="d-flex gap-1 align-items-center" hidden>
+                                        @csrf @method('PATCH')
+                                        <select name="status" class="form-select form-select-sm w-auto">
+                                            @foreach (['Paid', 'Pending', 'Partial'] as $status)
+                                                <option value="{{ $status }}" @selected($payment['status'] === $status)>{{ $status }}</option>
+                                            @endforeach
+                                        </select>
+                                        <button type="submit" class="btn btn-sm btn-primary">Save</button>
+                                        <button type="button" class="btn btn-sm btn-outline-secondary" onclick="document.getElementById('status-form-{{ $payment->id }}').hidden = true; document.getElementById('status-view-{{ $payment->id }}').hidden = false;">Cancel</button>
+                                    </form>
+                                </td>
                                 <td>{{ $payment['date'] }}</td>
+                                <td class="text-end"><form method="post" action="{{ route('billing.delete', $payment->id) }}" class="d-inline" onsubmit="return confirm('Delete this payment record?');">@csrf @method('DELETE')<button type="submit" class="btn btn-sm btn-outline-danger">Delete</button></form></td>
                             </tr>
                         @empty
-                            <tr><td colspan="5" class="text-center text-muted py-4">No payment records available.</td></tr>
+                            <tr><td colspan="6" class="text-center text-muted py-4">No payment records available.</td></tr>
                         @endforelse
                     </tbody>
                 </table>

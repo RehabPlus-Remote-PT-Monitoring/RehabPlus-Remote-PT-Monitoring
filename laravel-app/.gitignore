@@ -22,3 +22,16 @@
 Homestead.json
 Homestead.yaml
 Thumbs.db
+
+# Local debug captures (session cookies, saved login pages)
+/cookies.txt
+/headers.txt
+/login-cookies.txt
+/login-headers.txt
+/login-page.html
+/login-post.html
+/login-response.html
+/native-login-body.html
+/native-login-cookies.txt
+/native-login-headers.txt
+/dashboard.html
