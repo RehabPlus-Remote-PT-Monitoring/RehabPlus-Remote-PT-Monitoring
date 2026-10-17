@@ -1,4 +1,4 @@
-# Handoff: RehabPlus patient app (branch `camera/monitoring`)
+# Handoff: RehabPlus patient app and clinic dashboard
 
 _Last updated: 18 Oct 2026_
 
@@ -6,20 +6,28 @@ _Last updated: 18 Oct 2026_
 
 This is the capstone project **"Mobile-Based Camera-Assisted Remote Physical Therapy Monitoring System"** for Rehab Plus Physiotherapy. It has three parts:
 
-- **Patient app (this repo):** a Flutter Android app.
+- **Patient app:** a Flutter Android app, on branch `camera/monitoring` of `paulirichmond/RehabPlus-Remote-PT-Monitoring` (checkout: `~/Documents/RehabPlus-Remote-PT-Monitoring-camera-monitoring`).
   - Patients sign in, see the exercises their therapist prescribed, and do them in front of the camera. Pose detection (ML Kit / BlazePose) counts the reps and scores compliance.
   - After each session the patient logs a pain level.
   - The app also tracks progress and lets the patient message their therapist and the clinic.
-- **Web admin:** Laravel, in a separate repo (`sekendd/rehabplus2`). It still uses SQLite and has to be moved to Firestore. Therapists will use it to assign prescriptions, review sessions and reply to messages.
+- **Clinic dashboard:** Laravel 12, in `laravel-app/` on branch `web/messaging` of the same GitHub repo (worktree: `~/Documents/RehabPlus-web-messaging`).
+  - It is built on Rodel/sekendd's `updated-admin-dashboard` branch, **not** on `sekendd/rehabplus2` (an older copy set up for hosted MySQL).
+  - Therapists add patients, assign exercises, review sessions, record assessments, goals and notes, and reply to messages.
 - **Database:** Firebase project **`rehabplus-80675`** on the Spark (free) plan.
   - Uses Auth, Firestore and Cloud Messaging.
-  - **No Cloud Functions**, so anything server-side runs from Laravel. For now it runs from the Node scripts in `tool/seed/`.
+  - **No Cloud Functions**, so anything server-side (pushes, account creation) runs from Laravel. The Node scripts in `tool/seed/` remain for testing.
 
-[API_CONTRACT.md](API_CONTRACT.md) is the agreement between the app and Laravel. It covers the Firestore schema, the exercise type codes, how the dashboard metrics are calculated, and the push notification rules. Read it before touching data.
+[API_CONTRACT.md](API_CONTRACT.md) is the agreement between the app and Laravel. It covers the Firestore schema, roles, the exercise type codes, how the dashboard metrics are calculated, and the push notification rules. Read it before touching data.
 
 ## 2. Current state
 
-**Nothing in this list has been committed yet.** All of it is uncommitted on `camera/monitoring`.
+Everything is **committed and pushed**:
+- `camera/monitoring` at `931abdc` (patient app).
+- `web/messaging` at `8250d5a` (dashboard).
+
+Neither branch is merged into `main`.
+
+### Patient app
 
 | Area | Status |
 |---|---|
@@ -37,64 +45,82 @@ This is the capstone project **"Mobile-Based Camera-Assisted Remote Physical The
 | Firestore security rules | ✅ Deployed |
 | `flutter analyze`: no issues. `flutter test`: 9 passing | ✅ |
 
+### Clinic dashboard (`laravel-app/`)
+
+| Area | Status |
+|---|---|
+| Staff login with Firebase Auth; role from `users/{uid}`: `admin`, `therapist` or `staff` (front desk). No SQL users table | ✅ Tests pass. **No staff account exists yet** (see next steps) |
+| Patients: add (also creates the app login with a temporary password), edit, archive (disables the login), reset password. Therapists only see their own patients | ✅ Tests pass. Not yet tried live (would create a real account) |
+| Assign exercises (12 app types, reps/holds, sessions per week, days/hours, instructions), stop/resume; sends an `exercise_assigned` notification and push | ✅ Tests pass. Not yet tried live (would notify Rob's phone) |
+| Patient profile: weekly adherence, accuracy, pain, 14-day pain chart, recent sessions, goals, assessments, notes | ✅ Checked live (read-only) with Rob's data |
+| Assessments & Goals and Therapy Notes pages (clinic-only Firestore records) | ✅ Tests pass, pages load live |
+| Staff Accounts page (create, rename, change role, disable) and `php artisan rehab:make-admin` | ✅ Tests pass |
+| Dashboard, analytics and Patient Statistics (CSV/PDF export) computed from Firestore | ✅ Checked live |
+| Messaging: inbox, conversation, reply with notification and push | ✅ Tests pass; earlier live check |
+| Dark mode, including the chat bubbles | ✅ Checked |
+| Friendly "can't reach Firebase" page / form error instead of a 500 | ✅ Seen live during a network blip |
+| Appointments, billing, inventory, staff schedule | Still on SQL (SQLite locally; the team uses MySQL/XAMPP). Therapist and staff names come from Firebase |
+| `php artisan test`: 73 passing (all against an in-memory Firebase fake, no network) | ✅ |
+
 **Test data**
-- Patient `rob@rehabplus.com` (uid `pVRhO9k4pybGItH5IyAJbV0f8aC3`) is seeded. He has 3 prescriptions: kneeExtension, bicepCurl and sideRaise.
+- Patient `rob@rehabplus.com` (uid `pVRhO9k4pybGItH5IyAJbV0f8aC3`) is seeded. He has 3 prescriptions: kneeExtension, bicepCurl and sideRaise. He has no therapist assigned and no sessions yet.
 - A second account, "kenji", exists in Auth but **may not be seeded yet**.
+- Firebase has **no staff accounts**. The only `users` docs are the 2 patients.
 
 **Test phone:** OPPO/OnePlus CPH2773 (ColorOS, Android 14), connected over adb.
 
 **Service-account key:** stored at `~/keys/rehabplus-80675-firebase-adminsdk-fbsvc-<id>.json`, **outside the repo**.
 - Never commit it.
 - `.gitignore` also blocks `*service-account*.json` and `*-firebase-adminsdk-*.json`.
+- The dashboard points to it from `laravel-app/.env` (`FIREBASE_CREDENTIALS`, git-ignored). `.env` also needs `FIREBASE_PROJECT_ID` and `FIREBASE_API_KEY` (the public Web API key from `google-services.json`, used to check staff passwords), with `SESSION_DRIVER=file` and `CACHE_STORE=file`.
 
-## 3. Files being worked on
+## 3. Where things are
 
-**New (untracked)**
+**Patient app**
 - `lib/core/app_keys.dart`: the global navigator and ScaffoldMessenger keys, so push handlers can show UI.
 - `lib/models/chat.dart` and `lib/services/chat_service.dart`: the message threads and messages.
 - `lib/models/app_notification.dart` and `lib/services/notification_service.dart`: the notifications list, unread count, mark read, and the session-completed log.
 - `lib/services/push_service.dart`: FCM permission, token registration, and the foreground and tap handlers.
-- `lib/services/progress_stats.dart`: pure helpers for the dashboard and checklist stats. These are unit tested.
-- `lib/widgets/unread_badge.dart`: the `UnreadNotifications` builder (live unread count).
-- `lib/widgets/today_checklist_sheet.dart`: the "Today's Plan" bottom sheet.
-- `test/progress_stats_test.dart`.
-- `tool/seed/reply.mjs`: sends a staff reply (message, thread update, notification doc and FCM push).
+- `lib/services/progress_stats.dart`: pure helpers for the dashboard and checklist stats (unit tested in `test/progress_stats_test.dart`).
+- `lib/widgets/unread_badge.dart` and `lib/widgets/today_checklist_sheet.dart`.
+- `tool/seed/seed.mjs` (test patient) and `tool/seed/reply.mjs` (staff reply with notification and push).
+- `firestore.rules`, `API_CONTRACT.md`.
 
-**Modified**
-- **App wiring:** `lib/main.dart` and `lib/services/app_provider.dart`.
-- **Screens:** `lib/screens/` dashboard, exercise_page, notification_page, messages_screen, profile, edit_profile and login_page.
-- **Models and services:** `lib/models/prescription.dart` and `lib/services/profile_service.dart`.
-- **Firebase:** `firestore.rules` and `firebase.json`.
-- **Android:** `AndroidManifest.xml` (tel: dial query, default notification channel) and `MainActivity.kt` (creates the `chat_messages` channel).
-- **Tooling and docs:** `tool/seed/seed.mjs`, `API_CONTRACT.md`, `pubspec.yaml` / `pubspec.lock`, and `.gitignore`.
-- **Generated:** the plugin registrants for linux, macos and windows. These are generated files; commit them along with the pubspec changes.
-
-**Deleted earlier by the user (legacy):** home_screen, new_home_screen, exercise_card, compliance_meter, exercise.dart, pose_data, compliance_tracker and pose_estimation_service.
+**Dashboard (`laravel-app/`)**
+- `app/Auth/`: `StaffUser` (roles and permissions) and `FirebaseUserProvider` (loads `users/{uid}` per request, cached 2 min).
+- `app/Services/Firebase/`: `FirestoreClient` (REST, including collection-group queries), `FirebaseAdmin` (Auth accounts, password check, FCM), `PatientNotifier` (notification doc and push).
+- `app/Services/Patient/`: `PatientService` (access rules, create/edit/archive), `PrescriptionService`, `PatientProgress` (session metrics), `ClinicalRecordService` (assessments, goals, notes), `ExerciseCatalog` (must match the app's `ExerciseType`).
+- `app/Services/User/UserService.php` (staff accounts), `app/Services/Messaging/MessagingService.php`.
+- `app/Console/Commands/MakeAdmin.php` (`rehab:make-admin`).
+- `bootstrap/app.php`: Firebase errors become a 503 page (GET) or a flash message (forms).
+- `tests/Support/FakeFirebase.php`: in-memory Firestore/Auth/FCM used by every feature test.
 
 ## 4. What changed (by feature)
 
-1. **Backend wiring**
+1. **Backend wiring (app)**
    - FirebaseAuth sign-in replaced the sample account.
    - `SessionStorage`, `ProfileService` and `PrescriptionService` now read and write Firestore.
    - Writes are *not awaited*: Firestore's offline cache acts as the write queue, so the UI never blocks on the network.
 2. **Sessions**
    - New fields: `painLevel`, `painNote`, `rejectedReps`, `prescriptionId`, `outsideSchedule` and `endedEarly`.
    - A pain slider appears on the completion dialog, and the patient is asked to confirm before ending early.
-3. **Dashboard**
+3. **App dashboard**
    - All stats come from `ProgressStats` over `sessionHistory`.
    - Sessions with `endedEarly` don't count as "done".
 4. **Messaging**
    - Data lives at `patients/{uid}/threads/{therapist|clinic}/messages`.
    - Unread counters are kept for both sides.
    - Clinic prompt chips: book visit, home visit, report a problem.
+   - On the dashboard, therapists answer the `therapist` thread of their own patients; admins and front desk answer the `clinic` thread.
 5. **Push**
    - The device token is saved to `patients/{uid}/devices/{token}`.
-   - Foreground messages show a SnackBar; tapping a push opens the chat.
+   - Foreground messages show a SnackBar; tapping a chat push opens the chat.
+   - The dashboard sends `data: {type: 'chat', thread}` for replies and `{type: 'exercise_assigned'}` for new exercises.
 6. **Notifications page**
    - Live from `patients/{uid}/notifications`.
    - All / Read / Unread filters, mark all read, and tapping a message opens its chat.
    - **Where entries come from:**
-     - `reply.mjs` (Laravel later) writes one doc for every push.
+     - The dashboard (and `reply.mjs`) writes one doc for every push: `message` and `exercise_assigned`.
      - The app logs `session_completed` docs, saved already read.
      - `seed.mjs` writes `exercise_assigned` docs.
 7. **Exercises page**
@@ -104,6 +130,13 @@ This is the capstone project **"Mobile-Based Camera-Assisted Remote Physical The
    - Patients can only create their own sessions and edit only phone and date of birth on their profile.
    - In notifications, a patient can only create `session_completed` docs and can only change `read` to true.
    - Staff access is limited to the patients they care for (`caresFor`); admins can read everything.
+   - Assessments, goals and notes have no rule, so the app can't read them (clinic-only).
+9. **Dashboard moved to Firebase**
+   - Accounts: a patient is a Firebase Auth login, plus `users/{uid}` (role `patient`) and `patients/{uid}`. A staff member is a login plus `users/{uid}` with their role.
+   - New patient fields: `email`, `archived`, `createdBy`, `updatedAt`. New `users` field: `active`.
+   - New clinic-only collections: `patients/{uid}/assessments`, `/goals` and `/notes` (schema in API_CONTRACT.md).
+   - Nothing is deleted: patients are archived and staff are disabled, because sessions, notes and messages refer to their uid.
+   - Removed: the SQL `User`/`Patient`/`ExerciseRecord` models, manual exercise records and the web patient portal (patients use the app).
 
 ## 5. What was tried and failed (and the fix)
 
@@ -119,30 +152,42 @@ This is the capstone project **"Mobile-Based Camera-Assisted Remote Physical The
   - Fixed: the name comes from the profile, and `signOut()` clears all state.
 - **`firebase deploy` printed "unexpected error"/timeout:** the rules release actually succeeded (HTTP 200). Check the console before redeploying.
 - **`adb install` hung:** the phone was waiting for the "Install via USB" prompt to be approved on screen.
+- **Dashboard: patient chat bubble unreadable in dark mode:** Bootstrap's `bg-body-secondary` isn't themed by the dark CSS. Fixed with dedicated `.chat-bubble-*` classes.
+- **Dashboard tests: every fake request ran twice:** Laravel calls `setUp<TraitName>()` on test traits automatically, so calling `setUpFakeFirebase()` again registered the fake twice. Don't call it yourself.
+- **Renaming a patient reported an error although it saved:** the Auth display-name sync ran after the Firestore write. It is now best-effort (logged, not shown).
+- **Older seeded patients have no `email` field:** the profile falls back to `users/{uid}.email`.
 - **Process slips to avoid repeating:**
   - An accidental `git stash` (restored with `git stash pop --index`).
-  - `dart format` touched an unrelated file (reverted).
+  - `dart format` touched an unrelated file (reverted). Pint's default preset does the same in Laravel; only run it on files you changed.
   - A bulk `rm` was blocked; the user deleted the legacy files manually.
+  - The browser-automation tool shares the user's real browser. An open dashboard tab that polls messages overwrote the test session; use an isolated browser session.
 
 ## 6. What to do next
 
-1. **Test on the phone:**
-   - Build and install with `flutter run`.
-   - Then: `cd tool/seed && node reply.mjs ~/keys/rehabplus-80675-firebase-adminsdk-*.json rob@rehabplus.com therapist "test"`.
-   - Check that the bell badge lights up, that the entry shows on the Notifications page, and that tapping it opens the chat.
+1. **Create the first dashboard admin** (the password is typed by you):
+   - `cd ~/Documents/RehabPlus-web-messaging/laravel-app && php artisan rehab:make-admin <email> "<name>"`
+   - Then sign in at `http://127.0.0.1:8000` and add a therapist under Staff Accounts.
+2. **End-to-end test with the phone:**
+   - Assign Rob to the therapist (edit Rob as admin), then sign in as the therapist.
+   - Assign an exercise: check the push and the Notifications entry on the phone, and that it appears in Your Plan.
+   - Do a session on the phone: check it shows on Rob's profile (adherence, accuracy, pain).
+   - Reply to a message from the dashboard: check the bell badge, the Notifications entry, and that tapping opens the chat.
    - Finish an exercise and check for the "Exercise Completed" entry and the tick in Today's Plan.
-2. **Seed kenji, if needed:**
+   - Add a test patient from the dashboard and sign in with it on the phone, then archive it (the login should stop working).
+3. **Seed kenji, if needed:**
    - Run `node seed.mjs <key> <kenji-email> [therapist-email]`.
    - ⚠️ `seed.mjs` overwrites the patient's phone and date of birth, so don't re-run it on accounts with real data.
-3. **Commit, but only when the user asks:**
-   - Don't commit: the service-account key, or any Claude `settings.json`.
+   - Or just add kenji's patient profile from the dashboard instead.
+4. **Repo housekeeping:**
    - Decide whether to commit `lib/firebase_options.dart`. It is gitignored right now; committing it is recommended, because it holds no secrets and teammates need it to build.
-4. **Laravel admin (`sekendd/rehabplus2`):** move it from SQLite to Firestore using `kreait/laravel-firebase`, following [API_CONTRACT.md](API_CONTRACT.md):
-   - Staff accounts: `users/{uid}` with role `therapist` or `admin`, and `patients.therapistId` for the `caresFor` rule.
-   - Create and edit prescriptions. Write an `exercise_assigned` notification each time and send a push.
-   - A session review screen (compliance, pain, ended-early).
-   - Message replies, following what `reply.mjs` does: message, then thread update with `unreadForPatient`, then notification doc, then FCM v1 push with `channel_id: chat_messages`, then delete dead tokens.
-5. **Smaller items:**
-   - Remove the unused `uuid` dependency.
+   - In the dashboard worktree, a root `package.json` / `package-lock.json` change and `node_modules/` (dependency `headroom-ai`) appeared from outside this work and are uncommitted. Remove them or add `node_modules/` to `.gitignore`.
+   - Ask sekendd/Rodel to push their latest local code: their database dump has a `drop_super_admins_table` migration that isn't on GitHub. Rebase `web/messaging` on it. Decide which dashboard copy is the main one (`updated-admin-dashboard` vs `sekendd/rehabplus2`).
+   - Open pull requests for `camera/monitoring` and `web/messaging`.
+5. **Dashboard follow-ups:**
+   - Move appointments, billing, inventory and the staff schedule to Firestore too (the user chose "later").
+   - The patient profile takes about 2 s to load (6 sequential Firestore reads). Batch or parallelise them if it matters.
+   - Optionally let patients see their goals in the app: add a read rule for `goals` and an app screen.
+6. **Smaller items:**
+   - Remove the unused `uuid` dependency (app).
    - Add exercise reminders (`reminder` type). These would need a scheduler on the Laravel side, since there are no Cloud Functions.
-   - Seed `settings/clinic.phone` with the real clinic number (set the `CLINIC_PHONE` environment variable).
+   - Seed `settings/clinic.phone` with the real clinic number (set the `CLINIC_PHONE` environment variable). The dashboard has no settings page for it yet.
