@@ -37,6 +37,8 @@ dev_dependencies:
   # Added for better testing and analysis
   integration_test:
     sdk: flutter
+  # Generates launcher icons for every platform from assets/icon/ (config: flutter_launcher_icons.yaml)
+  flutter_launcher_icons: ^0.14.4
 
 flutter:
   uses-material-design: true
