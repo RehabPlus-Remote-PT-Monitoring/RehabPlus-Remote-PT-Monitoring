@@ -26,7 +26,6 @@ class _DemoScreenState extends State<DemoScreen> with TickerProviderStateMixin {
 
   // Active exercise demo state
   int _activeStep = 0;
-  bool _isPlaying = false;
   late final AnimationController _pulseCtrl;
   late final Animation<double> _pulse;
 
@@ -141,7 +140,6 @@ class _DemoScreenState extends State<DemoScreen> with TickerProviderStateMixin {
     } else {
       setState(() {
         _activeStep = 0;
-        _isPlaying = false;
       });
     }
   }

@@ -1,0 +1,87 @@
+rules_version = '2';
+
+// RehabPlus Firestore security rules.
+//
+// The Laravel dashboard uses a service account (Admin SDK / REST), which
+// bypasses these rules. They protect against the mobile app and anyone holding
+// the public Firebase config:
+//   - patients can read only their own profile, prescriptions and sessions,
+//     can only add new sessions (never edit or delete them), and can only
+//     change their own phone number and date of birth;
+//   - therapists/admins signed in with Firebase can read and manage the
+//     patients assigned to them (admins: all patients).
+service cloud.firestore {
+  match /databases/{database}/documents {
+
+    function signedIn() {
+      return request.auth != null;
+    }
+
+    function role() {
+      return get(/databases/$(database)/documents/users/$(request.auth.uid)).data.role;
+    }
+
+    function isAdmin() {
+      return signedIn() && role() == 'admin';
+    }
+
+    function caresFor(patientId) {
+      return signedIn() && (
+        isAdmin() ||
+        (role() == 'therapist' &&
+         get(/databases/$(database)/documents/patients/$(patientId)).data.therapistId == request.auth.uid)
+      );
+    }
+
+    function isSelf(uid) {
+      return signedIn() && request.auth.uid == uid;
+    }
+
+    // Account profile with role: 'patient' | 'therapist' | 'admin'.
+    // Only the server (service account) creates or changes roles.
+    match /users/{uid} {
+      allow read: if isSelf(uid) || isAdmin();
+      allow write: if false;
+    }
+
+    match /patients/{patientId} {
+      allow read: if isSelf(patientId) || caresFor(patientId);
+      allow update: if caresFor(patientId) || (isSelf(patientId) && validContactEdit());
+      allow create, delete: if isAdmin();
+
+      match /prescriptions/{prescriptionId} {
+        allow read: if isSelf(patientId) || caresFor(patientId);
+        allow write: if caresFor(patientId);
+      }
+
+      match /sessions/{sessionId} {
+        allow read: if isSelf(patientId) || caresFor(patientId);
+        allow create: if isSelf(patientId) && validSession(request.resource.data);
+        allow update, delete: if false;
+      }
+    }
+
+    function validContactEdit() {
+      let d = request.resource.data;
+      return d.diff(resource.data).affectedKeys().hasOnly(['phone', 'dob'])
+        && (!('phone' in d) || (d.phone is string && d.phone.size() <= 30))
+        && (!('dob' in d) || (d.dob is string && d.dob.size() <= 30));
+    }
+
+    function validSession(d) {
+      return d.keys().hasOnly([
+          'exerciseId', 'exerciseName', 'prescriptionId',
+          'startTime', 'endTime', 'createdAt',
+          'completedReps', 'completedSets', 'targetReps', 'targetSets',
+          'rejectedReps', 'repComplianceScores', 'overallCompliance',
+          'painLevel', 'painNote', 'notes', 'outsideSchedule', 'endedEarly'])
+        && d.keys().hasAll(['exerciseId', 'startTime', 'completedReps', 'painLevel'])
+        && d.exerciseId is string
+        && d.startTime is timestamp
+        && d.completedReps is int && d.completedReps >= 0
+        && d.painLevel is int && d.painLevel >= 0 && d.painLevel <= 10
+        && (d.painNote == null || (d.painNote is string && d.painNote.size() <= 300))
+        && d.createdAt == request.time;
+    }
+  }
+}

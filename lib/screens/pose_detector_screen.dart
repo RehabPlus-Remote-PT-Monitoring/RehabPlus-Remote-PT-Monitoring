@@ -38,6 +38,7 @@ import '../models/exercise_model.dart';
 import '../models/session.dart';
 import '../services/app_provider.dart';
 import '../services/form_checker.dart';
+import '../widgets/pose_painter.dart';
 
 class PoseDetectorScreen extends StatefulWidget {
   final ExerciseConfig selectedExercise;
@@ -237,7 +238,7 @@ class _PoseDetectorScreenState extends State<PoseDetectorScreen>
     WidgetsBinding.instance.addObserver(this);
     _sessionStart = DateTime.now();
     _checker = FormChecker(widget.selectedExercise, thresholds: _thresholds);
-    Vibration.hasVibrator().then((v) => _hasVibrator = v ?? false);
+    Vibration.hasVibrator().then((v) => _hasVibrator = v);
     _initAudio();
     _initPoseDetector();
     _initCamera();
@@ -1391,12 +1392,52 @@ class _PoseDetectorScreenState extends State<PoseDetectorScreen>
 
     setState(() => _isSessionComplete = true);
     _disposeCamera();
-    _saveSession();
+    // Saved from the completion dialog so the pain check-in is included.
     _showCompletionBanner();
   }
 
-  Future<void> _saveSession() async {
+  /// Back pressed mid-session. Nothing attempted yet → just leave; otherwise
+  /// confirm, then save the partial session (with pain check-in) so the
+  /// therapist still sees it.
+  Future<void> _confirmEndEarly() async {
+    if (_repCounter == 0 && _rejectedReps == 0) {
+      setState(() => _isSessionComplete = true);
+      Navigator.of(context).pop();
+      return;
+    }
+    final end = await showDialog<bool>(
+      context: context,
+      builder: (dialogContext) => AlertDialog(
+        title: const Text('End session early?'),
+        content: Text(
+          'You have done $_repCounter of ${widget.selectedExercise.targetReps}. '
+          'Your progress will be saved for your therapist.',
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.of(dialogContext).pop(false),
+            child: const Text('Keep going'),
+          ),
+          TextButton(
+            onPressed: () => Navigator.of(dialogContext).pop(true),
+            child: const Text('End session'),
+          ),
+        ],
+      ),
+    );
+    if (end != true || !mounted || _isSessionComplete) return;
+    setState(() => _isSessionComplete = true);
+    _disposeCamera();
+    _showCompletionBanner(endedEarly: true);
+  }
+
+  Future<void> _saveSession({
+    required int painLevel,
+    String? painNote,
+    bool endedEarly = false,
+  }) async {
     final exercise = widget.selectedExercise;
+    final prescription = exercise.prescription;
     final session = ExerciseSession(
       id: DateTime.now().microsecondsSinceEpoch.toString(),
       exerciseId: exercise.type.name,
@@ -1404,70 +1445,161 @@ class _PoseDetectorScreenState extends State<PoseDetectorScreen>
       startTime: _sessionStart,
       endTime: DateTime.now(),
       completedReps: _repCounter,
-      completedSets: 1,
+      completedSets: endedEarly ? 0 : 1,
       targetReps: exercise.targetReps,
       targetSets: 1,
       repComplianceScores: List<double>.from(_repScores),
       notes: _rejectedReps > 0
           ? '$_rejectedReps rep(s) rejected for poor form or range'
           : null,
+      prescriptionId: prescription?.id,
+      rejectedReps: _rejectedReps,
+      painLevel: painLevel,
+      painNote: painNote,
+      outsideSchedule:
+          prescription != null && !prescription.isWithinSchedule(_sessionStart),
+      endedEarly: endedEarly,
     );
 
     if (!mounted) return;
     await context.read<AppProvider>().recordCompletedSession(session);
   }
 
-  void _showCompletionBanner() {
+  void _showCompletionBanner({bool endedEarly = false}) {
     final exercise = widget.selectedExercise;
     if (!mounted) return;
+
+    var pain = 0;
+    var saving = false;
+    final noteController = TextEditingController();
 
     showDialog(
       context: context,
       barrierDismissible: false,
-      builder: (dialogContext) => AlertDialog(
-        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
-        content: Column(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            const Icon(
-              Icons.check_circle_rounded,
-              color: Colors.teal,
-              size: 64,
-            ),
-            const SizedBox(height: 12),
-            const Text(
-              'Session Complete!',
-              style: TextStyle(fontSize: 20, fontWeight: FontWeight.bold),
-            ),
-            const SizedBox(height: 8),
-            Text(
-              exercise.isHold
-                  ? 'You finished ${exercise.targetReps} holds of ${exercise.title}.'
-                  : 'You finished ${exercise.targetReps} reps of ${exercise.title}.',
-              textAlign: TextAlign.center,
-              style: const TextStyle(color: Colors.black54),
-            ),
-            if (_rejectedReps > 0) ...[
+      builder: (dialogContext) => StatefulBuilder(
+        builder: (dialogContext, setDialogState) => AlertDialog(
+          shape: RoundedRectangleBorder(
+            borderRadius: BorderRadius.circular(20),
+          ),
+          content: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              Icon(
+                endedEarly
+                    ? Icons.flag_circle_rounded
+                    : Icons.check_circle_rounded,
+                color: endedEarly ? Colors.orange : Colors.teal,
+                size: 64,
+              ),
+              const SizedBox(height: 12),
+              Text(
+                endedEarly ? 'Session Ended' : 'Session Complete!',
+                style: const TextStyle(
+                  fontSize: 20,
+                  fontWeight: FontWeight.bold,
+                ),
+              ),
               const SizedBox(height: 8),
               Text(
-                '$_rejectedReps attempt(s) were not counted because of form.',
+                endedEarly
+                    ? 'You did $_repCounter of ${exercise.targetReps} '
+                          '${exercise.isHold ? 'holds' : 'reps'} of ${exercise.title}.'
+                    : exercise.isHold
+                    ? 'You finished ${exercise.targetReps} holds of ${exercise.title}.'
+                    : 'You finished ${exercise.targetReps} reps of ${exercise.title}.',
                 textAlign: TextAlign.center,
-                style: const TextStyle(color: Colors.redAccent, fontSize: 12),
+                style: const TextStyle(color: Colors.black54),
+              ),
+              if (_rejectedReps > 0) ...[
+                const SizedBox(height: 8),
+                Text(
+                  '$_rejectedReps attempt(s) were not counted because of form.',
+                  textAlign: TextAlign.center,
+                  style: const TextStyle(color: Colors.redAccent, fontSize: 12),
+                ),
+              ],
+              const Divider(height: 28),
+              Text(
+                'How much pain do you feel now? ($pain/10)',
+                style: const TextStyle(fontWeight: FontWeight.w600),
+              ),
+              Slider(
+                value: pain.toDouble(),
+                min: 0,
+                max: 10,
+                divisions: 10,
+                label: '$pain',
+                activeColor: pain >= 7
+                    ? Colors.redAccent
+                    : pain >= 4
+                    ? Colors.orange
+                    : Colors.teal,
+                onChanged: saving
+                    ? null
+                    : (v) => setDialogState(() => pain = v.round()),
+              ),
+              const Row(
+                mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                children: [
+                  Text(
+                    'No pain',
+                    style: TextStyle(fontSize: 11, color: Colors.black45),
+                  ),
+                  Text(
+                    'Worst pain',
+                    style: TextStyle(fontSize: 11, color: Colors.black45),
+                  ),
+                ],
+              ),
+              const SizedBox(height: 8),
+              TextField(
+                controller: noteController,
+                enabled: !saving,
+                maxLines: 2,
+                maxLength: 300,
+                decoration: const InputDecoration(
+                  hintText: 'Anything to tell your therapist? (optional)',
+                  border: OutlineInputBorder(),
+                  isDense: true,
+                ),
               ),
             ],
+          ),
+          actions: [
+            TextButton(
+              onPressed: saving
+                  ? null
+                  : () async {
+                      setDialogState(() => saving = true);
+                      final note = noteController.text.trim();
+                      try {
+                        await _saveSession(
+                          painLevel: pain,
+                          painNote: note.isEmpty ? null : note,
+                          endedEarly: endedEarly,
+                        );
+                      } catch (_) {
+                        if (mounted) {
+                          ScaffoldMessenger.of(context).showSnackBar(
+                            const SnackBar(
+                              content: Text(
+                                'Could not save this session. Please sign in again.',
+                              ),
+                            ),
+                          );
+                        }
+                      }
+                      if (dialogContext.mounted) {
+                        Navigator.of(dialogContext).pop();
+                      }
+                      if (mounted) Navigator.of(context).pop();
+                    },
+              child: const Text('Done'),
+            ),
           ],
         ),
-        actions: [
-          TextButton(
-            onPressed: () {
-              Navigator.of(dialogContext).pop();
-              if (mounted) Navigator.of(context).pop();
-            },
-            child: const Text('Done'),
-          ),
-        ],
       ),
-    );
+    ).whenComplete(noteController.dispose);
   }
 
   double _calculateAngle(PoseLandmark p1, PoseLandmark p2, PoseLandmark p3) {
@@ -1560,168 +1692,175 @@ class _PoseDetectorScreenState extends State<PoseDetectorScreen>
     final form = _effectiveForm;
     final isCorrect = !form.isWrong;
 
-    return Scaffold(
-      appBar: AppBar(
-        title: Text(exercise.title),
-        backgroundColor: isCorrect ? Colors.teal : Colors.red,
-        actions: [
-          IconButton(
-            icon: Icon(
-              Icons.flip,
-              color: _mirrorSkeleton ? Colors.white : Colors.white54,
+    return PopScope(
+      canPop: _isSessionComplete,
+      onPopInvokedWithResult: (didPop, _) {
+        if (!didPop) _confirmEndEarly();
+      },
+      child: Scaffold(
+        appBar: AppBar(
+          title: Text(exercise.title),
+          backgroundColor: isCorrect ? Colors.teal : Colors.red,
+          actions: [
+            IconButton(
+              icon: Icon(
+                Icons.flip,
+                color: _mirrorSkeleton ? Colors.white : Colors.white54,
+              ),
+              tooltip: "Flip skeleton (use if it moves opposite to you)",
+              onPressed: () =>
+                  setState(() => _mirrorSkeleton = !_mirrorSkeleton),
             ),
-            tooltip: "Flip skeleton (use if it moves opposite to you)",
-            onPressed: () => setState(() => _mirrorSkeleton = !_mirrorSkeleton),
-          ),
-          IconButton(
-            icon: const Icon(Icons.cameraswitch),
-            tooltip: "Switch Camera",
-            onPressed: _switchCamera,
-          ),
-        ],
-      ),
-      body: Stack(
-        fit: StackFit.expand,
-        children: [
-          const ColoredBox(color: Colors.black),
-          RepaintBoundary(
-            child: _AspectCoverPreview(
-              controller: controller,
-              cover: _coverPreview,
+            IconButton(
+              icon: const Icon(Icons.cameraswitch),
+              tooltip: "Switch Camera",
+              onPressed: _switchCamera,
             ),
-          ),
-
-          if (_imageSize != null && _detectedPoses.isNotEmpty)
+          ],
+        ),
+        body: Stack(
+          fit: StackFit.expand,
+          children: [
+            const ColoredBox(color: Colors.black),
             RepaintBoundary(
-              child: CustomPaint(
-                painter: PosePainter(
-                  _detectedPoses,
-                  _imageSize!,
-                  _rotation,
-                  isCorrect,
-                  _lensDirection,
-                  mirrorX: _mirrorSkeleton,
-                  cover: _coverPreview,
-                  flaggedLandmarks: form.flagged,
-                  issues: form.issues,
+              child: _AspectCoverPreview(
+                controller: controller,
+                cover: _coverPreview,
+              ),
+            ),
+
+            if (_imageSize != null && _detectedPoses.isNotEmpty)
+              RepaintBoundary(
+                child: CustomPaint(
+                  painter: PosePainter(
+                    _detectedPoses,
+                    _imageSize!,
+                    _rotation,
+                    isCorrect,
+                    _lensDirection,
+                    mirrorX: _mirrorSkeleton,
+                    cover: _coverPreview,
+                    flaggedLandmarks: form.flagged,
+                    issues: form.issues,
+                  ),
+                ),
+              ),
+
+            // "Keep Centered: ..." / "Wrong Form: ..." message
+            Positioned(
+              top: 8,
+              left: 16,
+              right: 16,
+              child: _FormBanner(form: form),
+            ),
+
+            Positioned(
+              bottom: 20,
+              left: 20,
+              right: 20,
+              child: Container(
+                padding: const EdgeInsets.all(16),
+                decoration: BoxDecoration(
+                  color: (isCorrect ? Colors.black87 : Colors.red.shade900)
+                      .withValues(alpha: 0.85),
+                  borderRadius: BorderRadius.circular(12),
+                ),
+                child: Column(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    if (exercise.isHold) ...[
+                      ClipRRect(
+                        borderRadius: BorderRadius.circular(6),
+                        child: LinearProgressIndicator(
+                          value: (_holdElapsed / exercise.holdSeconds)
+                              .clamp(0.0, 1.0)
+                              .toDouble(),
+                          minHeight: 8,
+                          backgroundColor: Colors.white24,
+                          valueColor: AlwaysStoppedAnimation<Color>(
+                            isCorrect ? Colors.greenAccent : Colors.redAccent,
+                          ),
+                        ),
+                      ),
+                      const SizedBox(height: 12),
+                    ],
+                    Row(
+                      mainAxisAlignment: MainAxisAlignment.spaceAround,
+                      children: [
+                        Column(
+                          mainAxisSize: MainAxisSize.min,
+                          children: [
+                            Text(
+                              exercise.isHold ? "HOLDS" : "REPS",
+                              style: const TextStyle(
+                                color: Colors.white54,
+                                fontSize: 12,
+                              ),
+                            ),
+                            Text(
+                              "$_repCounter / ${exercise.targetReps}",
+                              style: const TextStyle(
+                                color: Colors.white,
+                                fontSize: 28,
+                                fontWeight: FontWeight.bold,
+                              ),
+                            ),
+                          ],
+                        ),
+                        Column(
+                          mainAxisSize: MainAxisSize.min,
+                          children: [
+                            Text(
+                              exercise.isHold ? "HOLD" : "ANGLE",
+                              style: const TextStyle(
+                                color: Colors.white54,
+                                fontSize: 12,
+                              ),
+                            ),
+                            Text(
+                              exercise.isHold
+                                  ? "${_holdElapsed.toStringAsFixed(1)} / ${exercise.holdSeconds}s"
+                                  : "${_currentAngle.round()}°",
+                              style: TextStyle(
+                                color: isCorrect
+                                    ? Colors.greenAccent
+                                    : Colors.redAccent,
+                                fontSize: 28,
+                                fontWeight: FontWeight.bold,
+                              ),
+                            ),
+                          ],
+                        ),
+                      ],
+                    ),
+                    if (!isCorrect) ...[
+                      const SizedBox(height: 8),
+                      Text(
+                        'Why red: ${form.issues.map((i) => i.code.name).join(', ')}',
+                        textAlign: TextAlign.center,
+                        style: const TextStyle(
+                          color: Colors.white70,
+                          fontSize: 11,
+                        ),
+                      ),
+                    ],
+                    if (_rejectedReps > 0) ...[
+                      const SizedBox(height: 8),
+                      Text(
+                        'Not counted: $_rejectedReps',
+                        style: const TextStyle(
+                          color: Colors.redAccent,
+                          fontSize: 12,
+                          fontWeight: FontWeight.w600,
+                        ),
+                      ),
+                    ],
+                  ],
                 ),
               ),
             ),
-
-          // "Keep Centered: ..." / "Wrong Form: ..." message
-          Positioned(
-            top: 8,
-            left: 16,
-            right: 16,
-            child: _FormBanner(form: form),
-          ),
-
-          Positioned(
-            bottom: 20,
-            left: 20,
-            right: 20,
-            child: Container(
-              padding: const EdgeInsets.all(16),
-              decoration: BoxDecoration(
-                color: (isCorrect ? Colors.black87 : Colors.red.shade900)
-                    .withValues(alpha: 0.85),
-                borderRadius: BorderRadius.circular(12),
-              ),
-              child: Column(
-                mainAxisSize: MainAxisSize.min,
-                children: [
-                  if (exercise.isHold) ...[
-                    ClipRRect(
-                      borderRadius: BorderRadius.circular(6),
-                      child: LinearProgressIndicator(
-                        value: (_holdElapsed / exercise.holdSeconds)
-                            .clamp(0.0, 1.0)
-                            .toDouble(),
-                        minHeight: 8,
-                        backgroundColor: Colors.white24,
-                        valueColor: AlwaysStoppedAnimation<Color>(
-                          isCorrect ? Colors.greenAccent : Colors.redAccent,
-                        ),
-                      ),
-                    ),
-                    const SizedBox(height: 12),
-                  ],
-                  Row(
-                    mainAxisAlignment: MainAxisAlignment.spaceAround,
-                    children: [
-                      Column(
-                        mainAxisSize: MainAxisSize.min,
-                        children: [
-                          Text(
-                            exercise.isHold ? "HOLDS" : "REPS",
-                            style: const TextStyle(
-                              color: Colors.white54,
-                              fontSize: 12,
-                            ),
-                          ),
-                          Text(
-                            "$_repCounter / ${exercise.targetReps}",
-                            style: const TextStyle(
-                              color: Colors.white,
-                              fontSize: 28,
-                              fontWeight: FontWeight.bold,
-                            ),
-                          ),
-                        ],
-                      ),
-                      Column(
-                        mainAxisSize: MainAxisSize.min,
-                        children: [
-                          Text(
-                            exercise.isHold ? "HOLD" : "ANGLE",
-                            style: const TextStyle(
-                              color: Colors.white54,
-                              fontSize: 12,
-                            ),
-                          ),
-                          Text(
-                            exercise.isHold
-                                ? "${_holdElapsed.toStringAsFixed(1)} / ${exercise.holdSeconds}s"
-                                : "${_currentAngle.round()}°",
-                            style: TextStyle(
-                              color: isCorrect
-                                  ? Colors.greenAccent
-                                  : Colors.redAccent,
-                              fontSize: 28,
-                              fontWeight: FontWeight.bold,
-                            ),
-                          ),
-                        ],
-                      ),
-                    ],
-                  ),
-                  if (!isCorrect) ...[
-                    const SizedBox(height: 8),
-                    Text(
-                      'Why red: ${form.issues.map((i) => i.code.name).join(', ')}',
-                      textAlign: TextAlign.center,
-                      style: const TextStyle(
-                        color: Colors.white70,
-                        fontSize: 11,
-                      ),
-                    ),
-                  ],
-                  if (_rejectedReps > 0) ...[
-                    const SizedBox(height: 8),
-                    Text(
-                      'Not counted: $_rejectedReps',
-                      style: const TextStyle(
-                        color: Colors.redAccent,
-                        fontSize: 12,
-                        fontWeight: FontWeight.w600,
-                      ),
-                    ),
-                  ],
-                ],
-              ),
-            ),
-          ),
-        ],
+          ],
+        ),
       ),
     );
   }
@@ -1818,244 +1957,4 @@ class _FormBanner extends StatelessWidget {
       ),
     );
   }
-}
-
-// ===========================================================================
-// PosePainter (lives here; lib/widgets/pose_painter.dart is not needed)
-// ===========================================================================
-
-class PosePainter extends CustomPainter {
-  final List<Pose> poses;
-
-  /// Size of the analysis frame in PIXELS, already rotated to display
-  /// orientation (portrait phone => swapped W/H).
-  final Size absoluteImageSize;
-  final InputImageRotation rotation;
-  final bool isExerciseCorrect;
-  final CameraLensDirection cameraLensDirection;
-
-  /// Flip landmarks horizontally (true for the front camera).
-  final bool mirrorX;
-
-  /// Same choice as the preview: false = whole frame visible, true = crop.
-  final bool cover;
-
-  /// Joints the form checker wants highlighted.
-  final Set<PoseLandmarkType> flaggedLandmarks;
-
-  /// Faults to explain with a callout bubble next to the offending joint.
-  final List<FormIssue> issues;
-
-  PosePainter(
-    this.poses,
-    this.absoluteImageSize,
-    this.rotation,
-    this.isExerciseCorrect,
-    this.cameraLensDirection, {
-    this.mirrorX = false,
-    this.cover = false,
-    this.flaggedLandmarks = const {},
-    this.issues = const [],
-  });
-
-  static const Set<PoseLandmarkType> _faceLandmarks = {
-    PoseLandmarkType.nose,
-    PoseLandmarkType.leftEyeInner,
-    PoseLandmarkType.leftEye,
-    PoseLandmarkType.leftEyeOuter,
-    PoseLandmarkType.rightEyeInner,
-    PoseLandmarkType.rightEye,
-    PoseLandmarkType.rightEyeOuter,
-    PoseLandmarkType.leftEar,
-    PoseLandmarkType.rightEar,
-    PoseLandmarkType.leftMouth,
-    PoseLandmarkType.rightMouth,
-  };
-
-  static const List<List<PoseLandmarkType>> _bones = [
-    // Arms
-    [PoseLandmarkType.leftShoulder, PoseLandmarkType.leftElbow],
-    [PoseLandmarkType.leftElbow, PoseLandmarkType.leftWrist],
-    [PoseLandmarkType.rightShoulder, PoseLandmarkType.rightElbow],
-    [PoseLandmarkType.rightElbow, PoseLandmarkType.rightWrist],
-    // Legs
-    [PoseLandmarkType.leftHip, PoseLandmarkType.leftKnee],
-    [PoseLandmarkType.leftKnee, PoseLandmarkType.leftAnkle],
-    [PoseLandmarkType.rightHip, PoseLandmarkType.rightKnee],
-    [PoseLandmarkType.rightKnee, PoseLandmarkType.rightAnkle],
-    // Torso
-    [PoseLandmarkType.leftShoulder, PoseLandmarkType.rightShoulder],
-    [PoseLandmarkType.leftHip, PoseLandmarkType.rightHip],
-    [PoseLandmarkType.leftShoulder, PoseLandmarkType.leftHip],
-    [PoseLandmarkType.rightShoulder, PoseLandmarkType.rightHip],
-  ];
-
-  @override
-  void paint(Canvas canvas, Size size) {
-    if (poses.isEmpty) return;
-
-    final wrong = !isExerciseCorrect;
-    final lineColor = wrong ? Colors.redAccent : Colors.greenAccent;
-    final dotColor = wrong ? Colors.yellowAccent : Colors.greenAccent;
-
-    final dotPaint = Paint()
-      ..style = PaintingStyle.fill
-      ..color = dotColor;
-
-    final linePaint = Paint()
-      ..style = PaintingStyle.stroke
-      ..strokeWidth = 4.0
-      ..strokeCap = StrokeCap.round
-      ..color = lineColor;
-
-    final hotLinePaint = Paint()
-      ..style = PaintingStyle.stroke
-      ..strokeWidth = 6.5
-      ..strokeCap = StrokeCap.round
-      ..color = Colors.red;
-
-    final iw = absoluteImageSize.width;
-    final ih = absoluteImageSize.height;
-    if (iw <= 0 || ih <= 0) return;
-    final scale = cover
-        ? max(size.width / iw, size.height / ih)
-        : min(size.width / iw, size.height / ih);
-    final drawW = iw * scale;
-    final drawH = ih * scale;
-    final offX = (size.width - drawW) / 2.0;
-    final offY = (size.height - drawH) / 2.0;
-
-    for (final pose in poses) {
-      final Map<PoseLandmarkType, Offset> points = {};
-
-      pose.landmarks.forEach((type, landmark) {
-        if (landmark.likelihood > 0.5) {
-          var x = offX + landmark.x * scale;
-          final y = offY + landmark.y * scale;
-          if (mirrorX) x = size.width - x;
-          points[type] = Offset(x, y);
-        }
-      });
-
-      for (final bone in _bones) {
-        final p1 = points[bone[0]];
-        final p2 = points[bone[1]];
-        if (p1 == null || p2 == null) continue;
-        final hot =
-            wrong &&
-            (flaggedLandmarks.contains(bone[0]) ||
-                flaggedLandmarks.contains(bone[1]));
-        canvas.drawLine(p1, p2, hot ? hotLinePaint : linePaint);
-      }
-
-      points.forEach((type, p) {
-        if (!_faceLandmarks.contains(type)) {
-          canvas.drawCircle(p, 5, dotPaint);
-        }
-      });
-
-      if (wrong) {
-        _drawFlaggedJoints(canvas, points);
-        _drawCallouts(canvas, size, points);
-      }
-    }
-  }
-
-  void _drawFlaggedJoints(Canvas canvas, Map<PoseLandmarkType, Offset> points) {
-    final glow = Paint()..color = Colors.redAccent.withValues(alpha: 0.35);
-    final ring = Paint()
-      ..style = PaintingStyle.stroke
-      ..strokeWidth = 2.5
-      ..color = Colors.white;
-    final core = Paint()..color = Colors.redAccent;
-
-    for (final type in flaggedLandmarks) {
-      final p = points[type];
-      if (p == null) continue;
-      canvas.drawCircle(p, 18, glow);
-      canvas.drawCircle(p, 11, ring);
-      canvas.drawCircle(p, 6, core);
-    }
-  }
-
-  Offset? _anchorPoint(FormIssue issue, Map<PoseLandmarkType, Offset> points) {
-    final a = issue.anchor;
-    if (a != null && points[a] != null) return points[a];
-    for (final t in issue.landmarks) {
-      final p = points[t];
-      if (p != null) return p;
-    }
-    return null;
-  }
-
-  /// White bubble with a red border and red text, joined to the joint.
-  void _drawCallouts(
-    Canvas canvas,
-    Size size,
-    Map<PoseLandmarkType, Offset> points,
-  ) {
-    const maxTextWidth = 150.0;
-    const pad = 8.0;
-    const red = Color(0xFFD50000);
-
-    final fill = Paint()..color = Colors.white.withValues(alpha: 0.95);
-    final border = Paint()
-      ..style = PaintingStyle.stroke
-      ..strokeWidth = 1.6
-      ..color = red;
-    final leader = Paint()
-      ..style = PaintingStyle.stroke
-      ..strokeWidth = 1.6
-      ..color = red;
-
-    var slot = 0;
-    for (final issue in issues) {
-      if (issue.code == FormIssueCode.notInFrame) continue;
-      if (slot >= 2) break; // keep the screen readable
-      final target = _anchorPoint(issue, points);
-      if (target == null) continue;
-
-      final tp = TextPainter(
-        text: TextSpan(
-          text: issue.message,
-          style: const TextStyle(
-            color: red,
-            fontSize: 11,
-            fontWeight: FontWeight.bold,
-            height: 1.2,
-          ),
-        ),
-        textDirection: TextDirection.ltr,
-        maxLines: 4,
-        ellipsis: '…',
-      )..layout(maxWidth: maxTextWidth);
-
-      final w = tp.width + pad * 2;
-      final h = tp.height + pad * 2;
-
-      final onLeftHalf = target.dx < size.width / 2;
-      final left = (onLeftHalf ? target.dx + 28 : target.dx - 28 - w)
-          .clamp(8.0, size.width - w - 8.0)
-          .toDouble();
-      final top = (slot == 0 ? target.dy - h - 24 : target.dy + 24)
-          .clamp(8.0, size.height - h - 8.0)
-          .toDouble();
-
-      final rect = RRect.fromRectAndRadius(
-        Rect.fromLTWH(left, top, w, h),
-        const Radius.circular(8),
-      );
-
-      final from = Offset(onLeftHalf ? left : left + w, top + h / 2);
-      canvas.drawLine(from, target, leader);
-      canvas.drawRRect(rect, fill);
-      canvas.drawRRect(rect, border);
-      tp.paint(canvas, Offset(left + pad, top + pad));
-
-      slot++;
-    }
-  }
-
-  @override
-  bool shouldRepaint(PosePainter oldDelegate) => true;
 }

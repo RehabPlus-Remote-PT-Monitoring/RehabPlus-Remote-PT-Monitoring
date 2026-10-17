@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import '../services/app_provider.dart';
+import '../services/profile_service.dart';
 import '../models/session.dart';
 import 'login_page.dart';
 import 'edit_profile_screen.dart';
@@ -20,12 +21,27 @@ class _ProfileScreenState extends State<ProfileScreen> {
   static const Color darkTeal = Color(0xFF0D6E71);
 
   ProfileData _profile = const ProfileData(
-    name: 'Rob Thomas',
-    email: 'rob@rehabplus.com',
-    phone: '+1 (555) 000-0000',
-    dob: 'Jan 1, 2002',
-    condition: 'Knee Rehabilitation',
+    name: '',
+    email: '',
+    phone: '',
+    dob: '',
+    condition: '',
   );
+
+  @override
+  void initState() {
+    super.initState();
+    _loadProfile();
+  }
+
+  Future<void> _loadProfile() async {
+    try {
+      final profile = await ProfileService().load();
+      if (profile != null && mounted) setState(() => _profile = profile);
+    } catch (_) {
+      // Offline with nothing cached: keep the empty placeholders.
+    }
+  }
 
   Future<void> _openEdit() async {
     final result = await Navigator.push<ProfileData>(
@@ -413,11 +429,15 @@ class _ProfileScreenState extends State<ProfileScreen> {
     return Padding(
       padding: const EdgeInsets.symmetric(horizontal: 16),
       child: GestureDetector(
-        onTap: () => Navigator.pushAndRemoveUntil(
-          context,
-          MaterialPageRoute(builder: (_) => const LoginPage()),
-          (_) => false,
-        ),
+        onTap: () async {
+          await context.read<AppProvider>().signOut();
+          if (!mounted) return;
+          Navigator.pushAndRemoveUntil(
+            context,
+            MaterialPageRoute(builder: (_) => const LoginPage()),
+            (_) => false,
+          );
+        },
         child: Container(
           width: double.infinity,
           padding: const EdgeInsets.symmetric(vertical: 15),
@@ -456,7 +476,7 @@ class _InfoRow extends StatelessWidget {
           const SizedBox(width: 12),
           Text(label, style: const TextStyle(color: Colors.black45, fontSize: 13)),
           const Spacer(),
-          Text(value, style: const TextStyle(fontWeight: FontWeight.w600, fontSize: 13, color: Colors.black87)),
+          Text(value.isEmpty ? '—' : value, style: const TextStyle(fontWeight: FontWeight.w600, fontSize: 13, color: Colors.black87)),
         ],
       ),
     );

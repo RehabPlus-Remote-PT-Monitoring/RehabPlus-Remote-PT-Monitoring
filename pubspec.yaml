@@ -4,7 +4,7 @@ publish_to: 'none'
 version: 1.0.0+1
 
 environment:
-  sdk: ^3.11.0
+  sdk: '>=3.11.0 <4.0.0'
 
 dependencies:
   flutter:
@@ -23,14 +23,22 @@ dependencies:
   permission_handler: ^11.3.0
   vibration: ^2.0.0
   audioplayers: ^6.0.0
+  # Added for better performance and debugging
+  collection: ^1.18.0
+  meta: ^1.12.0
+  firebase_core: ^5.0.0
+  firebase_auth: ^7.0.0
+  cloud_firestore: ^7.0.0
 
 dev_dependencies:
   flutter_test:
     sdk: flutter
   flutter_lints: ^6.0.0
+  # Added for better testing and analysis
+  integration_test:
+    sdk: flutter
 
 flutter:
   uses-material-design: true
   assets:
     - assets/successSound.mp3
-

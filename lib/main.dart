@@ -1,22 +1,34 @@
+import 'package:firebase_auth/firebase_auth.dart';
+import 'package:firebase_core/firebase_core.dart';
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
+import 'firebase_options.dart';
 import 'services/app_provider.dart';
+import 'screens/dashboard_screen.dart';
 import 'screens/login_page.dart';
 
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
+  await Firebase.initializeApp(
+    options: DefaultFirebaseOptions.currentPlatform,
+  );
   final provider = AppProvider();
   await provider.init();
   runApp(
     ChangeNotifierProvider.value(
       value: provider,
-      child: const RehabPlusApp(),
+      // Firebase keeps the user signed in across app restarts.
+      child: RehabPlusApp(
+        signedIn: FirebaseAuth.instance.currentUser != null,
+      ),
     ),
   );
 }
 
 class RehabPlusApp extends StatelessWidget {
-  const RehabPlusApp({super.key});
+  const RehabPlusApp({super.key, this.signedIn = false});
+
+  final bool signedIn;
 
   @override
   Widget build(BuildContext context) {
@@ -74,7 +86,7 @@ class RehabPlusApp extends StatelessWidget {
           shape: RoundedRectangleBorder(borderRadius: BorderRadius.all(Radius.circular(16))),
         ),
       ),
-      home: const LoginPage(),
+      home: signedIn ? const DashboardScreen() : const LoginPage(),
     );
   }
 }

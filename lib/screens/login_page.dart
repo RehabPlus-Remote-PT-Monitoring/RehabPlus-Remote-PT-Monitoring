@@ -1,5 +1,8 @@
 import 'package:flutter/material.dart';
 import 'package:phosphor_flutter/phosphor_flutter.dart';
+import 'package:provider/provider.dart';
+import '../services/app_provider.dart';
+import '../services/auth_service.dart';
 import 'dashboard_screen.dart';
 import 'forgot_password_screen.dart';
 
@@ -21,9 +24,6 @@ class _LoginPageState extends State<LoginPage> with TickerProviderStateMixin {
   late final Animation<double> _fadeAnim;
   late final Animation<Offset> _slideAnim;
   late final Animation<double> _logoScaleAnim;
-
-  static const _email = 'rob@rehabplus.com';
-  static const _password = 'rehab123';
 
   @override
   void initState() {
@@ -60,14 +60,18 @@ class _LoginPageState extends State<LoginPage> with TickerProviderStateMixin {
       _showSnack('Please enter your email and password.', isError: true);
       return;
     }
-    if (email != _email || password != _password) {
-      _showSnack('Invalid email or password.', isError: true);
+    setState(() => _isLoading = true);
+    try {
+      await AuthService.I.signIn(email, password);
+    } on AuthFailure catch (e) {
+      if (!mounted) return;
+      setState(() => _isLoading = false);
+      _showSnack(e.message, isError: true);
       return;
     }
 
-    setState(() => _isLoading = true);
-    await Future.delayed(const Duration(milliseconds: 1200));
-
+    if (!mounted) return;
+    await context.read<AppProvider>().loadHistory();
     if (!mounted) return;
     Navigator.pushReplacement(
       context,

@@ -1,4 +1,4 @@
-package com.example.rehabplus
+package com.rehabplus.app
 
 import io.flutter.embedding.android.FlutterActivity
 

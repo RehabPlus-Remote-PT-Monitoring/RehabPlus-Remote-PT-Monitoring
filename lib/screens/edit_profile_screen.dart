@@ -1,11 +1,14 @@
 import 'package:flutter/material.dart';
 
+import '../services/profile_service.dart';
+
 class ProfileData {
   final String name;
   final String email;
   final String phone;
   final String dob;
   final String condition;
+  final String therapist;
 
   const ProfileData({
     required this.name,
@@ -13,6 +16,7 @@ class ProfileData {
     required this.phone,
     required this.dob,
     required this.condition,
+    this.therapist = '',
   });
 }
 
@@ -51,7 +55,7 @@ class _EditProfileScreenState extends State<EditProfileScreen>
     _phoneCtrl = TextEditingController(text: widget.initial.phone);
     _dobCtrl = TextEditingController(text: widget.initial.dob);
     _conditionCtrl = TextEditingController(text: widget.initial.condition);
-    _therapistCtrl = TextEditingController(text: 'Mr. Heintz');
+    _therapistCtrl = TextEditingController(text: widget.initial.therapist);
 
     _ctrl = AnimationController(vsync: this, duration: const Duration(milliseconds: 600));
     _fade = CurvedAnimation(parent: _ctrl, curve: Curves.easeOut);
@@ -75,16 +79,26 @@ class _EditProfileScreenState extends State<EditProfileScreen>
   Future<void> _save() async {
     if (!_formKey.currentState!.validate()) return;
     setState(() => _isSaving = true);
-    await Future.delayed(const Duration(milliseconds: 800));
-    if (!mounted) return;
+    final phone = _phoneCtrl.text.trim();
+    final dob = _dobCtrl.text.trim();
+    try {
+      ProfileService().saveContact(phone: phone, dob: dob);
+    } catch (_) {
+      setState(() => _isSaving = false);
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Could not save. Please sign in again.')),
+      );
+      return;
+    }
     Navigator.pop(
       context,
       ProfileData(
-        name: _nameCtrl.text.trim(),
-        email: _emailCtrl.text.trim(),
-        phone: _phoneCtrl.text.trim(),
-        dob: _dobCtrl.text.trim(),
-        condition: _conditionCtrl.text.trim(),
+        name: widget.initial.name,
+        email: widget.initial.email,
+        phone: phone,
+        dob: dob,
+        condition: widget.initial.condition,
+        therapist: widget.initial.therapist,
       ),
     );
   }
@@ -113,11 +127,10 @@ class _EditProfileScreenState extends State<EditProfileScreen>
                         _sectionLabel('Personal Info', Icons.person_outline_rounded),
                         const SizedBox(height: 12),
                         _buildCard([
-                          _field(_nameCtrl, 'Full Name', Icons.person_outline, validator: _required),
+                          // Name, email and condition are managed by the clinic.
+                          _field(_nameCtrl, 'Full Name', Icons.person_outline, readOnly: true),
                           _divider(),
-                          _field(_emailCtrl, 'Email', Icons.email_outlined,
-                              keyboardType: TextInputType.emailAddress,
-                              validator: (v) => v != null && v.contains('@') ? null : 'Enter a valid email'),
+                          _field(_emailCtrl, 'Email', Icons.email_outlined, readOnly: true),
                           _divider(),
                           _field(_phoneCtrl, 'Phone', Icons.phone_outlined,
                               keyboardType: TextInputType.phone, validator: _required),
@@ -128,7 +141,7 @@ class _EditProfileScreenState extends State<EditProfileScreen>
                         _sectionLabel('Rehab Info', Icons.medical_services_outlined),
                         const SizedBox(height: 12),
                         _buildCard([
-                          _field(_conditionCtrl, 'Condition', Icons.medical_services_outlined, validator: _required),
+                          _field(_conditionCtrl, 'Condition', Icons.medical_services_outlined, readOnly: true),
                           _divider(),
                           _field(_therapistCtrl, 'Therapist', Icons.person_pin_outlined, readOnly: true),
                         ]),

@@ -11,7 +11,7 @@ import 'package:rehabplus/main.dart';
 import 'package:rehabplus/services/app_provider.dart';
 
 void main() {
-  testWidgets('App renders home screen smoke test', (WidgetTester tester) async {
+  testWidgets('Signed-out app shows the login page', (WidgetTester tester) async {
     final provider = AppProvider();
     await tester.pumpWidget(
       ChangeNotifierProvider.value(
@@ -19,6 +19,7 @@ void main() {
         child: const RehabPlusApp(),
       ),
     );
-    expect(find.text('RehabPlus'), findsOneWidget);
+    await tester.pumpAndSettle(); // let the intro animations finish
+    expect(find.text('Sign in to continue your recovery'), findsOneWidget);
   });
 }

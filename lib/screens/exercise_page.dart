@@ -4,6 +4,7 @@ import 'package:provider/provider.dart';
 
 import '../models/exercise_model.dart';
 import '../services/app_provider.dart';
+import '../services/prescription_service.dart';
 import 'pose_detector_screen.dart';
 
 class ExercisePage extends StatefulWidget {
@@ -25,29 +26,25 @@ class _ExercisePageState extends State<ExercisePage> {
     _exercisesFuture = _loadAssignedExercises();
   }
 
-  // TODO: this was wired to a therapist-assigned plan via Firestore
-  // (PlanService/AuthService) — reverted to the static list for now. See
-  // plan_service.dart/auth_service.dart if you want to reconnect it later.
-  Future<List<ExerciseConfig>> _loadAssignedExercises() async {
-    return availableExercises;
-  }
+  final _prescriptions = PrescriptionService();
+
+  Future<List<ExerciseConfig>> _loadAssignedExercises() =>
+      _prescriptions.loadAssignedExercises();
 
   Future<void> _refresh() async {
     setState(() => _exercisesFuture = _loadAssignedExercises());
     await _exercisesFuture;
   }
 
-  // How close the patient is to a default goal of 3x/week for this
-  // exercise, based on sessions actually saved in the last 7 days.
-  // NOTE: uses a fixed assumption of 3x/week rather than the plan's real
-  // frequencyPerWeek — wire that through if you want it exact per plan.
+  // How close the patient is to the prescribed sessions per week for this
+  // exercise, based on sessions saved in the last 7 days.
   double _weeklyProgress(AppProvider provider, ExerciseConfig config) {
     final weekAgo = DateTime.now().subtract(const Duration(days: 7));
     final count = provider.sessionHistory
         .where((s) => s.exerciseId == config.type.name && s.startTime.isAfter(weekAgo))
         .length;
-    const assumedWeeklyGoal = 3;
-    return (count / assumedWeeklyGoal).clamp(0.0, 1.0);
+    final weeklyGoal = config.prescription?.frequencyPerWeek ?? 3;
+    return weeklyGoal > 0 ? (count / weeklyGoal).clamp(0.0, 1.0) : 1.0;
   }
 
   @override

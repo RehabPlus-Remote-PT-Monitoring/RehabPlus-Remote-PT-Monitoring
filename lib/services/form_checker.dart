@@ -17,6 +17,7 @@ import 'dart:ui' show Offset;
 
 import 'package:google_mlkit_pose_detection/google_mlkit_pose_detection.dart';
 
+import '../core/diagnostic_logger.dart';
 import '../models/exercise_model.dart';
 
 // Declared in priority order: lower index is shown first in the banner.
@@ -310,12 +311,18 @@ class FormChecker {
   final ExerciseConfig exercise;
   final FormThresholds th;
   final _Profile _profile;
+  final DiagnosticLogger _logger;
 
   FormChecker(
     this.exercise, {
     FormThresholds thresholds = FormThresholds.strict,
+    DiagnosticLogger? logger,
   }) : th = thresholds,
-       _profile = _profileFor(exercise.type);
+       _profile = _profileFor(exercise.type),
+       _logger = logger ?? DiagnosticLogger.I {
+    _logger.info('FormChecker', 'Initialized for ${exercise.title}',
+        {'type': exercise.type.name, 'thresholds': 'strict'});
+  }
 
   static const double _smoothing = 0.6; // EMA weight of the newest frame
   static const int _gapMs = 300; // a fault that vanishes this long restarts
@@ -346,11 +353,13 @@ class FormChecker {
     _firstSeen.clear();
     _lastSeen.clear();
     _latest.clear();
+    _logger.info('FormChecker', 'State reset');
   }
 
   /// Call when ML Kit found nobody in the frame.
   FormResult evaluateNoPose() {
     reset();
+    _logger.info('FormChecker', 'No pose detected - not in frame');
     return _notInFrame;
   }
 
@@ -359,6 +368,7 @@ class FormChecker {
 
     if (!_requiredVisible(lm)) {
       reset();
+      _logger.info('FormChecker', 'Required landmarks not visible');
       return _notInFrame;
     }
 
@@ -375,7 +385,12 @@ class FormChecker {
     _checkTrunkLean(raw);
     _checkExerciseSpecific(raw, lm);
 
-    return _stabilise(raw);
+    final result = _stabilise(raw);
+    if (result.isWrong) {
+      _logger.warn('FormChecker', 'Form issues detected',
+          {'issues': result.issues.map((i) => i.code.name).toList()});
+    }
+    return result;
   }
 
   // -------------------------------------------------------------------------

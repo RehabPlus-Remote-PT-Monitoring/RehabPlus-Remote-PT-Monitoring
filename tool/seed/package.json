@@ -1,0 +1,9 @@
+{
+  "name": "rehabplus-seed",
+  "private": true,
+  "type": "module",
+  "description": "Seeds Firestore with test data. See seed.mjs.",
+  "dependencies": {
+    "firebase-admin": "^13.0.0"
+  }
+}

@@ -1,7 +1,12 @@
+import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/material.dart';
 import 'package:phosphor_flutter/phosphor_flutter.dart';
 
-enum _ForgotStage { enterEmail, verifyCode, newPassword, success }
+import '../services/auth_service.dart';
+
+// Firebase emails the user a reset link; the new password is chosen on
+// Firebase's page, so the app only needs to collect the email.
+enum _ForgotStage { enterEmail, success }
 
 class ForgotPasswordScreen extends StatefulWidget {
   const ForgotPasswordScreen({super.key});
@@ -13,21 +18,10 @@ class ForgotPasswordScreen extends StatefulWidget {
 class _ForgotPasswordScreenState extends State<ForgotPasswordScreen>
     with TickerProviderStateMixin {
   static const Color primaryTeal = Color(0xFF23A8AA);
-  static const Color darkTeal = Color(0xFF0D6E71);
 
   _ForgotStage _stage = _ForgotStage.enterEmail;
 
-  static const String _demoCode = '123456';
-  final List<String> _otpDigits = List.filled(6, '');
-
-  // Controllers
   final _emailCtrl = TextEditingController();
-  final _codeCtrl = TextEditingController();
-  final _newPassCtrl = TextEditingController();
-  final _confirmPassCtrl = TextEditingController();
-
-  bool _obscureNew = true;
-  bool _obscureConfirm = true;
   bool _isLoading = false;
 
   // Stage transition animation
@@ -66,16 +60,11 @@ class _ForgotPasswordScreenState extends State<ForgotPasswordScreen>
       _logoCtrl.forward();
       _stageCtrl.forward();
     });
-
-    _newPassCtrl.addListener(() => setState(() {}));
   }
 
   @override
   void dispose() {
     _emailCtrl.dispose();
-    _codeCtrl.dispose();
-    _newPassCtrl.dispose();
-    _confirmPassCtrl.dispose();
     _stageCtrl.dispose();
     _logoCtrl.dispose();
     _successCtrl.dispose();
@@ -83,10 +72,8 @@ class _ForgotPasswordScreenState extends State<ForgotPasswordScreen>
   }
 
   Future<void> _transitionTo(_ForgotStage next) async {
-    setState(() => _isLoading = true);
-    await Future.delayed(const Duration(milliseconds: 900));
-    if (!mounted) return;
     await _stageCtrl.reverse();
+    if (!mounted) return;
     setState(() {
       _stage = next;
       _isLoading = false;
@@ -95,34 +82,34 @@ class _ForgotPasswordScreenState extends State<ForgotPasswordScreen>
     if (next == _ForgotStage.success) _successCtrl.forward();
   }
 
-  void _onContinue() {
+  Future<void> _onContinue() async {
     switch (_stage) {
       case _ForgotStage.enterEmail:
-        if (_emailCtrl.text.trim().isEmpty || !_emailCtrl.text.contains('@')) {
+        final email = _emailCtrl.text.trim();
+        if (email.isEmpty || !email.contains('@')) {
           _showSnack('Enter a valid email address.', isError: true);
           return;
         }
-        _transitionTo(_ForgotStage.verifyCode);
-      case _ForgotStage.verifyCode:
-        final entered = _otpDigits.join();
-        if (entered.length < 6 || _otpDigits.any((d) => d.isEmpty)) {
-          _showSnack('Enter the complete 6-digit code.', isError: true);
+        setState(() => _isLoading = true);
+        try {
+          await AuthService.I.sendPasswordReset(email);
+        } on FirebaseAuthException catch (e) {
+          // Unknown emails are not reported (Firebase hides which accounts
+          // exist), so only input and network problems land here.
+          if (!mounted) return;
+          setState(() => _isLoading = false);
+          _showSnack(
+            switch (e.code) {
+              'invalid-email' => 'Enter a valid email address.',
+              'network-request-failed' => 'No internet connection.',
+              'too-many-requests' => 'Too many attempts. Try again later.',
+              _ => 'Could not send the reset email. Please try again.',
+            },
+            isError: true,
+          );
           return;
         }
-        if (entered != _demoCode) {
-          _showSnack('Incorrect code. Hint: 123456', isError: true);
-          return;
-        }
-        _transitionTo(_ForgotStage.newPassword);
-      case _ForgotStage.newPassword:
-        if (_newPassCtrl.text.length < 6) {
-          _showSnack('Password must be at least 6 characters.', isError: true);
-          return;
-        }
-        if (_newPassCtrl.text != _confirmPassCtrl.text) {
-          _showSnack('Passwords do not match.', isError: true);
-          return;
-        }
+        if (!mounted) return;
         _transitionTo(_ForgotStage.success);
       case _ForgotStage.success:
         Navigator.pop(context);
@@ -142,26 +129,19 @@ class _ForgotPasswordScreenState extends State<ForgotPasswordScreen>
   // ── Stage metadata ────────────────────────────────────────────────────────
   String get _stageTitle => switch (_stage) {
         _ForgotStage.enterEmail => 'Forgot Password?',
-        _ForgotStage.verifyCode => 'Check Your Email',
-        _ForgotStage.newPassword => 'New Password',
-        _ForgotStage.success => 'All Done!',
+        _ForgotStage.success => 'Check Your Email',
       };
 
   String get _stageSubtitle => switch (_stage) {
-        _ForgotStage.enterEmail => 'Enter your email and we\'ll send a verification code.',
-        _ForgotStage.verifyCode => 'We sent a 6-digit code to ${_emailCtrl.text.trim()}.',
-        _ForgotStage.newPassword => 'Create a strong new password for your account.',
-        _ForgotStage.success => 'Your password has been reset successfully.',
+        _ForgotStage.enterEmail => 'Enter your email and we\'ll send you a link to reset your password.',
+        _ForgotStage.success =>
+          'If an account exists for ${_emailCtrl.text.trim()}, a reset link is on its way.',
       };
 
   String get _buttonLabel => switch (_stage) {
-        _ForgotStage.enterEmail => 'Send Code',
-        _ForgotStage.verifyCode => 'Verify Code',
-        _ForgotStage.newPassword => 'Reset Password',
+        _ForgotStage.enterEmail => 'Send Reset Link',
         _ForgotStage.success => 'Back to Login',
       };
-
-  int get _stepIndex => _stage.index;
 
   @override
   Widget build(BuildContext context) {
@@ -244,63 +224,8 @@ class _ForgotPasswordScreenState extends State<ForgotPasswordScreen>
             'Physiotherapy',
             style: TextStyle(color: Colors.white70, fontSize: 13, letterSpacing: 2),
           ),
-          const SizedBox(height: 20),
-          // Step indicator
-          if (_stage != _ForgotStage.success) _buildStepIndicator(),
         ],
       ),
-    );
-  }
-
-  Widget _buildStepIndicator() {
-    const labels = ['Email', 'Verify', 'Password'];
-    return Row(
-      mainAxisAlignment: MainAxisAlignment.center,
-      children: List.generate(3, (i) {
-        final done = i < _stepIndex;
-        final active = i == _stepIndex;
-        return Row(
-          children: [
-            AnimatedContainer(
-              duration: const Duration(milliseconds: 350),
-              curve: Curves.easeOutCubic,
-              width: active ? 32 : 28,
-              height: active ? 32 : 28,
-              decoration: BoxDecoration(
-                color: done || active ? Colors.white : Colors.white.withValues(alpha: 0.25),
-                shape: BoxShape.circle,
-                boxShadow: active
-                    ? [BoxShadow(color: Colors.white.withValues(alpha: 0.4), blurRadius: 10)]
-                    : null,
-              ),
-              child: Center(
-                child: done
-                    ? const Icon(Icons.check_rounded, size: 14, color: Color(0xFF0D6E71))
-                    : Text(
-                        '${i + 1}',
-                        style: TextStyle(
-                          fontSize: 12,
-                          fontWeight: FontWeight.bold,
-                          color: active ? const Color(0xFF0D6E71) : Colors.white70,
-                        ),
-                      ),
-              ),
-            ),
-            const SizedBox(height: 4),
-            if (i < 2)
-              AnimatedContainer(
-                duration: const Duration(milliseconds: 350),
-                width: 40,
-                height: 2,
-                margin: const EdgeInsets.symmetric(horizontal: 4),
-                decoration: BoxDecoration(
-                  color: done ? Colors.white : Colors.white.withValues(alpha: 0.3),
-                  borderRadius: BorderRadius.circular(1),
-                ),
-              ),
-          ],
-        );
-      }),
     );
   }
 
@@ -329,16 +254,7 @@ class _ForgotPasswordScreenState extends State<ForgotPasswordScreen>
               // Back button (not on success)
               if (_stage != _ForgotStage.success)
                 GestureDetector(
-                  onTap: () {
-                    if (_stage == _ForgotStage.enterEmail) {
-                      Navigator.pop(context);
-                    } else {
-                      _stageCtrl.reverse().then((_) {
-                        setState(() => _stage = _ForgotStage.values[_stage.index - 1]);
-                        _stageCtrl.forward();
-                      });
-                    }
-                  },
+                  onTap: () => Navigator.pop(context),
                   child: Container(
                     width: 36, height: 36,
                     margin: const EdgeInsets.only(bottom: 16),
@@ -418,8 +334,6 @@ class _ForgotPasswordScreenState extends State<ForgotPasswordScreen>
   Widget _buildStageContent() {
     return switch (_stage) {
       _ForgotStage.enterEmail => _buildEnterEmail(),
-      _ForgotStage.verifyCode => _buildVerifyCode(),
-      _ForgotStage.newPassword => _buildNewPassword(),
       _ForgotStage.success => _buildSuccess(),
     };
   }
@@ -430,84 +344,6 @@ class _ForgotPasswordScreenState extends State<ForgotPasswordScreen>
       hint: 'Email address',
       icon: PhosphorIcons.envelopeSimple(),
       keyboardType: TextInputType.emailAddress,
-    );
-  }
-
-  Widget _buildVerifyCode() {
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
-        // 6-box OTP input
-        Row(
-          mainAxisAlignment: MainAxisAlignment.spaceBetween,
-          children: List.generate(6, (i) => _OtpBox(
-            index: i,
-            onChanged: (v) => setState(() => _otpDigits[i] = v),
-          )),
-        ),
-        const SizedBox(height: 16),
-        Center(
-          child: TextButton(
-            onPressed: () {
-              setState(() => _otpDigits.fillRange(0, 6, ''));
-              _showSnack('Code resent! Use 123456');
-            },
-            style: TextButton.styleFrom(
-              padding: EdgeInsets.zero,
-              minimumSize: Size.zero,
-              tapTargetSize: MaterialTapTargetSize.shrinkWrap,
-            ),
-            child: RichText(
-              text: const TextSpan(
-                text: "Didn't receive it? ",
-                style: TextStyle(fontSize: 12, color: Colors.black45),
-                children: [
-                  TextSpan(
-                    text: 'Resend Code',
-                    style: TextStyle(color: Color(0xFF2EA9AE), fontWeight: FontWeight.w700),
-                  ),
-                ],
-              ),
-            ),
-          ),
-        ),
-      ],
-    );
-  }
-
-  Widget _buildNewPassword() {
-    return Column(
-      children: [
-        _inputField(
-          controller: _newPassCtrl,
-          hint: 'New password',
-          icon: PhosphorIcons.lockSimple(),
-          obscureText: _obscureNew,
-          suffix: IconButton(
-            onPressed: () => setState(() => _obscureNew = !_obscureNew),
-            icon: PhosphorIcon(
-              _obscureNew ? PhosphorIcons.eye() : PhosphorIcons.eyeSlash(),
-              size: 20, color: Colors.grey.shade400,
-            ),
-          ),
-        ),
-        const SizedBox(height: 14),
-        _inputField(
-          controller: _confirmPassCtrl,
-          hint: 'Confirm password',
-          icon: PhosphorIcons.lockKey(),
-          obscureText: _obscureConfirm,
-          suffix: IconButton(
-            onPressed: () => setState(() => _obscureConfirm = !_obscureConfirm),
-            icon: PhosphorIcon(
-              _obscureConfirm ? PhosphorIcons.eye() : PhosphorIcons.eyeSlash(),
-              size: 20, color: Colors.grey.shade400,
-            ),
-          ),
-        ),
-        const SizedBox(height: 12),
-        _PasswordStrengthBar(password: _newPassCtrl.text),
-      ],
     );
   }
 
@@ -531,12 +367,12 @@ class _ForgotPasswordScreenState extends State<ForgotPasswordScreen>
           ),
           const SizedBox(height: 16),
           const Text(
-            'Password Reset!',
+            'Reset Link Sent!',
             style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold, color: Colors.black87),
           ),
           const SizedBox(height: 8),
           Text(
-            'You can now sign in with your new password.',
+            'Open the link in your email to choose a new password, then sign in here.\nCheck your spam folder if you don\'t see it.',
             textAlign: TextAlign.center,
             style: TextStyle(fontSize: 13, color: Colors.grey.shade500, height: 1.4),
           ),
@@ -576,113 +412,4 @@ class _ForgotPasswordScreenState extends State<ForgotPasswordScreen>
         ),
       ),
     );
-  }
-}
-
-// ── OTP Box ───────────────────────────────────────────────────────────────────
-class _OtpBox extends StatefulWidget {
-  final int index;
-  final ValueChanged<String> onChanged;
-  const _OtpBox({required this.index, required this.onChanged});
-
-  @override
-  State<_OtpBox> createState() => _OtpBoxState();
-}
-
-class _OtpBoxState extends State<_OtpBox> {
-  static const Color primaryTeal = Color(0xFF23A8AA);
-  bool _filled = false;
-
-  @override
-  Widget build(BuildContext context) {
-    return AnimatedContainer(
-      duration: const Duration(milliseconds: 200),
-      curve: Curves.easeOutCubic,
-      width: 44, height: 52,
-      decoration: BoxDecoration(
-        color: _filled ? const Color(0xFFE0F5F5) : const Color(0xFFF5F5F5),
-        borderRadius: BorderRadius.circular(12),
-        border: Border.all(
-          color: _filled ? primaryTeal : Colors.grey.shade200,
-          width: _filled ? 1.8 : 1,
-        ),
-      ),
-      child: TextField(
-        textAlign: TextAlign.center,
-        maxLength: 1,
-        keyboardType: TextInputType.number,
-        style: const TextStyle(fontSize: 18, fontWeight: FontWeight.bold, color: Color(0xFF1A1A1A)),
-        decoration: const InputDecoration(
-          counterText: '',
-          border: InputBorder.none,
-          contentPadding: EdgeInsets.zero,
-        ),
-        onChanged: (v) {
-          setState(() => _filled = v.isNotEmpty);
-          widget.onChanged(v);
-          if (v.isNotEmpty) FocusScope.of(context).nextFocus();
-        },
-      ),
-    );
-  }
-}
-
-// ── Password Strength Bar ─────────────────────────────────────────────────────
-class _PasswordStrengthBar extends StatelessWidget {
-  final String password;
-  const _PasswordStrengthBar({required this.password});
-
-  int get _strength {
-    if (password.isEmpty) return 0;
-    int s = 0;
-    if (password.length >= 6) s++;
-    if (password.length >= 10) s++;
-    if (password.contains(RegExp(r'[A-Z]'))) s++;
-    if (password.contains(RegExp(r'[0-9]'))) s++;
-    if (password.contains(RegExp(r'[!@#\$%^&*]'))) s++;
-    return s;
-  }
-
-  Color get _color => switch (_strength) {
-        0 || 1 => const Color(0xFFE53935),
-        2 => const Color(0xFFFF9800),
-        3 => const Color(0xFFFFC107),
-        _ => const Color(0xFF4CAF50),
-      };
-
-  String get _label => switch (_strength) {
-        0 || 1 => 'Weak',
-        2 => 'Fair',
-        3 => 'Good',
-        _ => 'Strong',
-      };
-
-  @override
-  Widget build(BuildContext context) {
-    if (password.isEmpty) return const SizedBox.shrink();
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
-        Row(
-          children: List.generate(5, (i) => Expanded(
-            child: AnimatedContainer(
-              duration: const Duration(milliseconds: 300),
-              curve: Curves.easeOutCubic,
-              height: 4,
-              margin: const EdgeInsets.only(right: 4),
-              decoration: BoxDecoration(
-                color: i < _strength ? _color : Colors.grey.shade200,
-                borderRadius: BorderRadius.circular(2),
-              ),
-            ),
-          )),
-        ),
-        const SizedBox(height: 6),
-        Text(
-          'Password strength: $_label',
-          style: TextStyle(fontSize: 11, color: _color, fontWeight: FontWeight.w600),
-        ),
-      ],
-    );
-  }
-}
+  }}

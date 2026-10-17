@@ -1,58 +1,28 @@
-# Miscellaneous
-*.class
+# Root
+.env
 *.log
-*.pyc
-*.swp
 .DS_Store
-.atom/
-.build/
-.buildlog/
-.history
-.svn/
-.swiftpm/
-migrate_working_dir/
+cookies.txt
 
-# IntelliJ related
+# IDE
+.vscode/
+.idea/
 *.iml
 *.ipr
 *.iws
-.idea/
 
-<<<<<<< HEAD
-# VS Code
-.vscode/
-=======
-# The .vscode folder contains launch configuration and tasks you configure in
-# VS Code which you may wish to be included in version control, so this line
-# is commented out by default.
-#.vscode/
->>>>>>> 34681c47cca11c70e87c1532105e8a0e0af572d4
-
-# Flutter/Dart/Pub related
-**/doc/api/
-**/ios/Flutter/.last_build_id
+# Flutter/Dart/Pub
 .dart_tool/
-<<<<<<< HEAD
 .flutter-plugins
-=======
->>>>>>> 34681c47cca11c70e87c1532105e8a0e0af572d4
 .flutter-plugins-dependencies
+.metadata
 .pub-cache/
 .pub/
-/build/
-<<<<<<< HEAD
-=======
-/coverage/
->>>>>>> 34681c47cca11c70e87c1532105e8a0e0af572d4
+build/
+coverage/
+*.dart_tool/
 
-# Symbolication related
-app.*.symbols
-
-# Obfuscation related
-app.*.map.json
-
-<<<<<<< HEAD
-# Android Studio build artifacts
+# Android
 /android/app/debug
 /android/app/profile
 /android/app/release
@@ -62,7 +32,7 @@ app.*.map.json
 /android/local.properties
 /android/.kotlin/
 
-# iOS/macOS build artifacts
+# iOS/macOS
 /ios/Pods/
 /ios/.symlinks/
 /ios/Flutter/Flutter.framework
@@ -70,12 +40,51 @@ app.*.map.json
 /ios/Flutter/Generated.xcconfig
 /ios/Flutter/flutter_export_environment.sh
 /ios/Flutter/ephemeral/
+/macos/Flutter/Flutter.framework
+/macos/Flutter/Flutter.podspec
+/macos/Flutter/Generated.xcconfig
+/macos/Flutter/flutter_export_environment.sh
 
-# Firebase config (contains API keys - keep out of git)
+# Linux/Windows
+/linux/flutter/ephemeral/
+/windows/flutter/ephemeral/
+
+# Firebase (contains API keys)
 firebase_options.dart
-=======
-# Android Studio will place build artifacts here
-/android/app/debug
-/android/app/profile
-/android/app/release
->>>>>>> 34681c47cca11c70e87c1532105e8a0e0af572d4
+
+# Kilo
+.kilo/
+
+# Laravel (backend/laravel/)
+backend/laravel/.env
+backend/laravel/.env.*
+backend/laravel/vendor/
+backend/laravel/node_modules/
+backend/laravel/public/hot
+backend/laravel/public/storage
+backend/laravel/storage/*.key
+backend/laravel/bootstrap/cache/*.php
+backend/laravel/storage/framework/cache/
+backend/laravel/storage/framework/sessions/
+backend/laravel/storage/framework/views/
+backend/laravel/storage/framework/testing/
+backend/laravel/storage/logs/*.log
+backend/laravel/.phpunit.result.cache
+backend/laravel/phpunit.xml
+
+# OS
+Thumbs.db
+ehthumbs.db
+Desktop.ini
+# Firebase service-account keys (Admin SDK) — never commit
+*service-account*.json
+*-firebase-adminsdk-*.json
+tool/seed/node_modules/
+firebase-debug.log
+
+
+# Firebase Android config (contains API keys)
+android/app/google-services.json
+
+# Node
+node_modules/

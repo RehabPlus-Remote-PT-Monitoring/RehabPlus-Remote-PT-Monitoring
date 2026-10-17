@@ -1,4 +1,6 @@
 // lib/models/exercise_model.dart
+import 'prescription.dart';
+
 enum ExerciseType {
   kneeExtension,
   straightLegRaise,
@@ -22,10 +24,10 @@ enum ExerciseDifficulty {
   hard;
 
   String get label => switch (this) {
-        ExerciseDifficulty.easy => 'Easy',
-        ExerciseDifficulty.moderate => 'Moderate',
-        ExerciseDifficulty.hard => 'Hard',
-      };
+    ExerciseDifficulty.easy => 'Easy',
+    ExerciseDifficulty.moderate => 'Moderate',
+    ExerciseDifficulty.hard => 'Hard',
+  };
 }
 
 class ExerciseConfig {
@@ -47,6 +49,9 @@ class ExerciseConfig {
   final ExerciseDifficulty difficulty;
   final int estimatedMinutes;
 
+  /// The therapist assignment this config came from, if any.
+  final Prescription? prescription;
+
   const ExerciseConfig({
     required this.type,
     required this.title,
@@ -58,6 +63,7 @@ class ExerciseConfig {
     required this.difficulty,
     required this.estimatedMinutes,
     this.holdSeconds = 0,
+    this.prescription,
   });
 
   bool get isHold => holdSeconds > 0;
@@ -65,18 +71,24 @@ class ExerciseConfig {
   /// Returns a copy with just the therapist-assignable fields overridden.
   /// Pose-detection angles (targetAngle/restAngle) are never overridden —
   /// they're calibrated per exercise type in code, not set by a therapist.
-  ExerciseConfig copyWith({int? targetReps, int? holdSeconds}) {
+  ExerciseConfig copyWith({
+    int? targetReps,
+    int? holdSeconds,
+    String? repsText,
+    Prescription? prescription,
+  }) {
     return ExerciseConfig(
       type: type,
       title: title,
       category: category,
-      repsText: repsText,
+      repsText: repsText ?? this.repsText,
       targetAngle: targetAngle,
       restAngle: restAngle,
       difficulty: difficulty,
       estimatedMinutes: estimatedMinutes,
       targetReps: targetReps ?? this.targetReps,
       holdSeconds: holdSeconds ?? this.holdSeconds,
+      prescription: prescription ?? this.prescription,
     );
   }
 }
@@ -91,7 +103,8 @@ final List<ExerciseConfig> availableExercises = [
     targetReps: 10,
     difficulty: ExerciseDifficulty.moderate,
     estimatedMinutes: 12,
-    targetAngle: 125.0, // extended (lowered from 150: pose model rarely reads 180)
+    targetAngle:
+        125.0, // extended (lowered from 150: pose model rarely reads 180)
     restAngle: 110.0, // seated, knee relaxed
   ),
   const ExerciseConfig(

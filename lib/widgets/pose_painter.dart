@@ -1,4 +1,8 @@
 // lib/widgets/pose_painter.dart
+//
+// Canonical pose skeleton painter with form feedback callouts.
+// Used by PoseDetectorScreen. Supports both cover (crop) and fit (letterbox)
+// preview modes, and configurable horizontal mirroring for front camera.
 import 'dart:math';
 
 import 'package:flutter/material.dart';
@@ -11,25 +15,19 @@ class PosePainter extends CustomPainter {
   final List<Pose> poses;
 
   /// Size of the analysis frame in PIXELS, already rotated to display
-  /// orientation (portrait phone => swapped W/H). Landmarks are mapped with
-  /// a uniform cover scale + centre-crop offset so the skeleton matches an
-  /// undistorted preview.
+  /// orientation (portrait phone => swapped W/H).
   final Size absoluteImageSize;
   final InputImageRotation rotation;
   final bool isExerciseCorrect;
   final CameraLensDirection cameraLensDirection;
 
-  /// When true the painter mirrors landmarks horizontally for the front
-  /// camera. This is required because ML Kit analyses the UNMIRRORED
-  /// image-stream frames while the platform shows the selfie preview
-  /// mirrored. Flipping the landmark X coordinate by that single amount
-  /// keeps the skeleton glued to the video: raise your right hand and the
-  /// skeleton's hand rises on the right side of the screen — mirror
-  /// behaviour, not inverted. _AspectCoverPreview must NOT flip anything,
-  /// or the two layers would double-mirror relative to each other.
-  final bool mirrorFrontCamera;
+  /// Flip landmarks horizontally (true for the front camera).
+  final bool mirrorX;
 
-  /// Joints the form checker wants highlighted (drawn larger with a red glow).
+  /// Same choice as the preview: false = whole frame visible, true = crop.
+  final bool cover;
+
+  /// Joints the form checker wants highlighted.
   final Set<PoseLandmarkType> flaggedLandmarks;
 
   /// Faults to explain with a callout bubble next to the offending joint.
@@ -41,12 +39,12 @@ class PosePainter extends CustomPainter {
     this.rotation,
     this.isExerciseCorrect,
     this.cameraLensDirection, {
-    this.mirrorFrontCamera = false,
+    this.mirrorX = false,
+    this.cover = false,
     this.flaggedLandmarks = const {},
     this.issues = const [],
   });
 
-  // Facial landmarks to exclude from drawing dots
   static const Set<PoseLandmarkType> _faceLandmarks = {
     PoseLandmarkType.nose,
     PoseLandmarkType.leftEyeInner,
@@ -85,7 +83,6 @@ class PosePainter extends CustomPainter {
 
     final wrong = !isExerciseCorrect;
     final lineColor = wrong ? Colors.redAccent : Colors.greenAccent;
-    // Matches the mockup: red bones with yellow joints when the form is wrong.
     final dotColor = wrong ? Colors.yellowAccent : Colors.greenAccent;
 
     final dotPaint = Paint()
@@ -104,20 +101,16 @@ class PosePainter extends CustomPainter {
       ..strokeCap = StrokeCap.round
       ..color = Colors.red;
 
-    // --- Aspect-correct mapping ------------------------------------------
-    // The preview is drawn COVER-first (uniform scale + centre crop), never
-    // stretched, so landmarks must be mapped with the same uniform scale.
-    // absoluteImageSize is in analysis-image pixels already rotated to
-    // display orientation (portrait phone => swapped W/H).
     final iw = absoluteImageSize.width;
     final ih = absoluteImageSize.height;
     if (iw <= 0 || ih <= 0) return;
-    final scale = max(size.width / iw, size.height / ih);
+    final scale = cover
+        ? max(size.width / iw, size.height / ih)
+        : min(size.width / iw, size.height / ih);
     final drawW = iw * scale;
     final drawH = ih * scale;
     final offX = (size.width - drawW) / 2.0;
     final offY = (size.height - drawH) / 2.0;
-    final mirror = mirrorFrontCamera;
 
     for (final pose in poses) {
       final Map<PoseLandmarkType, Offset> points = {};
@@ -126,17 +119,11 @@ class PosePainter extends CustomPainter {
         if (landmark.likelihood > 0.5) {
           var x = offX + landmark.x * scale;
           final y = offY + landmark.y * scale;
-
-          // Optional X-axis mirror (only if mirrorFrontCamera is true).
-          // Currently disabled from the screen because on this device the
-          // video preview itself is unmirrored — mirroring here would make
-          // the skeleton move opposite to the body.
-          if (mirror) x = size.width - x;
+          if (mirrorX) x = size.width - x;
           points[type] = Offset(x, y);
         }
       });
 
-      // Bones (thicker when they touch a flagged joint)
       for (final bone in _bones) {
         final p1 = points[bone[0]];
         final p2 = points[bone[1]];
@@ -148,7 +135,6 @@ class PosePainter extends CustomPainter {
         canvas.drawLine(p1, p2, hot ? hotLinePaint : linePaint);
       }
 
-      // Joint dots (never on the face)
       points.forEach((type, p) {
         if (!_faceLandmarks.contains(type)) {
           canvas.drawCircle(p, 5, dotPaint);
@@ -189,8 +175,7 @@ class PosePainter extends CustomPainter {
     return null;
   }
 
-  /// White bubble with a red border and red text, joined to the joint by a line
-  /// (same look as the "leg's low" / "bend your back" notes in the mockup).
+  /// White bubble with a red border and red text, joined to the joint.
   void _drawCallouts(
     Canvas canvas,
     Size size,
@@ -235,8 +220,6 @@ class PosePainter extends CustomPainter {
       final w = tp.width + pad * 2;
       final h = tp.height + pad * 2;
 
-      // Put the bubble on whichever side of the joint has more room, the first
-      // one above it and the second below so two callouts never overlap.
       final onLeftHalf = target.dx < size.width / 2;
       final left = (onLeftHalf ? target.dx + 28 : target.dx - 28 - w)
           .clamp(8.0, size.width - w - 8.0)

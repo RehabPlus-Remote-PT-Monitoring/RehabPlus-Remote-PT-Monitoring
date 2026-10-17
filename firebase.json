@@ -1,0 +1,24 @@
+{
+  "flutter": {
+    "platforms": {
+      "android": {
+        "default": {
+          "projectId": "rehabplus-80675",
+          "appId": "1:756139475263:android:d51d9457f258e35ecfd38a",
+          "fileOutput": "android/app/google-services.json"
+        }
+      },
+      "dart": {
+        "lib/firebase_options.dart": {
+          "projectId": "rehabplus-80675",
+          "configurations": {
+            "android": "1:756139475263:android:d51d9457f258e35ecfd38a"
+          }
+        }
+      }
+    }
+  },
+  "firestore": {
+    "rules": "firestore.rules"
+  }
+}
