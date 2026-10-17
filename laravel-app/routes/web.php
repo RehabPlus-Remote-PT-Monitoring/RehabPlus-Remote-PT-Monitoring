@@ -3,48 +3,78 @@
 use App\Http\Controllers\AdminPageController;
 use App\Http\Controllers\AppointmentController;
 use App\Http\Controllers\AuthController;
+use App\Http\Controllers\ClinicalRecordController;
 use App\Http\Controllers\DashboardController;
-use App\Http\Controllers\ExerciseController;
 use App\Http\Controllers\InventoryController;
 use App\Http\Controllers\MessageController;
 use App\Http\Controllers\PatientController;
-use App\Http\Controllers\PatientPortalController;
 use App\Http\Controllers\PaymentController;
+use App\Http\Controllers\PrescriptionController;
 use App\Http\Controllers\StaffScheduleController;
 use App\Http\Controllers\UserController;
 use Illuminate\Support\Facades\Route;
 
-Route::get('/', function () {
-    if (auth()->check()) {
-        return auth()->user()->role === 'patient'
-            ? redirect()->route('patient.portal')
-            : redirect()->route('dashboard');
-    }
+// Firebase uids / Firestore ids in URLs: checked before they reach a document path.
+Route::pattern('uid', '[A-Za-z0-9_-]{1,128}');
+Route::pattern('id', '[A-Za-z0-9_-]{1,128}');
+Route::pattern('patientUid', '[A-Za-z0-9_-]{1,128}');
 
-    return redirect()->route('login.page');
+Route::get('/', function () {
+    return auth()->check()
+        ? redirect()->route('dashboard')
+        : redirect()->route('login.page');
 });
 
 Route::get('/login', [AuthController::class, 'login'])->name('login.page');
-Route::post('/login', [AuthController::class, 'attempt'])->name('login.submit');
+Route::post('/login', [AuthController::class, 'attempt'])->middleware('throttle:10,1')->name('login.submit');
 Route::post('/logout', [AuthController::class, 'doLogout'])->name('logout');
 
+// Signed-in staff: admin, therapist or front-desk staff (see App\Auth\StaffUser).
 Route::middleware(['auth.rehab'])->group(function () {
     Route::get('/dashboard', [DashboardController::class, 'index'])->name('dashboard');
+    Route::get('/analytics', [DashboardController::class, 'analytics'])->name('analytics');
 
+    // Patients (Firestore). Everyone sees the list (therapists: their own);
+    // the controller checks who may change each patient.
+    Route::middleware(['role:admin,therapist'])->group(function () {
+        Route::get('/patients/create', [PatientController::class, 'create'])->name('patients.create');
+        Route::post('/patients', [PatientController::class, 'store'])->name('patients.store');
+    });
     Route::get('/patients', [PatientController::class, 'index'])->name('patients.index');
-    Route::get('/patients/create', [PatientController::class, 'create'])->name('patients.create');
-    Route::post('/patients', [PatientController::class, 'store'])->name('patients.store');
-    Route::get('/patients/{id}', [PatientController::class, 'show'])->name('patients.show');
-    Route::get('/patients/{id}/edit', [PatientController::class, 'edit'])->name('patients.edit');
-    Route::put('/patients/{id}', [PatientController::class, 'update'])->name('patients.update');
-    Route::delete('/patients/{id}', [PatientController::class, 'delete'])->name('patients.delete');
+    Route::get('/patients/{uid}', [PatientController::class, 'show'])->name('patients.show');
+    Route::get('/patients/{uid}/edit', [PatientController::class, 'edit'])->name('patients.edit');
+    Route::put('/patients/{uid}', [PatientController::class, 'update'])->name('patients.update');
+    Route::post('/patients/{uid}/archive', [PatientController::class, 'archive'])->name('patients.archive');
+    Route::post('/patients/{uid}/restore', [PatientController::class, 'restore'])->name('patients.restore');
+    Route::post('/patients/{uid}/password', [PatientController::class, 'password'])->name('patients.password');
 
-    Route::get('/patients/{patientId}/exercises/create', [ExerciseController::class, 'create'])->name('exercises.create');
-    Route::post('/patients/{patientId}/exercises', [ExerciseController::class, 'store'])->name('exercises.store');
-    Route::get('/patients/{patientId}/exercises/{id}/edit', [ExerciseController::class, 'edit'])->name('exercises.edit');
-    Route::put('/patients/{patientId}/exercises/{id}', [ExerciseController::class, 'update'])->name('exercises.update');
-    Route::delete('/patients/{patientId}/exercises/{id}', [ExerciseController::class, 'delete'])->name('exercises.delete');
+    // Clinical records: admins and therapists only.
+    Route::middleware(['role:admin,therapist'])->group(function () {
+        Route::get('/patients/{uid}/prescriptions/create', [PrescriptionController::class, 'create'])->name('prescriptions.create');
+        Route::post('/patients/{uid}/prescriptions', [PrescriptionController::class, 'store'])->name('prescriptions.store');
+        Route::get('/patients/{uid}/prescriptions/{id}/edit', [PrescriptionController::class, 'edit'])->name('prescriptions.edit');
+        Route::put('/patients/{uid}/prescriptions/{id}', [PrescriptionController::class, 'update'])->name('prescriptions.update');
+        Route::post('/patients/{uid}/prescriptions/{id}/active', [PrescriptionController::class, 'toggle'])->name('prescriptions.toggle');
 
+        Route::get('/assessments', [ClinicalRecordController::class, 'assessments'])->name('assessments');
+        Route::post('/assessments', [ClinicalRecordController::class, 'storeAssessment'])->name('assessments.store');
+        Route::post('/goals', [ClinicalRecordController::class, 'storeGoal'])->name('goals.store');
+        Route::put('/patients/{uid}/goals/{id}', [ClinicalRecordController::class, 'updateGoal'])->name('goals.update');
+        Route::get('/notes', [ClinicalRecordController::class, 'notes'])->name('notes');
+        Route::post('/notes', [ClinicalRecordController::class, 'storeNote'])->name('notes.store');
+        Route::delete('/patients/{uid}/{kind}/{id}', [ClinicalRecordController::class, 'destroy'])
+            ->whereIn('kind', ['assessments', 'goals', 'notes'])
+            ->name('records.delete');
+    });
+
+    // Patient messaging (Firestore, shared with the app). Therapists answer the
+    // "therapist" thread of their own patients; admin/staff the "clinic" thread.
+    Route::get('/messages', [MessageController::class, 'index'])->name('messages.index');
+    Route::get('/messages/{patientUid}', [MessageController::class, 'show'])->name('messages.show');
+    Route::get('/messages/{patientUid}/feed', [MessageController::class, 'feed'])->name('messages.feed');
+    Route::post('/messages/{patientUid}', [MessageController::class, 'reply'])->name('messages.reply');
+
+    // Clinic operations (still on the SQL database).
     Route::get('/appointments', [AppointmentController::class, 'index'])->name('appointments.index');
     Route::get('/appointments/create', [AppointmentController::class, 'create'])->name('appointments.create');
     Route::post('/appointments', [AppointmentController::class, 'store'])->name('appointments.store');
@@ -54,7 +84,6 @@ Route::middleware(['auth.rehab'])->group(function () {
     Route::delete('/appointments/{id}', [AppointmentController::class, 'delete'])->name('appointments.delete');
     Route::post('/appointments/{id}/status', [AppointmentController::class, 'changeStatus'])->name('appointments.status');
 
-    Route::get('/analytics', [DashboardController::class, 'analytics'])->name('analytics');
     Route::get('/reports', [AdminPageController::class, 'reports'])->name('reports');
     Route::get('/billing', [PaymentController::class, 'index'])->name('billing');
     Route::post('/billing', [PaymentController::class, 'store'])->name('billing.store');
@@ -65,34 +94,18 @@ Route::middleware(['auth.rehab'])->group(function () {
     Route::get('/schedule', [StaffScheduleController::class, 'index'])->name('schedule');
     Route::post('/schedule/save', [StaffScheduleController::class, 'store'])->name('schedule.store');
     Route::post('/schedule/time-off/save', [StaffScheduleController::class, 'storeTimeOff'])->name('schedule.timeoff.store');
-    Route::get('/notes', [AdminPageController::class, 'notes'])->name('notes');
-    Route::get('/assessments', [AdminPageController::class, 'assessments'])->name('assessments');
 
-    // Patient messaging (Firestore, shared with the app). Therapists answer the
-    // "therapist" thread of their own patients; admin/manager/staff the "clinic" thread.
-    Route::middleware(['role:superadmin,manager,staff,therapist'])->group(function () {
-        Route::get('/messages', [MessageController::class, 'index'])->name('messages.index');
-        Route::get('/messages/{patientUid}', [MessageController::class, 'show'])->name('messages.show');
-        Route::get('/messages/{patientUid}/feed', [MessageController::class, 'feed'])->name('messages.feed');
-        Route::post('/messages/{patientUid}', [MessageController::class, 'reply'])->name('messages.reply');
-    });
-
-    Route::middleware(['role:superadmin'])->group(function () {
+    Route::middleware(['role:admin'])->group(function () {
         Route::get('/patient-statistics', [DashboardController::class, 'patientStatistics'])->name('patient-statistics');
         Route::get('/patient-statistics/export/csv', [DashboardController::class, 'exportPatientStatisticsCsv'])->name('patient-statistics.export.csv');
         Route::get('/patient-statistics/export/pdf', [DashboardController::class, 'exportPatientStatisticsPdf'])->name('patient-statistics.export.pdf');
 
-        Route::get('/users', [AdminPageController::class, 'users'])->name('users.index');
+        // Staff accounts (Firebase Auth + users/{uid}).
+        Route::get('/users', [UserController::class, 'index'])->name('users.index');
         Route::get('/users/create', [UserController::class, 'create'])->name('users.create');
         Route::post('/users', [UserController::class, 'store'])->name('users.store');
-        Route::post('/users/create-patient', [UserController::class, 'createPatient'])->name('users.createPatient');
-        Route::get('/users/{id}', [UserController::class, 'show'])->name('users.show');
-        Route::get('/users/{id}/edit', [UserController::class, 'edit'])->name('users.edit');
-        Route::put('/users/{id}', [UserController::class, 'update'])->name('users.update');
-        Route::delete('/users/{id}', [UserController::class, 'delete'])->name('users.delete');
+        Route::get('/users/{uid}/edit', [UserController::class, 'edit'])->name('users.edit');
+        Route::put('/users/{uid}', [UserController::class, 'update'])->name('users.update');
+        Route::post('/users/{uid}/status', [UserController::class, 'status'])->name('users.status');
     });
-});
-
-Route::middleware(['auth.rehab'])->group(function () {
-    Route::get('/patient-portal', [PatientPortalController::class, 'index'])->name('patient.portal');
 });

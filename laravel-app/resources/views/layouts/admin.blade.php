@@ -36,7 +36,7 @@
                 <div class="user-avatar">{{ strtoupper(substr(auth()->user()->name ?? 'U', 0, 1)) }}</div>
                 <div>
                     <div class="fw-bold">{{ auth()->user()->name ?? '' }}</div>
-                    <small class="text-muted">{{ ucfirst(auth()->user()->role ?? '') }}</small>
+                    <small class="text-muted">{{ auth()->user()?->roleLabel() }}</small>
                 </div>
             </div>
 
@@ -76,14 +76,12 @@
                         Patients
                     </a>
                 </li>
-                @if (in_array(auth()->user()?->role, ['superadmin', 'manager', 'staff', 'therapist'], true))
-                    <li class="nav-item">
-                        <a class="nav-link {{ request()->is('messages*') ? 'active' : '' }}" href="{{ route('messages.index') }}">
-                            <i class="bi bi-chat-dots-fill"></i>
-                            Messages
-                        </a>
-                    </li>
-                @endif
+                <li class="nav-item">
+                    <a class="nav-link {{ request()->is('messages*') ? 'active' : '' }}" href="{{ route('messages.index') }}">
+                        <i class="bi bi-chat-dots-fill"></i>
+                        Messages
+                    </a>
+                </li>
                 <li class="nav-item">
                     <a class="nav-link {{ request()->routeIs('appointments.*') || request()->is('appointments*') ? 'active' : '' }}" href="{{ route('appointments.index') }}">
                         <i class="bi bi-calendar-check"></i>
@@ -108,27 +106,35 @@
                         Staff Schedule
                     </a>
                 </li>
-                <li class="nav-item">
-                    <a class="nav-link {{ request()->is('notes') ? 'active' : '' }}" href="{{ url('/notes') }}">
-                        <i class="bi bi-journal-text"></i>
-                        Therapy Notes &amp; Care Plans
-                    </a>
-                </li>
-                <li class="nav-item">
-                    <a class="nav-link {{ request()->is('assessments') ? 'active' : '' }}" href="{{ url('/assessments') }}">
-                        <i class="bi bi-clipboard2-pulse"></i>
-                        Assessments &amp; Goals
-                    </a>
-                </li>
+                @if (auth()->user()?->isClinician())
+                    <li class="nav-item">
+                        <a class="nav-link {{ request()->is('notes') ? 'active' : '' }}" href="{{ route('notes') }}">
+                            <i class="bi bi-journal-text"></i>
+                            Therapy Notes &amp; Care Plans
+                        </a>
+                    </li>
+                    <li class="nav-item">
+                        <a class="nav-link {{ request()->is('assessments') ? 'active' : '' }}" href="{{ route('assessments') }}">
+                            <i class="bi bi-clipboard2-pulse"></i>
+                            Assessments &amp; Goals
+                        </a>
+                    </li>
+                @endif
             </ul>
 
-            @if (auth()->user()?->role === 'superadmin')
+            @if (auth()->user()?->isAdmin())
                 <div class="nav-section mt-4">Admin</div>
                 <ul class="nav flex-column">
                     <li class="nav-item">
                         <a class="nav-link {{ request()->is('users*') ? 'active' : '' }}" href="{{ route('users.index') }}">
                             <i class="bi bi-person-gear"></i>
-                            Users
+                            Staff Accounts
+                        </a>
+                    </li>
+                    <li class="nav-item">
+                        <a class="nav-link {{ request()->is('patient-statistics*') ? 'active' : '' }}" href="{{ route('patient-statistics') }}">
+                            <i class="bi bi-bar-chart-line"></i>
+                            Patient Statistics
                         </a>
                     </li>
                 </ul>

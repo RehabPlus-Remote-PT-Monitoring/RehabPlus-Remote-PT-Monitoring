@@ -19,11 +19,6 @@
 
     @if ($error)
         <div class="alert alert-danger">{{ $error }}</div>
-    @elseif (! $linked)
-        <div class="alert alert-warning">
-            Your login email ({{ auth()->user()->email }}) has no matching Firebase account, so the app can't
-            assign you patients yet. Ask an admin to create your Firebase account with this email.
-        </div>
     @else
         <div class="card shadow-sm border-0">
             <div class="list-group list-group-flush">

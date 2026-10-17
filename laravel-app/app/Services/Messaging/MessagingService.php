@@ -2,12 +2,11 @@
 
 namespace App\Services\Messaging;
 
-use App\Models\User;
-use App\Services\Firebase\FirebaseAdmin;
+use App\Auth\StaffUser;
 use App\Services\Firebase\FirebaseException;
 use App\Services\Firebase\FirestoreClient;
+use App\Services\Firebase\PatientNotifier;
 use Carbon\CarbonImmutable;
-use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Str;
 
 /**
@@ -20,9 +19,8 @@ use Illuminate\Support\Str;
  *   patients/{uid}/devices/{fcmToken}                    push targets
  *
  * Who answers what:
- *   - therapist: the "therapist" thread of patients whose therapistId is
- *     their Firebase uid (matched by login email)
- *   - superadmin / manager / staff: every patient's "clinic" thread
+ *   - therapist: the "therapist" thread of patients whose therapistId is their uid
+ *   - admin / front-desk staff: every patient's "clinic" thread
  *
  * The service account bypasses Firestore rules, so every method checks
  * access itself.
@@ -35,47 +33,34 @@ class MessagingService
 
     public const MAX_LENGTH = 1000;
 
-    private const CLINIC_ROLES = ['superadmin', 'manager', 'staff'];
-
-    public function __construct(private FirestoreClient $db, private FirebaseAdmin $admin)
+    public function __construct(private FirestoreClient $db, private PatientNotifier $notifier)
     {
     }
 
     /** The thread this user answers, or null if they can't use messaging. */
-    public function threadFor(User $user): ?string
+    public function threadFor(StaffUser $user): ?string
     {
-        return match (true) {
-            $user->role === 'therapist' => self::THREAD_THERAPIST,
-            in_array($user->role, self::CLINIC_ROLES, true) => self::THREAD_CLINIC,
+        return match ($user->role) {
+            StaffUser::THERAPIST => self::THREAD_THERAPIST,
+            StaffUser::ADMIN, StaffUser::STAFF => self::THREAD_CLINIC,
             default => null,
         };
-    }
-
-    /** Firebase uid of a therapist (same email as their dashboard login). */
-    public function staffUid(User $user): ?string
-    {
-        return $this->admin->uidForEmail($user->email);
     }
 
     /**
      * Conversations this user can answer: unread first, then newest.
      * Patients with no messages yet are included so staff can start one.
      *
-     * @return array{thread: string, linked: bool, conversations: array<int, array>}
+     * @return array{thread: string, conversations: array<int, array>}
      */
-    public function inbox(User $user): array
+    public function inbox(StaffUser $user): array
     {
         $thread = $this->threadFor($user);
 
-        if ($thread === self::THREAD_THERAPIST) {
-            $uid = $this->staffUid($user);
-            if (! $uid) {
-                return ['thread' => $thread, 'linked' => false, 'conversations' => []];
-            }
-            $patients = $this->db->query('', 'patients', [['therapistId', 'EQUAL', $uid]]);
-        } else {
-            $patients = $this->db->query('', 'patients');
-        }
+        $patients = $thread === self::THREAD_THERAPIST
+            ? $this->db->query('', 'patients', [['therapistId', 'EQUAL', $user->id]])
+            : $this->db->query('', 'patients');
+        $patients = array_values(array_filter($patients, fn ($p) => ! ($p['archived'] ?? false)));
 
         $summaries = $this->db->getMany(array_map(
             fn ($p) => "patients/{$p['_id']}/threads/{$thread}",
@@ -99,16 +84,16 @@ class MessagingService
         usort($conversations, fn ($a, $b) => [$b['unread'] > 0, $b['lastMessageAt']?->getTimestamp() ?? 0, $a['patientName']]
             <=> [$a['unread'] > 0, $a['lastMessageAt']?->getTimestamp() ?? 0, $b['patientName']]);
 
-        return ['thread' => $thread, 'linked' => true, 'conversations' => $conversations];
+        return ['thread' => $thread, 'conversations' => $conversations];
     }
 
     /**
      * The patient's profile if $user may read/answer this thread, else null.
      * Therapists only get their own patients; clinic staff only the clinic thread.
      */
-    public function authorize(User $user, string $patientUid, string $thread): ?array
+    public function authorize(StaffUser $user, string $patientUid, string $thread): ?array
     {
-        if ($thread !== $this->threadFor($user) || ! $this->isValidUid($patientUid)) {
+        if ($thread !== $this->threadFor($user) || ! FirestoreClient::isValidId($patientUid)) {
             return null;
         }
 
@@ -117,11 +102,8 @@ class MessagingService
             return null;
         }
 
-        if ($thread === self::THREAD_THERAPIST) {
-            $uid = $this->staffUid($user);
-            if (! $uid || ($patient['therapistId'] ?? null) !== $uid) {
-                return null;
-            }
+        if ($thread === self::THREAD_THERAPIST && ($patient['therapistId'] ?? null) !== $user->id) {
+            return null;
         }
 
         return $patient;
@@ -163,7 +145,7 @@ class MessagingService
      *
      * @return int number of phones the push reached
      */
-    public function reply(User $user, string $patientUid, array $patient, string $thread, string $text): int
+    public function reply(StaffUser $user, string $patientUid, array $patient, string $thread, string $text): int
     {
         $text = trim($text);
         if ($text === '' || mb_strlen($text) > self::MAX_LENGTH) {
@@ -172,7 +154,7 @@ class MessagingService
 
         $now = CarbonImmutable::now();
         $threadPath = "patients/{$patientUid}/threads/{$thread}";
-        $senderId = $thread === self::THREAD_THERAPIST ? ($this->staffUid($user) ?? 'clinic') : 'clinic';
+        $senderId = $thread === self::THREAD_THERAPIST ? $user->id : 'clinic';
         $title = $thread === self::THREAD_THERAPIST
             ? (($patient['therapistName'] ?? '') ?: ($user->name ?: 'Your therapist'))
             : 'RehabPlus Clinic';
@@ -190,44 +172,9 @@ class MessagingService
                 'lastMessageAt' => $now,
                 'lastSenderRole' => 'staff',
             ], increments: ['unreadForPatient' => 1]),
-            $this->db->createWrite("patients/{$patientUid}/notifications/".FirestoreClient::newId(), [
-                'type' => 'message',
-                'title' => "Message from {$title}",
-                'body' => $preview,
-                'data' => ['thread' => $thread],
-                'read' => false,
-            ], serverTimestamps: ['createdAt']),
+            $this->notifier->notificationWrite($patientUid, 'message', "Message from {$title}", $preview, ['thread' => $thread]),
         ]);
 
-        return $this->push($patientUid, $title, $preview, $thread);
-    }
-
-    private function push(string $patientUid, string $title, string $body, string $thread): int
-    {
-        $sent = 0;
-
-        try {
-            foreach ($this->db->query("patients/{$patientUid}", 'devices') as $device) {
-                $result = $this->admin->sendPush($device['_id'], $title, $body, ['type' => 'chat', 'thread' => $thread]);
-
-                if ($result === 'sent') {
-                    $sent++;
-                } elseif ($result === 'dead') {
-                    $this->db->delete($device['_path']);
-                } else {
-                    Log::warning('FCM push failed', ['patient' => $patientUid]);
-                }
-            }
-        } catch (FirebaseException $e) {
-            Log::warning('FCM push skipped: '.$e->getMessage(), ['patient' => $patientUid]);
-        }
-
-        return $sent;
-    }
-
-    /** Firebase uids are alphanumeric; reject anything else before it reaches a path. */
-    private function isValidUid(string $uid): bool
-    {
-        return (bool) preg_match('/^[A-Za-z0-9_-]{1,128}$/', $uid);
+        return $this->notifier->push($patientUid, $title, $preview, ['type' => 'chat', 'thread' => $thread]);
     }
 }

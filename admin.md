@@ -1,5 +1,7 @@
 Login credentials are not stored in this repository.
-Please ask the RehabPlus team for the admin, manager, or staff login details.
+The Laravel dashboard (laravel-app/) signs staff in with Firebase Auth. Create the
+first administrator with `php artisan rehab:make-admin <email> "<name>"` (it asks
+for the password), then add therapists and front-desk staff under Staff Accounts.
 
 #API USAGES:
 GET http://localhost:8080/api/v1/patients

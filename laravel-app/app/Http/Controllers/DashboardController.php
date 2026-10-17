@@ -15,14 +15,14 @@ class DashboardController extends Controller
     ) {
     }
 
-    public function index(): View
+    public function index(Request $request): View
     {
-        return view('dashboard.index', $this->overview->overview());
+        return view('dashboard.index', $this->overview->overview($request->user()));
     }
 
-    public function analytics(): View
+    public function analytics(Request $request): View
     {
-        return view('dashboard.analytics', $this->overview->overview());
+        return view('dashboard.analytics', $this->overview->overview($request->user()));
     }
 
     public function patientStatistics(Request $request): View

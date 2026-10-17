@@ -3,37 +3,40 @@
 namespace Tests\Feature;
 
 use App\Models\StaffSchedule;
-use App\Models\User;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Support\Carbon;
+use Tests\Support\FakeFirebase;
 use Tests\TestCase;
 
+/** The schedule is still on SQL; its staff list comes from Firebase accounts. */
 class StaffScheduleTest extends TestCase
 {
-    use RefreshDatabase;
+    use FakeFirebase, RefreshDatabase;
 
     protected function setUp(): void
     {
         parent::setUp();
 
-        $this->actingAs(User::factory()->create(['name' => 'Admin', 'role' => 'superadmin', 'is_active' => true]));
+        $this->actingAs($this->staff('admin', 'adm', 'Admin'));
+        $this->staff('therapist', 'th1', 'Dr. Real Therapist');
     }
 
-    public function test_schedule_lists_real_staff_without_demo_therapists(): void
+    public function test_schedule_lists_real_staff_without_patients_or_disabled_accounts(): void
     {
-        User::factory()->create(['name' => 'Dr. Real Therapist', 'role' => 'therapist']);
-        User::factory()->create(['name' => 'Some Patient', 'role' => 'patient']);
+        $this->patientDoc('pat1', ['name' => 'Some Patient']);
+        $this->staff('staff', 'gone', 'Former Staffer');
+        $this->docs['users/gone']['active'] = false;
 
         $this->get('/schedule')
             ->assertOk()
             ->assertSee('Dr. Real Therapist')
             ->assertDontSee('Some Patient')
+            ->assertDontSee('Former Staffer')
             ->assertDontSee('Dr. Sarah Mitchell');
     }
 
     public function test_shift_can_be_added_and_shows_today(): void
     {
-        User::factory()->create(['name' => 'Dr. Real Therapist', 'role' => 'therapist']);
         $today = Carbon::today()->format('l');
 
         $this->post('/schedule/save', [
@@ -66,8 +69,6 @@ class StaffScheduleTest extends TestCase
 
     public function test_time_off_marks_staff_on_leave(): void
     {
-        User::factory()->create(['name' => 'Dr. Real Therapist', 'role' => 'therapist']);
-
         $this->post('/schedule/time-off/save', [
             'staff' => 'Dr. Real Therapist',
             'date' => Carbon::today()->toDateString(),

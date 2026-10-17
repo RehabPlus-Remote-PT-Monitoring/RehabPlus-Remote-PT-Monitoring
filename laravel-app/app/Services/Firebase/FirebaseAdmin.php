@@ -7,26 +7,30 @@ use Illuminate\Http\Client\Response;
 use Illuminate\Support\Facades\Cache;
 use Illuminate\Support\Facades\Http;
 
-/** Firebase Auth admin lookups and FCM pushes over REST, using the service account. */
+/**
+ * Firebase Auth admin calls and FCM pushes over REST, using the service account
+ * (no Admin SDK / grpc needed). Password checks at login use the public Web
+ * API key instead, the same way the app signs in.
+ */
 class FirebaseAdmin
 {
+    /** Firebase Auth's own minimum is 6; the dashboard asks for a bit more. */
+    public const MIN_PASSWORD = 8;
+
     public function __construct(private GoogleAccessToken $token, private FirestoreClient $firestore)
     {
     }
 
     /**
      * Firebase Auth uid for an email, or null if there is no such account.
-     * Cached for 10 minutes; staff emails rarely change.
+     * Cached for 10 minutes; emails rarely change.
      */
     public function uidForEmail(string $email): ?string
     {
         $email = strtolower(trim($email));
 
         return Cache::remember('firebase.uid.'.sha1($email), now()->addMinutes(10), function () use ($email) {
-            $response = $this->post(
-                "https://identitytoolkit.googleapis.com/v1/projects/{$this->firestore->projectId()}/accounts:lookup",
-                ['email' => [$email]],
-            );
+            $response = $this->post($this->accountsUrl(':lookup'), ['email' => [$email]]);
 
             if ($response->failed()) {
                 throw new FirebaseException('Firebase Auth lookup failed ('.$response->status().').');
@@ -34,6 +38,84 @@ class FirebaseAdmin
 
             return $response->json('users.0.localId');
         });
+    }
+
+    /**
+     * Create an email/password account and return its uid.
+     *
+     * @throws FirebaseException with a message safe to show staff (e.g. email taken)
+     */
+    public function createUser(string $email, string $password, string $displayName): string
+    {
+        $response = $this->post($this->accountsUrl(''), [
+            'email' => strtolower(trim($email)),
+            'password' => $password,
+            'displayName' => $displayName,
+            'emailVerified' => false,
+        ]);
+
+        $this->authOk($response, 'create the account');
+
+        return $response->json('localId');
+    }
+
+    /**
+     * Change an account. Supported keys: password, displayName, disabled.
+     */
+    public function updateUser(string $uid, array $changes): void
+    {
+        $body = ['localId' => $uid];
+        foreach (['password', 'displayName'] as $key) {
+            if (isset($changes[$key])) {
+                $body[$key] = $changes[$key];
+            }
+        }
+        if (array_key_exists('disabled', $changes)) {
+            $body['disableUser'] = (bool) $changes['disabled'];
+        }
+
+        $this->authOk($this->post($this->accountsUrl(':update'), $body), 'update the account');
+    }
+
+    public function deleteUser(string $uid): void
+    {
+        $this->authOk($this->post($this->accountsUrl(':delete'), ['localId' => $uid]), 'delete the account');
+    }
+
+    /**
+     * Check an email/password with Firebase Auth.
+     *
+     * @return array{uid: ?string, error: ?string} the uid on success; otherwise
+     *                                             error is 'invalid', 'disabled' or 'throttled'
+     */
+    public function verifyPassword(string $email, string $password): array
+    {
+        $key = config('services.firebase.api_key');
+        if (! $key) {
+            throw new FirebaseException('Login is not set up on this server yet: FIREBASE_API_KEY is missing from .env.');
+        }
+
+        try {
+            $response = Http::acceptJson()->timeout(15)->post(
+                'https://identitytoolkit.googleapis.com/v1/accounts:signInWithPassword?key='.urlencode($key),
+                ['email' => strtolower(trim($email)), 'password' => $password, 'returnSecureToken' => false],
+            );
+        } catch (ConnectionException $e) {
+            throw new FirebaseException('Could not reach Firebase (network error).', 0, $e);
+        }
+
+        if ($response->successful()) {
+            return ['uid' => $response->json('localId'), 'error' => null];
+        }
+
+        $code = (string) $response->json('error.message');
+
+        return ['uid' => null, 'error' => match (true) {
+            str_starts_with($code, 'USER_DISABLED') => 'disabled',
+            str_starts_with($code, 'TOO_MANY_ATTEMPTS') => 'throttled',
+            in_array(strtok($code, ' :'), ['INVALID_LOGIN_CREDENTIALS', 'EMAIL_NOT_FOUND', 'INVALID_PASSWORD', 'INVALID_EMAIL', 'MISSING_PASSWORD'], true) => 'invalid',
+            default => throw new FirebaseException('Firebase login failed ('.$response->status().').'),
+        }];
     }
 
     /**
@@ -60,6 +142,29 @@ class FirebaseAdmin
         $code = $response->json('error.details.0.errorCode') ?? $response->json('error.status');
 
         return in_array($code, ['UNREGISTERED', 'INVALID_ARGUMENT'], true) ? 'dead' : 'failed';
+    }
+
+    private function accountsUrl(string $suffix): string
+    {
+        return "https://identitytoolkit.googleapis.com/v1/projects/{$this->firestore->projectId()}/accounts{$suffix}";
+    }
+
+    /** Turn Firebase Auth error codes into messages staff can act on. */
+    private function authOk(Response $response, string $action): void
+    {
+        if ($response->successful()) {
+            return;
+        }
+
+        $code = strtok((string) $response->json('error.message'), ' :');
+
+        throw new FirebaseException(match ($code) {
+            'EMAIL_EXISTS', 'DUPLICATE_EMAIL' => 'That email address already has an account.',
+            'INVALID_EMAIL' => 'That email address is not valid.',
+            'WEAK_PASSWORD' => 'The password is too weak (use at least '.self::MIN_PASSWORD.' characters).',
+            'USER_NOT_FOUND' => 'That account no longer exists in Firebase.',
+            default => "Could not {$action} in Firebase (".$response->status().').',
+        });
     }
 
     private function post(string $url, array $data): Response

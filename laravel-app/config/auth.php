@@ -1,7 +1,5 @@
 <?php
 
-use App\Models\User;
-
 return [
 
     /*
@@ -57,14 +55,16 @@ return [
     | providers to represent the model / table. These providers may then
     | be assigned to any extra authentication guards you have defined.
     |
-    | Supported: "database", "eloquent"
+    | Supported: "database", "eloquent", "firebase"
+    |
+    | Dashboard logins are Firebase Auth accounts with a staff role in
+    | Firestore users/{uid} (see App\Auth\FirebaseUserProvider).
     |
     */
 
     'providers' => [
         'users' => [
-            'driver' => 'eloquent',
-            'model' => env('AUTH_MODEL', User::class),
+            'driver' => 'firebase',
         ],
 
         // 'users' => [

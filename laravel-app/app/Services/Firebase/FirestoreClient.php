@@ -86,10 +86,14 @@ class FirestoreClient
      * @param  array  $where  [[field, op, value], ...] with op one of Firestore's
      *                        FieldFilter operators (EQUAL, GREATER_THAN, ...)
      * @param  array|null  $orderBy  [field, 'ASCENDING'|'DESCENDING']
+     * @param  bool  $allDescendants  collection-group query: every $collection
+     *                                below $parentPath (e.g. all patients' sessions).
+     *                                Filters/ordering need a collection-group index,
+     *                                so callers filter these in PHP instead.
      */
-    public function query(string $parentPath, string $collection, array $where = [], ?array $orderBy = null, ?int $limit = null): array
+    public function query(string $parentPath, string $collection, array $where = [], ?array $orderBy = null, ?int $limit = null, bool $allDescendants = false): array
     {
-        $query = ['from' => [['collectionId' => $collection]]];
+        $query = ['from' => [array_filter(['collectionId' => $collection, 'allDescendants' => $allDescendants])]];
 
         $filters = array_map(fn ($w) => ['fieldFilter' => [
             'field' => ['fieldPath' => $w[0]],
@@ -135,6 +139,15 @@ class FirestoreClient
     public static function newId(): string
     {
         return Str::random(20);
+    }
+
+    /**
+     * Whether $id is safe to put in a document path (Firebase uids and
+     * generated ids are alphanumeric). Check every id that comes from a URL.
+     */
+    public static function isValidId(string $id): bool
+    {
+        return (bool) preg_match('/^[A-Za-z0-9_-]{1,128}$/', $id);
     }
 
     // ---- write builders ---------------------------------------------------

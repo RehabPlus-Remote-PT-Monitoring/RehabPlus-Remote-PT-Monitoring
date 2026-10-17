@@ -2,13 +2,18 @@
 
 namespace App\Services\Appointment;
 
+use App\Auth\StaffUser;
 use App\Models\Appointment;
-use App\Models\Patient;
-use App\Models\User;
+use App\Services\Patient\PatientService;
+use App\Services\User\UserService;
 
 class AppointmentService
 {
-    public function overview(): array
+    public function __construct(private PatientService $patients, private UserService $users)
+    {
+    }
+
+    public function overview(StaffUser $user): array
     {
         $today = now()->toDateString();
 
@@ -16,7 +21,7 @@ class AppointmentService
             'appointments' => Appointment::orderBy('date', 'asc')->orderBy('time', 'asc')->get(),
             'todayAppointments' => Appointment::where('date', $today)->count(),
             'upcomingAppointments' => Appointment::where('status', 'Upcoming')->count(),
-            'activePatients' => Patient::count(),
+            'activePatients' => count($this->patients->visible($user)),
             'completedToday' => Appointment::where('status', 'Completed')
                 ->where(function ($query) use ($today) {
                     $query->whereNotNull('completed_at')->whereDate('completed_at', $today)
@@ -28,9 +33,10 @@ class AppointmentService
         ];
     }
 
+    /** Active therapists from Firebase (appointments store the therapist's name). */
     public function therapists(): array
     {
-        return User::query()->where('role', 'therapist')->where('is_active', 1)->orderBy('name', 'asc')->get()->toArray();
+        return $this->users->therapists();
     }
 
     public function create(array $data): Appointment

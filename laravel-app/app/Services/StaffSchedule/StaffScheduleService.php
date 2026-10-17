@@ -4,13 +4,13 @@ namespace App\Services\StaffSchedule;
 
 use App\Models\StaffSchedule;
 use App\Models\StaffTimeOff;
-use App\Models\User;
+use App\Services\User\UserService;
 use Carbon\CarbonImmutable;
 use Illuminate\Support\Collection;
 
 class StaffScheduleService
 {
-    public function __construct(private ShiftConflictService $shifts)
+    public function __construct(private ShiftConflictService $shifts, private UserService $users)
     {
     }
 
@@ -65,14 +65,13 @@ class StaffScheduleService
     }
 
     /**
-     * Staff accounts from users (every role except patients), plus anyone already on the schedule.
+     * Active staff accounts from Firebase (every role except patients), plus anyone already on the schedule.
      */
     private function staffDirectory(Collection $schedules): array
     {
-        $staff = User::where('role', '!=', 'patient')
-            ->orderBy('name')
-            ->get()
-            ->mapWithKeys(fn (User $user) => [$this->shifts->normalize($user->name) => ['name' => $user->name, 'role' => ucfirst($user->role)]]);
+        $staff = collect($this->users->staff())
+            ->filter(fn (array $user) => $user['active'])
+            ->mapWithKeys(fn (array $user) => [$this->shifts->normalize($user['name']) => ['name' => $user['name'], 'role' => ucfirst($user['role'])]]);
 
         foreach ($schedules as $entry) {
             $key = $this->shifts->normalize($entry->staff);

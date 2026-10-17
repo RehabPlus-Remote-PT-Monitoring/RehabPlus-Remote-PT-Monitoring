@@ -44,30 +44,4 @@ class AdminPageController extends Controller
             'items' => $items,
         ]);
     }
-
-    public function notes(): View
-    {
-        return view('admin.notes', [
-            'recentCount' => 0,
-            'todayNotes' => 0,
-            'notes' => [],
-        ]);
-    }
-
-    public function assessments(): View
-    {
-        return view('admin.assessments', [
-            'averageScore' => '0%',
-            'goalTracking' => '0%',
-            'activePatients' => 0,
-            'assessments' => [],
-        ]);
-    }
-
-    public function users(): View
-    {
-        return view('admin.users', [
-            'users' => \App\Models\User::all(),
-        ]);
-    }
 }

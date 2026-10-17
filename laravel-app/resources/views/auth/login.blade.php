@@ -80,6 +80,10 @@
                     <div class="alert alert-danger">
                         {{ session('error') }}
                     </div>
+                @elseif ($errors->any())
+                    <div class="alert alert-danger">
+                        {{ $errors->first() }}
+                    </div>
                 @endif
 
                 <form action="{{ route('login.submit') }}" method="post">

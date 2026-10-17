@@ -9,10 +9,12 @@
             <p class="page-subtitle mb-0">Physical Therapy Recovery Monitoring</p>
         </div>
 
-        <a href="{{ route('patients.create') }}" class="btn btn-primary d-flex align-items-center gap-2">
-            <i class="bi bi-plus-lg"></i>
-            Add Patient
-        </a>
+        @if (auth()->user()->isClinician())
+            <a href="{{ route('patients.create') }}" class="btn btn-primary d-flex align-items-center gap-2">
+                <i class="bi bi-plus-lg"></i>
+                Add Patient
+            </a>
+        @endif
     </div>
 
     <div class="row g-4 mb-4">
@@ -29,7 +31,7 @@
                     <canvas id="recoveryChart"></canvas>
                     @unless ($hasRecoveryData)
                         <div class="alert alert-info mt-3 mb-0">
-                            Add an exercise record from a patient profile to show recovery progress and pain analytics.
+                            Recovery and pain analytics appear once patients complete exercises in the RehabPlus app.
                         </div>
                     @endunless
                 </div>
@@ -62,7 +64,7 @@
                         <th>Patient</th>
                         <th>Condition</th>
                         <th>Sessions</th>
-                        <th>Compliance</th>
+                        <th>Accuracy</th>
                         <th>Pain</th>
                         <th>Recovery</th>
                         <th></th>

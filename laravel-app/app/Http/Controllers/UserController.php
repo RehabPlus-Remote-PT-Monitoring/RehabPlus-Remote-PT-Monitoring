@@ -2,12 +2,18 @@
 
 namespace App\Http\Controllers;
 
+use App\Auth\StaffUser;
 use App\Helpers\UserValidation;
-use App\Models\User;
 use App\Services\User\UserService;
+use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
 use Illuminate\View\View;
 
+/**
+ * Staff accounts (admin only): Firebase Auth logins with a role in Firestore
+ * users/{uid}. Accounts are disabled rather than deleted, because patients,
+ * notes and messages refer to the staff member's uid.
+ */
 class UserController extends Controller
 {
     public function __construct(private UserService $users)
@@ -16,53 +22,59 @@ class UserController extends Controller
 
     public function index(): View
     {
-        return view('users.index', ['users' => User::all()]);
+        $all = $this->users->all();
+        $staff = array_values(array_filter($all, fn ($u) => in_array($u['role'], StaffUser::ROLES, true)));
+
+        return view('admin.users', [
+            'users' => $staff,
+            'patientCount' => count(array_filter($all, fn ($u) => $u['role'] === 'patient')),
+        ]);
     }
 
     public function create(): View
     {
-        return view('users.form', ['user' => null, 'errors' => []]);
+        return view('users.form', ['user' => null]);
     }
 
-    public function store(Request $request)
+    public function store(Request $request): RedirectResponse
     {
-        $role = UserValidation::staffRole($request);
+        $this->users->create(UserValidation::newAccount($request));
 
-        $this->users->createAccount(UserValidation::newAccount($request), $role);
-
-        return redirect()->route('users.index')->with('success', 'Account created successfully.');
+        return redirect()->route('users.index')->with('success', 'Account created. They can now sign in to the dashboard.');
     }
 
-    public function createPatient(Request $request)
+    public function edit(string $uid): View
     {
-        $this->users->createPatientAccount(UserValidation::newAccount($request));
-
-        return redirect()->route('users.index')->with('success', 'Patient account created successfully.');
+        return view('users.form', ['user' => $this->staffOr404($uid)]);
     }
 
-    public function edit(int $id)
+    public function update(Request $request, string $uid): RedirectResponse
     {
-        return view('users.form', ['user' => User::findOrFail($id), 'errors' => []]);
+        $user = $this->staffOr404($uid);
+        $this->users->update($user, UserValidation::update($request, $user, $request->user()));
+
+        return redirect()->route('users.index')->with('success', 'User updated.');
     }
 
-    public function show(int $id)
+    /** Enable or disable a login. */
+    public function status(Request $request, string $uid): RedirectResponse
     {
-        return view('users.show', ['user' => User::findOrFail($id)]);
+        $user = $this->staffOr404($uid);
+        if ($user['uid'] === $request->user()->id) {
+            return back()->with('error', 'You can\'t disable your own account.');
+        }
+
+        $active = $request->boolean('active');
+        $this->users->setActive($user, $active);
+
+        return back()->with('success', $active ? 'Account enabled.' : 'Account disabled. They can no longer sign in.');
     }
 
-    public function update(Request $request, int $id)
+    private function staffOr404(string $uid): array
     {
-        $user = User::findOrFail($id);
+        $user = $this->users->findStaff($uid);
+        abort_unless($user, 404);
 
-        $this->users->update($user, UserValidation::update($request, $user), $request);
-
-        return redirect()->route('users.index')->with('success', 'User updated successfully.');
-    }
-
-    public function delete(int $id)
-    {
-        User::findOrFail($id)->delete();
-
-        return redirect()->route('users.index')->with('success', 'User deleted.');
+        return $user;
     }
 }

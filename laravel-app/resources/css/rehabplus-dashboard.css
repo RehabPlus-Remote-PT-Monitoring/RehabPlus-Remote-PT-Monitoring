@@ -711,3 +711,41 @@ html.dark-mode{
                 grid-template-columns:1fr;
             }
         }
+
+        /* Messages: chat bubbles. Own classes so dark mode can't leave light
+           text on a light bubble (Bootstrap's bg-body-secondary isn't themed). */
+        .chat-bubble{
+            max-width:70%;
+            padding:.5rem 1rem;
+            border-radius:1rem;
+            white-space:pre-wrap;
+            overflow-wrap:anywhere;
+        }
+
+        .chat-bubble-patient{
+            background:#eef2f7;
+            color:var(--text);
+        }
+
+        .chat-bubble-staff{
+            background:var(--bs-primary);
+            color:#fff;
+        }
+
+        .chat-time{
+            margin-top:.25rem;
+            font-size:.875em;
+        }
+
+        .chat-bubble-patient .chat-time{
+            color:var(--muted);
+        }
+
+        .chat-bubble-staff .chat-time{
+            color:rgba(255,255,255,.75);
+        }
+
+        html.dark-mode body .chat-bubble-patient{
+            background:#334155;
+            color:#f1f5f9;
+        }

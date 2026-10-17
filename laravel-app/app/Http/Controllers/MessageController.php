@@ -21,7 +21,7 @@ class MessageController extends Controller
 
     public function index(Request $request): View
     {
-        $data = ['thread' => $this->messaging->threadFor($request->user()), 'linked' => true, 'conversations' => [], 'error' => null];
+        $data = ['thread' => $this->messaging->threadFor($request->user()), 'conversations' => [], 'error' => null];
 
         if (! GoogleAccessToken::isConfigured()) {
             $data['error'] = 'Messaging is not set up on this server yet: FIREBASE_CREDENTIALS is missing from .env.';

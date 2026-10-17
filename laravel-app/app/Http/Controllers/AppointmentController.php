@@ -14,9 +14,9 @@ class AppointmentController extends Controller
     {
     }
 
-    public function index(): View
+    public function index(Request $request): View
     {
-        return view('appointments.index', $this->appointments->overview());
+        return view('appointments.index', $this->appointments->overview($request->user()));
     }
 
     public function create(): View
