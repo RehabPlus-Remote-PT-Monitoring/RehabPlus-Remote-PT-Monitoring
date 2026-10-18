@@ -200,6 +200,36 @@ class MessagingTest extends TestCase
         $this->assertSame(2, substr_count($html, 'bi-check2-all'));
     }
 
+    public function test_status_version_changes_only_when_the_page_would(): void
+    {
+        $this->docs['patients/pBen/threads/clinic']['unreadForPatient'] = 1; // a reply not seen yet
+        $user = $this->staff('admin');
+        $version = fn () => $this->actingAs($user)->getJson('/messages/pBen/status')->assertOk()->json('version');
+
+        $first = $version();
+        $this->assertSame($first, $version(), 'stable while nothing changes');
+        $this->assertSame([], $this->commits, 'polling the status writes nothing');
+
+        $this->docs['patients/pBen/threads/clinic']['unreadForStaff'] = 0; // opening the page
+        $this->assertSame($first, $version());
+
+        $this->docs['patients/pBen/threads/clinic']['unreadForPatient'] = 0; // patient read it
+        $seen = $version();
+        $this->assertNotSame($first, $seen);
+
+        $this->docs['patients/pBen/threads/clinic']['lastMessageAt'] = CarbonImmutable::parse('2026-10-18 11:00'); // new message
+        $this->assertNotSame($seen, $version());
+
+        // The feed hands out the same version, so the page doesn't reload twice.
+        $this->actingAs($user)->get('/messages/pBen/feed')->assertHeader('X-Thread-Version', $version());
+    }
+
+    public function test_status_is_scoped_like_the_conversation(): void
+    {
+        $this->get('/messages/pBen/status')->assertRedirect('/login');
+        $this->actingAs($this->therapist())->getJson('/messages/pBen/status')->assertNotFound();
+    }
+
     public function test_read_receipts_without_a_summary_show_sent(): void
     {
         $messages = [

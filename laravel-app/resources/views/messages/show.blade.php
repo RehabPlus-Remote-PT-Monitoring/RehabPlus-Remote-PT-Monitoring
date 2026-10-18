@@ -22,7 +22,9 @@
 
     <div class="card shadow-sm border-0">
         <div class="card-body" id="messageList" style="height: 55vh; overflow-y: auto;"
-             data-feed-url="{{ route('messages.feed', $patientUid) }}">
+             data-feed-url="{{ route('messages.feed', $patientUid) }}"
+             data-status-url="{{ route('messages.status', $patientUid) }}"
+             data-version="{{ $version }}">
             @include('messages._list', ['messages' => $messages])
         </div>
         <div class="card-footer bg-transparent">
@@ -55,19 +57,31 @@
                 }
             });
 
-            // Pull new patient messages every 10s; only scroll if already at the bottom.
+            // Every 1.5s ask for the thread's version (one cheap summary read);
+            // only when it changed (new message, or the patient read the chat)
+            // reload the messages. Only scroll if already at the bottom.
+            const headers = { 'X-Requested-With': 'XMLHttpRequest' };
+            let version = list.dataset.version;
+            let busy = false;
+            const refresh = async () => {
+                const res = await fetch(list.dataset.feedUrl, { headers });
+                if (!res.ok) return;
+                const html = await res.text();
+                version = res.headers.get('X-Thread-Version') || version;
+                if (html === list.innerHTML) return;
+                const atBottom = list.scrollHeight - list.scrollTop - list.clientHeight < 40;
+                list.innerHTML = html;
+                if (atBottom) toBottom();
+            };
             setInterval(async () => {
-                if (document.hidden) return;
+                if (document.hidden || busy) return;
+                busy = true; // a slow request mustn't stack up behind the next tick
                 try {
-                    const res = await fetch(list.dataset.feedUrl, { headers: { 'X-Requested-With': 'XMLHttpRequest' } });
-                    if (!res.ok) return;
-                    const html = await res.text();
-                    if (html === list.innerHTML) return;
-                    const atBottom = list.scrollHeight - list.scrollTop - list.clientHeight < 40;
-                    list.innerHTML = html;
-                    if (atBottom) toBottom();
+                    const res = await fetch(list.dataset.statusUrl, { headers });
+                    if (res.ok && (await res.json()).version !== version) await refresh();
                 } catch (_) { /* offline; try again next tick */ }
-            }, 10000);
+                finally { busy = false; }
+            }, 1500);
         })();
     </script>
 @endsection

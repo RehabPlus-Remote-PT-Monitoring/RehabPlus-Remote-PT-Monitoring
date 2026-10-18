@@ -93,6 +93,7 @@ Route::middleware(['auth.rehab'])->group(function () {
     Route::get('/messages', [MessageController::class, 'index'])->name('messages.index');
     Route::get('/messages/{patientUid}', [MessageController::class, 'show'])->name('messages.show');
     Route::get('/messages/{patientUid}/feed', [MessageController::class, 'feed'])->name('messages.feed');
+    Route::get('/messages/{patientUid}/status', [MessageController::class, 'status'])->name('messages.status');
     Route::post('/messages/{patientUid}', [MessageController::class, 'reply'])->name('messages.reply');
 
     // Clinic operations (Firestore top-level collections, see ClinicStore).

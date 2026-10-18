@@ -158,6 +158,30 @@ class MessagingService
     }
 
     /**
+     * A short fingerprint of what the conversation page shows, from the thread
+     * summary alone: it changes when a message arrives (lastMessageAt) or the
+     * patient reads the chat (unreadForPatient). The page polls this cheaply
+     * (one document read) and only reloads the messages when it changes.
+     * unreadForStaff is left out: opening the page resets it, which would
+     * cause one pointless reload.
+     */
+    public static function version(?array $summary): string
+    {
+        $at = $summary['lastMessageAt'] ?? null;
+
+        return md5(implode('|', [
+            $at instanceof \DateTimeInterface ? $at->format('U.u') : '',
+            (int) ($summary['unreadForPatient'] ?? 0),
+        ]));
+    }
+
+    /** The thread summary document, or null if there is none yet. Call authorize() first. */
+    public function summary(string $patientUid, string $thread): ?array
+    {
+        return $this->db->get("patients/{$patientUid}/threads/{$thread}");
+    }
+
+    /**
      * Mark each staff message 'sent' (one tick) or 'seen' (two ticks).
      *
      * There is no per-message read flag: the thread's unreadForPatient counter

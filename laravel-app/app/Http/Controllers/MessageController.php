@@ -7,7 +7,9 @@ use App\Services\Firebase\FirebaseTransport;
 use App\Services\Firebase\GoogleAccessToken;
 use App\Services\Messaging\MessagingService;
 use Illuminate\Http\RedirectResponse;
+use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
+use Illuminate\Http\Response;
 use Illuminate\View\View;
 
 /**
@@ -44,21 +46,48 @@ class MessageController extends Controller
     {
         [$thread, $patient] = $this->authorizeThread($request, $patientUid);
 
+        [$messages, $version] = $this->loadAndMarkRead($patientUid, $thread, $patient);
+
         return view('messages.show', [
             'thread' => $thread,
             'patient' => $patient,
             'patientUid' => $patientUid,
-            'messages' => $this->loadAndMarkRead($patientUid, $thread, $patient),
+            'messages' => $messages,
+            'version' => $version,
             'maxLength' => MessagingService::MAX_LENGTH,
         ]);
     }
 
-    /** Just the message list, polled by the conversation page for new messages. */
-    public function feed(Request $request, string $patientUid): View
+    /**
+     * Just the message list, fetched by the conversation page when status()
+     * says something changed. The version rides in a header for the next poll.
+     */
+    public function feed(Request $request, string $patientUid): Response
     {
         [$thread, $patient] = $this->authorizeThread($request, $patientUid);
+        [$messages, $version] = $this->loadAndMarkRead($patientUid, $thread, $patient);
 
-        return view('messages._list', ['messages' => $this->loadAndMarkRead($patientUid, $thread, $patient)]);
+        return response()->view('messages._list', ['messages' => $messages])
+            ->header('X-Thread-Version', $version);
+    }
+
+    /**
+     * Polled every 1.5 s by the conversation page: just the thread's version
+     * (one summary read), so new messages and read receipts show up quickly
+     * without re-reading every message each time.
+     */
+    public function status(Request $request, string $patientUid): JsonResponse
+    {
+        [$thread] = $this->authorizeThread($request, $patientUid);
+
+        try {
+            $summary = $this->messaging->summary($patientUid, $thread);
+        } catch (FirebaseException $e) {
+            report($e);
+            abort(503, 'Could not reach Firebase. Try again in a moment.');
+        }
+
+        return response()->json(['version' => MessagingService::version($summary)]);
     }
 
     public function reply(Request $request, string $patientUid): RedirectResponse
@@ -84,6 +113,8 @@ class MessageController extends Controller
     /**
      * Load the messages and clear the unread badge, in parallel, then add
      * read receipts from the thread summary that markRead() read.
+     *
+     * @return array{0: array, 1: string} messages and the thread version
      */
     private function loadAndMarkRead(string $patientUid, string $thread, array $patient): array
     {
@@ -105,7 +136,7 @@ class MessageController extends Controller
             abort(503, 'Could not reach Firebase. Try again in a moment.');
         }
 
-        return MessagingService::withReadReceipts($messages, $summary);
+        return [MessagingService::withReadReceipts($messages, $summary), MessagingService::version($summary)];
     }
 
     /** @return array{0: string, 1: array} thread id and patient profile; 404s otherwise */
