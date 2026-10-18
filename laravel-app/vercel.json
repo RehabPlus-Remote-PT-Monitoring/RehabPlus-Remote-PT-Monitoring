@@ -1,7 +1,9 @@
 {
     "$schema": "https://openapi.vercel.sh/vercel.json",
     "framework": null,
-    "regions": ["sin1"],
+    "regions": [
+        "sin1"
+    ],
     "buildCommand": "npm run build",
     "outputDirectory": "public",
     "functions": {
@@ -10,7 +12,21 @@
         }
     },
     "routes": [
-        { "handle": "filesystem" },
-        { "src": "/(.*)", "dest": "/api/index.php" }
+        {
+            "src": "/build/(.*)",
+            "dest": "/build/$1"
+        },
+        {
+            "src": "/assets/(.*)",
+            "dest": "/assets/$1"
+        },
+        {
+            "src": "/(favicon\\.ico|robots\\.txt)",
+            "dest": "/$1"
+        },
+        {
+            "src": "/(.*)",
+            "dest": "/api/index.php"
+        }
     ]
 }
