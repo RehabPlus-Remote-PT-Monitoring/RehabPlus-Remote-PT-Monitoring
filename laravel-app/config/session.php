@@ -18,7 +18,9 @@ return [
     |
     */
 
-    'driver' => env('SESSION_DRIVER', 'database'),
+    // No SQL database: sessions are files locally, the encrypted cookie on
+    // Vercel (api/index.php sets SESSION_DRIVER=cookie).
+    'driver' => env('SESSION_DRIVER', 'file'),
 
     /*
     |--------------------------------------------------------------------------

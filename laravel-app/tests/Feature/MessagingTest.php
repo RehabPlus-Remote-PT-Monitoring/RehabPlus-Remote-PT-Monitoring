@@ -3,7 +3,6 @@
 namespace Tests\Feature;
 
 use Carbon\CarbonImmutable;
-use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Http\Client\Factory;
 use Illuminate\Http\Client\Request;
 use Illuminate\Support\Facades\Http;
@@ -16,7 +15,7 @@ use Tests\TestCase;
  */
 class MessagingTest extends TestCase
 {
-    use FakeFirebase, RefreshDatabase;
+    use FakeFirebase;
 
     protected function setUp(): void
     {

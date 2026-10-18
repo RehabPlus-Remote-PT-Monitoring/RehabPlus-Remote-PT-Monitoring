@@ -2,7 +2,6 @@
 
 namespace Tests\Feature;
 
-use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Support\Carbon;
 use Tests\Support\FakeFirebase;
 use Tests\TestCase;
@@ -10,7 +9,7 @@ use Tests\TestCase;
 /** Shifts and time off live in Firestore; the staff list comes from Firebase accounts. */
 class StaffScheduleTest extends TestCase
 {
-    use FakeFirebase, RefreshDatabase;
+    use FakeFirebase;
 
     protected function setUp(): void
     {

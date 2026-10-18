@@ -15,7 +15,8 @@ return [
     |
     */
 
-    'default' => env('CACHE_STORE', 'database'),
+    // No SQL database: the cache lives in files (on Vercel, under /tmp).
+    'default' => env('CACHE_STORE', 'file'),
 
     /*
     |--------------------------------------------------------------------------
@@ -94,7 +95,7 @@ return [
         'failover' => [
             'driver' => 'failover',
             'stores' => [
-                'database',
+                'file',
                 'array',
             ],
         ],

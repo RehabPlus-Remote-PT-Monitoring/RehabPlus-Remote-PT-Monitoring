@@ -2,7 +2,6 @@
 
 namespace Tests\Feature;
 
-use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Log\Events\MessageLogged;
 use Illuminate\Support\Facades\Event;
 use Illuminate\Testing\TestResponse;
@@ -12,7 +11,7 @@ use Tests\TestCase;
 /** Content-Security-Policy header, nonces on every script, and violation reports. */
 class ContentSecurityPolicyTest extends TestCase
 {
-    use FakeFirebase, RefreshDatabase;
+    use FakeFirebase;
 
     /** The nonce from the response's CSP header. */
     private function nonce(TestResponse $response): string

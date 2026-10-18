@@ -11,7 +11,8 @@ alike. Everything here is read-only.
 It checks APP_KEY / APP_DEBUG, the service-account key (and that its project
 matches FIREBASE_PROJECT_ID), FIREBASE_API_KEY (staff login), a fresh OAuth
 token, a Firestore read, that three reads go out as one parallel batch, a
-Firebase Auth admin lookup and the cache. It never writes, sends pushes or
+Firebase Auth admin lookup, the cache, and that no setting still points at the
+removed SQL database (`no_sql`). It never writes, sends pushes or
 prints secrets. Each check has `status` (ok / warn / fail), `ms` and `detail`.
 
 ## 2. Tracing one request

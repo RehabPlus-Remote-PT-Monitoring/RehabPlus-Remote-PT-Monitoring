@@ -3,14 +3,13 @@
 namespace Tests\Feature;
 
 use Carbon\CarbonImmutable;
-use Illuminate\Foundation\Testing\RefreshDatabase;
 use Tests\Support\FakeFirebase;
 use Tests\TestCase;
 
 /** Reports & Analytics: one page, sections by role, exports, and the old URLs. */
 class ReportTest extends TestCase
 {
-    use FakeFirebase, RefreshDatabase;
+    use FakeFirebase;
 
     protected function setUp(): void
     {

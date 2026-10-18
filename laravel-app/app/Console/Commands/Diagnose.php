@@ -100,6 +100,7 @@ class Diagnose extends Command
             config('app.debug') ? ($production ? 'APP_DEBUG=true in production leaks stack traces' : 'on (not production)') : 'off',
         );
         $this->record('session.driver', 'ok', (string) config('session.driver'));
+        $this->checkNoSqlDrivers();
         $this->record('log', 'ok', 'channel '.config('logging.default').', level '.$this->logLevel());
         $this->record(
             'firebase.api_key',
@@ -113,6 +114,30 @@ class Diagnose extends Command
             config('services.firebase.max_parallel'),
             config('services.firebase.slow_ms'),
         ));
+    }
+
+    /**
+     * The app has no SQL database any more. A session or cache store set to
+     * "database" breaks every login; a "database" queue is unused but would
+     * fail the moment something is queued.
+     */
+    private function checkNoSqlDrivers(): void
+    {
+        $broken = [];
+        if (config('session.driver') === 'database') {
+            $broken[] = 'SESSION_DRIVER';
+        }
+        if (config('cache.default') === 'database') {
+            $broken[] = 'CACHE_STORE';
+        }
+
+        if ($broken !== []) {
+            $this->record('no_sql', 'fail', implode(', ', $broken).' set to "database", but there is no SQL database: use file (or cookie for sessions)');
+        } elseif (config('queue.default') === 'database') {
+            $this->record('no_sql', 'warn', 'QUEUE_CONNECTION=database has no database behind it; set it to sync');
+        } else {
+            $this->record('no_sql', 'ok', 'sessions, cache and queue need no SQL database');
+        }
     }
 
     /** Level of the default log channel (for a stack: its first channel). */

@@ -2,7 +2,6 @@
 
 namespace Tests\Feature;
 
-use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Http\Client\Factory;
 use Illuminate\Support\Facades\Http;
 use Tests\Support\FakeFirebase;
@@ -11,7 +10,7 @@ use Tests\TestCase;
 /** Staff sign in with their Firebase Auth email/password; roles come from users/{uid}. */
 class AuthTest extends TestCase
 {
-    use FakeFirebase, RefreshDatabase;
+    use FakeFirebase;
 
     public function test_login_page_loads(): void
     {

@@ -2,14 +2,13 @@
 
 namespace Tests\Feature;
 
-use Illuminate\Foundation\Testing\RefreshDatabase;
 use Tests\Support\FakeFirebase;
 use Tests\TestCase;
 
 /** Pages of the original dashboard still load; billing/inventory live in Firestore. */
 class RehabPlusConversionTest extends TestCase
 {
-    use FakeFirebase, RefreshDatabase;
+    use FakeFirebase;
 
     public function test_admin_management_pages_load(): void
     {

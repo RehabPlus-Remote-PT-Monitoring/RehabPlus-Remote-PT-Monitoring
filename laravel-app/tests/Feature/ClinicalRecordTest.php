@@ -3,14 +3,13 @@
 namespace Tests\Feature;
 
 use Carbon\CarbonImmutable;
-use Illuminate\Foundation\Testing\RefreshDatabase;
 use Tests\Support\FakeFirebase;
 use Tests\TestCase;
 
 /** Assessments, goals and therapy notes, stored under each patient in Firestore. */
 class ClinicalRecordTest extends TestCase
 {
-    use FakeFirebase, RefreshDatabase;
+    use FakeFirebase;
 
     protected function setUp(): void
     {

@@ -7,7 +7,6 @@ use App\Services\Firebase\FirebaseMetrics;
 use App\Services\Firebase\FirebaseTransport;
 use App\Services\Firebase\FirestoreClient;
 use App\Services\Firebase\GoogleAccessToken;
-use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Log\Events\MessageLogged;
 use Illuminate\Support\Facades\Artisan;
 use Illuminate\Support\Facades\Event;
@@ -22,7 +21,7 @@ use Tests\TestCase;
  */
 class FirebaseTransportTest extends TestCase
 {
-    use FakeFirebase, RefreshDatabase;
+    use FakeFirebase;
 
     /** @var array<int, MessageLogged> */
     private array $logs = [];
@@ -276,6 +275,25 @@ class FirebaseTransportTest extends TestCase
         config(['services.firebase.credentials' => null, 'services.firebase.credentials_json' => null]);
 
         $this->artisan('rehab:diagnose')->assertFailed();
+    }
+
+    public function test_diagnose_flags_settings_that_need_the_removed_sql_database(): void
+    {
+        config(['session.driver' => 'database']);
+        Artisan::call('rehab:diagnose', ['--json' => true]);
+        $checks = array_column(json_decode(Artisan::output(), true)['checks'], null, 'check');
+        $this->assertSame('fail', $checks['no_sql']['status']);
+        $this->assertStringContainsString('SESSION_DRIVER', $checks['no_sql']['detail']);
+
+        config(['session.driver' => 'file', 'queue.default' => 'database']);
+        Artisan::call('rehab:diagnose', ['--json' => true]);
+        $checks = array_column(json_decode(Artisan::output(), true)['checks'], null, 'check');
+        $this->assertSame('warn', $checks['no_sql']['status']);
+
+        config(['queue.default' => 'sync']);
+        Artisan::call('rehab:diagnose', ['--json' => true]);
+        $checks = array_column(json_decode(Artisan::output(), true)['checks'], null, 'check');
+        $this->assertSame('ok', $checks['no_sql']['status']);
     }
 
     public function test_transport_is_shared_within_a_request(): void

@@ -3,7 +3,6 @@
 namespace Tests\Feature;
 
 use Carbon\CarbonImmutable;
-use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Http\Client\Factory;
 use Illuminate\Support\Facades\Http;
 use Tests\Support\FakeFirebase;
@@ -12,7 +11,7 @@ use Tests\TestCase;
 /** Dashboard numbers, computed from Firestore. Reports & Analytics: ReportTest. */
 class DashboardTest extends TestCase
 {
-    use FakeFirebase, RefreshDatabase;
+    use FakeFirebase;
 
     protected function setUp(): void
     {

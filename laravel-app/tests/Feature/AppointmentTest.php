@@ -3,7 +3,6 @@
 namespace Tests\Feature;
 
 use Carbon\CarbonImmutable;
-use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Support\Facades\Http;
 use Tests\Support\FakeFirebase;
 use Tests\TestCase;
@@ -11,7 +10,7 @@ use Tests\TestCase;
 /** Appointments are stored in the Firestore `appointments` collection. */
 class AppointmentTest extends TestCase
 {
-    use FakeFirebase, RefreshDatabase;
+    use FakeFirebase;
 
     private function form(array $overrides = []): array
     {

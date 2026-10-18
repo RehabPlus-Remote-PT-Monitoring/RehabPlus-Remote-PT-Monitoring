@@ -2,14 +2,13 @@
 
 namespace Tests\Feature;
 
-use Illuminate\Foundation\Testing\RefreshDatabase;
 use Tests\Support\FakeFirebase;
 use Tests\TestCase;
 
 /** Staff accounts: Firebase Auth logins + users/{uid} roles, admin only. */
 class UserManagementTest extends TestCase
 {
-    use FakeFirebase, RefreshDatabase;
+    use FakeFirebase;
 
     public function test_only_admins_manage_staff(): void
     {

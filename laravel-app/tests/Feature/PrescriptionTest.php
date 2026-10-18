@@ -2,14 +2,13 @@
 
 namespace Tests\Feature;
 
-use Illuminate\Foundation\Testing\RefreshDatabase;
 use Tests\Support\FakeFirebase;
 use Tests\TestCase;
 
 /** Assigning exercises writes exactly the prescription shape the app parses. */
 class PrescriptionTest extends TestCase
 {
-    use FakeFirebase, RefreshDatabase;
+    use FakeFirebase;
 
     protected function setUp(): void
     {
