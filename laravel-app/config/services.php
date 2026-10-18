@@ -30,11 +30,14 @@ return [
 
     // Firebase (Auth, Firestore, FCM): the dashboard's data store and logins.
     // FIREBASE_CREDENTIALS is the path to the service-account JSON; keep that
-    // file outside the repo. FIREBASE_API_KEY is the project's Web API key
-    // (public, same as in the app's google-services.json); it's only used to
-    // check staff passwords at login.
+    // file outside the repo. On hosts without a disk (Vercel), put the JSON
+    // itself (raw or base64) in FIREBASE_CREDENTIALS_JSON instead; it wins
+    // when set. FIREBASE_API_KEY is the project's Web API key (public, same as
+    // in the app's google-services.json); it's only used to check staff
+    // passwords at login.
     'firebase' => [
         'credentials' => env('FIREBASE_CREDENTIALS'),
+        'credentials_json' => env('FIREBASE_CREDENTIALS_JSON'),
         'project_id' => env('FIREBASE_PROJECT_ID', 'rehabplus-80675'),
         'api_key' => env('FIREBASE_API_KEY'),
     ],
