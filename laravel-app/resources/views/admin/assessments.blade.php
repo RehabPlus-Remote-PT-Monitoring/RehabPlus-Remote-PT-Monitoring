@@ -7,8 +7,26 @@
     <div class="d-flex justify-content-between align-items-center mb-4">
         <div>
             <p class="page-title mb-1">Assessments &amp; Goals</p>
-            <p class="page-subtitle mb-0">Evaluation scores and treatment goals for {{ auth()->user()->isTherapist() ? 'your' : 'all' }} patients.</p>
+            <p class="page-subtitle mb-0">
+                @if ($focusPatient)
+                    Evaluation scores and treatment goals for <a href="{{ route('patients.show', $focusPatient['uid']) }}">{{ $focusPatient['name'] }}</a>.
+                @else
+                    Evaluation scores and treatment goals for {{ auth()->user()->isTherapist() ? 'your' : 'all' }} patients.
+                @endif
+            </p>
         </div>
+        @if ($patients)
+            <form method="GET" action="{{ route('assessments') }}" class="d-flex gap-2 align-items-center">
+                <label for="patient_filter" class="form-label small fw-semibold mb-0 text-nowrap">Show</label>
+                <select id="patient_filter" name="patient" class="form-select" onchange="this.form.submit()">
+                    <option value="">All patients</option>
+                    @foreach ($patients as $p)
+                        <option value="{{ $p['uid'] }}" @selected($selectedPatient === $p['uid'])>{{ $p['name'] }}</option>
+                    @endforeach
+                </select>
+                <noscript><button class="btn btn-outline-primary">Show</button></noscript>
+            </form>
+        @endif
     </div>
 
     @include('partials.flash')
@@ -18,7 +36,7 @@
             ['Average score', $averageScore, 'bi-bar-chart', 'text-primary'],
             ['Goals achieved', $goalTracking, 'bi-bullseye', 'text-success'],
             ['Goals in progress', $activeGoals, 'bi-flag', 'text-warning'],
-            ['Active patients', $activePatients, 'bi-people', 'text-info'],
+            $focusPatient ? ['Assessments', $assessmentCount, 'bi-clipboard-check', 'text-info'] : ['Active patients', $activePatients, 'bi-people', 'text-info'],
         ] as [$label, $value, $icon, $tone])
             <div class="col-md-6 col-xl-3"><div class="card stat-card h-100 border-0"><div class="d-flex justify-content-between align-items-center"><div><div class="stat-label">{{ $label }}</div><h4 class="stat-value mb-0">{{ $value }}</h4></div><i class="bi {{ $icon }} stat-icon {{ $tone }}"></i></div></div></div>
         @endforeach
@@ -100,7 +118,7 @@
     <div class="row g-4">
         <div class="col-xl-7">
             <div class="card shadow-sm border-0">
-                <div class="card-header"><h5 class="mb-0">Latest assessments</h5></div>
+                <div class="card-header"><h5 class="mb-0">{{ $focusPatient ? 'Assessments' : 'Latest assessments' }}</h5></div>
                 <div class="card-body p-0"><div class="table-responsive">
                     <table class="table table-hover mb-0 align-middle">
                         <thead class="table-light"><tr><th>Date</th><th>Patient</th><th>Type</th><th>Score</th><th>Therapist</th><th></th></tr></thead>
@@ -109,7 +127,7 @@
                                 <tr>
                                     <td class="small text-nowrap">{{ $a['assessedAt']?->setTimezone($tz)->format('M j, Y') }}</td>
                                     <td><a href="{{ route('patients.show', $a['patientUid']) }}">{{ $a['patientName'] }}</a></td>
-                                    <td>{{ $a['type'] }}@if ($a['notes'])<div class="small text-muted">{{ Str::limit($a['notes'], 80) }}</div>@endif</td>
+                                    <td>{{ $a['type'] }}@if ($a['notes'])<div class="small text-muted" style="white-space:pre-line">{{ $focusPatient ? $a['notes'] : Str::limit($a['notes'], 80) }}</div>@endif</td>
                                     <td class="fw-bold">{{ $a['score'] }}%</td>
                                     <td class="small text-muted">{{ $a['therapistName'] }}</td>
                                     <td class="text-end">
@@ -120,7 +138,7 @@
                                     </td>
                                 </tr>
                             @empty
-                                <tr><td colspan="6" class="text-center text-muted py-4">No assessments yet.</td></tr>
+                                <tr><td colspan="6" class="text-center text-muted py-4">No assessments {{ $focusPatient ? 'for '.$focusPatient['name'].' ' : '' }}yet.</td></tr>
                             @endforelse
                         </tbody>
                     </table>

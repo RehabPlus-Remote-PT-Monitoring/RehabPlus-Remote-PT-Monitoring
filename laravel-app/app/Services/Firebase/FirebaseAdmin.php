@@ -77,9 +77,36 @@ class FirebaseAdmin
         $this->authOk($this->post($this->accountsUrl(':update'), $body), 'update the account');
     }
 
+    /** Delete a login. An account that is already gone counts as deleted. */
     public function deleteUser(string $uid): void
     {
-        $this->authOk($this->post($this->accountsUrl(':delete'), ['localId' => $uid]), 'delete the account');
+        $response = $this->post($this->accountsUrl(':delete'), ['localId' => $uid]);
+        if (str_starts_with((string) $response->json('error.message'), 'USER_NOT_FOUND')) {
+            return;
+        }
+
+        $this->authOk($response, 'delete the account');
+    }
+
+    /**
+     * Which of these uids still have a Firebase Auth login (e.g. to spot a
+     * users/{uid} doc whose login was deleted in the Firebase console).
+     *
+     * @param  string[]  $uids
+     * @return string[]
+     */
+    public function existingUids(array $uids): array
+    {
+        $found = [];
+        foreach (array_chunk(array_values($uids), 100) as $chunk) {
+            $response = $this->post($this->accountsUrl(':lookup'), ['localId' => $chunk]);
+            if ($response->failed()) {
+                throw new FirebaseException('Firebase Auth lookup failed ('.$response->status().').');
+            }
+            array_push($found, ...array_column($response->json('users') ?? [], 'localId'));
+        }
+
+        return $found;
     }
 
     /**

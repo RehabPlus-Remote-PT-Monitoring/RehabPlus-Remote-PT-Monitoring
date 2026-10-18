@@ -24,19 +24,27 @@ class ClinicalRecordController extends Controller
     public function assessments(Request $request): View
     {
         $patients = $this->patients->visible($request->user());
-        $assessments = $this->records->list(ClinicalRecordService::ASSESSMENTS, $patients);
-        $goals = $this->records->list(ClinicalRecordService::GOALS, $patients);
+
+        // ?patient=uid narrows the page to one patient the user may see.
+        $selected = (string) $request->query('patient', '');
+        $focus = array_values(array_filter($patients, fn ($p) => $p['uid'] === $selected));
+        $shown = $focus ?: $patients;
+
+        $assessments = $this->records->list(ClinicalRecordService::ASSESSMENTS, $shown);
+        $goals = $this->records->list(ClinicalRecordService::GOALS, $shown);
         $achievement = ClinicalRecordService::goalAchievement($goals);
 
         return view('admin.assessments', [
             'patients' => $patients,
-            'selectedPatient' => (string) $request->query('patient', ''),
+            'selectedPatient' => $focus ? $selected : '',
+            'focusPatient' => $focus[0] ?? null,
             'assessments' => $assessments,
             'goals' => $goals,
             'averageScore' => $assessments ? round(array_sum(array_column($assessments, 'score')) / count($assessments)).'%' : '—',
             'goalTracking' => $achievement === null ? '—' : $achievement.'%',
             'activeGoals' => count(array_filter($goals, fn ($g) => $g['status'] === 'active')),
             'activePatients' => count($patients),
+            'assessmentCount' => count($assessments),
         ]);
     }
 

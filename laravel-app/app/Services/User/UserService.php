@@ -7,6 +7,7 @@ use App\Auth\StaffUser;
 use App\Services\Firebase\FirebaseAdmin;
 use App\Services\Firebase\FirebaseException;
 use App\Services\Firebase\FirestoreClient;
+use Illuminate\Support\Facades\Cache;
 use Illuminate\Support\Facades\Log;
 
 /**
@@ -111,6 +112,48 @@ class UserService
         $this->admin->updateUser($user['uid'], ['disabled' => ! $active]);
         $this->db->commit([$this->db->mergeWrite("users/{$user['uid']}", ['active' => $active])]);
         FirebaseUserProvider::forget($user['uid']);
+    }
+
+    /**
+     * Delete the Firebase login and users/{uid}. Refused while patients are
+     * still assigned to the account (reassign them first, or disable instead).
+     * Records keep the staff member's name (therapistName), so nothing else
+     * needs to change.
+     *
+     * @return ?string why it can't be deleted, or null once deleted
+     */
+    public function delete(array $user): ?string
+    {
+        $assigned = count($this->db->query('', 'patients', [['therapistId', 'EQUAL', $user['uid']]]));
+        if ($assigned > 0) {
+            return "{$user['name']} still has {$assigned} assigned ".($assigned === 1 ? 'patient' : 'patients').'. Reassign them first, or disable the account instead.';
+        }
+
+        $this->admin->deleteUser($user['uid']);
+        $this->db->delete("users/{$user['uid']}");
+        FirebaseUserProvider::forget($user['uid']);
+        Cache::forget('firebase.uid.'.sha1(strtolower(trim($user['email']))));
+
+        return null;
+    }
+
+    /**
+     * Uids (of the given accounts) that no longer have a Firebase login, or []
+     * if Firebase Auth can't be checked right now.
+     */
+    public function withoutLogin(array $users): array
+    {
+        if (! $users) {
+            return [];
+        }
+
+        try {
+            return array_values(array_diff(array_column($users, 'uid'), $this->admin->existingUids(array_column($users, 'uid'))));
+        } catch (FirebaseException $e) {
+            Log::warning('Could not check staff logins', ['error' => $e->getMessage()]);
+
+            return [];
+        }
     }
 
     /** Commit, or delete the just-created Firebase login and rethrow. */

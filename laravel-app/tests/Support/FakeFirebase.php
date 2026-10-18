@@ -145,6 +145,12 @@ trait FakeFirebase
             return $user['disabled'] ? $error('USER_DISABLED') : Http::response(['localId' => $user['uid']]);
         }
 
+        if (str_ends_with($url, 'accounts:lookup') && isset($body['localId'])) {
+            $users = array_values(array_filter($this->authUsers, fn ($u) => in_array($u['uid'], $body['localId'], true)));
+
+            return Http::response($users ? ['users' => array_map(fn ($u) => ['localId' => $u['uid']], $users)] : []);
+        }
+
         if (str_ends_with($url, 'accounts:lookup')) {
             $uid = $this->authUsers[$body['email'][0]]['uid'] ?? null;
 
@@ -167,6 +173,9 @@ trait FakeFirebase
         }
 
         if (str_ends_with($url, 'accounts:delete')) {
+            if ($email === false) {
+                return $error('USER_NOT_FOUND');
+            }
             unset($this->authUsers[$email]);
 
             return Http::response([]);

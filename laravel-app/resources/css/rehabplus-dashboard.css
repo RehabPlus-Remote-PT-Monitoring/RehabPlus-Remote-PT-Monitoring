@@ -49,6 +49,7 @@ html.dark-mode{
             --shadow:0 12px 35px rgba(0,0,0,.22);
             --bs-body-bg:#0f172a;
             --bs-body-color:#e2e8f0;
+            --bs-secondary-color:#94a3b8; /* .form-text and other help text */
             --bs-card-bg:#1e293b;
             --bs-tertiary-bg:#1e293b;
             --bs-secondary-bg:#1e293b;

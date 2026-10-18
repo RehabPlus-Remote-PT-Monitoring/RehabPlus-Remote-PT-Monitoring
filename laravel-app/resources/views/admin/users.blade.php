@@ -44,7 +44,13 @@
                                 @php($badge = ['admin' => 'bg-danger', 'therapist' => 'bg-info text-dark', 'staff' => 'bg-secondary'][$user['role']] ?? 'bg-light text-dark')
                                 <span class="badge {{ $badge }} rounded-pill px-3 py-2">{{ \App\Auth\StaffUser::ROLE_LABELS[$user['role']] ?? ucfirst($user['role']) }}</span>
                             </td>
-                            <td>{!! $user['active'] ? '<span class="badge bg-success">Active</span>' : '<span class="badge bg-secondary">Disabled</span>' !!}</td>
+                            <td>
+                                @if (in_array($user['uid'], $noLogin, true))
+                                    <span class="badge bg-warning text-dark" title="This account's Firebase login was deleted. Delete the leftover record here.">No login</span>
+                                @else
+                                    {!! $user['active'] ? '<span class="badge bg-success">Active</span>' : '<span class="badge bg-secondary">Disabled</span>' !!}
+                                @endif
+                            </td>
                             <td class="text-end pe-4 text-nowrap">
                                 <a href="{{ route('users.edit', $user['uid']) }}" class="btn btn-sm btn-outline-primary">Edit</a>
                                 @if ($user['uid'] !== $me->id)
@@ -52,6 +58,11 @@
                                         @csrf
                                         <input type="hidden" name="active" value="{{ $user['active'] ? 0 : 1 }}">
                                         <button class="btn btn-sm {{ $user['active'] ? 'btn-outline-danger' : 'btn-outline-success' }}">{{ $user['active'] ? 'Disable' : 'Enable' }}</button>
+                                    </form>
+                                    <form method="POST" action="{{ route('users.destroy', $user['uid']) }}" class="d-inline" onsubmit="return confirm('Delete {{ addslashes($user['name']) }} permanently? Their login and staff record are removed. To just stop them signing in, use Disable instead.');">
+                                        @csrf
+                                        @method('DELETE')
+                                        <button class="btn btn-sm btn-danger" title="Delete account"><i class="bi bi-trash"></i></button>
                                     </form>
                                 @endif
                             </td>

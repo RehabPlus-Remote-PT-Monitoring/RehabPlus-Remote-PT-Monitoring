@@ -93,6 +93,56 @@ class UserManagementTest extends TestCase
         $this->assertTrue($this->docs['users/st1']['active']);
     }
 
+    public function test_delete_removes_login_and_staff_record(): void
+    {
+        $this->staff('staff', 'st1', 'Sam');
+
+        $this->actingAs($this->staff('admin'))->from('/users')->delete('/users/st1')
+            ->assertRedirect('/users')->assertSessionHas('success');
+
+        $this->assertArrayNotHasKey('st1@rehabplus.com', $this->authUsers);
+        $this->assertArrayNotHasKey('users/st1', $this->docs);
+        $this->assertContains('users/st1', $this->deleted);
+    }
+
+    public function test_leftover_record_without_login_is_flagged_and_deletable(): void
+    {
+        $this->staff('admin', 'gone', 'Old Admin', 'you@rehabplus.com');
+        unset($this->authUsers['you@rehabplus.com']); // login deleted in the Firebase console
+        $admin = $this->staff('admin', 'adm', 'Ada Admin');
+
+        $this->actingAs($admin)->get('/users')->assertOk()->assertSee('Old Admin')->assertSee('No login');
+
+        $this->actingAs($admin)->from('/users')->delete('/users/gone')->assertRedirect('/users')->assertSessionHas('success');
+        $this->assertArrayNotHasKey('users/gone', $this->docs);
+        $this->actingAs($admin)->get('/users')->assertDontSee('Old Admin')->assertDontSee('No login');
+    }
+
+    public function test_cannot_delete_self_or_therapist_with_patients(): void
+    {
+        $admin = $this->staff('admin', 'adm');
+        $this->staff('therapist', 'th1', 'Dr. Lee');
+        $this->patientDoc('pat1', ['therapistId' => 'th1', 'therapistName' => 'Dr. Lee']);
+
+        $this->actingAs($admin)->from('/users')->delete('/users/adm')->assertSessionHas('error');
+        $this->actingAs($admin)->from('/users')->delete('/users/th1')->assertSessionHas('error');
+
+        $this->assertArrayHasKey('users/adm', $this->docs);
+        $this->assertArrayHasKey('users/th1', $this->docs);
+        $this->assertArrayHasKey('th1@rehabplus.com', $this->authUsers);
+    }
+
+    public function test_only_admins_can_delete_and_patients_cannot_be_deleted_here(): void
+    {
+        $this->staff('staff', 'st1');
+        $this->patientDoc('pat1');
+
+        $this->actingAs($this->staff('therapist'))->delete('/users/st1')->assertForbidden();
+        $this->actingAs($this->staff('admin'))->delete('/users/pat1')->assertNotFound();
+        $this->assertArrayHasKey('users/st1', $this->docs);
+        $this->assertArrayHasKey('users/pat1', $this->docs);
+    }
+
     public function test_patients_are_not_editable_here(): void
     {
         $this->patientDoc('pat1');

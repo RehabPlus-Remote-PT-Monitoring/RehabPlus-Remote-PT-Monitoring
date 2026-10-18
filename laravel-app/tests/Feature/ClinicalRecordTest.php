@@ -104,6 +104,27 @@ class ClinicalRecordTest extends TestCase
         $this->assertSame([], $this->deleted);
     }
 
+    public function test_assessments_page_can_show_one_patient(): void
+    {
+        $this->docs['patients/pOne/assessments/a1'] = ['type' => 'Olive ROM', 'score' => 70, 'assessedAt' => CarbonImmutable::now(), 'notes' => str_repeat('Long finding. ', 10).'END'];
+        $this->docs['patients/pOne/goals/g1'] = ['title' => 'Olive goal', 'status' => 'active', 'progress' => 20, 'createdAt' => CarbonImmutable::now()];
+        $admin = $this->staff('admin');
+
+        $this->actingAs($admin)->get('/assessments?patient=pOne')->assertOk()
+            ->assertSee('Olive ROM')->assertSee('Olive goal')->assertSee('END')
+            ->assertDontSee('Secret ROM')->assertDontSee('Hidden goal')
+            ->assertSee('70%');
+
+        $this->actingAs($admin)->get('/assessments?patient=pTwo')->assertOk()
+            ->assertSee('Secret ROM')->assertDontSee('Olive ROM');
+    }
+
+    public function test_therapist_cannot_filter_to_someone_elses_patient(): void
+    {
+        $this->actingAs($this->therapist())->get('/assessments?patient=pTwo')->assertOk()
+            ->assertDontSee('Secret ROM')->assertDontSee('Hidden goal')->assertDontSee('Tom Two');
+    }
+
     public function test_admin_sees_everything_and_stats(): void
     {
         $this->docs['patients/pOne/assessments/a1'] = ['type' => 'Strength', 'score' => 70, 'assessedAt' => CarbonImmutable::now()];

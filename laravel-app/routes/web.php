@@ -107,5 +107,6 @@ Route::middleware(['auth.rehab'])->group(function () {
         Route::get('/users/{uid}/edit', [UserController::class, 'edit'])->name('users.edit');
         Route::put('/users/{uid}', [UserController::class, 'update'])->name('users.update');
         Route::post('/users/{uid}/status', [UserController::class, 'status'])->name('users.status');
+        Route::delete('/users/{uid}', [UserController::class, 'destroy'])->name('users.destroy');
     });
 });

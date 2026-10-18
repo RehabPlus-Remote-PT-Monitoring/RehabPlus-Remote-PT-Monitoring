@@ -11,8 +11,8 @@ use Illuminate\View\View;
 
 /**
  * Staff accounts (admin only): Firebase Auth logins with a role in Firestore
- * users/{uid}. Accounts are disabled rather than deleted, because patients,
- * notes and messages refer to the staff member's uid.
+ * users/{uid}. Disabling is the normal way to remove access; deleting is for
+ * mistakes and leftovers, and is refused while patients are assigned.
  */
 class UserController extends Controller
 {
@@ -27,6 +27,7 @@ class UserController extends Controller
 
         return view('admin.users', [
             'users' => $staff,
+            'noLogin' => $this->users->withoutLogin($staff),
             'patientCount' => count(array_filter($all, fn ($u) => $u['role'] === 'patient')),
         ]);
     }
@@ -68,6 +69,21 @@ class UserController extends Controller
         $this->users->setActive($user, $active);
 
         return back()->with('success', $active ? 'Account enabled.' : 'Account disabled. They can no longer sign in.');
+    }
+
+    /** Delete the login and users/{uid}. */
+    public function destroy(Request $request, string $uid): RedirectResponse
+    {
+        $user = $this->staffOr404($uid);
+        if ($user['uid'] === $request->user()->id) {
+            return back()->with('error', 'You can\'t delete your own account.');
+        }
+
+        if ($reason = $this->users->delete($user)) {
+            return back()->with('error', $reason);
+        }
+
+        return redirect()->route('users.index')->with('success', 'Account deleted.');
     }
 
     private function staffOr404(string $uid): array
