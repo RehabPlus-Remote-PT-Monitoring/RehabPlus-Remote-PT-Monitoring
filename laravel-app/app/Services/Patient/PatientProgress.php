@@ -25,15 +25,30 @@ class PatientProgress
     }
 
     /**
-     * Every patient's sessions in one collection-group read, grouped by
-     * patient uid (newest first). Callers drop patients the user can't see.
+     * Sessions grouped by patient uid (newest first).
      *
+     * Without $patientUids: every patient's sessions in one collection-group
+     * read; callers drop patients the user can't see. With $patientUids: one
+     * read per patient, in parallel, so only those patients' sessions are
+     * fetched (used for therapists).
+     *
+     * @param  string[]|null  $patientUids
      * @return array<string, array>
      */
-    public function sessionsByPatient(): array
+    public function sessionsByPatient(?array $patientUids = null): array
     {
+        if ($patientUids === null) {
+            $docs = $this->db->query('', 'sessions', allDescendants: true);
+        } else {
+            $tasks = [];
+            foreach ($patientUids as $uid) {
+                $tasks[] = fn () => $this->db->query("patients/{$uid}", 'sessions');
+            }
+            $docs = $tasks === [] ? [] : array_merge(...$this->db->concurrently($tasks));
+        }
+
         $grouped = [];
-        foreach ($this->db->query('', 'sessions', allDescendants: true) as $doc) {
+        foreach ($docs as $doc) {
             $session = self::presentSession($doc);
             $grouped[$session['patientUid']][] = $session;
         }

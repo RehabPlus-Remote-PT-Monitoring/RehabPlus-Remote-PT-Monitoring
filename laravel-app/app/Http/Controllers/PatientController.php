@@ -3,6 +3,7 @@
 namespace App\Http\Controllers;
 
 use App\Helpers\PatientValidation;
+use App\Services\Firebase\FirebaseTransport;
 use App\Services\Patient\ClinicalRecordService;
 use App\Services\Patient\PatientProgress;
 use App\Services\Patient\PatientService;
@@ -25,6 +26,7 @@ class PatientController extends Controller
         private PrescriptionService $prescriptions,
         private ClinicalRecordService $records,
         private UserService $users,
+        private FirebaseTransport $firebase,
     ) {
     }
 
@@ -32,8 +34,8 @@ class PatientController extends Controller
     {
         return view('patients.index', $this->patients->search(
             $request->user(),
-            trim((string) $request->query('search', '')),
-            trim((string) $request->query('condition', '')),
+            $request->queryText('search'),
+            $request->queryText('condition'),
             $request->boolean('archived'),
         ));
     }
@@ -49,20 +51,20 @@ class PatientController extends Controller
         ];
 
         if ($data['clinical']) {
-            $sessions = $this->progress->sessions($uid);
-            $prescriptions = $this->prescriptions->forPatient($uid);
-            $goals = $this->records->list(ClinicalRecordService::GOALS, [$patient]);
+            // Five independent reads, fetched in one parallel round trip.
+            $clinical = $this->firebase->concurrently([
+                'sessions' => fn () => $this->progress->sessions($uid),
+                'prescriptions' => fn () => $this->prescriptions->forPatient($uid),
+                'assessments' => fn () => $this->records->list(ClinicalRecordService::ASSESSMENTS, [$patient]),
+                'goals' => fn () => $this->records->list(ClinicalRecordService::GOALS, [$patient]),
+                'notes' => fn () => $this->records->list(ClinicalRecordService::NOTES, [$patient]),
+            ]);
 
-            $data += [
-                'sessions' => $sessions,
-                'stats' => PatientProgress::stats($sessions),
-                'adherence' => PatientProgress::adherence($sessions, $prescriptions),
-                'painTrend' => PatientProgress::painTrend($sessions),
-                'prescriptions' => $prescriptions,
-                'assessments' => $this->records->list(ClinicalRecordService::ASSESSMENTS, [$patient]),
-                'goals' => $goals,
-                'goalAchievement' => ClinicalRecordService::goalAchievement($goals),
-                'notes' => $this->records->list(ClinicalRecordService::NOTES, [$patient]),
+            $data += $clinical + [
+                'stats' => PatientProgress::stats($clinical['sessions']),
+                'adherence' => PatientProgress::adherence($clinical['sessions'], $clinical['prescriptions']),
+                'painTrend' => PatientProgress::painTrend($clinical['sessions']),
+                'goalAchievement' => ClinicalRecordService::goalAchievement($clinical['goals']),
             ];
         }
 

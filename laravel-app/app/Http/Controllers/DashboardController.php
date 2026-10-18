@@ -38,13 +38,22 @@ class DashboardController extends Controller
         return response()->stream(function () use ($rows) {
             $handle = fopen('php://output', 'w');
             foreach ($rows as $row) {
-                fputcsv($handle, $row);
+                fputcsv($handle, array_map(self::csvSafe(...), $row));
             }
             fclose($handle);
         }, 200, [
             'Content-Type' => 'text/csv',
             'Content-Disposition' => 'attachment; filename="' . $filename . '"',
         ]);
+    }
+
+    /**
+     * Stop spreadsheet formula injection: a cell starting with = + - @ (or a
+     * tab/CR) would run as a formula in Excel, so it is prefixed with a quote.
+     */
+    private static function csvSafe(mixed $value): mixed
+    {
+        return is_string($value) && preg_match('/^[=+\-@\t\r]/', $value) ? "'".$value : $value;
     }
 
     public function exportPatientStatisticsPdf(Request $request): View

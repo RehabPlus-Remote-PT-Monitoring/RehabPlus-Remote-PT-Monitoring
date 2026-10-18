@@ -24,6 +24,8 @@ $defaults = [
     'LOG_CHANNEL' => 'stderr',
     'SESSION_DRIVER' => 'cookie',
     'CACHE_STORE' => 'file',
+    // Vercel's edge sets X-Forwarded-For to the real client (see bootstrap/app.php).
+    'TRUSTED_PROXIES' => '*',
 ];
 
 foreach ($defaults as $name => $value) {

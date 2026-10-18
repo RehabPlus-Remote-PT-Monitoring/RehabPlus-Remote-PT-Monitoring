@@ -2,6 +2,8 @@
 
 use App\Http\Middleware\EnsureAuthenticated;
 use App\Http\Middleware\EnsureRole;
+use App\Http\Middleware\RequestDiagnostics;
+use App\Http\Middleware\SecurityHeaders;
 use App\Services\Firebase\FirebaseException;
 use Illuminate\Foundation\Application;
 use Illuminate\Foundation\Configuration\Exceptions;
@@ -15,6 +17,18 @@ return Application::configure(basePath: dirname(__DIR__))
         health: '/up',
     )
     ->withMiddleware(function (Middleware $middleware): void {
+        // First in, last out: the request id exists before anything logs, and
+        // the summary line sees the final status.
+        $middleware->prepend(RequestDiagnostics::class);
+        $middleware->append(SecurityHeaders::class);
+
+        // On Vercel every request arrives through Vercel's proxy, which sets
+        // X-Forwarded-For to the real client. Without trusting it, the login
+        // throttle (per IP) would be shared by all users and logs would show
+        // the proxy's address. api/index.php (Vercel only) defaults
+        // TRUSTED_PROXIES to '*'; elsewhere set it to your proxy's address.
+        $middleware->trustProxies(at: env('TRUSTED_PROXIES') ?: null);
+
         $middleware->alias([
             'auth.rehab' => EnsureAuthenticated::class,
             'role' => EnsureRole::class,
@@ -31,6 +45,9 @@ return Application::configure(basePath: dirname(__DIR__))
                     ->with('error', $e->getMessage());
             }
 
-            return response()->view('errors.firebase', ['message' => $e->getMessage()], 503);
+            return response()->view('errors.firebase', [
+                'message' => $e->getMessage(),
+                'requestId' => $request->attributes->get('request_id'),
+            ], 503);
         });
     })->create();

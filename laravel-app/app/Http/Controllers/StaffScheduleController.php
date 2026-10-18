@@ -19,7 +19,7 @@ class StaffScheduleController extends Controller
 
     public function index(Request $request): View
     {
-        return view('admin.schedule', $this->schedule->overview((int) $request->query('week_offset', 0)));
+        return view('admin.schedule', $this->schedule->overview((int) $request->queryText('week_offset', '0')));
     }
 
     public function store(Request $request): RedirectResponse

@@ -4,10 +4,7 @@ namespace App\Services\Firebase;
 
 use Carbon\CarbonImmutable;
 use DateTimeInterface;
-use Illuminate\Http\Client\ConnectionException;
-use Illuminate\Http\Client\PendingRequest;
 use Illuminate\Http\Client\Response;
-use Illuminate\Support\Facades\Http;
 use Illuminate\Support\Str;
 
 /**
@@ -19,11 +16,28 @@ use Illuminate\Support\Str;
  *
  * The service account bypasses Firestore security rules, so callers must do
  * their own permission checks (see API_CONTRACT.md in the app repo).
+ *
+ * Requests go through FirebaseTransport: reads are retried on transient
+ * errors and run in parallel inside concurrently() tasks; writes are sent
+ * exactly once.
  */
 class FirestoreClient
 {
-    public function __construct(private GoogleAccessToken $token)
+    /** Firestore's limit for documents in one batchGet. */
+    private const BATCH_GET_LIMIT = 100;
+
+    public function __construct(private FirebaseTransport $transport)
     {
+    }
+
+    /**
+     * Run independent tasks in parallel; see FirebaseTransport::concurrently().
+     *
+     * @param  array<array-key, callable(): mixed>  $tasks
+     */
+    public function concurrently(array $tasks): array
+    {
+        return $this->transport->concurrently($tasks);
     }
 
     public function projectId(): string
@@ -42,15 +56,16 @@ class FirestoreClient
         return $this->root().'/'.trim($path, '/');
     }
 
+    /** One document, or null if it doesn't exist. */
     public function get(string $path): ?array
     {
-        $response = $this->send('get', $this->url($path));
+        $response = $this->send(FirebaseRequest::GET, $this->url($path), null, 'firestore.get', $path, idempotent: true);
 
         if ($response->status() === 404) {
             return null;
         }
 
-        return $this->decodeDocument($this->ok($response)->json());
+        return $this->decodeDocument($this->ok($response, 'read')->json());
     }
 
     /**
@@ -62,13 +77,25 @@ class FirestoreClient
     public function getMany(array $paths): array
     {
         $result = array_fill_keys($paths, null);
+        if ($paths === []) {
+            return $result;
+        }
 
-        foreach (array_chunk($paths, 100) as $chunk) {
-            $response = $this->ok($this->send('post', $this->url('').':batchGet', [
-                'documents' => array_map(fn ($p) => $this->name($p), $chunk),
-            ]));
+        // Chunks are independent, so large lookups fetch them in parallel.
+        $chunks = $this->concurrently(array_map(
+            fn (array $chunk) => fn () => $this->ok($this->send(
+                FirebaseRequest::POST,
+                $this->url('').':batchGet',
+                ['documents' => array_map(fn ($p) => $this->name($p), $chunk)],
+                'firestore.batchGet',
+                count($chunk).' docs, first '.$chunk[0],
+                idempotent: true,
+            ), 'read')->json(),
+            array_chunk($paths, self::BATCH_GET_LIMIT),
+        ));
 
-            foreach ($response->json() as $entry) {
+        foreach ($chunks as $entries) {
+            foreach ($entries as $entry) {
                 if (isset($entry['found'])) {
                     $doc = $this->decodeDocument($entry['found']);
                     $result[$doc['_path']] = $doc;
@@ -113,9 +140,15 @@ class FirestoreClient
             $query['limit'] = $limit;
         }
 
-        $response = $this->ok($this->send('post', $this->url($parentPath).':runQuery', [
-            'structuredQuery' => $query,
-        ]));
+        $target = trim($parentPath.'/'.$collection, '/').($allDescendants ? ' (collection group)' : '');
+        $response = $this->ok($this->send(
+            FirebaseRequest::POST,
+            $this->url($parentPath).':runQuery',
+            ['structuredQuery' => $query],
+            'firestore.runQuery',
+            $target,
+            idempotent: true,
+        ), 'query');
 
         return collect($response->json())
             ->filter(fn ($row) => isset($row['document']))
@@ -124,15 +157,26 @@ class FirestoreClient
             ->all();
     }
 
-    /** Apply writes atomically. Build them with the write helpers below. */
+    /**
+     * Apply writes atomically. Build them with the write helpers below.
+     * Never retried: increments and create-preconditions are not safe to repeat.
+     */
     public function commit(array $writes): void
     {
-        $this->ok($this->send('post', $this->url('').':commit', ['writes' => $writes]));
+        if ($writes === []) {
+            return;
+        }
+
+        $first = Str::after($writes[0]['update']['name'] ?? $writes[0]['delete'] ?? '', $this->root().'/');
+        $target = count($writes) === 1 ? $first : count($writes)." writes, first {$first}";
+
+        $this->ok($this->send(FirebaseRequest::POST, $this->url('').':commit', ['writes' => $writes], 'firestore.commit', $target, idempotent: false), 'save');
     }
 
+    /** Delete a document (deleting a missing document is not an error). */
     public function delete(string $path): void
     {
-        $this->ok($this->send('delete', $this->url($path)));
+        $this->ok($this->send(FirebaseRequest::DELETE, $this->url($path), null, 'firestore.delete', $path, idempotent: true), 'delete');
     }
 
     /** A new random document id, same format as the Firebase SDKs. */
@@ -247,26 +291,27 @@ class FirestoreClient
         return 'https://firestore.googleapis.com/v1/'.rtrim($this->name($path), '/');
     }
 
-    private function http(): PendingRequest
+    private function send(string $method, string $url, ?array $body, string $operation, string $target, bool $idempotent): Response
     {
-        return Http::withToken($this->token->get())->acceptJson()->timeout(15);
+        return $this->transport->send(new FirebaseRequest($method, $url, $body, $operation, $target, $idempotent));
     }
 
-    /** Network failures become FirebaseException so pages can show a friendly error. */
-    private function send(string $method, string $url, array $data = []): Response
-    {
-        try {
-            return $this->http()->{$method}($url, $data);
-        } catch (ConnectionException $e) {
-            throw new FirebaseException('Could not reach Firebase (network error).', 0, $e);
-        }
-    }
-
-    private function ok(Response $response): Response
+    /**
+     * Throw a staff-safe FirebaseException for an error response. Firebase's
+     * full error is already in the log line FirebaseTransport wrote for the call.
+     */
+    private function ok(Response $response, string $action): Response
     {
         if ($response->failed()) {
-            $message = $response->json('error.message') ?? $response->json('0.error.message') ?? $response->body();
-            throw new FirebaseException('Firestore request failed ('.$response->status().'): '.Str::limit((string) $message, 300));
+            $status = $response->json('error.status') ?? $response->json('0.error.status');
+
+            throw new FirebaseException(match ($status) {
+                'ALREADY_EXISTS' => 'That record already exists.',
+                'FAILED_PRECONDITION' => "Could not {$action} the data: Firestore needs an index or a precondition failed.",
+                'PERMISSION_DENIED' => "The server's Firebase account is not allowed to {$action} this data.",
+                'RESOURCE_EXHAUSTED' => 'Firebase is rate-limiting the clinic right now. Try again in a minute.',
+                default => "Could not {$action} the data in Firebase (error {$response->status()}). Try again in a moment.",
+            });
         }
 
         return $response;

@@ -41,6 +41,16 @@ class DashboardTest extends TestCase
             ->assertSee('Olive One')->assertDontSee('Tom Two')
             ->assertSee('80%');
         $this->actingAs($this->staff('therapist', 'thA', 'Dr. Ana'))->get('/analytics')->assertOk()->assertSee('Live');
+
+        // Only their own patients' sessions are read, never the whole clinic's.
+        $this->assertNotContains('sessions', $this->collectionGroupReads());
+    }
+
+    public function test_admin_dashboard_reads_clinic_sessions_in_one_collection_group_query(): void
+    {
+        $this->actingAs($this->staff('admin'))->get('/dashboard')->assertOk()->assertSee('Olive One')->assertSee('Tom Two');
+
+        $this->assertSame(['sessions'], $this->collectionGroupReads());
     }
 
     public function test_patient_statistics_for_admins(): void
@@ -54,6 +64,28 @@ class DashboardTest extends TestCase
         $csv = $this->actingAs($this->staff('admin'))->get('/patient-statistics/export/csv?condition=ACL')->streamedContent();
         $this->assertStringContainsString('"Olive One",ACL,"Dr. Ana"', $csv);
         $this->assertStringNotContainsString('Tom Two', $csv);
+    }
+
+    public function test_patient_statistics_ignore_malformed_dates(): void
+    {
+        foreach (['from=nonsense&to=2026-01-01', 'from=2026-13-45&to=2026-02-31', 'from[]=x&to=2026-01-01', 'condition[]=x&status[]=y&range[]=z'] as $query) {
+            $this->actingAs($this->staff('admin'))->get("/patient-statistics?range=custom&{$query}")->assertOk();
+        }
+
+        // Reversed dates are swapped rather than giving an empty report.
+        $this->actingAs($this->staff('admin'))->get('/patient-statistics?range=custom&from=2030-01-01&to=2000-01-01')
+            ->assertOk()->assertSee('Jan 1, 2000 - Jan 1, 2030');
+    }
+
+    public function test_csv_export_neutralises_spreadsheet_formulas(): void
+    {
+        $this->patientDoc('evil', ['name' => '=HYPERLINK("http://x","click")', 'condition' => '+SUM(A1)']);
+
+        $csv = $this->actingAs($this->staff('admin'))->get('/patient-statistics/export/csv')->streamedContent();
+
+        $this->assertStringContainsString('"\'=HYPERLINK(""http://x"",""click"")"', $csv);
+        $this->assertStringContainsString("'+SUM(A1)", $csv);
+        $this->assertDoesNotMatchRegularExpression('/(^|,)"?[=+@]/m', $csv);
     }
 
     public function test_patient_statistics_is_admin_only(): void

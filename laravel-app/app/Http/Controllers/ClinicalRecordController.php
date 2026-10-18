@@ -3,6 +3,7 @@
 namespace App\Http\Controllers;
 
 use App\Helpers\ClinicalValidation;
+use App\Services\Firebase\FirebaseTransport;
 use App\Services\Patient\ClinicalRecordService;
 use App\Services\Patient\PatientService;
 use Carbon\CarbonImmutable;
@@ -17,8 +18,11 @@ use Illuminate\View\View;
  */
 class ClinicalRecordController extends Controller
 {
-    public function __construct(private PatientService $patients, private ClinicalRecordService $records)
-    {
+    public function __construct(
+        private PatientService $patients,
+        private ClinicalRecordService $records,
+        private FirebaseTransport $firebase,
+    ) {
     }
 
     public function assessments(Request $request): View
@@ -26,12 +30,14 @@ class ClinicalRecordController extends Controller
         $patients = $this->patients->visible($request->user());
 
         // ?patient=uid narrows the page to one patient the user may see.
-        $selected = (string) $request->query('patient', '');
+        $selected = $request->queryText('patient');
         $focus = array_values(array_filter($patients, fn ($p) => $p['uid'] === $selected));
         $shown = $focus ?: $patients;
 
-        $assessments = $this->records->list(ClinicalRecordService::ASSESSMENTS, $shown);
-        $goals = $this->records->list(ClinicalRecordService::GOALS, $shown);
+        [$assessments, $goals] = $this->firebase->concurrently([
+            fn () => $this->records->list(ClinicalRecordService::ASSESSMENTS, $shown),
+            fn () => $this->records->list(ClinicalRecordService::GOALS, $shown),
+        ]);
         $achievement = ClinicalRecordService::goalAchievement($goals);
 
         return view('admin.assessments', [
@@ -57,7 +63,7 @@ class ClinicalRecordController extends Controller
 
         return view('admin.notes', [
             'patients' => $patients,
-            'selectedPatient' => (string) $request->query('patient', ''),
+            'selectedPatient' => $request->queryText('patient'),
             'notes' => $notes,
             'recentCount' => count(array_filter($notes, fn ($n) => $n['createdAt']?->greaterThanOrEqualTo($weekAgo))),
             'todayNotes' => count(array_filter($notes, fn ($n) => $n['noteDate']?->setTimezone(config('app.timezone'))->format('Y-m-d') === $today)),

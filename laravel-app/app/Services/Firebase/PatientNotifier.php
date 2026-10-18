@@ -21,8 +21,11 @@ class PatientNotifier
         'exercise_assigned' => 'exercises',
     ];
 
-    public function __construct(private FirestoreClient $db, private FirebaseAdmin $admin)
-    {
+    public function __construct(
+        private FirestoreClient $db,
+        private FirebaseAdmin $admin,
+        private FirebaseTransport $transport,
+    ) {
     }
 
     /**
@@ -44,34 +47,63 @@ class PatientNotifier
      * Push to each of the patient's phones. Dead tokens are deleted; other
      * failures are logged and never thrown (the data is already saved).
      *
+     * The preference and the device list are read together, then every phone
+     * is pushed to in parallel.
+     *
      * @return int|null number of phones reached, or null if the patient turned
      *                  this kind of notification off
      */
     public function push(string $patientUid, string $title, string $body, array $data): ?int
     {
-        if (! $this->wantsPush($patientUid, $data['type'] ?? null)) {
+        $type = $data['type'] ?? null;
+
+        try {
+            [$wanted, $devices] = $this->transport->concurrently([
+                fn () => $this->wantsPush($patientUid, $type),
+                fn () => $this->db->query("patients/{$patientUid}", 'devices'),
+            ]);
+        } catch (FirebaseException $e) {
+            Log::warning('push.skipped devices unreadable', ['patient' => $patientUid, 'type' => $type, 'error' => $e->getMessage()]);
+
+            return 0;
+        }
+
+        if (! $wanted) {
+            Log::info('push.skipped patient opted out', ['patient' => $patientUid, 'type' => $type]);
+
             return null;
         }
 
-        $sent = 0;
+        $sends = [];
+        foreach ($devices as $device) {
+            $sends[$device['_path']] = fn () => $this->admin->sendPush($device['_id'], $title, $body, $data);
+        }
+        $results = $this->transport->concurrently($sends);
 
-        try {
-            foreach ($this->db->query("patients/{$patientUid}", 'devices') as $device) {
-                $result = $this->admin->sendPush($device['_id'], $title, $body, $data);
+        $dead = array_keys(array_filter($results, fn ($result) => $result === 'dead'));
+        $this->deleteDeadDevices($patientUid, $dead);
 
-                if ($result === 'sent') {
-                    $sent++;
-                } elseif ($result === 'dead') {
-                    $this->db->delete($device['_path']);
-                } else {
-                    Log::warning('FCM push failed', ['patient' => $patientUid]);
+        $counts = array_count_values($results) + ['sent' => 0, 'dead' => 0, 'failed' => 0];
+        Log::info('push.sent', ['patient' => $patientUid, 'type' => $type, 'devices' => count($devices)] + $counts);
+
+        return $counts['sent'];
+    }
+
+    /** Remove device tokens FCM says are gone (app uninstalled, token rotated). */
+    private function deleteDeadDevices(string $patientUid, array $devicePaths): void
+    {
+        $deletes = [];
+        foreach ($devicePaths as $path) {
+            $deletes[] = function () use ($path, $patientUid) {
+                try {
+                    $this->db->delete($path);
+                } catch (FirebaseException $e) {
+                    Log::warning('push.dead_device not deleted', ['patient' => $patientUid, 'error' => $e->getMessage()]);
                 }
-            }
-        } catch (FirebaseException $e) {
-            Log::warning('FCM push skipped: '.$e->getMessage(), ['patient' => $patientUid]);
+            };
         }
 
-        return $sent;
+        $this->transport->concurrently($deletes);
     }
 
     /**
@@ -88,7 +120,7 @@ class PatientNotifier
         try {
             $prefs = $this->db->get("patients/{$patientUid}/preferences/notifications");
         } catch (FirebaseException $e) {
-            Log::warning('Notification preferences unreadable: '.$e->getMessage(), ['patient' => $patientUid]);
+            Log::warning('push.preferences unreadable, sending anyway', ['patient' => $patientUid, 'error' => $e->getMessage()]);
 
             return true;
         }

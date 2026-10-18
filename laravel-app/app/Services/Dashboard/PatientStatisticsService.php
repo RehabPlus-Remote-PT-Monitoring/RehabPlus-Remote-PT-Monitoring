@@ -157,24 +157,30 @@ class PatientStatisticsService
     protected function resolveFilters(Request $request): array
     {
         return [
-            'range' => $request->query('range', 'last_12_months'),
-            'condition' => trim((string) $request->query('condition', '')),
-            'therapist' => trim((string) $request->query('therapist', '')),
-            'status' => trim((string) $request->query('status', '')),
-            'from' => $request->query('from'),
-            'to' => $request->query('to'),
+            'range' => $request->queryText('range', 'last_12_months'),
+            'condition' => $request->queryText('condition'),
+            'therapist' => $request->queryText('therapist'),
+            'status' => $request->queryText('status'),
+            'from' => $request->queryText('from'),
+            'to' => $request->queryText('to'),
         ];
     }
 
     protected function resolveDateRange(Request $request): array
     {
-        $preset = $request->query('range', 'last_12_months');
-        $from = $request->query('from');
-        $to = $request->query('to');
+        $preset = $request->queryText('range', 'last_12_months');
+        $from = $request->queryText('from');
+        $to = $request->queryText('to');
 
-        if ($preset === 'custom' && $from && $to) {
-            $start = Carbon::parse($from)->startOfDay();
-            $end = Carbon::parse($to)->endOfDay();
+        $start = $preset === 'custom' ? $this->parseDate($from) : null;
+        $end = $preset === 'custom' ? $this->parseDate($to) : null;
+
+        if ($start && $end) {
+            if ($start->greaterThan($end)) {
+                [$start, $end] = [$end, $start];
+            }
+            $start = $start->startOfDay();
+            $end = $end->endOfDay();
 
             return ['start' => $start, 'end' => $end, 'label' => $start->format('M j, Y').' - '.$end->format('M j, Y')];
         }
@@ -209,6 +215,23 @@ class PatientStatisticsService
         }
 
         return ['start' => $start, 'end' => $end, 'label' => $label];
+    }
+
+    /** A Y-m-d query value as a date, or null if it's missing or malformed (falls back to the preset). */
+    private function parseDate(mixed $value): ?Carbon
+    {
+        if (! is_string($value) || ! preg_match('/^\d{4}-\d{2}-\d{2}$/', $value)) {
+            return null;
+        }
+
+        try {
+            $date = Carbon::createFromFormat('Y-m-d', $value);
+        } catch (\Throwable) {
+            return null; // e.g. month 13
+        }
+
+        // Rejects dates PHP silently rolls over, like 2026-02-31.
+        return $date && $date->format('Y-m-d') === $value ? $date : null;
     }
 
     protected function buildRegistrationTrend(Collection $all, array $filters, Carbon $start, Carbon $end): array

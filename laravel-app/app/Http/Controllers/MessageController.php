@@ -3,6 +3,7 @@
 namespace App\Http\Controllers;
 
 use App\Services\Firebase\FirebaseException;
+use App\Services\Firebase\FirebaseTransport;
 use App\Services\Firebase\GoogleAccessToken;
 use App\Services\Messaging\MessagingService;
 use Illuminate\Http\RedirectResponse;
@@ -15,7 +16,7 @@ use Illuminate\View\View;
  */
 class MessageController extends Controller
 {
-    public function __construct(private MessagingService $messaging)
+    public function __construct(private MessagingService $messaging, private FirebaseTransport $firebase)
     {
     }
 
@@ -86,19 +87,23 @@ class MessageController extends Controller
         );
     }
 
+    /** Load the messages and clear the unread badge, in parallel. */
     private function loadAndMarkRead(string $patientUid, string $thread): array
     {
         try {
-            $messages = $this->messaging->messages($patientUid, $thread);
+            [$messages] = $this->firebase->concurrently([
+                fn () => $this->messaging->messages($patientUid, $thread),
+                function () use ($patientUid, $thread) {
+                    try {
+                        $this->messaging->markRead($patientUid, $thread);
+                    } catch (FirebaseException $e) {
+                        report($e); // the badge stays; not worth failing the page over
+                    }
+                },
+            ]);
         } catch (FirebaseException $e) {
             report($e);
             abort(503, 'Could not reach Firebase. Try again in a moment.');
-        }
-
-        try {
-            $this->messaging->markRead($patientUid, $thread);
-        } catch (FirebaseException $e) {
-            report($e); // the badge stays; not worth failing the page over
         }
 
         return $messages;

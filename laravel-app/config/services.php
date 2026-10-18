@@ -40,6 +40,14 @@ return [
         'credentials_json' => env('FIREBASE_CREDENTIALS_JSON'),
         'project_id' => env('FIREBASE_PROJECT_ID', 'rehabplus-80675'),
         'api_key' => env('FIREBASE_API_KEY'),
+
+        // Transport tuning (App\Services\Firebase\FirebaseTransport).
+        'timeout' => (int) env('FIREBASE_TIMEOUT', 15),                 // seconds per call
+        'connect_timeout' => (int) env('FIREBASE_CONNECT_TIMEOUT', 5),  // seconds to connect
+        'max_attempts' => (int) env('FIREBASE_MAX_ATTEMPTS', 3),        // incl. the first try; reads only
+        'retry_backoff_ms' => (int) env('FIREBASE_RETRY_BACKOFF_MS', 150),
+        'max_parallel' => (int) env('FIREBASE_MAX_PARALLEL', 10),       // calls in flight at once
+        'slow_ms' => (int) env('FIREBASE_SLOW_MS', 1500),               // log a warning above this
     ],
 
     'slack' => [

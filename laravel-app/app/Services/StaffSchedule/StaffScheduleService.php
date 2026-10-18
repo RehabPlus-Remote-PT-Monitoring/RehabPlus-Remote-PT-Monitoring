@@ -4,6 +4,7 @@ namespace App\Services\StaffSchedule;
 
 use App\Services\Clinic\ClinicRecord;
 use App\Services\Clinic\ClinicStore;
+use App\Services\Firebase\FirebaseTransport;
 use App\Services\User\UserService;
 use Carbon\CarbonImmutable;
 use Illuminate\Support\Collection;
@@ -11,8 +12,12 @@ use Illuminate\Support\Collection;
 /** Staff shifts and time off (Firestore `staffShifts` / `staffTimeOff`, see ClinicStore). */
 class StaffScheduleService
 {
-    public function __construct(private ClinicStore $store, private ShiftConflictService $shifts, private UserService $users)
-    {
+    public function __construct(
+        private ClinicStore $store,
+        private ShiftConflictService $shifts,
+        private UserService $users,
+        private FirebaseTransport $firebase,
+    ) {
     }
 
     public function overview(int $weekOffset): array
@@ -24,12 +29,19 @@ class StaffScheduleService
             'short' => $monday->addDays($i)->format('M j'),
         ])->all();
 
-        $schedules = $this->store->all(ClinicStore::SHIFTS)->sortBy(fn (ClinicRecord $s) => (string) $s->shift)->values();
-        $staffDirectory = $this->staffDirectory($schedules);
+        // Shifts, time off and staff accounts are independent reads.
+        [$schedules, $timeOff, $staffAccounts] = $this->firebase->concurrently([
+            fn () => $this->store->all(ClinicStore::SHIFTS),
+            fn () => $this->store->all(ClinicStore::TIME_OFF),
+            fn () => $this->users->staff(),
+        ]);
+
+        $schedules = $schedules->sortBy(fn (ClinicRecord $s) => (string) $s->shift)->values();
+        $staffDirectory = $this->staffDirectory($staffAccounts, $schedules);
 
         $today = CarbonImmutable::today();
         $todayEntries = $schedules->where('day', $today->format('l'));
-        $timeOffToday = $this->store->all(ClinicStore::TIME_OFF)
+        $timeOffToday = $timeOff
             ->where('date', $today->toDateString())
             ->map(fn (ClinicRecord $off) => $this->shifts->normalize($off->staff));
 
@@ -92,9 +104,9 @@ class StaffScheduleService
     /**
      * Active staff accounts from Firebase (every role except patients), plus anyone already on the schedule.
      */
-    private function staffDirectory(Collection $schedules): array
+    private function staffDirectory(array $staffAccounts, Collection $schedules): array
     {
-        $staff = collect($this->users->staff())
+        $staff = collect($staffAccounts)
             ->filter(fn (array $user) => $user['active'])
             ->mapWithKeys(fn (array $user) => [$this->shifts->normalize($user['name']) => ['name' => $user['name'], 'role' => ucfirst($user['role'])]]);
 

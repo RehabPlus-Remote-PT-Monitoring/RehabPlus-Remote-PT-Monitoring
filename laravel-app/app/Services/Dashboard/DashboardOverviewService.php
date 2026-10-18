@@ -3,13 +3,17 @@
 namespace App\Services\Dashboard;
 
 use App\Auth\StaffUser;
+use App\Services\Firebase\FirebaseTransport;
 use App\Services\Patient\PatientProgress;
 use App\Services\Patient\PatientService;
 
 class DashboardOverviewService
 {
-    public function __construct(private PatientService $patients, private PatientProgress $progress)
-    {
+    public function __construct(
+        private PatientService $patients,
+        private PatientProgress $progress,
+        private FirebaseTransport $firebase,
+    ) {
     }
 
     /**
@@ -19,8 +23,17 @@ class DashboardOverviewService
      */
     public function overview(StaffUser $user): array
     {
-        $patients = $this->patients->visible($user);
-        $sessionsByPatient = $this->progress->sessionsByPatient();
+        if ($user->isTherapist()) {
+            // Only their own patients' sessions leave Firestore.
+            $patients = $this->patients->visible($user);
+            $sessionsByPatient = $this->progress->sessionsByPatient(array_column($patients, 'uid'));
+        } else {
+            // Clinic-wide: both reads are independent, so fetch them together.
+            [$patients, $sessionsByPatient] = $this->firebase->concurrently([
+                fn () => $this->patients->visible($user),
+                fn () => $this->progress->sessionsByPatient(),
+            ]);
+        }
 
         $patientStats = array_map(function (array $patient) use ($sessionsByPatient) {
             $stats = PatientProgress::stats($sessionsByPatient[$patient['uid']] ?? []);

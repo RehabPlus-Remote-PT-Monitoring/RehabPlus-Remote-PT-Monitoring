@@ -5,6 +5,7 @@ namespace App\Services\Appointment;
 use App\Auth\StaffUser;
 use App\Services\Clinic\ClinicRecord;
 use App\Services\Clinic\ClinicStore;
+use App\Services\Firebase\FirebaseTransport;
 use App\Services\Patient\PatientService;
 use App\Services\User\UserService;
 use Carbon\CarbonImmutable;
@@ -12,22 +13,29 @@ use Carbon\CarbonImmutable;
 /** Clinic appointments (Firestore `appointments`, see ClinicStore). */
 class AppointmentService
 {
-    public function __construct(private ClinicStore $store, private PatientService $patients, private UserService $users)
-    {
+    public function __construct(
+        private ClinicStore $store,
+        private PatientService $patients,
+        private UserService $users,
+        private FirebaseTransport $firebase,
+    ) {
     }
 
     public function overview(StaffUser $user): array
     {
         $today = now()->toDateString();
-        $appointments = $this->store->all(ClinicStore::APPOINTMENTS)
-            ->sortBy(fn (ClinicRecord $a) => $a->date.' '.$a->time)
-            ->values();
+
+        [$appointments, $visiblePatients] = $this->firebase->concurrently([
+            fn () => $this->store->all(ClinicStore::APPOINTMENTS),
+            fn () => $this->patients->visible($user),
+        ]);
+        $appointments = $appointments->sortBy(fn (ClinicRecord $a) => $a->date.' '.$a->time)->values();
 
         return [
             'appointments' => $appointments,
             'todayAppointments' => $appointments->where('date', $today)->count(),
             'upcomingAppointments' => $appointments->where('status', 'Upcoming')->count(),
-            'activePatients' => count($this->patients->visible($user)),
+            'activePatients' => count($visiblePatients),
             'completedToday' => $appointments->filter(fn (ClinicRecord $a) => $a->status === 'Completed' && (
                 $a->completed_at
                     ? CarbonImmutable::instance($a->completed_at)->setTimezone(config('app.timezone'))->toDateString() === $today

@@ -39,12 +39,22 @@ trait FakeFirebase
 
     protected bool $failCommits = false;
 
+    /**
+     * Failures to return before answering normally, per URL fragment, e.g.
+     * [':runQuery' => [503, 503]] or ['/users/a' => ['connection']]. Each
+     * matching request takes the next entry.
+     *
+     * @var array<string, array<int, int|string>>
+     */
+    protected array $injectedFailures = [];
+
     protected function setUpFakeFirebase(): void
     {
         config([
             'services.firebase.credentials' => __FILE__,
             'services.firebase.project_id' => 'rehabplus-80675',
             'services.firebase.api_key' => 'test-api-key',
+            'services.firebase.retry_backoff_ms' => 0, // retries without sleeping
         ]);
         $this->instance(GoogleAccessToken::class, new class extends GoogleAccessToken
         {
@@ -80,6 +90,17 @@ trait FakeFirebase
         $this->authUsers["{$uid}@mail.com"] = ['uid' => $uid, 'password' => 'secret-pass', 'disabled' => false, 'displayName' => $this->docs["patients/{$uid}"]['name']];
     }
 
+    /** Collection-group queries sent so far (collection ids), e.g. ['sessions']. */
+    protected function collectionGroupReads(): array
+    {
+        return Http::recorded()
+            ->map(fn ($pair) => $pair[0]->data()['structuredQuery']['from'][0] ?? null)
+            ->filter(fn ($from) => ! empty($from['allDescendants']))
+            ->map(fn ($from) => $from['collectionId'])
+            ->values()
+            ->all();
+    }
+
     /** Docs whose path matches a pattern like "patients/x/prescriptions/*". */
     protected function docsLike(string $pattern): array
     {
@@ -90,6 +111,16 @@ trait FakeFirebase
     {
         $url = urldecode($r->url());
         $body = $r->data();
+
+        foreach ($this->injectedFailures as $fragment => $failures) {
+            if ($failures !== [] && str_contains($url, $fragment)) {
+                $failure = array_shift($this->injectedFailures[$fragment]);
+
+                return $failure === 'connection'
+                    ? Http::failedConnection()
+                    : Http::response(['error' => ['code' => $failure, 'status' => 'INJECTED', 'message' => 'injected failure']], $failure);
+            }
+        }
 
         if (str_contains($url, 'identitytoolkit')) {
             return $this->fakeAuth($url, $body);

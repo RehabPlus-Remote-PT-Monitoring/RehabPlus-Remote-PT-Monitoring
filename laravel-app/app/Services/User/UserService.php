@@ -132,7 +132,7 @@ class UserService
         $this->admin->deleteUser($user['uid']);
         $this->db->delete("users/{$user['uid']}");
         FirebaseUserProvider::forget($user['uid']);
-        Cache::forget('firebase.uid.'.sha1(strtolower(trim($user['email']))));
+        Cache::forget(FirebaseAdmin::uidCacheKey($user['email']));
 
         return null;
     }

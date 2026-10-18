@@ -27,14 +27,20 @@ class ClinicalRecordService
     /** The field each kind is sorted by (newest first). */
     private const DATE_FIELD = [self::ASSESSMENTS => 'assessedAt', self::GOALS => 'createdAt', self::NOTES => 'noteDate'];
 
+    /**
+     * Up to this many patients, each one's subcollection is read separately
+     * (in parallel), so only their records leave Firestore. Above it, one
+     * collection-group read of the whole clinic is cheaper.
+     */
+    public const PER_PATIENT_READ_LIMIT = 15;
+
     public function __construct(private FirestoreClient $db)
     {
     }
 
     /**
-     * Records of one kind for the given patients, newest first. With one
-     * patient it reads just that subcollection; otherwise one collection-group
-     * read, filtered to $patients (the ones the user may see).
+     * Records of one kind for the given patients (the ones the user may see),
+     * newest first.
      *
      * @param  array<int, array>  $patients  presented patients (uid, name)
      */
@@ -42,9 +48,13 @@ class ClinicalRecordService
     {
         $names = array_column($patients, 'name', 'uid');
 
-        $docs = count($patients) === 1
-            ? $this->db->query('patients/'.array_key_first($names), $kind)
-            : ($patients ? $this->db->query('', $kind, allDescendants: true) : []);
+        if ($names === []) {
+            return [];
+        }
+
+        $docs = count($names) <= self::PER_PATIENT_READ_LIMIT
+            ? $this->readEachPatient($kind, array_keys($names))
+            : $this->db->query('', $kind, allDescendants: true);
 
         $rows = [];
         foreach ($docs as $doc) {
@@ -60,6 +70,17 @@ class ClinicalRecordService
         usort($rows, fn ($a, $b) => ($b[$field]?->getTimestamp() ?? 0) <=> ($a[$field]?->getTimestamp() ?? 0));
 
         return $rows;
+    }
+
+    /** One subcollection read per patient, all sent in parallel. */
+    private function readEachPatient(string $kind, array $patientUids): array
+    {
+        $tasks = [];
+        foreach ($patientUids as $uid) {
+            $tasks[] = fn () => $this->db->query("patients/{$uid}", $kind);
+        }
+
+        return array_merge(...$this->db->concurrently($tasks));
     }
 
     public function find(string $kind, string $patientUid, string $id): ?array

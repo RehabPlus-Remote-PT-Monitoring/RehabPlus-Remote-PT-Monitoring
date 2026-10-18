@@ -119,6 +119,34 @@ class ClinicalRecordTest extends TestCase
             ->assertSee('Secret ROM')->assertDontSee('Olive ROM');
     }
 
+    public function test_small_patient_lists_read_each_patient_instead_of_the_whole_clinic(): void
+    {
+        $this->actingAs($this->therapist())->get('/assessments')->assertOk();
+
+        $this->assertSame([], $this->collectionGroupReads());
+    }
+
+    public function test_large_patient_lists_use_one_collection_group_read(): void
+    {
+        for ($i = 0; $i <= \App\Services\Patient\ClinicalRecordService::PER_PATIENT_READ_LIMIT; $i++) {
+            $this->patientDoc("bulk{$i}");
+        }
+
+        $this->actingAs($this->staff('admin'))->get('/assessments')->assertOk()->assertSee('Secret ROM');
+
+        $this->assertEqualsCanonicalizing(['assessments', 'goals'], $this->collectionGroupReads());
+    }
+
+    public function test_array_query_values_do_not_crash_pages(): void
+    {
+        $admin = $this->staff('admin');
+
+        $this->actingAs($admin)->get('/assessments?patient[]=pOne')->assertOk()->assertSee('Secret ROM');
+        $this->actingAs($admin)->get('/notes?patient[]=pOne')->assertOk();
+        $this->actingAs($admin)->get('/patients?search[]=x&condition[]=y')->assertOk();
+        $this->actingAs($admin)->get('/schedule?week_offset[]=1')->assertOk();
+    }
+
     public function test_therapist_cannot_filter_to_someone_elses_patient(): void
     {
         $this->actingAs($this->therapist())->get('/assessments?patient=pTwo')->assertOk()
