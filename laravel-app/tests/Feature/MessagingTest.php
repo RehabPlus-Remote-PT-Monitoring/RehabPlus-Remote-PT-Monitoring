@@ -98,7 +98,8 @@ class MessagingTest extends TestCase
         $this->actingAs($this->therapist())
             ->post('/messages/pAnna', ['text' => '  Ice it for 15 minutes.  '])
             ->assertRedirect('/messages/pAnna')
-            ->assertSessionHas('success', 'Message sent.');
+            ->assertSessionMissing('success') // no banner: the bubble's tick shows it was sent
+            ->assertSessionMissing('error');
 
         [$message, $thread, $notification] = $this->commits[0];
 
@@ -134,7 +135,8 @@ class MessagingTest extends TestCase
 
         $this->actingAs($this->therapist())
             ->post('/messages/pAnna', ['text' => 'See you Monday.'])
-            ->assertSessionHas('success', 'Message sent. The patient turned off message alerts, so they will see it next time they open the app.');
+            ->assertRedirect('/messages/pAnna')
+            ->assertSessionMissing('error');
 
         $this->assertCount(3, $this->commits[0], 'message, thread and Notifications-page entry still written');
         $this->assertCount(0, $this->pushes);
@@ -144,7 +146,8 @@ class MessagingTest extends TestCase
     public function test_clinic_reply_is_sent_as_the_clinic(): void
     {
         $this->actingAs($this->staff('admin'))->post('/messages/pBen', ['text' => 'Tuesday 10am works.'])
-            ->assertSessionHas('success', fn ($m) => str_contains($m, 'no phone is registered'));
+            ->assertRedirect('/messages/pBen')
+            ->assertSessionMissing('error');
 
         [$message, , $notification] = $this->commits[0];
         $this->assertStringContainsString('/patients/pBen/threads/clinic/messages/', $message['update']['name']);
@@ -170,6 +173,41 @@ class MessagingTest extends TestCase
         $this->assertStringContainsString('align-items-end', $row('Tuesday works.'));
         $this->assertStringContainsString('Maria Santos', $row('Tuesday works.'));
         $this->assertStringContainsString('RehabPlus Clinic', $row('Old reply.'), 'older replies without a name');
+    }
+
+    public function test_staff_replies_show_one_tick_until_the_patient_has_seen_them(): void
+    {
+        $t = CarbonImmutable::parse('2026-10-18 10:00:00');
+        $this->docs += [
+            'patients/pBen/threads/clinic/messages/c1' => ['text' => 'Can I book Tuesday?', 'senderRole' => 'patient', 'sentAt' => $t],
+            'patients/pBen/threads/clinic/messages/c2' => ['text' => 'Tuesday works.', 'senderRole' => 'staff', 'sentAt' => $t->addMinute()],
+            'patients/pBen/threads/clinic/messages/c3' => ['text' => 'See you at 10.', 'senderRole' => 'staff', 'sentAt' => $t->addMinutes(2)],
+        ];
+        // The patient opened the chat after c2 but hasn't seen c3 yet.
+        $this->docs['patients/pBen/threads/clinic']['unreadForPatient'] = 1;
+
+        $html = $this->actingAs($this->staff('admin'))->get('/messages/pBen/feed')->assertOk()->getContent();
+
+        $rows = preg_split('/(?=<div class="d-flex flex-column)/', $html);
+        $row = fn ($text) => collect($rows)->first(fn ($r) => str_contains($r, $text));
+        $this->assertStringContainsString('bi-check2-all', $row('Tuesday works.'));
+        $this->assertStringContainsString('bi-check2 chat-tick"', $row('See you at 10.'));
+        $this->assertStringNotContainsString('bi-check2', $row('Can I book Tuesday?'), 'no ticks on patient messages');
+
+        // Once the app resets the counter, both show as seen.
+        $this->docs['patients/pBen/threads/clinic']['unreadForPatient'] = 0;
+        $html = $this->actingAs($this->staff('admin'))->get('/messages/pBen/feed')->getContent();
+        $this->assertSame(2, substr_count($html, 'bi-check2-all'));
+    }
+
+    public function test_read_receipts_without_a_summary_show_sent(): void
+    {
+        $messages = [
+            ['fromPatient' => false], ['fromPatient' => true], ['fromPatient' => false],
+        ];
+
+        $this->assertSame(['sent', null, 'sent'], array_column(\App\Services\Messaging\MessagingService::withReadReceipts($messages, null), 'status'));
+        $this->assertSame(['seen', null, 'sent'], array_column(\App\Services\Messaging\MessagingService::withReadReceipts($messages, ['unreadForPatient' => 1]), 'status'));
     }
 
     public function test_empty_and_too_long_replies_are_rejected(): void
@@ -208,7 +246,7 @@ class MessagingTest extends TestCase
         $this->actingAs($this->therapist())
             ->post('/messages/pAnna', ['text' => 'Hello'])
             ->assertRedirect('/messages/pAnna')
-            ->assertSessionHas('success');
+            ->assertSessionMissing('error');
         $this->assertCount(1, $this->commits);
     }
 }

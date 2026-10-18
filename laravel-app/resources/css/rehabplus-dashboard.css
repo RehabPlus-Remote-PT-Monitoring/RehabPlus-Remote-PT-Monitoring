@@ -753,6 +753,17 @@ html.dark-mode{
             color:rgba(255,255,255,.75);
         }
 
+        /* Read receipts on staff replies: one tick sent, two ticks seen. */
+        .chat-tick{
+            margin-left:.35rem;
+            font-size:1.05em;
+            vertical-align:-.1em;
+        }
+
+        .chat-bubble-staff .chat-tick-seen{
+            color:#fff;
+        }
+
         html.dark-mode body .chat-bubble-patient{
             background:#334155;
             color:#f1f5f9;

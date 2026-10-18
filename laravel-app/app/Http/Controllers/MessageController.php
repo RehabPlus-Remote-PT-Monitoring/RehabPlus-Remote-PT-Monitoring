@@ -70,34 +70,33 @@ class MessageController extends Controller
         [$thread, $patient] = $this->authorizeThread($request, $patientUid);
 
         try {
-            $phones = $this->messaging->reply($request->user(), $patientUid, $patient, $thread, $validated['text']);
+            $this->messaging->reply($request->user(), $patientUid, $patient, $thread, $validated['text']);
         } catch (FirebaseException $e) {
             report($e);
 
             return back()->withInput()->with('error', 'Message not sent. '.$e->getMessage());
         }
 
-        return redirect()->route('messages.show', $patientUid)->with(
-            'success',
-            match (true) {
-                $phones === null => 'Message sent. The patient turned off message alerts, so they will see it next time they open the app.',
-                $phones > 0 => 'Message sent.',
-                default => 'Message sent. The patient will see it next time they open the app (no phone is registered for notifications).',
-            },
-        );
+        // No "Message sent" banner: the new bubble with its tick shows that.
+        return redirect()->route('messages.show', $patientUid);
     }
 
-    /** Load the messages and clear the unread badge, in parallel. */
+    /**
+     * Load the messages and clear the unread badge, in parallel, then add
+     * read receipts from the thread summary that markRead() read.
+     */
     private function loadAndMarkRead(string $patientUid, string $thread, array $patient): array
     {
         try {
-            [$messages] = $this->firebase->concurrently([
+            [$messages, $summary] = $this->firebase->concurrently([
                 fn () => $this->messaging->messages($patientUid, $thread, $patient),
                 function () use ($patientUid, $thread) {
                     try {
-                        $this->messaging->markRead($patientUid, $thread);
+                        return $this->messaging->markRead($patientUid, $thread);
                     } catch (FirebaseException $e) {
-                        report($e); // the badge stays; not worth failing the page over
+                        report($e); // the badge stays and ticks show as 'sent'; not worth failing the page over
+
+                        return null;
                     }
                 },
             ]);
@@ -106,7 +105,7 @@ class MessageController extends Controller
             abort(503, 'Could not reach Firebase. Try again in a moment.');
         }
 
-        return $messages;
+        return MessagingService::withReadReceipts($messages, $summary);
     }
 
     /** @return array{0: string, 1: array} thread id and patient profile; 404s otherwise */

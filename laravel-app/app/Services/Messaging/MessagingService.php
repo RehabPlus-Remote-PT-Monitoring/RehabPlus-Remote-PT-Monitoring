@@ -141,8 +141,11 @@ class MessagingService
         }, $messages));
     }
 
-    /** Clear the staff unread badge for this thread (only writes if it's set). */
-    public function markRead(string $patientUid, string $thread): void
+    /**
+     * Clear the staff unread badge for this thread (only writes if it's set).
+     * Returns the thread summary it read, so read receipts can use it.
+     */
+    public function markRead(string $patientUid, string $thread): ?array
     {
         $path = "patients/{$patientUid}/threads/{$thread}";
         $summary = $this->db->get($path);
@@ -150,6 +153,36 @@ class MessagingService
         if ($summary && ($summary['unreadForStaff'] ?? 0) > 0) {
             $this->db->commit([$this->db->mergeWrite($path, ['unreadForStaff' => 0])]);
         }
+
+        return $summary;
+    }
+
+    /**
+     * Mark each staff message 'sent' (one tick) or 'seen' (two ticks).
+     *
+     * There is no per-message read flag: the thread's unreadForPatient counter
+     * goes up by one per staff reply and the app resets it to 0 when the
+     * patient opens the chat. So the newest unreadForPatient staff messages
+     * are unseen and every older one has been seen. Without a summary (it
+     * couldn't be read) everything shows as just 'sent'.
+     *
+     * @param  array  $messages  oldest-first, as returned by messages()
+     */
+    public static function withReadReceipts(array $messages, ?array $summary): array
+    {
+        $unseen = $summary === null ? PHP_INT_MAX : max(0, (int) ($summary['unreadForPatient'] ?? 0));
+
+        for ($i = count($messages) - 1; $i >= 0; $i--) {
+            if ($messages[$i]['fromPatient']) {
+                $messages[$i]['status'] = null;
+
+                continue;
+            }
+            $messages[$i]['status'] = $unseen > 0 ? 'sent' : 'seen';
+            $unseen--;
+        }
+
+        return $messages;
     }
 
     /**
