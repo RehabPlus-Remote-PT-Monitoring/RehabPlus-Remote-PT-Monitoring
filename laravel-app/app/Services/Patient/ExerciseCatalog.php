@@ -23,6 +23,12 @@ class ExerciseCatalog
         'forwardPush' => ['Forward Push', 'reps', 10, null],
         'singleLegBalance' => ['Single-Leg Balance', 'hold', 3, 10],
         'wallSit' => ['Wall Sit', 'hold', 3, 20],
+        // Second batch (app: lib/services/exercise_geometry.dart).
+        'miniSquat' => ['Mini Squat', 'reps', 10, null],
+        'hipAbduction' => ['Standing Hip Abduction', 'reps', 10, null],
+        'hamstringCurl' => ['Standing Hamstring Curl', 'reps', 10, null],
+        'marching' => ['Marching in Place', 'reps', 10, null],
+        'overheadRaise' => ['Overhead Arm Raise', 'reps', 10, null],
     ];
 
     public const DAY_NAMES = [1 => 'Mon', 2 => 'Tue', 3 => 'Wed', 4 => 'Thu', 5 => 'Fri', 6 => 'Sat', 7 => 'Sun'];

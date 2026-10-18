@@ -89,6 +89,38 @@ class PrescriptionTest extends TestCase
         $this->assertNull($rx['notes']);
     }
 
+    public function test_second_batch_exercises_can_be_assigned(): void
+    {
+        // Must match the app's ExerciseType (lib/models/exercise_model.dart).
+        $expected = [
+            'miniSquat' => 'Mini Squat',
+            'hipAbduction' => 'Standing Hip Abduction',
+            'hamstringCurl' => 'Standing Hamstring Curl',
+            'marching' => 'Marching in Place',
+            'overheadRaise' => 'Overhead Arm Raise',
+        ];
+
+        foreach ($expected as $code => $name) {
+            $this->actingAs($this->therapist())->post('/patients/pOne/prescriptions', [
+                'exercise_type' => $code, 'target_reps' => 10, 'frequency_per_week' => 3,
+            ])->assertRedirect('/patients/pOne')->assertSessionHasNoErrors();
+        }
+
+        $assigned = array_column($this->docsLike('patients/pOne/prescriptions/*'), 'exerciseType');
+        sort($assigned);
+        $codes = array_keys($expected);
+        sort($codes);
+        $this->assertSame($codes, $assigned);
+
+        $bodies = array_map(
+            fn ($doc) => $doc['body'],
+            $this->docsLike('patients/pOne/notifications/*'),
+        );
+        foreach ($expected as $name) {
+            $this->assertContains("{$name}: 10 reps, 3x per week.", $bodies);
+        }
+    }
+
     public function test_validation(): void
     {
         $user = $this->therapist();
