@@ -3,7 +3,6 @@
 namespace App\Http\Controllers;
 
 use App\Helpers\InventoryValidation;
-use App\Models\InventoryItem;
 use App\Services\Inventory\InventoryService;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
@@ -25,35 +24,41 @@ class InventoryController extends Controller
         return view('admin.inventory', $this->inventory->overview());
     }
 
+    public function show(string $inventory): RedirectResponse
+    {
+        return redirect()->route('inventory.edit', $inventory);
+    }
+
     public function store(Request $request): RedirectResponse
     {
-        InventoryItem::create(InventoryValidation::item($request));
+        $this->inventory->create(InventoryValidation::item($request));
 
         return redirect()->route('inventory.index')->with('success', 'Inventory item added successfully.');
     }
 
-    public function edit(InventoryItem $inventory): View
+    public function edit(string $inventory): View
     {
-        return view('admin.inventory', $this->inventory->overview($inventory));
+        return view('admin.inventory', $this->inventory->overview($this->inventory->find($inventory)));
     }
 
-    public function update(Request $request, InventoryItem $inventory): RedirectResponse
+    public function update(Request $request, string $inventory): RedirectResponse
     {
-        $inventory->update(InventoryValidation::item($request));
+        $this->inventory->update($this->inventory->find($inventory), InventoryValidation::item($request));
 
         return redirect()->route('inventory.index')->with('success', 'Inventory item updated successfully.');
     }
 
-    public function updateStatus(Request $request, InventoryItem $inventory): RedirectResponse
+    public function updateStatus(Request $request, string $inventory): RedirectResponse
     {
-        $inventory->update(InventoryValidation::status($request));
+        $item = $this->inventory->find($inventory);
+        $this->inventory->updateStatus($item, InventoryValidation::status($request)['status']);
 
         return redirect()->route('inventory.index')->with('success', 'Inventory status updated successfully.');
     }
 
-    public function destroy(InventoryItem $inventory): RedirectResponse
+    public function destroy(string $inventory): RedirectResponse
     {
-        $inventory->delete();
+        $this->inventory->delete($this->inventory->find($inventory));
 
         return redirect()->route('inventory.index')->with('success', 'Inventory item deleted successfully.');
     }

@@ -21,27 +21,4 @@ class AdminPageController extends Controller
             'treatmentCompletionRate' => '0%',
         ]);
     }
-
-    public function billing(): View
-    {
-        return view('admin.billing', [
-            'sessionFees' => '₱0.00',
-            'paymentStatus' => '0',
-            'outstanding' => '₱0.00',
-            'paymentHistory' => 0,
-            'payments' => [],
-        ]);
-    }
-
-    public function inventory(): View
-    {
-        $items = \App\Models\InventoryItem::orderBy('item')->get();
-
-        return view('admin.inventory', [
-            'totalStock' => $items->sum('stock'),
-            'lowStock' => $items->whereIn('status', ['Low', 'Critical'])->count(),
-            'restockNeeded' => $items->filter(fn ($item) => $item->stock <= $item->reorder)->count(),
-            'items' => $items,
-        ]);
-    }
 }

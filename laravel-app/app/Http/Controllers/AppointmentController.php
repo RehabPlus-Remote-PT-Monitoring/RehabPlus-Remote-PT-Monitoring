@@ -3,7 +3,6 @@
 namespace App\Http\Controllers;
 
 use App\Helpers\AppointmentValidation;
-use App\Models\Appointment;
 use App\Services\Appointment\AppointmentService;
 use Illuminate\Http\Request;
 use Illuminate\View\View;
@@ -28,9 +27,9 @@ class AppointmentController extends Controller
         ]);
     }
 
-    public function show(int $id)
+    public function show(string $id)
     {
-        return view('appointments.show', ['appointment' => Appointment::findOrFail($id)]);
+        return view('appointments.show', ['appointment' => $this->appointments->find($id)]);
     }
 
     public function store(Request $request)
@@ -40,34 +39,34 @@ class AppointmentController extends Controller
         return redirect()->route('appointments.index')->with('success', 'Appointment scheduled successfully.');
     }
 
-    public function edit(int $id)
+    public function edit(string $id)
     {
         return view('appointments.create', [
-            'appointment' => Appointment::findOrFail($id),
+            'appointment' => $this->appointments->find($id),
             'therapists' => $this->appointments->therapists(),
             'errors' => [],
         ]);
     }
 
-    public function update(Request $request, int $id)
+    public function update(Request $request, string $id)
     {
-        $appointment = Appointment::findOrFail($id);
+        $appointment = $this->appointments->find($id);
 
         $this->appointments->update($appointment, AppointmentValidation::appointment($request));
 
         return redirect()->route('appointments.index')->with('success', 'Appointment updated successfully.');
     }
 
-    public function delete(int $id)
+    public function delete(string $id)
     {
-        Appointment::findOrFail($id)->delete();
+        $this->appointments->delete($this->appointments->find($id));
 
         return redirect()->route('appointments.index')->with('success', 'Appointment deleted successfully.');
     }
 
-    public function changeStatus(Request $request, int $id)
+    public function changeStatus(Request $request, string $id)
     {
-        $appointment = Appointment::findOrFail($id);
+        $appointment = $this->appointments->find($id);
         $status = $request->input('status');
 
         if (! AppointmentValidation::isValidStatus($status)) {

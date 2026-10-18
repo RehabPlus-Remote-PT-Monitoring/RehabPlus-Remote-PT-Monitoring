@@ -3,8 +3,6 @@
 namespace App\Http\Controllers;
 
 use App\Helpers\StaffScheduleValidation;
-use App\Models\StaffSchedule;
-use App\Models\StaffTimeOff;
 use App\Services\StaffSchedule\ShiftConflictService;
 use App\Services\StaffSchedule\StaffScheduleService;
 use Illuminate\Http\RedirectResponse;
@@ -32,14 +30,14 @@ class StaffScheduleController extends Controller
             return redirect()->route('schedule')->withInput()->with('error', 'Schedule conflict detected: this staff member already has a shift at that time, or the room is already assigned to another staff member.');
         }
 
-        StaffSchedule::create($shift);
+        $this->schedule->addShift($shift);
 
         return redirect()->route('schedule')->with('success', 'Staff schedule added successfully.');
     }
 
     public function storeTimeOff(Request $request): RedirectResponse
     {
-        StaffTimeOff::create(StaffScheduleValidation::timeOff($request));
+        $this->schedule->addTimeOff(StaffScheduleValidation::timeOff($request));
 
         return redirect()->route('schedule')->with('success', 'Time off entry added successfully.');
     }

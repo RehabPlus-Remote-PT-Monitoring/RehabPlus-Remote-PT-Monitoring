@@ -2,10 +2,15 @@
 
 namespace App\Services\StaffSchedule;
 
-use App\Models\StaffSchedule;
+use App\Services\Clinic\ClinicRecord;
+use App\Services\Clinic\ClinicStore;
 
 class ShiftConflictService
 {
+    public function __construct(private ClinicStore $store)
+    {
+    }
+
     /**
      * True when the shift overlaps another shift for the same staff member or in the same room on that day.
      */
@@ -16,8 +21,8 @@ class ShiftConflictService
             return false;
         }
 
-        return StaffSchedule::where('day', $candidate['day'])->get()->contains(function (StaffSchedule $existing) use ($candidate, $range) {
-            $existingRange = $this->shiftRange($existing->shift);
+        return $this->store->all(ClinicStore::SHIFTS)->where('day', $candidate['day'])->contains(function (ClinicRecord $existing) use ($candidate, $range) {
+            $existingRange = $this->shiftRange((string) $existing->shift);
             $sameStaff = $this->normalize($existing->staff) === $this->normalize($candidate['staff']);
             $sameRoom = $this->normalize($existing->room) === $this->normalize($candidate['room']);
 

@@ -2,13 +2,12 @@
 
 namespace Tests\Feature;
 
-use App\Models\StaffSchedule;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Support\Carbon;
 use Tests\Support\FakeFirebase;
 use Tests\TestCase;
 
-/** The schedule is still on SQL; its staff list comes from Firebase accounts. */
+/** Shifts and time off live in Firestore; the staff list comes from Firebase accounts. */
 class StaffScheduleTest extends TestCase
 {
     use FakeFirebase, RefreshDatabase;
@@ -47,14 +46,18 @@ class StaffScheduleTest extends TestCase
             'room' => 'Room 3',
         ])->assertRedirect('/schedule');
 
-        $this->assertDatabaseHas('staff_schedules', ['staff' => 'Dr. Real Therapist', 'day' => $today, 'room' => 'Room 3']);
+        $shifts = array_values($this->docsLike('staffShifts/*'));
+        $this->assertCount(1, $shifts);
+        $this->assertSame(['staff' => 'Dr. Real Therapist', 'role' => 'Therapist', 'day' => $today, 'shift' => '08:00 - 15:00', 'room' => 'Room 3'],
+            array_intersect_key($shifts[0], array_flip(['staff', 'role', 'day', 'shift', 'room'])));
+        $this->assertArrayHasKey('createdAt', $shifts[0]);
 
         $this->get('/schedule')->assertOk()->assertSee('08:00 - 15:00')->assertSee('Available');
     }
 
     public function test_overlapping_shift_in_same_room_is_rejected(): void
     {
-        StaffSchedule::create(['staff' => 'A', 'role' => 'Therapist', 'day' => 'Monday', 'shift' => '08:00 - 12:00', 'room' => 'Room 1']);
+        $this->docs['staffShifts/s1'] = ['staff' => 'A', 'role' => 'Therapist', 'day' => 'Monday', 'shift' => '08:00 - 12:00', 'room' => 'Room 1'];
 
         $this->post('/schedule/save', [
             'staff' => 'B',
@@ -64,7 +67,7 @@ class StaffScheduleTest extends TestCase
             'room' => 'Room 1',
         ])->assertRedirect('/schedule')->assertSessionHas('error');
 
-        $this->assertDatabaseCount('staff_schedules', 1);
+        $this->assertCount(1, $this->docsLike('staffShifts/*'));
     }
 
     public function test_time_off_marks_staff_on_leave(): void
@@ -76,7 +79,10 @@ class StaffScheduleTest extends TestCase
             'reason' => 'Medical leave',
         ])->assertRedirect('/schedule');
 
-        $this->assertDatabaseHas('staff_time_offs', ['staff' => 'Dr. Real Therapist', 'reason' => 'Medical leave']);
+        $off = array_values($this->docsLike('staffTimeOff/*'))[0];
+        $this->assertSame('Dr. Real Therapist', $off['staff']);
+        $this->assertSame('Medical leave', $off['reason']);
+        $this->assertSame(Carbon::today()->toDateString(), $off['date']);
         $this->get('/schedule')->assertOk()->assertSee('On Leave');
     }
 }

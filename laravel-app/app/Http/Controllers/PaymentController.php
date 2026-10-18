@@ -3,7 +3,6 @@
 namespace App\Http\Controllers;
 
 use App\Helpers\PaymentValidation;
-use App\Models\PaymentRecord;
 use App\Services\Payment\PaymentService;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
@@ -11,28 +10,32 @@ use Illuminate\View\View;
 
 class PaymentController extends Controller
 {
-    public function index(PaymentService $payments): View
+    public function __construct(private PaymentService $payments)
     {
-        return view('admin.billing', $payments->overview());
+    }
+
+    public function index(): View
+    {
+        return view('admin.billing', $this->payments->overview());
     }
 
     public function store(Request $request): RedirectResponse
     {
-        PaymentRecord::create(PaymentValidation::payment($request));
+        $this->payments->create(PaymentValidation::payment($request));
 
         return redirect()->route('billing')->with('success', 'Payment record added successfully.');
     }
 
-    public function updateStatus(Request $request, int $id): RedirectResponse
+    public function updateStatus(Request $request, string $id): RedirectResponse
     {
-        PaymentRecord::findOrFail($id)->update(PaymentValidation::status($request));
+        $this->payments->updateStatus($id, PaymentValidation::status($request)['status']);
 
         return redirect()->route('billing')->with('success', 'Payment status updated successfully.');
     }
 
-    public function delete(int $id): RedirectResponse
+    public function delete(string $id): RedirectResponse
     {
-        PaymentRecord::findOrFail($id)->delete();
+        $this->payments->delete($id);
 
         return redirect()->route('billing')->with('success', 'Payment record deleted successfully.');
     }

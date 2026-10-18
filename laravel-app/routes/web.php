@@ -74,7 +74,7 @@ Route::middleware(['auth.rehab'])->group(function () {
     Route::get('/messages/{patientUid}/feed', [MessageController::class, 'feed'])->name('messages.feed');
     Route::post('/messages/{patientUid}', [MessageController::class, 'reply'])->name('messages.reply');
 
-    // Clinic operations (still on the SQL database).
+    // Clinic operations (Firestore top-level collections, see ClinicStore).
     Route::get('/appointments', [AppointmentController::class, 'index'])->name('appointments.index');
     Route::get('/appointments/create', [AppointmentController::class, 'create'])->name('appointments.create');
     Route::post('/appointments', [AppointmentController::class, 'store'])->name('appointments.store');

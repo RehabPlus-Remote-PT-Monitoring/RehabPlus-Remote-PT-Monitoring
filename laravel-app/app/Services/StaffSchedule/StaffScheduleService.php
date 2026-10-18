@@ -2,15 +2,16 @@
 
 namespace App\Services\StaffSchedule;
 
-use App\Models\StaffSchedule;
-use App\Models\StaffTimeOff;
+use App\Services\Clinic\ClinicRecord;
+use App\Services\Clinic\ClinicStore;
 use App\Services\User\UserService;
 use Carbon\CarbonImmutable;
 use Illuminate\Support\Collection;
 
+/** Staff shifts and time off (Firestore `staffShifts` / `staffTimeOff`, see ClinicStore). */
 class StaffScheduleService
 {
-    public function __construct(private ShiftConflictService $shifts, private UserService $users)
+    public function __construct(private ClinicStore $store, private ShiftConflictService $shifts, private UserService $users)
     {
     }
 
@@ -23,25 +24,27 @@ class StaffScheduleService
             'short' => $monday->addDays($i)->format('M j'),
         ])->all();
 
-        $schedules = StaffSchedule::orderBy('shift')->get();
+        $schedules = $this->store->all(ClinicStore::SHIFTS)->sortBy(fn (ClinicRecord $s) => (string) $s->shift)->values();
         $staffDirectory = $this->staffDirectory($schedules);
 
         $today = CarbonImmutable::today();
         $todayEntries = $schedules->where('day', $today->format('l'));
-        $timeOffToday = StaffTimeOff::whereDate('date', $today)->pluck('staff')->map(fn ($name) => $this->shifts->normalize($name));
+        $timeOffToday = $this->store->all(ClinicStore::TIME_OFF)
+            ->where('date', $today->toDateString())
+            ->map(fn (ClinicRecord $off) => $this->shifts->normalize($off->staff));
 
         $staffAvailability = [];
         $todayStaffList = [];
         foreach ($staffDirectory as $staff) {
             $name = $this->shifts->normalize($staff['name']);
-            $entries = $todayEntries->filter(fn (StaffSchedule $entry) => $this->shifts->normalize($entry->staff) === $name);
+            $entries = $todayEntries->filter(fn (ClinicRecord $entry) => $this->shifts->normalize($entry->staff) === $name);
             $status = $this->availability($entries, $timeOffToday->contains($name));
             $staffAvailability[$staff['name']] = $status;
             $todayStaffList[] = [
                 'name' => $staff['name'],
                 'role' => $staff['role'],
-                'shift' => $entries->first()->shift ?? 'Off',
-                'room' => $entries->first()->room ?? 'Not assigned',
+                'shift' => $entries->first()?->shift ?? 'Off',
+                'room' => $entries->first()?->room ?? 'Not assigned',
                 'status' => $status,
             ];
         }
@@ -62,6 +65,28 @@ class StaffScheduleService
             'todayShifts' => $todayEntries->count(),
             'activeRooms' => $todayEntries->pluck('room')->filter()->unique()->count(),
         ];
+    }
+
+    public function addShift(array $shift): string
+    {
+        return $this->store->create(ClinicStore::SHIFTS, [
+            'staff' => $shift['staff'],
+            'role' => $shift['role'],
+            'day' => $shift['day'],
+            'shift' => $shift['shift'],
+            'room' => $shift['room'],
+        ]);
+    }
+
+    public function addTimeOff(array $timeOff): string
+    {
+        return $this->store->create(ClinicStore::TIME_OFF, [
+            'staff' => $timeOff['staff'],
+            'date' => CarbonImmutable::parse($timeOff['date'])->toDateString(),
+            'type' => $timeOff['type'],
+            'time' => $timeOff['time'],
+            'reason' => $timeOff['reason'],
+        ]);
     }
 
     /**
@@ -91,7 +116,7 @@ class StaffScheduleService
             return 'Unavailable';
         }
 
-        $ranges = $entries->map(fn (StaffSchedule $entry) => $this->shifts->shiftRange($entry->shift))->filter()->values();
+        $ranges = $entries->map(fn (ClinicRecord $entry) => $this->shifts->shiftRange((string) $entry->shift))->filter()->values();
         foreach ($ranges as $i => $first) {
             foreach ($ranges->slice($i + 1) as $second) {
                 if ($this->shifts->overlaps($first, $second)) {
