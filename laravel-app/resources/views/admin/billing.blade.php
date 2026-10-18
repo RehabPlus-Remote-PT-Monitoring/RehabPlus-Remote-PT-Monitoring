@@ -86,7 +86,7 @@
     <div class="card shadow-sm">
         <div class="card-header d-flex justify-content-between align-items-center">
             <h5 class="mb-0">Recent payment activity</h5>
-            <button class="btn btn-outline-primary btn-sm" onclick="window.print()">Printable receipts</button>
+            <button class="btn btn-outline-primary btn-sm" data-print>Printable receipts</button>
         </div>
         <div class="card-body p-0">
             <div class="table-responsive">
@@ -103,7 +103,7 @@
                                 <td>
                                     <div id="status-view-{{ $payment->id }}">
                                         @switch($payment['status']) @case('Paid')<span class="badge bg-success-subtle text-success">Paid</span>@break @case('Pending')<span class="badge bg-warning-subtle text-warning">Pending</span>@break @default<span class="badge bg-info-subtle text-info">Partial</span>@endswitch
-                                        <button type="button" class="btn btn-sm btn-link p-0 ms-1" title="Edit status" onclick="document.getElementById('status-view-{{ $payment->id }}').hidden = true; document.getElementById('status-form-{{ $payment->id }}').hidden = false;"><i class="bi bi-pencil-square"></i> Edit</button>
+                                        <button type="button" class="btn btn-sm btn-link p-0 ms-1" title="Edit status" data-hide="status-view-{{ $payment->id }}" data-show="status-form-{{ $payment->id }}"><i class="bi bi-pencil-square"></i> Edit</button>
                                     </div>
                                     <form id="status-form-{{ $payment->id }}" method="post" action="{{ route('billing.status', $payment->id) }}" class="d-flex gap-1 align-items-center" hidden>
                                         @csrf @method('PATCH')
@@ -113,11 +113,11 @@
                                             @endforeach
                                         </select>
                                         <button type="submit" class="btn btn-sm btn-primary">Save</button>
-                                        <button type="button" class="btn btn-sm btn-outline-secondary" onclick="document.getElementById('status-form-{{ $payment->id }}').hidden = true; document.getElementById('status-view-{{ $payment->id }}').hidden = false;">Cancel</button>
+                                        <button type="button" class="btn btn-sm btn-outline-secondary" data-hide="status-form-{{ $payment->id }}" data-show="status-view-{{ $payment->id }}">Cancel</button>
                                     </form>
                                 </td>
                                 <td>{{ $payment['date'] }}</td>
-                                <td class="text-end"><form method="post" action="{{ route('billing.delete', $payment->id) }}" class="d-inline" onsubmit="return confirm('Delete this payment record?');">@csrf @method('DELETE')<button type="submit" class="btn btn-sm btn-outline-danger">Delete</button></form></td>
+                                <td class="text-end"><form method="post" action="{{ route('billing.delete', $payment->id) }}" class="d-inline" data-confirm="Delete this payment record?">@csrf @method('DELETE')<button type="submit" class="btn btn-sm btn-outline-danger">Delete</button></form></td>
                             </tr>
                         @empty
                             <tr><td colspan="6" class="text-center text-muted py-4">No payment records available.</td></tr>

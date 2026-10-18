@@ -62,7 +62,7 @@
                             <td style="white-space: pre-wrap; max-width: 480px;">{{ $n['text'] }}</td>
                             <td class="small text-muted">{{ $n['therapistName'] }}</td>
                             <td class="text-end">
-                                <form method="POST" action="{{ route('records.delete', [$n['patientUid'], 'notes', $n['id']]) }}" onsubmit="return confirm('Delete this note?');">
+                                <form method="POST" action="{{ route('records.delete', [$n['patientUid'], 'notes', $n['id']]) }}" data-confirm="Delete this note?">
                                     @csrf @method('DELETE')
                                     <button class="btn btn-sm btn-outline-danger" title="Delete"><i class="bi bi-trash"></i></button>
                                 </form>

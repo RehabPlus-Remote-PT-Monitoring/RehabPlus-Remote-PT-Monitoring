@@ -1,5 +1,6 @@
 <?php
 
+use App\Http\Middleware\ContentSecurityPolicy;
 use App\Http\Middleware\EnsureAuthenticated;
 use App\Http\Middleware\EnsureRole;
 use App\Http\Middleware\RequestDiagnostics;
@@ -21,6 +22,10 @@ return Application::configure(basePath: dirname(__DIR__))
         // the summary line sees the final status.
         $middleware->prepend(RequestDiagnostics::class);
         $middleware->append(SecurityHeaders::class);
+        $middleware->append(ContentSecurityPolicy::class);
+
+        // Browsers send CSP reports without a CSRF token.
+        $middleware->validateCsrfTokens(except: ['csp-report']);
 
         // On Vercel every request arrives through Vercel's proxy, which sets
         // X-Forwarded-For to the real client. Without trusting it, the login

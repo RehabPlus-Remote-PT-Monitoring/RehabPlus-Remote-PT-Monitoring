@@ -34,7 +34,7 @@
                 </div>
                 <button class="btn btn-sm btn-outline-primary">Update</button>
             </form>
-            <form method="POST" action="{{ route('records.delete', [$goal['patientUid'], 'goals', $goal['id']]) }}" onsubmit="return confirm('Delete this goal?');">
+            <form method="POST" action="{{ route('records.delete', [$goal['patientUid'], 'goals', $goal['id']]) }}" data-confirm="Delete this goal?">
                 @csrf @method('DELETE')
                 <button class="btn btn-sm btn-outline-danger">Delete</button>
             </form>

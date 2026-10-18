@@ -96,7 +96,7 @@
         </div>
     </form>
 
-    <script>
+    <script nonce="{{ Vite::cspNonce() }}">
         // Hold exercises count holds and can set a hold length; reps exercises can't.
         (function () {
             const type = document.getElementById('exercise_type');

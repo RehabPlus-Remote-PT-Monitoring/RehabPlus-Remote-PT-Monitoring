@@ -39,7 +39,7 @@
         </div>
     </div>
 
-    <script>
+    <script nonce="{{ Vite::cspNonce() }}">
         (() => {
             const list = document.getElementById('messageList');
             const form = list.closest('.card').querySelector('form');

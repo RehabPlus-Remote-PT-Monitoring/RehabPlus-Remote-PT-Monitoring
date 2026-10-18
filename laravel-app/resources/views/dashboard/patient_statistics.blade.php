@@ -183,7 +183,7 @@
         @endif
     </div>
 
-    <script>
+    <script nonce="{{ Vite::cspNonce() }}">
         const patientTrendChart = new Chart(document.getElementById('patientTrendChart'), {
             type: 'line',
             data: {

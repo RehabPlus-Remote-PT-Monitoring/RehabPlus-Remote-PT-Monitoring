@@ -18,7 +18,7 @@
         @if ($patients)
             <form method="GET" action="{{ route('assessments') }}" class="d-flex gap-2 align-items-center">
                 <label for="patient_filter" class="form-label small fw-semibold mb-0 text-nowrap">Show</label>
-                <select id="patient_filter" name="patient" class="form-select" onchange="this.form.submit()">
+                <select id="patient_filter" name="patient" class="form-select" data-autosubmit>
                     <option value="">All patients</option>
                     @foreach ($patients as $p)
                         <option value="{{ $p['uid'] }}" @selected($selectedPatient === $p['uid'])>{{ $p['name'] }}</option>
@@ -131,7 +131,7 @@
                                     <td class="fw-bold">{{ $a['score'] }}%</td>
                                     <td class="small text-muted">{{ $a['therapistName'] }}</td>
                                     <td class="text-end">
-                                        <form method="POST" action="{{ route('records.delete', [$a['patientUid'], 'assessments', $a['id']]) }}" onsubmit="return confirm('Delete this assessment?');">
+                                        <form method="POST" action="{{ route('records.delete', [$a['patientUid'], 'assessments', $a['id']]) }}" data-confirm="Delete this assessment?">
                                             @csrf @method('DELETE')
                                             <button class="btn btn-sm btn-outline-danger" title="Delete"><i class="bi bi-trash"></i></button>
                                         </form>

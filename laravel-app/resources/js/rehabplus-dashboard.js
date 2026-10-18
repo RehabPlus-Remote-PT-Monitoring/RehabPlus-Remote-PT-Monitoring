@@ -63,3 +63,42 @@ if (themeToggle) {
         applyTheme(dark);
     });
 }
+
+/*
+ * Page actions declared with data- attributes. The Content-Security-Policy
+ * blocks inline handlers (onclick="..."), so views use these instead:
+ *
+ *   <form data-confirm="Delete this?">      asks before submitting
+ *   <select data-autosubmit>                 submits its form when changed
+ *   <button data-print>                      opens the print dialog
+ *   <button data-show="id" data-hide="id">   shows / hides elements by id
+ */
+document.addEventListener('submit', (event) => {
+    const message = event.target.dataset?.confirm;
+    if (message && !window.confirm(message)) {
+        event.preventDefault();
+    }
+});
+
+document.addEventListener('change', (event) => {
+    if (event.target.matches?.('[data-autosubmit]') && event.target.form) {
+        event.target.form.requestSubmit(); // runs data-confirm and validation, unlike form.submit()
+    }
+});
+
+document.addEventListener('click', (event) => {
+    const button = event.target.closest?.('[data-print], [data-show], [data-hide]');
+    if (!button) {
+        return;
+    }
+
+    if (button.hasAttribute('data-print')) {
+        window.print();
+    }
+    for (const id of (button.dataset.hide || '').split(' ').filter(Boolean)) {
+        document.getElementById(id)?.setAttribute('hidden', '');
+    }
+    for (const id of (button.dataset.show || '').split(' ').filter(Boolean)) {
+        document.getElementById(id)?.removeAttribute('hidden');
+    }
+});

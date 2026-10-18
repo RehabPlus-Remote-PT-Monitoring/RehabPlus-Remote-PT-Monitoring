@@ -45,7 +45,7 @@
                         <button class="btn btn-outline-success"><i class="bi bi-arrow-counterclockwise me-1"></i>Restore</button>
                     </form>
                 @else
-                    <form method="POST" action="{{ route('patients.archive', $patient['uid']) }}" onsubmit="return confirm('Archive this patient? Their app login is disabled; their records are kept and you can restore them later.');">@csrf
+                    <form method="POST" action="{{ route('patients.archive', $patient['uid']) }}" data-confirm="Archive this patient? Their app login is disabled; their records are kept and you can restore them later.">@csrf
                         <button class="btn btn-outline-danger"><i class="bi bi-archive me-1"></i>Archive</button>
                     </form>
                 @endif

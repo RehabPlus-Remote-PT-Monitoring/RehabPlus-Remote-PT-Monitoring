@@ -4,6 +4,7 @@ use App\Http\Controllers\AdminPageController;
 use App\Http\Controllers\AppointmentController;
 use App\Http\Controllers\AuthController;
 use App\Http\Controllers\ClinicalRecordController;
+use App\Http\Controllers\CspReportController;
 use App\Http\Controllers\DashboardController;
 use App\Http\Controllers\InventoryController;
 use App\Http\Controllers\MessageController;
@@ -28,6 +29,9 @@ Route::get('/', function () {
 Route::get('/login', [AuthController::class, 'login'])->name('login.page');
 Route::post('/login', [AuthController::class, 'attempt'])->middleware('throttle:10,1')->name('login.submit');
 Route::post('/logout', [AuthController::class, 'doLogout'])->name('logout');
+
+// Content-Security-Policy violation reports from browsers (logged, see ContentSecurityPolicy).
+Route::post('/csp-report', CspReportController::class)->middleware('throttle:60,1')->name('csp.report');
 
 // Signed-in staff: admin, therapist or front-desk staff (see App\Auth\StaffUser).
 Route::middleware(['auth.rehab'])->group(function () {

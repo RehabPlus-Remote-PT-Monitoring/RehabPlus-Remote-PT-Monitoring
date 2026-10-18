@@ -39,6 +39,7 @@ call; `info` keeps the per-request summaries, logins and pushes.
 | `auth.logout` | info | uid |
 | `push.sent` | info | patient, type, devices, sent, dead, failed |
 | `push.skipped ...` / `push.preferences unreadable` / `push.dead_device not deleted` | info / warning | patient, type, error |
+| `csp.violation` | warning | directive, blocked (URL without query, or "inline"), page, source, line, disposition (enforce / report) |
 
 Never logged: request or response bodies, passwords, OAuth tokens, the API
 key, FCM device tokens (only a 10-character hash), email addresses (only a
@@ -56,7 +57,25 @@ hash), message text or clinical data.
 - `firebase.token fetched` on many requests means the cache isn't keeping the
   token (each new Vercel instance fetches one once; that's expected).
 
-## 5. How the parallelism works
+## 5. Content-Security-Policy
+
+Every HTML response carries a Content-Security-Policy
+(app/Http/Middleware/ContentSecurityPolicy.php). Scripts run only if they
+carry the request's nonce: views print `nonce="{{ Vite::cspNonce() }}"` on
+each `<script>`, and `@vite` adds it by itself. Inline handlers
+(`onclick=`, `onsubmit=`) are blocked; use the data- attributes handled in
+resources/js/rehabplus-dashboard.js (`data-confirm`, `data-autosubmit`,
+`data-print`, `data-show` / `data-hide`). CDN files are pinned with SRI
+`integrity` hashes; changing a CDN version means recomputing its hash:
+
+    curl -sL <url> | openssl dgst -sha384 -binary | openssl base64 -A
+
+A `csp.violation` line means the browser blocked something: either an
+attack, or a new view that forgot the nonce or used an inline handler. If a
+page breaks in production, set `CSP_MODE=report-only` in Vercel and
+redeploy; nothing is blocked and violations are still logged.
+
+## 6. How the parallelism works
 
 PHP has no threads on Vercel. `FirebaseTransport::concurrently()` runs each
 independent piece of page logic as a PHP Fiber; when one needs Firebase it

@@ -54,12 +54,12 @@
                             <td class="text-end pe-4 text-nowrap">
                                 <a href="{{ route('users.edit', $user['uid']) }}" class="btn btn-sm btn-outline-primary">Edit</a>
                                 @if ($user['uid'] !== $me->id)
-                                    <form method="POST" action="{{ route('users.status', $user['uid']) }}" class="d-inline" @if ($user['active']) onsubmit="return confirm('Disable this account? They will no longer be able to sign in.');" @endif>
+                                    <form method="POST" action="{{ route('users.status', $user['uid']) }}" class="d-inline" @if ($user['active']) data-confirm="Disable this account? They will no longer be able to sign in." @endif>
                                         @csrf
                                         <input type="hidden" name="active" value="{{ $user['active'] ? 0 : 1 }}">
                                         <button class="btn btn-sm {{ $user['active'] ? 'btn-outline-danger' : 'btn-outline-success' }}">{{ $user['active'] ? 'Disable' : 'Enable' }}</button>
                                     </form>
-                                    <form method="POST" action="{{ route('users.destroy', $user['uid']) }}" class="d-inline" onsubmit="return confirm('Delete {{ addslashes($user['name']) }} permanently? Their login and staff record are removed. To just stop them signing in, use Disable instead.');">
+                                    <form method="POST" action="{{ route('users.destroy', $user['uid']) }}" class="d-inline" data-confirm="Delete {{ $user['name'] }} permanently? Their login and staff record are removed. To just stop them signing in, use Disable instead.">
                                         @csrf
                                         @method('DELETE')
                                         <button class="btn btn-sm btn-danger" title="Delete account"><i class="bi bi-trash"></i></button>

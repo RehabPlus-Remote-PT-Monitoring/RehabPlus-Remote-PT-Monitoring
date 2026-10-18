@@ -5,8 +5,8 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>RehabPlus Login</title>
 
-    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/css/bootstrap.min.css" rel="stylesheet">
-    <link href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.3/font/bootstrap-icons.min.css" rel="stylesheet">
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/css/bootstrap.min.css" rel="stylesheet" integrity="sha384-QWTKZyjpPEjISv5WaRU9OFeRpok6YctnYmDr5pNlyT2bRjXh0JMhjY6hW+ALEwIH" crossorigin="anonymous">
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.3/font/bootstrap-icons.min.css" rel="stylesheet" integrity="sha384-XGjxtQfXaH2tnPFa9x+ruJTuLE3Aa6LhHSWRr1XeTyhezb4abCG4ccI5AkVDxqC+" crossorigin="anonymous">
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800;900&display=swap" rel="stylesheet">
 
     @vite(['resources/css/rehabplus-login.css', 'resources/js/rehabplus-login.js'])
@@ -127,12 +127,11 @@
                                    required>
 
                             <span class="input-group-text"
-                                  onclick="togglePassword()"
+                                  id="passwordToggle"
                                   style="cursor: pointer;"
                                   aria-label="Show password"
                                   role="button"
-                                  tabindex="0"
-                                  onkeydown="if (event.key === 'Enter' || event.key === ' ') { event.preventDefault(); togglePassword(); }">
+                                  tabindex="0">
                                 <i class="bi bi-eye" id="eyeIcon" aria-hidden="true"></i>
                             </span>
                         </div>

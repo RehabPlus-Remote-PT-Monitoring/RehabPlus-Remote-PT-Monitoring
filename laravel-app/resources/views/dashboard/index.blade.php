@@ -101,7 +101,7 @@
         </div>
     </div>
 
-    <script>
+    <script nonce="{{ Vite::cspNonce() }}">
         window.rehabPlusDashboardData = {
             recoveryLabels: @json($recoveryLabels ?? []),
             recoveryValues: @json($recoveryValues ?? []),
