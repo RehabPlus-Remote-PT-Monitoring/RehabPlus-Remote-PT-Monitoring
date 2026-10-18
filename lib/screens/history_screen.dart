@@ -2,9 +2,43 @@ import 'package:flutter/material.dart';
 import 'package:phosphor_flutter/phosphor_flutter.dart';
 import 'package:provider/provider.dart';
 import 'package:fl_chart/fl_chart.dart';
-import 'package:intl/intl.dart';
+// `show`: intl also exports a TextDirection that clashes with Flutter's.
+import 'package:intl/intl.dart' show DateFormat;
+import '../core/diagnostic_logger.dart';
 import '../services/app_provider.dart';
+import '../services/progress_stats.dart';
 import '../models/session.dart';
+
+/// Totals for the summary row, computed once per session list (see
+/// [_HistoryScreenState._summaryFor]) instead of on every rebuild.
+class _HistorySummary {
+  const _HistorySummary({
+    required this.sessions,
+    required this.sets,
+    required this.avgScore,
+  });
+
+  factory _HistorySummary.of(List<ExerciseSession> sessions) {
+    var sets = 0;
+    var compliance = 0.0;
+    for (final s in sessions) {
+      sets += s.completedSets < 0 ? 0 : s.completedSets;
+      // NaN-safe: a NaN here used to throw in toInt() and break the screen.
+      compliance += s.safeCompliance;
+    }
+    return _HistorySummary(
+      sessions: sessions.length,
+      sets: sets,
+      avgScore: sessions.isEmpty
+          ? 0
+          : (compliance / sessions.length * 100).toInt(),
+    );
+  }
+
+  final int sessions;
+  final int sets;
+  final int avgScore;
+}
 
 class HistoryScreen extends StatefulWidget {
   const HistoryScreen({super.key});
@@ -19,7 +53,13 @@ class _HistoryScreenState extends State<HistoryScreen>
   static const Color darkTeal = Color(0xFF0D6E71);
 
   int _selectedCategory = 0;
-  final List<String> _categories = ['All', 'Knee', 'Shoulder', 'Back', 'Hip'];
+  static const List<String> _categories = [
+    'All',
+    'Knee',
+    'Shoulder',
+    'Back',
+    'Hip',
+  ];
 
   late final AnimationController _headerCtrl;
   late final AnimationController _listCtrl;
@@ -29,7 +69,7 @@ class _HistoryScreenState extends State<HistoryScreen>
   late final Animation<Offset> _listSlide;
 
   // Sample exercises shown when no real sessions exist
-  final List<_ExerciseItem> _exercises = [
+  static const List<_ExerciseItem> _exercises = [
     _ExerciseItem(
       name: 'Knee Extension',
       category: 'Knee',
@@ -111,9 +151,40 @@ class _HistoryScreenState extends State<HistoryScreen>
     super.dispose();
   }
 
-  List<_ExerciseItem> get _filtered => _selectedCategory == 0
-      ? _exercises
-      : _exercises.where((e) => e.category == _categories[_selectedCategory]).toList();
+  /// Exercises for the selected category. Recomputed only when the
+  /// category changes (it used to be re-filtered for every list item).
+  List<_ExerciseItem> _filtered = _exercises;
+
+  void _selectCategory(int index) {
+    if (index == _selectedCategory) return;
+    DiagnosticLogger.I.info('HistoryScreen', 'Category filter changed', {
+      'categoryIndex': index,
+    });
+    setState(() {
+      _selectedCategory = index;
+      _filtered = index == 0
+          ? _exercises
+          : _exercises.where((e) => e.category == _categories[index]).toList();
+    });
+  }
+
+  // Summary memo: AppProvider replaces the list on every load, so identity
+  // plus length tells us exactly when the totals need recomputing.
+  List<ExerciseSession>? _summarySource;
+  int _summaryLength = -1;
+  _HistorySummary? _summary;
+
+  _HistorySummary _summaryFor(List<ExerciseSession> sessions) {
+    final cached = _summary;
+    if (cached != null &&
+        identical(sessions, _summarySource) &&
+        sessions.length == _summaryLength) {
+      return cached;
+    }
+    _summarySource = sessions;
+    _summaryLength = sessions.length;
+    return _summary = _HistorySummary.of(sessions);
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -133,30 +204,55 @@ class _HistoryScreenState extends State<HistoryScreen>
                 child: Consumer<AppProvider>(
                   builder: (context, provider, _) {
                     final sessions = provider.sessionHistory;
-                    return SingleChildScrollView(
-                      padding: const EdgeInsets.fromLTRB(16, 0, 16, 16),
-                      child: Column(
-                        crossAxisAlignment: CrossAxisAlignment.start,
-                        children: [
-                          const SizedBox(height: 18),
-                          _buildSummaryRow(sessions),
-                          const SizedBox(height: 18),
-                          _buildCategoryFilter(),
-                          const SizedBox(height: 16),
-                          _buildTodayExercises(),
-                          const SizedBox(height: 18),
-                          if (sessions.isNotEmpty) ...[
-                            _buildSectionTitle('Session History', PhosphorIcons.clockCounterClockwise()),
-                            const SizedBox(height: 12),
-                            ...sessions.map((s) => _SessionCard(session: s)),
-                          ] else ...[
-                            _buildSectionTitle('Recommended', PhosphorIcons.star()),
-                            const SizedBox(height: 12),
-                            _buildRecommendedList(),
-                          ],
-                          const SizedBox(height: 16),
+                    // The session history can be long, so its cards are a
+                    // lazy SliverList: only the cards on screen are built.
+                    // The header is a separate sliver, which (unlike a
+                    // ListView item) stays alive when scrolled away, so its
+                    // card animations don't replay. Same look and spacing
+                    // as the old scrolling Column.
+                    final header = Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        const SizedBox(height: 18),
+                        _buildSummaryRow(_summaryFor(sessions)),
+                        const SizedBox(height: 18),
+                        _buildCategoryFilter(),
+                        const SizedBox(height: 16),
+                        _buildTodayExercises(),
+                        const SizedBox(height: 18),
+                        if (sessions.isNotEmpty) ...[
+                          _buildSectionTitle('Session History', PhosphorIcons.clockCounterClockwise()),
+                          const SizedBox(height: 12),
+                        ] else ...[
+                          _buildSectionTitle('Recommended', PhosphorIcons.star()),
+                          const SizedBox(height: 12),
+                          _buildRecommendedList(),
                         ],
-                      ),
+                      ],
+                    );
+                    return CustomScrollView(
+                      slivers: [
+                        SliverPadding(
+                          padding: const EdgeInsets.symmetric(horizontal: 16),
+                          sliver: SliverToBoxAdapter(child: header),
+                        ),
+                        SliverPadding(
+                          // 16 padding + the old trailing 16 gap.
+                          padding: const EdgeInsets.fromLTRB(16, 0, 16, 32),
+                          sliver: SliverList.builder(
+                            itemCount: sessions.length,
+                            itemBuilder: (context, i) {
+                              final session = sessions[i];
+                              // Keyed by id so an expanded card stays with
+                              // its session when a new one is added on top.
+                              return _SessionCard(
+                                key: ValueKey(session.id),
+                                session: session,
+                              );
+                            },
+                          ),
+                        ),
+                      ],
                     );
                   },
                 ),
@@ -263,15 +359,10 @@ class _HistoryScreenState extends State<HistoryScreen>
   }
 
   // ── SUMMARY ROW ─────────────────────────────────────────────────────────────
-  Widget _buildSummaryRow(List<ExerciseSession> sessions) {
-    final totalSessions = sessions.length;
-    final totalSets = sessions.fold(0, (s, e) => s + e.completedSets);
-    final avgScore = sessions.isEmpty
-        ? 0
-        : (sessions.map((s) => s.overallCompliance).reduce((a, b) => a + b) /
-                sessions.length *
-                100)
-            .toInt();
+  Widget _buildSummaryRow(_HistorySummary summary) {
+    final totalSessions = summary.sessions;
+    final totalSets = summary.sets;
+    final avgScore = summary.avgScore;
 
     return Row(
       children: [
@@ -326,7 +417,7 @@ class _HistoryScreenState extends State<HistoryScreen>
         itemBuilder: (_, i) {
           final selected = _selectedCategory == i;
           return GestureDetector(
-            onTap: () => setState(() => _selectedCategory = i),
+            onTap: () => _selectCategory(i),
             child: AnimatedContainer(
               duration: const Duration(milliseconds: 250),
               curve: Curves.easeInOut,
@@ -628,11 +719,12 @@ class _ExerciseListTile extends StatelessWidget {
 // ── SESSION HISTORY CARD ──────────────────────────────────────────────────────
 class _SessionCard extends StatelessWidget {
   final ExerciseSession session;
-  const _SessionCard({required this.session});
+  const _SessionCard({super.key, required this.session});
 
   @override
   Widget build(BuildContext context) {
-    final compliance = session.overallCompliance;
+    // NaN-safe (0–1): a NaN score used to throw in toInt() below.
+    final compliance = session.safeCompliance;
     final color = compliance >= 0.8
         ? const Color(0xFF23A8AA)
         : compliance >= 0.5
@@ -696,7 +788,12 @@ class _SessionCard extends StatelessWidget {
                 height: 120,
                 child: BarChart(
                   BarChartData(
-                    barGroups: session.repComplianceScores.asMap().entries.map((e) =>
+                    // Bad stored values (NaN, out of 0–1) are drawn as 0 /
+                    // clamped instead of breaking the chart.
+                    barGroups: session.repComplianceScores
+                        .map((v) => v.isFinite ? v.clamp(0.0, 1.0) : 0.0)
+                        .toList()
+                        .asMap().entries.map((e) =>
                       BarChartGroupData(x: e.key, barRods: [
                         BarChartRodData(
                           toY: e.value * 100,

@@ -1,9 +1,11 @@
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 
+import '../core/diagnostic_logger.dart';
 import '../models/prescription.dart';
 import '../services/app_provider.dart';
 import '../services/progress_report.dart';
+import '../services/progress_report_loader.dart';
 import '../services/progress_stats.dart';
 import '../widgets/progress_charts.dart';
 
@@ -157,6 +159,31 @@ class ProgressSummaryCard extends StatelessWidget {
   }
 }
 
+/// Placeholder with the summary card's look, shown only while the first
+/// report for a very long history is built in the background.
+class ProgressSummaryLoading extends StatelessWidget {
+  const ProgressSummaryLoading({super.key});
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      height: 160,
+      padding: const EdgeInsets.all(20),
+      decoration: _cardDecoration(),
+      child: const Center(
+        child: SizedBox(
+          width: 24,
+          height: 24,
+          child: CircularProgressIndicator(
+            strokeWidth: 2.5,
+            color: _primaryTeal,
+          ),
+        ),
+      ),
+    );
+  }
+}
+
 class _StatusChip extends StatelessWidget {
   const _StatusChip({required this.status});
   final ProgressStatus status;
@@ -208,20 +235,55 @@ class ProgressReportScreen extends StatefulWidget {
 }
 
 class _ProgressReportScreenState extends State<ProgressReportScreen> {
+  static const _tag = 'ProgressReportScreen';
   static const _periods = [7, 30, 90];
   late int _days = _periods.contains(widget.initialDays)
       ? widget.initialDays
       : 30;
 
+  /// Builds the report once per change of the sessions, plan, day or
+  /// period (not on every rebuild); long histories off the UI thread.
+  late final ProgressReportLoader _loader = ProgressReportLoader(
+    owner: 'report_screen',
+    onBackgroundResult: () {
+      if (mounted) setState(() {});
+    },
+  );
+
+  @override
+  void initState() {
+    super.initState();
+    DiagnosticLogger.I.info(_tag, 'Screen opened', {
+      'initialDays': widget.initialDays,
+      'days': _days,
+      'prescriptions': widget.prescriptions.length,
+    });
+  }
+
+  @override
+  void dispose() {
+    _loader.dispose();
+    super.dispose();
+  }
+
+  void _selectPeriod(int days) {
+    if (days == _days) return;
+    DiagnosticLogger.I.info(_tag, 'Range changed', {
+      'fromDays': _days,
+      'toDays': days,
+    });
+    setState(() => _days = days);
+  }
+
   @override
   Widget build(BuildContext context) {
     final sessions = context.watch<AppProvider>().sessionHistory;
-    final report = ProgressReport.build(
+    final view = _loader.reportFor(
       sessions,
-      DateTime.now(),
       days: _days,
       prescriptions: widget.prescriptions,
     );
+    final report = view.report;
     final grouping = switch (ProgressReport.bucketDaysFor(_days)) {
       1 => 'per day',
       final n => 'per $n days',
@@ -243,7 +305,7 @@ class _ProgressReportScreenState extends State<ProgressReportScreen> {
                   ],
                   selected: {_days},
                   showSelectedIcon: false,
-                  onSelectionChanged: (s) => setState(() => _days = s.first),
+                  onSelectionChanged: (s) => _selectPeriod(s.first),
                   style: SegmentedButton.styleFrom(
                     selectedBackgroundColor: _primaryTeal,
                     selectedForegroundColor: Colors.white,
@@ -251,26 +313,16 @@ class _ProgressReportScreenState extends State<ProgressReportScreen> {
                   ),
                 ),
                 const SizedBox(height: 14),
-                _verdictCard(report),
-                const SizedBox(height: 14),
-                _numbers(report),
-                const SizedBox(height: 14),
-                _chartCard(
-                  'Sessions',
-                  'How often you exercised, $grouping',
-                  SessionsBarChart(points: report.points),
-                ),
-                _chartCard(
-                  'Form score',
-                  'How closely your reps matched good form (higher is better)',
-                  TrendLineChart.form(points: report.points),
-                ),
-                _chartCard(
-                  'Pain level',
-                  'What you reported after sessions, 0 to 10 (lower is better)',
-                  TrendLineChart.pain(points: report.points),
-                ),
-                _exerciseCard(report),
+                if (report == null)
+                  _placeholder(failed: view.failed)
+                else
+                  // Dimmed only while a long history is rebuilt in the
+                  // background; small histories never see this.
+                  AnimatedOpacity(
+                    opacity: view.isStale ? 0.55 : 1,
+                    duration: const Duration(milliseconds: 200),
+                    child: _reportBody(report, grouping),
+                  ),
                 const SizedBox(height: 8),
                 const Text(
                   'This report is worked out from your exercise sessions. Your '
@@ -283,6 +335,60 @@ class _ProgressReportScreenState extends State<ProgressReportScreen> {
             ),
           ),
         ],
+      ),
+    );
+  }
+
+  Widget _reportBody(ProgressReport report, String grouping) {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.stretch,
+      children: [
+        _verdictCard(report),
+        const SizedBox(height: 14),
+        _numbers(report),
+        const SizedBox(height: 14),
+        _chartCard(
+          'Sessions',
+          'How often you exercised, $grouping',
+          SessionsBarChart(points: report.points),
+        ),
+        _chartCard(
+          'Form score',
+          'How closely your reps matched good form (higher is better)',
+          TrendLineChart.form(points: report.points),
+        ),
+        _chartCard(
+          'Pain level',
+          'What you reported after sessions, 0 to 10 (lower is better)',
+          TrendLineChart.pain(points: report.points),
+        ),
+        _exerciseCard(report),
+      ],
+    );
+  }
+
+  /// First build of a very long history (spinner), or a failed build
+  /// (already logged with its stack trace).
+  Widget _placeholder({required bool failed}) {
+    return Container(
+      height: 200,
+      padding: const EdgeInsets.all(20),
+      decoration: _cardDecoration(),
+      child: Center(
+        child: failed
+            ? const Text(
+                "Couldn't work out your report. Please try again later.",
+                textAlign: TextAlign.center,
+                style: TextStyle(fontSize: 13, color: Colors.black54),
+              )
+            : const SizedBox(
+                width: 28,
+                height: 28,
+                child: CircularProgressIndicator(
+                  strokeWidth: 2.5,
+                  color: _primaryTeal,
+                ),
+              ),
       ),
     );
   }
@@ -505,7 +611,9 @@ class _ProgressReportScreenState extends State<ProgressReportScreen> {
                 style: TextStyle(fontSize: 12, color: Colors.black38),
               ),
             ),
-          for (final e in r.exercises) _exerciseRow(e),
+          // Keyed by name: the order changes between periods.
+          for (final e in r.exercises)
+            KeyedSubtree(key: ValueKey(e.name), child: _exerciseRow(e)),
         ],
       ),
     );

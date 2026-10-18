@@ -1,8 +1,12 @@
+import 'dart:async';
 import 'dart:math' as math;
 import 'dart:ui' show lerpDouble;
 
 import 'package:flutter/material.dart';
 import 'package:phosphor_flutter/phosphor_flutter.dart';
+
+import '../core/diagnostic_logger.dart';
+import 'login_page.dart';
 
 /// Animated startup screen, then a crossfade into [next] (the login page or,
 /// when already signed in, the dashboard). [next] is a future: the app's
@@ -22,6 +26,11 @@ import 'package:phosphor_flutter/phosphor_flutter.dart';
 ///
 /// The Android launch screen is plain black (res/values-v31) so the hand-off
 /// from the system splash into this one is seamless.
+///
+/// Robustness: if [next] fails (it normally resolves to an error screen
+/// instead, see main.dart), the failure is logged and the splash still moves
+/// on, to the login page, so the patient is never stuck on the logo. A slow
+/// startup is logged (not interrupted) so a log shows where it hung.
 class SplashScreen extends StatefulWidget {
   const SplashScreen({super.key, required this.next, this.onFinished});
 
@@ -94,6 +103,15 @@ class _SplashScreenState extends State<SplashScreen>
 
   bool _left = false;
 
+  static const String _tag = 'Splash';
+  final DiagnosticLogger _logger = DiagnosticLogger.I;
+  final Stopwatch _startupClock = Stopwatch();
+
+  /// Logs a warning if startup takes unusually long (not a timeout: the
+  /// splash keeps waiting, but the log shows where the app was stuck).
+  Timer? _slowStartupTimer;
+  static const Duration _slowStartupAfter = Duration(seconds: 15);
+
   Animation<double> _interval(int startMs, int endMs, Curve curve) =>
       CurvedAnimation(
         parent: _ctrl,
@@ -110,14 +128,45 @@ class _SplashScreenState extends State<SplashScreen>
   }
 
   Future<void> _run() async {
+    _logger.info(_tag, 'Splash shown');
+    _startupClock.start();
+    _slowStartupTimer = Timer(_slowStartupAfter, () {
+      _logger.warn(_tag, 'Startup is taking unusually long', {
+        'ms': _startupClock.elapsedMilliseconds,
+      });
+    });
+
     _breath.repeat();
     await Future.wait([
+      // TickerCanceled when the splash is disposed mid-animation: harmless.
       _ctrl.animateTo(_holdAt).orCancel.catchError((_) {}),
-      widget.next.then((w) => _nextScreen = w),
+      _resolveNext(),
     ]);
+    _slowStartupTimer?.cancel();
     if (!mounted) return;
     _breath.stop();
     _ctrl.forward();
+  }
+
+  /// Waits for the first real screen. Never throws: a failed [widget.next]
+  /// is logged and replaced by the login page, so the splash always leaves.
+  Future<void> _resolveNext() async {
+    try {
+      _nextScreen = await widget.next;
+      _logger.info(_tag, 'Startup ready', {
+        'ms': _startupClock.elapsedMilliseconds,
+        'next': _nextScreen.runtimeType.toString(),
+      });
+    } catch (e, st) {
+      _logger.error(
+        _tag,
+        'First screen failed to load; falling back to login',
+        {'ms': _startupClock.elapsedMilliseconds},
+        e,
+        st,
+      );
+      _nextScreen = const LoginPage();
+    }
   }
 
   @override
@@ -131,6 +180,7 @@ class _SplashScreenState extends State<SplashScreen>
 
   @override
   void dispose() {
+    _slowStartupTimer?.cancel();
     _ctrl.dispose();
     _breath.dispose();
     super.dispose();
@@ -150,10 +200,19 @@ class _SplashScreenState extends State<SplashScreen>
         ),
       ),
     );
+    _logger.info(_tag, 'Leaving splash', {
+      'totalMs': _startupClock.elapsedMilliseconds,
+    });
     // The new route is on screen after the first frame of its transition.
-    WidgetsBinding.instance.addPostFrameCallback(
-      (_) => widget.onFinished?.call(),
-    );
+    // Grab the callback now: this State is disposed by the time it runs.
+    final onFinished = widget.onFinished;
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      try {
+        onFinished?.call();
+      } catch (e, st) {
+        _logger.error(_tag, 'onFinished callback failed', null, e, st);
+      }
+    });
   }
 
   Size _measure(String text, TextStyle style, TextScaler scaler) {

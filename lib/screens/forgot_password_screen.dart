@@ -1,8 +1,11 @@
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart' show LengthLimitingTextInputFormatter;
 import 'package:phosphor_flutter/phosphor_flutter.dart';
 
+import '../core/diagnostic_logger.dart';
 import '../services/auth_service.dart';
+import 'login_page.dart' show looksLikeEmail, maxEmailLength;
 
 // Firebase emails the user a reset link; the new password is chosen on
 // Firebase's page, so the app only needs to collect the email.
@@ -18,6 +21,8 @@ class ForgotPasswordScreen extends StatefulWidget {
 class _ForgotPasswordScreenState extends State<ForgotPasswordScreen>
     with TickerProviderStateMixin {
   static const Color primaryTeal = Color(0xFF23A8AA);
+  static const String _tag = 'ForgotPassword';
+  final DiagnosticLogger _logger = DiagnosticLogger.I;
 
   _ForgotStage _stage = _ForgotStage.enterEmail;
 
@@ -56,10 +61,15 @@ class _ForgotPasswordScreenState extends State<ForgotPasswordScreen>
     _successScale = Tween<double>(begin: 0.0, end: 1.0)
         .animate(CurvedAnimation(parent: _successCtrl, curve: Curves.elasticOut));
 
+    // Skip if the screen was closed during the delay (disposed controllers
+    // throw when started).
     Future.delayed(const Duration(milliseconds: 80), () {
+      if (!mounted) return;
       _logoCtrl.forward();
       _stageCtrl.forward();
     });
+
+    _logger.info(_tag, 'Screen opened');
   }
 
   @override
@@ -83,19 +93,25 @@ class _ForgotPasswordScreenState extends State<ForgotPasswordScreen>
   }
 
   Future<void> _onContinue() async {
+    // The keyboard's "done" key can call this while a request is running.
+    if (_isLoading) return;
     switch (_stage) {
       case _ForgotStage.enterEmail:
         final email = _emailCtrl.text.trim();
-        if (email.isEmpty || !email.contains('@')) {
+        if (!looksLikeEmail(email)) {
           _showSnack('Enter a valid email address.', isError: true);
           return;
         }
+        FocusScope.of(context).unfocus();
         setState(() => _isLoading = true);
+        // The address itself is never logged.
+        _logger.info(_tag, 'Password reset requested');
         try {
           await AuthService.I.sendPasswordReset(email);
         } on FirebaseAuthException catch (e) {
           // Unknown emails are not reported (Firebase hides which accounts
           // exist), so only input and network problems land here.
+          _logger.warn(_tag, 'Password reset failed', {'code': e.code});
           if (!mounted) return;
           setState(() => _isLoading = false);
           _showSnack(
@@ -108,7 +124,18 @@ class _ForgotPasswordScreenState extends State<ForgotPasswordScreen>
             isError: true,
           );
           return;
+        } catch (e, st) {
+          // Not a Firebase error (e.g. plugin missing): don't spin forever.
+          _logger.error(_tag, 'Password reset crashed', null, e, st);
+          if (!mounted) return;
+          setState(() => _isLoading = false);
+          _showSnack(
+            'Could not send the reset email. Please try again.',
+            isError: true,
+          );
+          return;
         }
+        _logger.info(_tag, 'Password reset email sent');
         if (!mounted) return;
         _transitionTo(_ForgotStage.success);
       case _ForgotStage.success:
@@ -117,6 +144,7 @@ class _ForgotPasswordScreenState extends State<ForgotPasswordScreen>
   }
 
   void _showSnack(String msg, {bool isError = false}) {
+    if (!mounted) return;
     ScaffoldMessenger.of(context).showSnackBar(SnackBar(
       content: Text(msg),
       backgroundColor: isError ? const Color(0xFFE53935) : primaryTeal,
@@ -389,10 +417,20 @@ class _ForgotPasswordScreenState extends State<ForgotPasswordScreen>
     Widget? suffix,
     TextInputType? keyboardType,
   }) {
+    final isEmail = keyboardType == TextInputType.emailAddress;
     return TextField(
       controller: controller,
       obscureText: obscureText,
       keyboardType: keyboardType,
+      // E-mail addresses (and passwords) must not be "corrected".
+      autocorrect: !(isEmail || obscureText),
+      enableSuggestions: !(isEmail || obscureText),
+      autofillHints: isEmail ? const [AutofillHints.email] : null,
+      textInputAction: TextInputAction.done,
+      onSubmitted: (_) => _onContinue(),
+      inputFormatters: [
+        if (isEmail) LengthLimitingTextInputFormatter(maxEmailLength),
+      ],
       style: const TextStyle(fontSize: 14, color: Color(0xFF1A1A1A)),
       decoration: InputDecoration(
         hintText: hint,

@@ -2,7 +2,10 @@ import 'dart:typed_data';
 
 import 'package:flutter/material.dart';
 
-/// The patient's round profile picture, or a person icon when none is set.
+import '../core/diagnostic_logger.dart';
+
+/// The patient's round profile picture, or a person icon when none is set
+/// (or when the stored bytes can't be decoded).
 class ProfileAvatar extends StatelessWidget {
   const ProfileAvatar({
     super.key,
@@ -20,6 +23,7 @@ class ProfileAvatar extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final image = photo;
+    final placeholder = Icon(Icons.person, size: size * 0.52, color: Colors.white);
     return Container(
       width: size,
       height: size,
@@ -46,7 +50,7 @@ class ProfileAvatar extends StatelessWidget {
       ),
       child: ClipOval(
         child: image == null
-            ? Icon(Icons.person, size: size * 0.52, color: Colors.white)
+            ? placeholder
             : Image.memory(
                 image,
                 fit: BoxFit.cover,
@@ -56,6 +60,18 @@ class ProfileAvatar extends StatelessWidget {
                 // Decode at display size, not the stored 512 px.
                 cacheWidth:
                     (size * MediaQuery.devicePixelRatioOf(context)).round(),
+                // A corrupt or unsupported image falls back to the icon
+                // instead of Flutter's broken-image box.
+                errorBuilder: (context, error, stackTrace) {
+                  DiagnosticLogger.I.warn(
+                    'ProfileAvatar',
+                    'Profile photo could not be decoded',
+                    {'bytes': image.length},
+                    error,
+                    stackTrace,
+                  );
+                  return placeholder;
+                },
               ),
       ),
     );

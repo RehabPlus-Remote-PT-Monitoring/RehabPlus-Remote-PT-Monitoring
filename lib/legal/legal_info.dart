@@ -38,9 +38,22 @@ class LegalInfo {
     'RETENTION_PERIOD': retentionPeriod,
   };
 
+  /// `{{TOKEN}}`: upper-case letters and underscores only.
+  static final RegExp _tokenPattern = RegExp(r'\{\{([A-Z_]+)\}\}');
+
   /// Replaces every {{TOKEN}} in a legal document with its value.
+  ///
+  /// Safe by construction:
+  /// - One pass: a value that itself contains `{{...}}` is inserted as plain
+  ///   text and never expanded again, so values can't inject other tokens.
+  /// - Only the fixed [_tokens] map is used (compile-time constants, never
+  ///   user or server data).
+  /// - Unknown tokens are left as they are, so a typo stays visible (and
+  ///   fails test/legal_test.dart) instead of silently disappearing.
+  /// The documents are shown with Text widgets (not HTML or a web view), so
+  /// nothing in them can run as code.
   static String fill(String text) => text.replaceAllMapped(
-    RegExp(r'\{\{([A-Z_]+)\}\}'),
+    _tokenPattern,
     (m) => _tokens[m[1]] ?? m[0]!,
   );
 }

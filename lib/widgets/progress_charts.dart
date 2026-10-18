@@ -4,6 +4,13 @@ import 'package:intl/intl.dart' show DateFormat;
 
 import '../services/progress_report.dart';
 
+// Performance: both charts build their fl_chart data object (bars/spots,
+// titles, grid, tooltips) once and keep it until the points or the size
+// change. The points list comes from a cached ProgressReport, so its
+// identity only changes when the report does; a rebuild of the parent (a
+// tab tap, a clock tick, a fade-in) reuses the same data object, and
+// fl_chart sees nothing new to lay out or animate.
+
 const _teal = Color(0xFF23A8AA);
 const _axisStyle = TextStyle(fontSize: 9, color: Colors.black45);
 
@@ -62,59 +69,73 @@ FlGridData _grid(double interval) => FlGridData(
 );
 
 /// Sessions per day (or per group of days).
-class SessionsBarChart extends StatelessWidget {
+class SessionsBarChart extends StatefulWidget {
   const SessionsBarChart({super.key, required this.points, this.height = 150});
 
   final List<ProgressPoint> points;
   final double height;
 
   @override
+  State<SessionsBarChart> createState() => _SessionsBarChartState();
+}
+
+class _SessionsBarChartState extends State<SessionsBarChart> {
+  late BarChartData _data = _buildData(widget.points);
+
+  @override
+  void didUpdateWidget(SessionsBarChart oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    if (!identical(oldWidget.points, widget.points)) {
+      _data = _buildData(widget.points);
+    }
+  }
+
+  @override
   Widget build(BuildContext context) {
+    return SizedBox(height: widget.height, child: BarChart(_data));
+  }
+
+  static BarChartData _buildData(List<ProgressPoint> points) {
     final most = points.fold(0, (m, p) => p.sessions > m ? p.sessions : m);
     final maxY = (most < 3 ? 3 : most + 1).toDouble();
     final barWidth = points.length <= 7
         ? 16.0
         : (points.length <= 8 ? 12.0 : 9.0);
-    return SizedBox(
-      height: height,
-      child: BarChart(
-        BarChartData(
-          maxY: maxY,
-          minY: 0,
-          barGroups: [
-            for (var i = 0; i < points.length; i++)
-              BarChartGroupData(
-                x: i,
-                barRods: [
-                  BarChartRodData(
-                    toY: points[i].sessions.toDouble(),
-                    width: barWidth,
-                    color: _teal,
-                    borderRadius: BorderRadius.circular(5),
-                    backDrawRodData: BackgroundBarChartRodData(
-                      show: true,
-                      toY: maxY,
-                      color: Colors.grey.shade100,
-                    ),
-                  ),
-                ],
+    return BarChartData(
+      maxY: maxY,
+      minY: 0,
+      barGroups: [
+        for (var i = 0; i < points.length; i++)
+          BarChartGroupData(
+            x: i,
+            barRods: [
+              BarChartRodData(
+                toY: points[i].sessions.toDouble(),
+                width: barWidth,
+                color: _teal,
+                borderRadius: BorderRadius.circular(5),
+                backDrawRodData: BackgroundBarChartRodData(
+                  show: true,
+                  toY: maxY,
+                  color: Colors.grey.shade100,
+                ),
               ),
-          ],
-          titlesData: _titles(
-            points,
-            leftInterval: maxY <= 4 ? 1 : (maxY / 4).ceilToDouble(),
-            left: (v) => '${v.toInt()}',
+            ],
           ),
-          gridData: _grid(maxY <= 4 ? 1 : (maxY / 4).ceilToDouble()),
-          borderData: FlBorderData(show: false),
-          barTouchData: BarTouchData(
-            touchTooltipData: BarTouchTooltipData(
-              getTooltipColor: (_) => Colors.black87,
-              getTooltipItem: (group, _, rod, _) => BarTooltipItem(
-                '${rod.toY.toInt()} session${rod.toY == 1 ? '' : 's'}',
-                const TextStyle(color: Colors.white, fontSize: 11),
-              ),
-            ),
+      ],
+      titlesData: _titles(
+        points,
+        leftInterval: maxY <= 4 ? 1 : (maxY / 4).ceilToDouble(),
+        left: (v) => '${v.toInt()}',
+      ),
+      gridData: _grid(maxY <= 4 ? 1 : (maxY / 4).ceilToDouble()),
+      borderData: FlBorderData(show: false),
+      barTouchData: BarTouchData(
+        touchTooltipData: BarTouchTooltipData(
+          getTooltipColor: (_) => Colors.black87,
+          getTooltipItem: (group, _, rod, _) => BarTooltipItem(
+            '${rod.toY.toInt()} session${rod.toY == 1 ? '' : 's'}',
+            const TextStyle(color: Colors.white, fontSize: 11),
           ),
         ),
       ),
@@ -124,7 +145,7 @@ class SessionsBarChart extends StatelessWidget {
 
 /// A line over the period for one measure (form score or pain). Points with
 /// no data are skipped, so the line joins the days that have data.
-class TrendLineChart extends StatelessWidget {
+class TrendLineChart extends StatefulWidget {
   const TrendLineChart({
     super.key,
     required this.points,
@@ -171,14 +192,34 @@ class TrendLineChart extends StatelessWidget {
   final double height;
 
   @override
+  State<TrendLineChart> createState() => _TrendLineChartState();
+}
+
+class _TrendLineChartState extends State<TrendLineChart> {
+  /// Null when no point has a value (the "no data" message is shown).
+  late LineChartData? _data = _buildData(widget);
+
+  @override
+  void didUpdateWidget(TrendLineChart oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    // value/format are static functions and the colours constants, so in
+    // practice only the points change; compare all inputs to be safe.
+    if (!identical(oldWidget.points, widget.points) ||
+        oldWidget.value != widget.value ||
+        oldWidget.maxY != widget.maxY ||
+        oldWidget.color != widget.color ||
+        oldWidget.format != widget.format ||
+        oldWidget.interval != widget.interval) {
+      _data = _buildData(widget);
+    }
+  }
+
+  @override
   Widget build(BuildContext context) {
-    final spots = [
-      for (var i = 0; i < points.length; i++)
-        if (value(points[i]) case final v?) FlSpot(i.toDouble(), v),
-    ];
-    if (spots.isEmpty) {
+    final data = _data;
+    if (data == null) {
       return SizedBox(
-        height: height,
+        height: widget.height,
         child: const Center(
           child: Text(
             'No data for this period yet',
@@ -187,63 +228,74 @@ class TrendLineChart extends StatelessWidget {
         ),
       );
     }
-    final step = interval ?? maxY / 4;
-    return SizedBox(
-      height: height,
-      child: LineChart(
-        LineChartData(
-          minX: 0,
-          maxX: (points.length - 1).toDouble().clamp(1, double.infinity),
-          minY: 0,
-          maxY: maxY,
-          lineBarsData: [
-            LineChartBarData(
-              spots: spots,
-              isCurved: true,
-              preventCurveOverShooting: true,
-              color: color,
-              barWidth: 3,
-              dotData: FlDotData(
-                show: true,
-                getDotPainter: (_, _, _, _) => FlDotCirclePainter(
-                  radius: 3.5,
-                  color: Colors.white,
-                  strokeWidth: 2.5,
-                  strokeColor: color,
-                ),
-              ),
-              belowBarData: BarAreaData(
-                show: true,
-                gradient: LinearGradient(
-                  begin: Alignment.topCenter,
-                  end: Alignment.bottomCenter,
-                  colors: [
-                    color.withValues(alpha: 0.25),
-                    color.withValues(alpha: 0.0),
-                  ],
-                ),
-              ),
+    return SizedBox(height: widget.height, child: LineChart(data));
+  }
+
+  static LineChartData? _buildData(TrendLineChart w) {
+    final points = w.points;
+    final maxY = w.maxY;
+    final color = w.color;
+    final spots = [
+      for (var i = 0; i < points.length; i++)
+        // Non-finite values would break the chart's layout maths; the
+        // report never produces them, but the widget doesn't rely on it.
+        if (w.value(points[i]) case final v? when v.isFinite)
+          FlSpot(i.toDouble(), v.clamp(0, maxY).toDouble()),
+    ];
+    if (spots.isEmpty) return null;
+    final step = w.interval ?? maxY / 4;
+    return LineChartData(
+      minX: 0,
+      maxX: (points.length - 1).toDouble().clamp(1, double.infinity),
+      minY: 0,
+      maxY: maxY,
+      lineBarsData: [
+        LineChartBarData(
+          spots: spots,
+          isCurved: true,
+          preventCurveOverShooting: true,
+          color: color,
+          barWidth: 3,
+          dotData: FlDotData(
+            show: true,
+            getDotPainter: (_, _, _, _) => FlDotCirclePainter(
+              radius: 3.5,
+              color: Colors.white,
+              strokeWidth: 2.5,
+              strokeColor: color,
             ),
-          ],
-          titlesData: _titles(points, leftInterval: step, left: format),
-          gridData: _grid(step),
-          borderData: FlBorderData(show: false),
-          lineTouchData: LineTouchData(
-            touchTooltipData: LineTouchTooltipData(
-              getTooltipColor: (_) => Colors.black87,
-              getTooltipItems: (spots) => [
-                for (final s in spots)
-                  LineTooltipItem(
-                    maxY == 100
-                        ? '${s.y.round()}%'
-                        : '${s.y.toStringAsFixed(1)}/10',
-                    const TextStyle(color: Colors.white, fontSize: 11),
-                  ),
+          ),
+          belowBarData: BarAreaData(
+            show: true,
+            gradient: LinearGradient(
+              begin: Alignment.topCenter,
+              end: Alignment.bottomCenter,
+              colors: [
+                color.withValues(alpha: 0.25),
+                color.withValues(alpha: 0.0),
               ],
             ),
           ),
+        ),
+      ],
+      titlesData: _titles(points, leftInterval: step, left: w.format),
+      gridData: _grid(step),
+      borderData: FlBorderData(show: false),
+      lineTouchData: LineTouchData(
+        touchTooltipData: LineTouchTooltipData(
+          getTooltipColor: (_) => Colors.black87,
+          getTooltipItems: (spots) => [
+            for (final s in spots)
+              LineTooltipItem(
+                maxY == 100
+                    ? '${s.y.round()}%'
+                    : '${s.y.toStringAsFixed(1)}/10',
+                const TextStyle(color: Colors.white, fontSize: 11),
+              ),
+          ],
         ),
       ),
     );
   }
 }
+

@@ -37,6 +37,12 @@ dependencies:
   timezone: ^0.11.2
   flutter_timezone: ^5.1.1
   package_info_plus: ^9.0.1
+  path_provider: ^2.1.6
+  # Settings > App lock: fingerprint/face prompt, Keystore-encrypted storage
+  # for the PIN hash, and SHA-256 for hashing it (lib/services/app_lock_service.dart)
+  local_auth: ^3.0.2
+  flutter_secure_storage: ^10.3.4
+  crypto: ^3.0.7
 
 dev_dependencies:
   flutter_test:

@@ -3,6 +3,10 @@ import 'package:flutter/material.dart';
 import '../services/notification_service.dart';
 
 /// Rebuilds [builder] with the live unread-notification count.
+///
+/// The Firestore listener is opened once per widget (not per build), and
+/// NotificationService logs its errors. On an error the badge keeps its last
+/// value (0 at first): a badge is not worth an error message.
 class UnreadNotifications extends StatefulWidget {
   final Widget Function(BuildContext context, int unread) builder;
 

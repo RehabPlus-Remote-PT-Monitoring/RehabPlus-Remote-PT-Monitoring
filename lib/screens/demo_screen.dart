@@ -3,6 +3,10 @@ import 'package:phosphor_flutter/phosphor_flutter.dart';
 import 'package:video_player/video_player.dart';
 import 'package:chewie/chewie.dart';
 
+import '../core/diagnostic_logger.dart';
+
+const String _tag = 'Demo';
+
 class DemoScreen extends StatefulWidget {
   const DemoScreen({super.key});
 
@@ -119,10 +123,13 @@ class _DemoScreenState extends State<DemoScreen> with TickerProviderStateMixin {
     ).animate(CurvedAnimation(parent: _pulseCtrl, curve: Curves.easeInOut));
 
     _headerCtrl.forward();
-    Future.delayed(
-      const Duration(milliseconds: 200),
-      () => _contentCtrl.forward(),
-    );
+    // Skip if the screen was closed during the delay (a disposed
+    // controller throws when started).
+    Future.delayed(const Duration(milliseconds: 200), () {
+      if (mounted) _contentCtrl.forward();
+    });
+
+    DiagnosticLogger.I.info(_tag, 'Screen opened');
   }
 
   @override
@@ -864,18 +871,56 @@ class _VideoCardState extends State<_VideoCard> {
   bool _loaded = false;
   bool _expanded = false;
 
+  /// True while the video is connecting: further taps are ignored, so two
+  /// players can't be created (the first one would leak).
+  bool _initializing = false;
+
+  /// The last load failed (no internet, bad URL): shown instead of an
+  /// endless spinner.
+  bool _failed = false;
+
+  final DiagnosticLogger _logger = DiagnosticLogger.I;
+
   Color get _levelColor => switch (widget.level) {
     'Beginner' => const Color(0xFF4CAF50),
     'Intermediate' => const Color(0xFFFF9800),
     _ => const Color(0xFFE53935),
   };
 
-  Future<void> _initVideo() async {
-    if (_loaded) return;
-    _vpCtrl = VideoPlayerController.networkUrl(Uri.parse(widget.videoUrl));
-    await _vpCtrl!.initialize();
+  /// Creates and connects the player. Returns false (and cleans up) if the
+  /// video couldn't be loaded.
+  Future<bool> _initVideo() async {
+    if (_loaded) return true;
+    final uri = Uri.parse(widget.videoUrl);
+    // Only ever stream over HTTPS.
+    if (uri.scheme != 'https') {
+      _logger.error(_tag, 'Refusing non-HTTPS demo video', {'scheme': uri.scheme});
+      return false;
+    }
+    final stopwatch = Stopwatch()..start();
+    final controller = VideoPlayerController.networkUrl(uri);
+    try {
+      await controller.initialize();
+    } catch (e, st) {
+      _logger.warn(_tag, 'Demo video failed to load', {
+        'title': widget.title,
+        'ms': stopwatch.elapsedMilliseconds,
+      }, e, st);
+      await controller.dispose();
+      return false;
+    }
+    if (!mounted) {
+      // Closed while connecting: nothing will ever dispose it otherwise.
+      await controller.dispose();
+      return false;
+    }
+    _logger.info(_tag, 'Demo video loaded', {
+      'title': widget.title,
+      'ms': stopwatch.elapsedMilliseconds,
+    });
+    _vpCtrl = controller;
     _chewieCtrl = ChewieController(
-      videoPlayerController: _vpCtrl!,
+      videoPlayerController: controller,
       autoPlay: true,
       looping: false,
       aspectRatio: 16 / 9,
@@ -887,7 +932,36 @@ class _VideoCardState extends State<_VideoCard> {
         backgroundColor: Colors.grey.shade800,
       ),
     );
-    if (mounted) setState(() => _loaded = true);
+    setState(() => _loaded = true);
+    return true;
+  }
+
+  Future<void> _togglePlayer() async {
+    if (_initializing) return;
+    if (!_expanded) {
+      setState(() {
+        _initializing = true;
+        _failed = false;
+        _expanded = true; // show the spinner while it connects
+      });
+      final ok = await _initVideo();
+      if (!mounted) return;
+      setState(() {
+        _initializing = false;
+        _failed = !ok;
+      });
+    } else {
+      _logger.info(_tag, 'Demo video closed', {'title': widget.title});
+      _chewieCtrl?.dispose();
+      _vpCtrl?.dispose();
+      _chewieCtrl = null;
+      _vpCtrl = null;
+      setState(() {
+        _expanded = false;
+        _loaded = false;
+        _failed = false;
+      });
+    }
   }
 
   @override
@@ -915,21 +989,7 @@ class _VideoCardState extends State<_VideoCard> {
         children: [
           // Thumbnail / player row
           GestureDetector(
-            onTap: () async {
-              if (!_expanded) {
-                await _initVideo();
-                setState(() => _expanded = true);
-              } else {
-                _chewieCtrl?.dispose();
-                _vpCtrl?.dispose();
-                _chewieCtrl = null;
-                _vpCtrl = null;
-                setState(() {
-                  _expanded = false;
-                  _loaded = false;
-                });
-              }
-            },
+            onTap: _togglePlayer,
             child: AnimatedContainer(
               duration: const Duration(milliseconds: 350),
               curve: Curves.easeOutCubic,
@@ -949,6 +1009,18 @@ class _VideoCardState extends State<_VideoCard> {
                               top: Radius.circular(20),
                             ),
                             child: Chewie(controller: _chewieCtrl!),
+                          )
+                        : _failed
+                        ? const Center(
+                            child: Padding(
+                              padding: EdgeInsets.all(16),
+                              child: Text(
+                                'Could not load the video. Check your '
+                                'internet connection and tap to close.',
+                                textAlign: TextAlign.center,
+                                style: TextStyle(color: Colors.white70, fontSize: 12),
+                              ),
+                            ),
                           )
                         : const Center(
                             child: CircularProgressIndicator(

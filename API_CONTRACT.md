@@ -325,6 +325,16 @@ message per token in `patients/{uid}/devices`:
 | `forwardPush` | Forward Push | reps | 10 |
 | `singleLegBalance` | Single-Leg Balance | hold | 3 × 10 s |
 | `wallSit` | Wall Sit | hold | 3 × 20 s |
+| `miniSquat` | Mini Squat | reps | 10 |
+| `hipAbduction` | Standing Hip Abduction | reps | 10 |
+| `hamstringCurl` | Standing Hamstring Curl | reps | 10 |
+| `marching` | Marching in Place | reps | 10 |
+| `overheadRaise` | Overhead Arm Raise | reps | 10 |
+
+The last five need a specific camera view: Standing Hip Abduction from the
+front; Hamstring Curl, Marching and Overhead Arm Raise side-on; Mini Squat
+either way (the knees-caving-in check only works from the front). Older app
+builds don't know these codes and skip them.
 
 Adding a new exercise needs an app update (pose detection is per type), not
 just a dashboard change.

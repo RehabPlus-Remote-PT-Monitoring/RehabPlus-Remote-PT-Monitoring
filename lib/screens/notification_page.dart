@@ -1,6 +1,9 @@
 import 'package:flutter/material.dart';
-import 'package:intl/intl.dart';
+// `show`: the full intl library also exports a TextDirection that clashes
+// with Flutter's.
+import 'package:intl/intl.dart' show DateFormat;
 
+import '../core/diagnostic_logger.dart';
 import '../models/app_notification.dart';
 import '../models/chat.dart';
 import '../services/notification_service.dart';
@@ -70,17 +73,64 @@ class _NotificationPageState extends State<NotificationPage> {
   static const Color primaryTeal = Color(0xFF23A8AA);
   static const Color darkTeal = Color(0xFF0D6E71);
 
+  static const String _tag = 'Notifications';
+  final DiagnosticLogger _logger = DiagnosticLogger.I;
+
   final _service = NotificationService();
-  late final Stream<List<AppNotification>> _stream = _service.watch();
+
+  /// Created once (not in build), so rebuilds don't re-subscribe Firestore.
+  late final Stream<List<AppNotification>> _stream;
+
+  /// Everything from the latest snapshot, then the filtered list and unread
+  /// count derived from it. Computed once per snapshot or filter change in
+  /// [_derive], not on every getter call (the list builder used to re-filter
+  /// the whole list for every row it built).
   List<AppNotification> _notifications = const [];
+  List<AppNotification> _filtered = const [];
+  int _unreadCount = 0;
 
-  List<AppNotification> get _filtered => switch (_selectedFilterIndex) {
-    1 => _notifications.where((n) => n.read).toList(),
-    2 => _notifications.where((n) => !n.read).toList(),
-    _ => _notifications,
-  };
+  /// While "mark all as read" runs, so a double tap sends one batch.
+  bool _markingAll = false;
 
-  int get _unreadCount => _notifications.where((n) => !n.read).length;
+  @override
+  void initState() {
+    super.initState();
+    _logger.info(_tag, 'Screen opened');
+    // NotificationService logs the stream's start, first snapshot and
+    // errors.
+    _stream = _service.watch();
+  }
+
+  void _derive(List<AppNotification> all) {
+    _notifications = all;
+    _unreadCount = all.where((n) => !n.read).length;
+    _filtered = switch (_selectedFilterIndex) {
+      1 => all.where((n) => n.read).toList(),
+      2 => all.where((n) => !n.read).toList(),
+      _ => all,
+    };
+  }
+
+  Future<void> _markAllRead() async {
+    if (_markingAll) return;
+    setState(() => _markingAll = true);
+    _logger.info(_tag, 'Mark all read', {'unread': _unreadCount});
+    try {
+      await _service.markAllRead();
+    } catch (e, st) {
+      // The unread query can fail offline; the badge just stays as it is.
+      _logger.warn(_tag, 'Mark all read failed', null, e, st);
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Text('Could not update. Check your internet connection.'),
+          ),
+        );
+      }
+    } finally {
+      if (mounted) setState(() => _markingAll = false);
+    }
+  }
 
   String _time(DateTime t) {
     final now = DateTime.now();
@@ -93,6 +143,8 @@ class _NotificationPageState extends State<NotificationPage> {
   }
 
   void _open(AppNotification n) {
+    // The type and state only; title/body can contain personal details.
+    _logger.info(_tag, 'Notification opened', {'type': n.type, 'read': n.read});
     if (!n.read) _service.markRead(n.id);
     final thread = ChatThread.values
         .where((t) => t.name == n.data['thread'])
@@ -110,7 +162,7 @@ class _NotificationPageState extends State<NotificationPage> {
     return StreamBuilder<List<AppNotification>>(
       stream: _stream,
       builder: (context, snap) {
-        _notifications = snap.data ?? const [];
+        _derive(snap.data ?? const []);
         return _buildPage(loading: !snap.hasData && !snap.hasError);
       },
     );
@@ -230,7 +282,7 @@ class _NotificationPageState extends State<NotificationPage> {
               if (_unreadCount > 0)
                 IconButton(
                   tooltip: 'Mark all as read',
-                  onPressed: _service.markAllRead,
+                  onPressed: _markingAll ? null : _markAllRead,
                   icon: const Icon(Icons.done_all_rounded, color: Colors.white),
                 ),
             ],
@@ -260,7 +312,11 @@ class _NotificationPageState extends State<NotificationPage> {
           final selected = _selectedFilterIndex == i;
           return Expanded(
             child: GestureDetector(
-              onTap: () => setState(() => _selectedFilterIndex = i),
+              onTap: () {
+                if (_selectedFilterIndex == i) return;
+                _logger.verbose(_tag, 'Filter changed', {'filter': labels[i]});
+                setState(() => _selectedFilterIndex = i);
+              },
               child: AnimatedContainer(
                 duration: const Duration(milliseconds: 220),
                 curve: Curves.easeInOut,
@@ -416,7 +472,7 @@ class _NotificationPageState extends State<NotificationPage> {
             _notifications.isEmpty
                 ? 'No notifications yet'
                 : 'No notifications here',
-            style: TextStyle(
+            style: const TextStyle(
               fontSize: 15,
               fontWeight: FontWeight.w600,
               color: Colors.black54,

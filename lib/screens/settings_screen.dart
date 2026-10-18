@@ -1,3 +1,5 @@
+import 'dart:async';
+
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/material.dart' hide DiagnosticLevel;
 import 'package:package_info_plus/package_info_plus.dart';
@@ -5,12 +7,65 @@ import 'package:permission_handler/permission_handler.dart';
 
 import '../core/diagnostic_logger.dart';
 import '../models/chat.dart';
+import '../services/app_lock_service.dart';
 import '../services/app_settings.dart';
 import '../services/auth_service.dart';
 import '../services/chat_service.dart';
 import '../services/notification_prefs_service.dart';
 import '../services/reminder_service.dart';
+import 'app_lock_settings_screen.dart';
 import 'messages_screen.dart';
+
+/// Firestore rules limit a chat message to 1000 characters.
+const int maxProblemReportLength = 1000;
+
+/// How many recent warnings/errors a problem report includes.
+const int problemReportErrorCount = 5;
+
+/// Builds the text sent to the clinic chat by Settings > Report a problem.
+///
+/// Layout: `Problem report: <what the patient wrote>` then a bracketed
+/// diagnostics block with the app version, this launch's run id (to find
+/// the matching log file) and the newest warn/error events as
+/// `tag: message`. Only tags and constant messages are included, never the
+/// events' data maps, so no personal data can leak into the report.
+///
+/// Never longer than [maxProblemReportLength]: the patient's text is
+/// shortened first so the diagnostics always fit.
+@visibleForTesting
+String buildProblemReport({
+  required String userText,
+  required String appVersion,
+  required String runId,
+  required List<DiagnosticEvent> recentEvents,
+}) {
+  String clip(String text, int max) =>
+      text.length <= max ? text : '${text.substring(0, max - 1)}…';
+
+  final problems = recentEvents
+      .where((e) => e.level.index >= DiagnosticLevel.warn.index)
+      .toList()
+      .reversed // newest first
+      .take(problemReportErrorCount)
+      .map((e) => clip('${e.tag}: ${e.message}', 80))
+      .join('; ');
+
+  final version = appVersion.isEmpty ? 'unknown' : appVersion;
+  final diagnostics =
+      '[App $version; run $runId'
+      '${problems.isEmpty ? '' : '; recent errors: $problems'}]';
+
+  const prefix = 'Problem report: ';
+  const separator = '\n\n';
+  final roomForText =
+      maxProblemReportLength - prefix.length - separator.length - diagnostics.length;
+  if (roomForText < 20) {
+    // Only if the diagnostics are oddly long: keep the patient's words and
+    // cut the diagnostics instead.
+    return clip('$prefix$userText$separator$diagnostics', maxProblemReportLength);
+  }
+  return '$prefix${clip(userText, roomForText)}$separator$diagnostics';
+}
 
 /// Profile > Settings: exercise feedback, camera, reminders, notifications,
 /// text size, account, support and app version.
@@ -25,38 +80,69 @@ class _SettingsScreenState extends State<SettingsScreen>
     with WidgetsBindingObserver {
   static const Color primaryTeal = Color(0xFF23A8AA);
   static const Color darkTeal = Color(0xFF0D6E71);
+  static const String _tag = 'Settings';
 
   final _settings = AppSettings.I;
+  final DiagnosticLogger _logger = DiagnosticLogger.I;
 
   NotificationPrefs? _notif; // null while loading
   bool _savingNotif = false;
   PermissionStatus? _camera;
   String _version = '';
 
+  // Double-tap guards for actions that await something.
+  bool _busyReminder = false;
+  bool _sendingPasswordLink = false;
+  bool _reporting = false;
+
   @override
   void initState() {
     super.initState();
+    _logger.info(_tag, 'Screen opened');
     WidgetsBinding.instance.addObserver(this);
     _settings.addListener(_rebuild);
-    NotificationPrefsService.I.load().then((p) {
-      if (mounted) setState(() => _notif = p);
-    });
+    // The App lock tile shows On/Off.
+    AppLockService.I.addListener(_rebuild);
+    _loadNotificationPrefs();
     _checkCamera();
-    PackageInfo.fromPlatform().then((info) {
+    _loadVersion();
+  }
+
+  Future<void> _loadNotificationPrefs() async {
+    NotificationPrefs prefs;
+    try {
+      prefs = await NotificationPrefsService.I.load();
+    } catch (e, st) {
+      // load() handles Firestore errors itself; this is anything else.
+      // Show the defaults rather than a spinner forever.
+      _logger.warn(_tag, 'Notification prefs load failed', null, e, st);
+      prefs = const NotificationPrefs();
+    }
+    if (mounted) setState(() => _notif = prefs);
+  }
+
+  Future<void> _loadVersion() async {
+    try {
+      final info = await PackageInfo.fromPlatform();
       if (mounted) {
         setState(() => _version = '${info.version} (${info.buildNumber})');
       }
-    });
+    } catch (e, st) {
+      _logger.warn(_tag, 'Could not read the app version', null, e, st);
+    }
   }
 
   @override
   void dispose() {
     WidgetsBinding.instance.removeObserver(this);
     _settings.removeListener(_rebuild);
+    AppLockService.I.removeListener(_rebuild);
     super.dispose();
   }
 
-  void _rebuild() => setState(() {});
+  void _rebuild() {
+    if (mounted) setState(() {});
+  }
 
   // Back from the phone's settings app: the camera permission may have changed.
   @override
@@ -65,11 +151,19 @@ class _SettingsScreenState extends State<SettingsScreen>
   }
 
   Future<void> _checkCamera() async {
-    final status = await Permission.camera.status;
-    if (mounted) setState(() => _camera = status);
+    try {
+      final status = await Permission.camera.status;
+      if (_camera != status) {
+        _logger.info(_tag, 'Camera permission', {'status': status.name});
+      }
+      if (mounted) setState(() => _camera = status);
+    } catch (e, st) {
+      _logger.warn(_tag, 'Camera permission check failed', null, e, st);
+    }
   }
 
   void _snack(String text) {
+    if (!mounted) return;
     ScaffoldMessenger.of(context)
       ..hideCurrentSnackBar()
       ..showSnackBar(SnackBar(content: Text(text)));
@@ -79,20 +173,50 @@ class _SettingsScreenState extends State<SettingsScreen>
   // Actions
   // ---------------------------------------------------------------------
 
+  /// Wraps a phone-only setting's setter: logs the change (these values are
+  /// not personal: switches, seconds, a text scale) and catches save errors,
+  /// which would otherwise be uncaught async errors.
+  ValueChanged<T> _logged<T>(String key, Future<void> Function(T) save) {
+    return (T value) {
+      _logger.info(_tag, 'Setting changed', {'key': key, 'value': value});
+      unawaited(
+        save(value).then(
+          (_) {},
+          onError: (Object e, StackTrace st) {
+            _logger.warn(_tag, 'Saving a setting failed', {'key': key}, e, st);
+            _snack('Could not save that setting. Please try again.');
+          },
+        ),
+      );
+    };
+  }
+
   Future<void> _toggleReminder(bool on) async {
-    if (on) {
-      final ok = await ReminderService.I.schedule(_settings.reminderMinutes);
-      if (!ok) {
-        _snack('Allow notifications for RehabPlus to get reminders.');
-        return;
+    if (_busyReminder) return;
+    _busyReminder = true;
+    _logger.info(_tag, 'Setting changed', {'key': 'reminderEnabled', 'value': on});
+    try {
+      if (on) {
+        final ok = await ReminderService.I.schedule(_settings.reminderMinutes);
+        if (!ok) {
+          _logger.warn(_tag, 'Reminder not scheduled (permission refused)');
+          _snack('Allow notifications for RehabPlus to get reminders.');
+          return;
+        }
+      } else {
+        await ReminderService.I.cancel();
       }
-    } else {
-      await ReminderService.I.cancel();
+      await _settings.setReminderEnabled(on);
+    } catch (e, st) {
+      _logger.error(_tag, 'Changing the reminder failed', {'on': on}, e, st);
+      _snack('Could not change the reminder. Please try again.');
+    } finally {
+      _busyReminder = false;
     }
-    await _settings.setReminderEnabled(on);
   }
 
   Future<void> _pickReminderTime() async {
+    if (_busyReminder) return;
     final current = TimeOfDay(
       hour: _settings.reminderMinutes ~/ 60,
       minute: _settings.reminderMinutes % 60,
@@ -100,22 +224,35 @@ class _SettingsScreenState extends State<SettingsScreen>
     final picked = await showTimePicker(context: context, initialTime: current);
     if (picked == null) return;
     final minutes = picked.hour * 60 + picked.minute;
-    await _settings.setReminderMinutes(minutes);
-    if (_settings.reminderEnabled) await ReminderService.I.schedule(minutes);
+    _logger.info(_tag, 'Setting changed', {'key': 'reminderMinutes', 'value': minutes});
+    _busyReminder = true;
+    try {
+      await _settings.setReminderMinutes(minutes);
+      if (_settings.reminderEnabled) await ReminderService.I.schedule(minutes);
+    } catch (e, st) {
+      _logger.error(_tag, 'Changing the reminder time failed', null, e, st);
+      _snack('Could not change the reminder. Please try again.');
+    } finally {
+      _busyReminder = false;
+    }
   }
 
   Future<void> _setNotif(NotificationPrefs next) async {
     final previous = _notif;
+    _logger.info(_tag, 'Setting changed', {
+      'key': 'pushPreferences',
+      'messages': next.messages,
+      'exercises': next.exercises,
+    });
     setState(() {
       _notif = next;
       _savingNotif = true;
     });
     try {
       await NotificationPrefsService.I.save(next);
-    } catch (e) {
-      DiagnosticLogger.I.warn('Settings', 'Notification prefs save failed', {
-        'error': e.toString(),
-      });
+      _logger.info(_tag, 'Push preferences saved');
+    } catch (e, st) {
+      _logger.warn(_tag, 'Notification prefs save failed', null, e, st);
       if (mounted) {
         setState(() => _notif = previous);
         _snack('Could not save. Check your internet connection.');
@@ -126,8 +263,12 @@ class _SettingsScreenState extends State<SettingsScreen>
   }
 
   Future<void> _changePassword() async {
+    if (_sendingPasswordLink) return;
     final email = FirebaseAuth.instance.currentUser?.email;
-    if (email == null) return;
+    if (email == null) {
+      _logger.warn(_tag, 'Change password: no signed-in e-mail');
+      return;
+    }
     final ok = await showDialog<bool>(
       context: context,
       builder: (ctx) => AlertDialog(
@@ -148,79 +289,96 @@ class _SettingsScreenState extends State<SettingsScreen>
       ),
     );
     if (ok != true) return;
+    _sendingPasswordLink = true;
+    _logger.info(_tag, 'Password change link requested');
     try {
       await AuthService.I.sendPasswordReset(email);
+      _logger.info(_tag, 'Password change link sent');
       _snack('Password link sent to $email.');
-    } catch (_) {
+    } on FirebaseAuthException catch (e, st) {
+      _logger.warn(_tag, 'Password change link failed', {'code': e.code}, e, st);
       _snack('Could not send the link. Please try again.');
+    } catch (e, st) {
+      _logger.error(_tag, 'Password change link crashed', null, e, st);
+      _snack('Could not send the link. Please try again.');
+    } finally {
+      _sendingPasswordLink = false;
     }
   }
 
   Future<void> _cameraAccess() async {
-    final status = await Permission.camera.request();
-    if (!status.isGranted) await openAppSettings();
+    try {
+      final status = await Permission.camera.request();
+      _logger.info(_tag, 'Camera permission requested', {'status': status.name});
+      if (!status.isGranted) await openAppSettings();
+    } catch (e, st) {
+      _logger.warn(_tag, 'Camera permission request failed', null, e, st);
+    }
     await _checkCamera();
   }
 
-  Future<void> _reportProblem() async {
-    final controller = TextEditingController();
-    final text = await showDialog<String>(
-      context: context,
-      builder: (ctx) => AlertDialog(
-        title: const Text('Report a problem'),
-        content: Column(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            TextField(
-              controller: controller,
-              maxLines: 4,
-              maxLength: 500,
-              autofocus: true,
-              decoration: const InputDecoration(
-                hintText: 'What happened?',
-                border: OutlineInputBorder(),
-              ),
-            ),
-            const Text(
-              'Sent to the clinic with the app version and recent error '
-              'messages, to help fix it.',
-              style: TextStyle(fontSize: 12, color: Colors.black54),
-            ),
-          ],
-        ),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.pop(ctx),
-            child: const Text('Cancel'),
-          ),
-          TextButton(
-            onPressed: () => Navigator.pop(ctx, controller.text.trim()),
-            child: const Text('Send'),
-          ),
-        ],
-      ),
-    );
-    controller.dispose();
-    if (text == null || text.isEmpty) return;
-
-    final errors = DiagnosticLogger.I
-        .recent(limit: 100)
-        .where((e) => e.level.index >= DiagnosticLevel.warn.index)
-        .map((e) => '${e.tag}: ${e.message}')
-        .toList()
-        .reversed
-        .take(5)
-        .join('; ');
-    var message =
-        'Problem report: $text\n\n[App $_version'
-        '${errors.isEmpty ? '' : '; recent errors: $errors'}]';
-    // Messages are limited to 1000 characters (Firestore rules).
-    if (message.length > 1000) message = '${message.substring(0, 997)}...]';
+  Future<void> _openAppSettings() async {
+    _logger.info(_tag, 'Opening phone app settings');
     try {
-      ChatService().send(ChatThread.clinic, message);
+      await openAppSettings();
+    } catch (e, st) {
+      _logger.warn(_tag, 'Opening phone app settings failed', null, e, st);
+    }
+  }
+
+  Future<void> _reportProblem() async {
+    if (_reporting) return;
+    _reporting = true;
+    try {
+      _logger.info(_tag, 'Report a problem opened');
+      // The dialog owns (and disposes) its text controller. Disposing it
+      // here right after showDialog returned was a bug: the dialog's closing
+      // animation still rebuilds the TextField, which then used a disposed
+      // controller.
+      final text = await showDialog<String>(
+        context: context,
+        builder: (ctx) => const _ReportProblemDialog(),
+      );
+      if (text == null || text.isEmpty) {
+        _logger.info(_tag, 'Report a problem cancelled');
+        return;
+      }
+
+      // Fetch the version if the About row hasn't loaded it yet.
+      var version = _version;
+      if (version.isEmpty) {
+        try {
+          final info = await PackageInfo.fromPlatform();
+          version = '${info.version} (${info.buildNumber})';
+        } catch (_) {
+          version = 'unknown'; // already logged by _loadVersion
+        }
+      }
+
+      final message = buildProblemReport(
+        userText: text,
+        appVersion: version,
+        runId: _logger.runId,
+        recentEvents: _logger.recent(limit: 200),
+      );
+      try {
+        ChatService().send(ChatThread.clinic, message);
+      } catch (e, st) {
+        _logger.error(_tag, 'Problem report not sent', null, e, st);
+        _snack('Could not send the report. Please try again.');
+        return;
+      }
+      // Lengths only: the report text itself is never logged.
+      _logger.info(_tag, 'Problem report sent', {
+        'userTextLength': text.length,
+        'reportLength': message.length,
+      });
+      // Make sure everything up to the report is on disk, so the log file
+      // matching the run id in the report is complete.
+      unawaited(_logger.flush());
       _snack('Thanks. Your report was sent to the clinic.');
-    } catch (_) {
-      _snack('Could not send the report. Please try again.');
+    } finally {
+      _reporting = false;
     }
   }
 
@@ -251,20 +409,20 @@ class _SettingsScreenState extends State<SettingsScreen>
                     Icons.volume_up_outlined,
                     'Sound on each rep',
                     s.repSound,
-                    s.setRepSound,
+                    _logged('repSound', s.setRepSound),
                   ),
                   _switch(
                     Icons.vibration_rounded,
                     'Vibrate on each rep',
                     s.repVibration,
-                    s.setRepVibration,
+                    _logged('repVibration', s.setRepVibration),
                     subtitle: 'Also a double buzz when a rep isn\'t counted',
                   ),
                   _switch(
                     Icons.record_voice_over_outlined,
                     'Spoken cues',
                     s.voiceCues,
-                    s.setVoiceCues,
+                    _logged('voiceCues', s.setVoiceCues),
                     subtitle: 'Reads your rep count and form tips aloud',
                   ),
                   _choice<int>(
@@ -275,7 +433,7 @@ class _SettingsScreenState extends State<SettingsScreen>
                       for (final c in AppSettings.countdownChoices)
                         c: c == 0 ? 'Off' : '$c s',
                     },
-                    s.setCountdownSeconds,
+                    _logged('countdownSeconds', s.setCountdownSeconds),
                   ),
                 ]),
                 _section('Camera', Icons.videocam_outlined, [
@@ -284,20 +442,20 @@ class _SettingsScreenState extends State<SettingsScreen>
                     'Start with',
                     s.useBackCamera,
                     const {false: 'Front', true: 'Back'},
-                    s.setUseBackCamera,
+                    _logged('useBackCamera', s.setUseBackCamera),
                   ),
                   _switch(
                     Icons.accessibility_new_rounded,
                     'Show skeleton',
                     s.showSkeleton,
-                    s.setShowSkeleton,
+                    _logged('showSkeleton', s.setShowSkeleton),
                     subtitle: 'The lines drawn over your body',
                   ),
                   _switch(
                     Icons.flip_rounded,
                     'Flip skeleton',
                     s.flipSkeleton,
-                    s.setFlipSkeleton,
+                    _logged('flipSkeleton', s.setFlipSkeleton),
                     subtitle: 'Turn on if it moves opposite to you',
                   ),
                 ]),
@@ -376,10 +534,25 @@ class _SettingsScreenState extends State<SettingsScreen>
                     'Text size',
                     s.textScale,
                     {1.0: 'Normal', 1.15: 'Large', 1.3: 'Larger'},
-                    s.setTextScale,
+                    _logged('textScale', s.setTextScale),
                   ),
                 ]),
                 _section('Account', Icons.person_outline_rounded, [
+                  _tile(
+                    Icons.lock_outline_rounded,
+                    'App lock',
+                    subtitle: !AppLockService.I.isEnabled
+                        ? 'Off'
+                        : AppLockService.I.biometricsEnabled
+                        ? 'On: PIN and fingerprint'
+                        : 'On: PIN',
+                    onTap: () => Navigator.push(
+                      context,
+                      MaterialPageRoute(
+                        builder: (_) => const AppLockSettingsScreen(),
+                      ),
+                    ),
+                  ),
                   _tile(
                     Icons.lock_reset_rounded,
                     'Change password',
@@ -402,7 +575,7 @@ class _SettingsScreenState extends State<SettingsScreen>
                       ),
                     ),
                     onTap: _camera == PermissionStatus.granted
-                        ? openAppSettings
+                        ? _openAppSettings
                         : _cameraAccess,
                   ),
                 ]),
@@ -642,6 +815,63 @@ class _SettingsScreenState extends State<SettingsScreen>
           ),
         ],
       ),
+    );
+  }
+}
+
+/// Settings > Report a problem. Pops with the trimmed text, or null when
+/// cancelled. Owns its TextEditingController so it is disposed only after
+/// the dialog has fully closed.
+class _ReportProblemDialog extends StatefulWidget {
+  const _ReportProblemDialog();
+
+  @override
+  State<_ReportProblemDialog> createState() => _ReportProblemDialogState();
+}
+
+class _ReportProblemDialogState extends State<_ReportProblemDialog> {
+  final TextEditingController _controller = TextEditingController();
+
+  @override
+  void dispose() {
+    _controller.dispose();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return AlertDialog(
+      title: const Text('Report a problem'),
+      content: Column(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          TextField(
+            controller: _controller,
+            maxLines: 4,
+            maxLength: 500,
+            autofocus: true,
+            decoration: const InputDecoration(
+              hintText: 'What happened?',
+              border: OutlineInputBorder(),
+            ),
+          ),
+          const Text(
+            'Sent to the clinic with the app version and recent error '
+            'messages, to help fix it.',
+            style: TextStyle(fontSize: 12, color: Colors.black54),
+          ),
+        ],
+      ),
+      actions: [
+        TextButton(
+          onPressed: () => Navigator.pop(context),
+          child: const Text('Cancel'),
+        ),
+        TextButton(
+          onPressed: () => Navigator.pop(context, _controller.text.trim()),
+          child: const Text('Send'),
+        ),
+      ],
     );
   }
 }

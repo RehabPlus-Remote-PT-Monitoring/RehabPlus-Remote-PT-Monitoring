@@ -3,8 +3,17 @@
 // Canonical pose skeleton painter with form feedback callouts.
 // Used by PoseDetectorScreen. Supports both cover (crop) and fit (letterbox)
 // preview modes, and configurable horizontal mirroring for front camera.
+//
+// Performance notes (this paints up to ~15 times a second):
+//   - Paint objects never change, so they are created once (static) instead
+//     of on every paint() call.
+//   - Callout text is laid out once per distinct message and cached; text
+//     layout is the most expensive thing this painter does.
+//   - shouldRepaint compares the inputs, so rebuilds that don't change the
+//     overlay (countdown ticks, settings) don't repaint it.
 import 'dart:math';
 
+import 'package:flutter/foundation.dart' show listEquals, setEquals;
 import 'package:flutter/material.dart';
 import 'package:camera/camera.dart';
 import 'package:google_mlkit_pose_detection/google_mlkit_pose_detection.dart';
@@ -77,29 +86,97 @@ class PosePainter extends CustomPainter {
     [PoseLandmarkType.rightShoulder, PoseLandmarkType.rightHip],
   ];
 
+  // ---- Paints (immutable after creation, shared by every frame) ----
+
+  static final Paint _okDotPaint = Paint()
+    ..style = PaintingStyle.fill
+    ..color = Colors.greenAccent;
+  static final Paint _wrongDotPaint = Paint()
+    ..style = PaintingStyle.fill
+    ..color = Colors.yellowAccent;
+
+  static final Paint _okLinePaint = Paint()
+    ..style = PaintingStyle.stroke
+    ..strokeWidth = 4.0
+    ..strokeCap = StrokeCap.round
+    ..color = Colors.greenAccent;
+  static final Paint _wrongLinePaint = Paint()
+    ..style = PaintingStyle.stroke
+    ..strokeWidth = 4.0
+    ..strokeCap = StrokeCap.round
+    ..color = Colors.redAccent;
+
+  static final Paint _hotLinePaint = Paint()
+    ..style = PaintingStyle.stroke
+    ..strokeWidth = 6.5
+    ..strokeCap = StrokeCap.round
+    ..color = Colors.red;
+
+  static final Paint _glowPaint = Paint()
+    ..color = Colors.redAccent.withValues(alpha: 0.35);
+  static final Paint _ringPaint = Paint()
+    ..style = PaintingStyle.stroke
+    ..strokeWidth = 2.5
+    ..color = Colors.white;
+  static final Paint _corePaint = Paint()..color = Colors.redAccent;
+
+  static const Color _calloutRed = Color(0xFFD50000);
+  static final Paint _calloutFill = Paint()
+    ..color = Colors.white.withValues(alpha: 0.95);
+  static final Paint _calloutBorder = Paint()
+    ..style = PaintingStyle.stroke
+    ..strokeWidth = 1.6
+    ..color = _calloutRed;
+  static final Paint _calloutLeader = Paint()
+    ..style = PaintingStyle.stroke
+    ..strokeWidth = 1.6
+    ..color = _calloutRed;
+
+  // ---- Callout text cache ----
+
+  static const double _calloutMaxTextWidth = 150.0;
+
+  /// Laid-out callout text by message. Messages come from a small fixed set
+  /// (plus "Rep not counted. ..." variants), so this stays tiny; the cap is
+  /// only a safety net.
+  static final Map<String, TextPainter> _calloutText = {};
+  static const int _calloutCacheLimit = 32;
+
+  static TextPainter _calloutPainter(String message) {
+    final cached = _calloutText[message];
+    if (cached != null) return cached;
+    if (_calloutText.length >= _calloutCacheLimit) {
+      for (final painter in _calloutText.values) {
+        painter.dispose();
+      }
+      _calloutText.clear();
+    }
+    final painter = TextPainter(
+      text: TextSpan(
+        text: message,
+        style: const TextStyle(
+          color: _calloutRed,
+          fontSize: 11,
+          fontWeight: FontWeight.bold,
+          height: 1.2,
+        ),
+      ),
+      textDirection: TextDirection.ltr,
+      maxLines: 4,
+      ellipsis: '…',
+    )..layout(maxWidth: _calloutMaxTextWidth);
+    _calloutText[message] = painter;
+    return painter;
+  }
+
   @override
   void paint(Canvas canvas, Size size) {
     if (poses.isEmpty) return;
 
     final wrong = !isExerciseCorrect;
-    final lineColor = wrong ? Colors.redAccent : Colors.greenAccent;
-    final dotColor = wrong ? Colors.yellowAccent : Colors.greenAccent;
-
-    final dotPaint = Paint()
-      ..style = PaintingStyle.fill
-      ..color = dotColor;
-
-    final linePaint = Paint()
-      ..style = PaintingStyle.stroke
-      ..strokeWidth = 4.0
-      ..strokeCap = StrokeCap.round
-      ..color = lineColor;
-
-    final hotLinePaint = Paint()
-      ..style = PaintingStyle.stroke
-      ..strokeWidth = 6.5
-      ..strokeCap = StrokeCap.round
-      ..color = Colors.red;
+    final dotPaint = wrong ? _wrongDotPaint : _okDotPaint;
+    final linePaint = wrong ? _wrongLinePaint : _okLinePaint;
+    final hotLinePaint = _hotLinePaint;
 
     final iw = absoluteImageSize.width;
     final ih = absoluteImageSize.height;
@@ -149,19 +226,12 @@ class PosePainter extends CustomPainter {
   }
 
   void _drawFlaggedJoints(Canvas canvas, Map<PoseLandmarkType, Offset> points) {
-    final glow = Paint()..color = Colors.redAccent.withValues(alpha: 0.35);
-    final ring = Paint()
-      ..style = PaintingStyle.stroke
-      ..strokeWidth = 2.5
-      ..color = Colors.white;
-    final core = Paint()..color = Colors.redAccent;
-
     for (final type in flaggedLandmarks) {
       final p = points[type];
       if (p == null) continue;
-      canvas.drawCircle(p, 18, glow);
-      canvas.drawCircle(p, 11, ring);
-      canvas.drawCircle(p, 6, core);
+      canvas.drawCircle(p, 18, _glowPaint);
+      canvas.drawCircle(p, 11, _ringPaint);
+      canvas.drawCircle(p, 6, _corePaint);
     }
   }
 
@@ -181,19 +251,7 @@ class PosePainter extends CustomPainter {
     Size size,
     Map<PoseLandmarkType, Offset> points,
   ) {
-    const maxTextWidth = 150.0;
     const pad = 8.0;
-    const red = Color(0xFFD50000);
-
-    final fill = Paint()..color = Colors.white.withValues(alpha: 0.95);
-    final border = Paint()
-      ..style = PaintingStyle.stroke
-      ..strokeWidth = 1.6
-      ..color = red;
-    final leader = Paint()
-      ..style = PaintingStyle.stroke
-      ..strokeWidth = 1.6
-      ..color = red;
 
     var slot = 0;
     for (final issue in issues) {
@@ -202,20 +260,7 @@ class PosePainter extends CustomPainter {
       final target = _anchorPoint(issue, points);
       if (target == null) continue;
 
-      final tp = TextPainter(
-        text: TextSpan(
-          text: issue.message,
-          style: const TextStyle(
-            color: red,
-            fontSize: 11,
-            fontWeight: FontWeight.bold,
-            height: 1.2,
-          ),
-        ),
-        textDirection: TextDirection.ltr,
-        maxLines: 4,
-        ellipsis: '…',
-      )..layout(maxWidth: maxTextWidth);
+      final tp = _calloutPainter(issue.message);
 
       final w = tp.width + pad * 2;
       final h = tp.height + pad * 2;
@@ -234,15 +279,28 @@ class PosePainter extends CustomPainter {
       );
 
       final from = Offset(onLeftHalf ? left : left + w, top + h / 2);
-      canvas.drawLine(from, target, leader);
-      canvas.drawRRect(rect, fill);
-      canvas.drawRRect(rect, border);
+      canvas.drawLine(from, target, _calloutLeader);
+      canvas.drawRRect(rect, _calloutFill);
+      canvas.drawRRect(rect, _calloutBorder);
       tp.paint(canvas, Offset(left + pad, top + pad));
 
       slot++;
     }
   }
 
+  /// The screen builds a new painter on every processed frame, with a NEW
+  /// poses list from ML Kit, so live frames always repaint. Other rebuilds
+  /// (countdown ticks, the flip button) reuse the same list and only repaint
+  /// if something that is drawn actually changed.
   @override
-  bool shouldRepaint(PosePainter oldDelegate) => true;
+  bool shouldRepaint(PosePainter oldDelegate) =>
+      !identical(poses, oldDelegate.poses) ||
+      absoluteImageSize != oldDelegate.absoluteImageSize ||
+      rotation != oldDelegate.rotation ||
+      isExerciseCorrect != oldDelegate.isExerciseCorrect ||
+      cameraLensDirection != oldDelegate.cameraLensDirection ||
+      mirrorX != oldDelegate.mirrorX ||
+      cover != oldDelegate.cover ||
+      !setEquals(flaggedLandmarks, oldDelegate.flaggedLandmarks) ||
+      !listEquals(issues, oldDelegate.issues);
 }

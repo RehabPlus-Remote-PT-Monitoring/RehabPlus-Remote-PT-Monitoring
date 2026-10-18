@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 
+import '../core/diagnostic_logger.dart';
 import '../services/app_provider.dart';
 import '../widgets/profile_avatar.dart';
 import 'edit_profile_screen.dart';
@@ -8,17 +9,47 @@ import 'edit_profile_screen.dart';
 /// Privacy & Legal > Account Info: the patient's personal information, with a
 /// button to update it (name, phone and date of birth; the email is the login
 /// and is changed by the clinic).
-class AccountInfoScreen extends StatelessWidget {
+///
+/// Stateful only so "Screen opened" is logged once, not on every rebuild.
+class AccountInfoScreen extends StatefulWidget {
   const AccountInfoScreen({super.key});
 
   static const Color primaryTeal = Color(0xFF23A8AA);
   static const Color darkTeal = Color(0xFF0D6E71);
 
+  @override
+  State<AccountInfoScreen> createState() => _AccountInfoScreenState();
+}
+
+class _AccountInfoScreenState extends State<AccountInfoScreen> {
+  static const String _tag = 'AccountInfo';
+  static const Color primaryTeal = AccountInfoScreen.primaryTeal;
+  static const Color darkTeal = AccountInfoScreen.darkTeal;
+
+  final DiagnosticLogger _logger = DiagnosticLogger.I;
+
+  /// Stops a double tap from opening the edit page twice.
+  bool _editing = false;
+
+  @override
+  void initState() {
+    super.initState();
+    _logger.info(_tag, 'Screen opened');
+  }
+
   Future<void> _update(BuildContext context, ProfileData current) async {
-    final result = await Navigator.push<ProfileData>(
-      context,
-      MaterialPageRoute(builder: (_) => EditProfileScreen(initial: current)),
-    );
+    if (_editing) return;
+    _editing = true;
+    _logger.info(_tag, 'Opening edit profile');
+    final ProfileData? result;
+    try {
+      result = await Navigator.push<ProfileData>(
+        context,
+        MaterialPageRoute(builder: (_) => EditProfileScreen(initial: current)),
+      );
+    } finally {
+      _editing = false;
+    }
     if (result == null || !context.mounted) return;
     context.read<AppProvider>().updateProfile(result);
     ScaffoldMessenger.of(context).showSnackBar(

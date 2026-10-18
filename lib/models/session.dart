@@ -1,6 +1,30 @@
+// lib/models/session.dart
+//
+// One exercise session, stored at patients/{uid}/sessions/{id}. Created by
+// the app when the patient finishes (or ends early) and submits the pain
+// check-in; never updated or deleted (see firestore.rules: validSession).
+
 import 'package:cloud_firestore/cloud_firestore.dart';
 
+import 'firestore_fields.dart';
+
 class ExerciseSession {
+  /// Pain scale bounds (firestore.rules: painLevel 0..10).
+  static const int minPainLevel = 0;
+  static const int maxPainLevel = 10;
+
+  /// Longest pain note the rules accept (painNote.size() <= 300).
+  static const int maxPainNoteLength = 300;
+
+  /// Upper bound for the app-generated summary. The rules don't limit it,
+  /// but nothing the app writes comes close; this keeps a corrupt document
+  /// from holding megabytes of text in memory.
+  static const int maxNotesLength = 2000;
+
+  /// Rep and set counts above this are treated as corrupt and clamped.
+  /// No prescription comes anywhere near it.
+  static const int maxCount = 10000;
+
   final String id;
   final String exerciseId;
   final String exerciseName;
@@ -78,59 +102,152 @@ class ExerciseSession {
     'endedEarly': endedEarly,
   };
 
-  factory ExerciseSession.fromJson(Map<String, dynamic> json) =>
-      ExerciseSession(
-        id: json['id'],
-        exerciseId: json['exerciseId'],
-        exerciseName: json['exerciseName'],
-        startTime: DateTime.parse(json['startTime']),
-        endTime: json['endTime'] != null
-            ? DateTime.parse(json['endTime'])
-            : null,
-        completedReps: json['completedReps'],
-        completedSets: json['completedSets'],
-        targetReps: json['targetReps'],
-        targetSets: json['targetSets'],
-        repComplianceScores: List<double>.from(json['repComplianceScores']),
-        notes: json['notes'],
-        prescriptionId: json['prescriptionId'],
-        rejectedReps: json['rejectedReps'] ?? 0,
-        painLevel: json['painLevel'],
-        painNote: json['painNote'],
-        outsideSchedule: json['outsideSchedule'] ?? false,
-        endedEarly: json['endedEarly'] ?? false,
-      );
+  /// Parses the [toJson] shape. Tolerates bad optional fields like
+  /// [ExerciseSession.fromFirestore]; throws [FormatException] when `id`,
+  /// `exerciseId` or `startTime` is missing.
+  factory ExerciseSession.fromJson(Map<String, dynamic> json) {
+    final reader = FieldReader(json);
+    return _fromReader(reader.requireString('id'), reader);
+  }
 
   /// Firestore shape: same fields as [toJson] but with real Timestamps (so
   /// the dashboard can query by date) and the derived accuracy score.
+  ///
+  /// The pain note is clipped to the rules' limit so a long note can never
+  /// get the whole session rejected (the text field already limits it; this
+  /// is the last line of defence).
   Map<String, dynamic> toFirestore() => {
     ...toJson()..remove('id'),
     'startTime': Timestamp.fromDate(startTime),
     'endTime': endTime == null ? null : Timestamp.fromDate(endTime!),
+    'painNote': painNote == null
+        ? null
+        : clipText(painNote!, maxPainNoteLength),
     'overallCompliance': overallCompliance,
     'createdAt': FieldValue.serverTimestamp(),
   };
 
+  /// Builds a session from a Firestore document.
+  ///
+  /// Throws [FormatException] only when `exerciseId` or `startTime` is
+  /// unusable (reports can't place such a session). Every other field falls
+  /// back to a safe default; see [parseFirestore] to learn which ones did.
   factory ExerciseSession.fromFirestore(String id, Map<String, dynamic> d) =>
-      ExerciseSession(
-        id: id,
-        exerciseId: d['exerciseId'],
-        exerciseName: d['exerciseName'],
-        startTime: (d['startTime'] as Timestamp).toDate(),
-        endTime: (d['endTime'] as Timestamp?)?.toDate(),
-        completedReps: (d['completedReps'] as num).toInt(),
-        completedSets: (d['completedSets'] as num).toInt(),
-        targetReps: (d['targetReps'] as num).toInt(),
-        targetSets: (d['targetSets'] as num).toInt(),
-        repComplianceScores: (d['repComplianceScores'] as List? ?? const [])
-            .map((e) => (e as num).toDouble())
-            .toList(),
-        notes: d['notes'],
-        prescriptionId: d['prescriptionId'],
-        rejectedReps: (d['rejectedReps'] as num?)?.toInt() ?? 0,
-        painLevel: (d['painLevel'] as num?)?.toInt(),
-        painNote: d['painNote'],
-        outsideSchedule: d['outsideSchedule'] ?? false,
-        endedEarly: d['endedEarly'] ?? false,
-      );
+      _fromReader(id, FieldReader(d));
+
+  /// Like [ExerciseSession.fromFirestore], but never throws: returns the
+  /// session plus the names of repaired fields, or why it was unusable.
+  static Parsed<ExerciseSession> parseFirestore(
+    String id,
+    Map<String, dynamic> d,
+  ) => Parsed.guard((reader) => _fromReader(id, reader), d);
+
+  /// Parses many documents at once (the session history). Pure and
+  /// isolate-safe: takes and returns plain data only, so SessionStorage can
+  /// run it on a background isolate for very large histories.
+  static SessionParseBatch parseFirestoreBatch(
+    List<(String id, Map<String, dynamic> data)> docs,
+  ) {
+    final sessions = <ExerciseSession>[];
+    final skipped = <String, String>{};
+    final repaired = <String, List<String>>{};
+    for (final (id, data) in docs) {
+      final parsed = parseFirestore(id, data);
+      if (parsed.isOk) {
+        sessions.add(parsed.value!);
+        if (parsed.repaired.isNotEmpty) repaired[id] = parsed.repaired;
+      } else {
+        skipped[id] = parsed.error!;
+      }
+    }
+    return SessionParseBatch(
+      sessions: sessions,
+      skipped: skipped,
+      repaired: repaired,
+    );
+  }
+
+  static ExerciseSession _fromReader(String id, FieldReader r) {
+    final exerciseId = r.requireString('exerciseId');
+    final startTime = r.requireDateTime('startTime');
+
+    // An end before the start would give negative durations in reports.
+    var endTime = r.dateTime('endTime');
+    if (endTime != null && endTime.isBefore(startTime)) {
+      r.markRepaired('endTime');
+      endTime = null;
+    }
+
+    // Each score is 1.0 (counted) or 0.0 (rejected); keep only real numbers
+    // and clamp into 0..1 so the accuracy average stays a percentage.
+    final scores = <double>[];
+    for (final value in r.list('repComplianceScores') ?? const []) {
+      if (value is num && value.isFinite) {
+        scores.add(
+          clampToRange(
+            value.toDouble(),
+            min: 0,
+            max: 1,
+            onClamp: () => r.markRepaired('repComplianceScores'),
+          ),
+        );
+      } else {
+        r.markRepaired('repComplianceScores');
+      }
+    }
+
+    return ExerciseSession(
+      id: id,
+      exerciseId: exerciseId,
+      exerciseName: r.string('exerciseName') ?? exerciseId,
+      startTime: startTime,
+      endTime: endTime,
+      completedReps: r.integer('completedReps', min: 0, max: maxCount) ?? 0,
+      completedSets: r.integer('completedSets', min: 0, max: maxCount) ?? 0,
+      targetReps: r.integer('targetReps', min: 0, max: maxCount) ?? 0,
+      targetSets: r.integer('targetSets', min: 0, max: maxCount) ?? 0,
+      repComplianceScores: scores,
+      notes: r.string('notes', maxLength: maxNotesLength),
+      prescriptionId: r.string('prescriptionId'),
+      rejectedReps: r.integer('rejectedReps', min: 0, max: maxCount) ?? 0,
+      // Out-of-range pain is CLAMPED rather than dropped: a "15" written by
+      // a buggy client most likely means "very bad pain", and dropping it
+      // would hide exactly the value the pain-safety rules must react to.
+      painLevel: r.integer('painLevel', min: minPainLevel, max: maxPainLevel),
+      painNote: r.string('painNote', maxLength: maxPainNoteLength),
+      outsideSchedule: r.boolean('outsideSchedule'),
+      endedEarly: r.boolean('endedEarly'),
+    );
+  }
+
+  /// Fields that would make Firestore reject this session (validSession in
+  /// firestore.rules), by name. Empty means it can be saved. Checked before
+  /// writing so a bad session fails loudly here instead of being silently
+  /// rolled back by the server later.
+  List<String> firestoreProblems() => [
+    if (exerciseId.trim().isEmpty) 'exerciseId',
+    if (completedReps < 0) 'completedReps',
+    if (painLevel == null ||
+        painLevel! < minPainLevel ||
+        painLevel! > maxPainLevel)
+      'painLevel',
+  ];
+}
+
+/// Result of [ExerciseSession.parseFirestoreBatch]: the usable sessions in
+/// input order, plus value-free diagnostics for the log.
+class SessionParseBatch {
+  const SessionParseBatch({
+    required this.sessions,
+    required this.skipped,
+    required this.repaired,
+  });
+
+  final List<ExerciseSession> sessions;
+
+  /// Document id -> why it was skipped.
+  final Map<String, String> skipped;
+
+  /// Document id -> fields that were replaced by defaults.
+  final Map<String, List<String>> repaired;
 }

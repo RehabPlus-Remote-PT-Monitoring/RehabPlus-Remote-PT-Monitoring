@@ -6,6 +6,8 @@
     <!-- Lets the reminder fire on time where the phone allows exact alarms
          (Android 14+ only if the user enables "Alarms & reminders"). -->
     <uses-permission android:name="android.permission.SCHEDULE_EXACT_ALARM" />
+    <!-- Settings > App lock: unlock with fingerprint/face (local_auth). -->
+    <uses-permission android:name="android.permission.USE_BIOMETRIC" />
     <uses-feature android:name="android.hardware.camera" />
     <uses-feature android:name="android.hardware.camera.autofocus" />
     <application

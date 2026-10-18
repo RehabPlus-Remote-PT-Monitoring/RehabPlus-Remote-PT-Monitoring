@@ -1,31 +1,51 @@
 // lib/screens/pose_detector_screen.dart
 //
-// SINGLE-FILE BUILD. Replace lib/screens/pose_detector_screen.dart with this.
-// No other file needs to change (form_checker.dart, exercise_model.dart and
-// pubspec.yaml stay as they are).
+// The live exercise screen: camera preview, ML Kit pose detection, form
+// checking, rep / hold counting, feedback (sound, vibration, voice) and the
+// end-of-session pain check-in.
 //
-// What changed in this version
-//   1. Per-exercise fault checks for the exercises that had none (raises,
-//      forward push, sit-to-stand, single-leg balance, wall sit), plus an
-//      un-debounced elbow-swing check for the bicep curl.
-//   2. Flailing no longer counts as a rep. A rep is rejected if it was too
-//      fast, if the arm/body faulted for several frames, or if the joint
-//      crossed the target more than once (back-and-forth).
-//   3. Looser "down" position: a nearly straight arm (elbow ~170 deg) counts
-//      as down for the curl, and the raise exercises accept the arm within
-//      ~48 deg of the body. Elbow-swing limit relaxed to 55 deg.
-//   4. Success sound is preloaded once in low-latency mode, the vibrator check
-//      is cached, and the rep is now committed on the way back down (past 60%
-//      of the return) instead of at the very end, so feedback fires sooner.
-//   5. One setState per processed frame (less rebuilding => less lag).
+// Frame pipeline (one processed frame at a time)
+// -----------------------------------------------
+//   camera plugin  --CameraImage-->  _onCameraFrame
+//     - drops the frame if the screen is gone, the session is over, the
+//       frame belongs to an old camera (switch / pause), ML Kit is still
+//       busy with the previous frame (back-pressure) or the ~15 fps cap
+//       hasn't elapsed yet. Every drop is counted by reason.
+//   _processFrame
+//     - wraps the NV21 bytes for ML Kit WITHOUT copying them (Android
+//       delivers NV21 as one plane), awaits ML Kit, then runs the form
+//       checker and the rep logic, then does ONE setState.
+//     - any exception is caught and counted; the stream keeps running.
+//
+// Why ML Kit is not moved to a Dart isolate ("multithreading")
+//   - ML Kit already runs the model on its own native threads; the UI isolate
+//     only awaits a platform-channel reply, so it is never blocked by
+//     inference.
+//   - Platform plugins (ML Kit, camera, audio, TTS) only work on the root
+//     isolate, so a worker isolate couldn't call ML Kit anyway.
+//   - Moving each frame to an isolate would add a copy of every frame
+//     (~115 KB at 15 fps) for nothing. The pure-Dart work that IS left
+//     (angles, form checks on 33 landmarks) takes well under a millisecond.
+//
+// Diagnostics (see lib/core/diagnostic_logger.dart; grep RPLOG in logcat)
+//   PoseCamera   camera init/failure/switch, first frame format, lifecycle
+//   PosePipeline 5-second throughput windows, frame errors, ML Kit stalls,
+//                detector shutdown and the end-of-session summary
+//   PoseForm     form status changes (ok / wrong form / not in frame)
+//   RepCycle     rep counted / rejected (with reason), holds, countdown
+//   PoseAudio / PoseTts / PoseHaptics   feedback channel problems
+//   PoseSession  session saved / save failed
+//   Per-frame events are verbose only (--dart-define=RP_LOG_LEVEL=verbose).
 //
 // Tuning knobs are all in the "TUNING" block below.
 
 import 'dart:async';
 import 'dart:math';
+import 'dart:typed_data';
 
 import 'package:flutter/material.dart';
-import 'package:flutter/foundation.dart';
+// WriteBuffer: only used for multi-plane camera formats (not Android NV21).
+import 'package:flutter/foundation.dart' show WriteBuffer;
 
 import 'package:camera/camera.dart';
 import 'package:vibration/vibration.dart';
@@ -35,10 +55,12 @@ import 'package:provider/provider.dart';
 
 import 'package:google_mlkit_pose_detection/google_mlkit_pose_detection.dart';
 
+import '../core/diagnostic_logger.dart';
 import '../models/exercise_model.dart';
 import '../models/session.dart';
 import '../services/app_provider.dart';
 import '../services/app_settings.dart';
+import '../services/exercise_geometry.dart';
 import '../services/form_checker.dart';
 import '../widgets/pose_painter.dart';
 
@@ -58,6 +80,67 @@ class _PoseDetectorScreenState extends State<PoseDetectorScreen>
   bool _isProcessing = false;
   bool _initializingCamera = false;
   String? _cameraError;
+
+  // ---------------------------------------------------------------------
+  // Pipeline / concurrency bookkeeping
+  // ---------------------------------------------------------------------
+
+  static final DiagnosticLogger _log = DiagnosticLogger.I;
+
+  /// Bumped whenever a camera is created or torn down. Each frame callback
+  /// remembers the generation it was registered with, so frames (and
+  /// in-flight ML Kit results) from an old camera are ignored after a camera
+  /// switch or an app pause instead of advancing the new rep cycle.
+  int _cameraGeneration = 0;
+
+  /// Set when the app resumes while a camera init is still running (e.g.
+  /// the permission prompt made the app "inactive"). The running init is
+  /// superseded, so it schedules a fresh one when it finishes.
+  bool _reinitCameraWhenDone = false;
+
+  /// True between AppLifecycleState.inactive/paused and resumed.
+  bool _appInBackground = false;
+
+  /// True while a camera switch is tearing down / rebuilding (double-tap
+  /// guard: the init flag alone leaves a gap during the dispose).
+  bool _switchingCamera = false;
+
+  /// True once dispose() started shutting ML Kit down: no new
+  /// processImage call may start after this.
+  bool _detectorClosing = false;
+
+  /// Completes when the frame currently inside ML Kit has finished, so
+  /// PoseDetector.close() never races an in-flight processImage.
+  Completer<void>? _inFlightFrame;
+
+  /// Monotonic clock for the frame throttle and latency (immune to wall
+  /// clock changes, no DateTime allocation per frame).
+  final Stopwatch _frameClock = Stopwatch()..start();
+  int _processingStartedMs = 0;
+  bool _stallReported = false;
+
+  /// Counters for the periodic "Pipeline window" log and session summary.
+  final PosePipelineStats _stats = PosePipelineStats();
+
+  /// Only the first few frame errors are logged with a stack trace; the
+  /// rest are counted in the pipeline window (avoids 15 logs per second).
+  static const int _maxLoggedFrameErrors = 3;
+  int _loggedFrameErrors = 0;
+
+  bool _firstFrameLogged = false;
+  int _cameraSwitches = 0;
+  int _lifecyclePauses = 0;
+  String _resolutionLabel = 'unknown';
+  bool _summaryLogged = false;
+  bool _endDialogOpen = false;
+
+  /// Last form state that was logged, to log changes only (not per frame).
+  FormStatus _loggedFormStatus = FormStatus.ok;
+  int _loggedFormMask = 0;
+
+  /// Rejected reps by rule and by issue code, for the session summary.
+  final Map<String, int> _rejectRules = {};
+  final Map<String, int> _rejectCodes = {};
 
   // ---------------------------------------------------------------------
   // TUNING
@@ -105,6 +188,10 @@ class _PoseDetectorScreenState extends State<PoseDetectorScreen>
   static const double _reArmProgress =
       0.7; // must drop below this to re-hit target
 
+  /// Knee Extension: the other (resting) leg counts as "bent" below this
+  /// knee angle. Only checked when that leg can really be seen.
+  static const double _otherLegBentMaxDeg = 120.0;
+
   /// Extra per-exercise limits.
   static const double _raiseMaxDeg = 125.0; // arm above this = too high
   static const double _sitToStandMaxLeanDeg = 60.0;
@@ -131,8 +218,12 @@ class _PoseDetectorScreenState extends State<PoseDetectorScreen>
       await _audioPlayer.setReleaseMode(ReleaseMode.stop);
       await _audioPlayer.setSource(AssetSource('successSound.mp3'));
       _audioReady = true;
-    } catch (e) {
-      debugPrint('Audio init error: $e');
+      _log.info('PoseAudio', 'Success sound ready');
+    } catch (e, st) {
+      // Expected if the screen closed while loading (player disposed).
+      if (mounted) {
+        _log.warn('PoseAudio', 'Audio init failed', null, e, st);
+      }
     }
   }
 
@@ -143,14 +234,31 @@ class _PoseDetectorScreenState extends State<PoseDetectorScreen>
       _audioPlayer
           .stop()
           .then((_) => _audioPlayer.resume())
-          .catchError((Object e) => debugPrint('Audio error: $e')),
+          .catchError(
+            (Object e, StackTrace st) =>
+                _log.warn('PoseAudio', 'Success sound failed', null, e, st),
+          ),
+    );
+  }
+
+  /// Vibrates without letting a plugin error escape as an unhandled
+  /// asynchronous exception.
+  void _vibrate({int duration = 100, List<int>? pattern}) {
+    final Future<void> call = pattern == null
+        ? Vibration.vibrate(duration: duration)
+        : Vibration.vibrate(pattern: pattern);
+    unawaited(
+      call.catchError(
+        (Object e, StackTrace st) =>
+            _log.warn('PoseHaptics', 'Vibration failed', null, e, st),
+      ),
     );
   }
 
   void _triggerFeedback() {
     if (_settings.repSound) _playSuccessSound();
     if (_settings.repVibration && _hasVibrator) {
-      Vibration.vibrate(duration: 100);
+      _vibrate(duration: 100);
     }
     if (_settings.voiceCues) _speak('$_repCounter', force: true);
   }
@@ -162,7 +270,7 @@ class _PoseDetectorScreenState extends State<PoseDetectorScreen>
     if (now.difference(_lastBuzz).inMilliseconds < 1500) return;
     _lastBuzz = now;
     if (_settings.repVibration && _hasVibrator) {
-      Vibration.vibrate(pattern: [0, 120, 80, 120]);
+      _vibrate(pattern: [0, 120, 80, 120]);
     }
   }
 
@@ -181,9 +289,23 @@ class _PoseDetectorScreenState extends State<PoseDetectorScreen>
     try {
       await tts.setLanguage('en-US');
       await tts.setSpeechRate(0.5);
+      if (!mounted) {
+        // Screen closed while the engine was starting: don't keep it.
+        unawaited(_stopTts(tts));
+        return;
+      }
       _tts = tts;
-    } catch (e) {
-      debugPrint('TTS init error: $e');
+      _log.info('PoseTts', 'Voice cues ready');
+    } catch (e, st) {
+      _log.warn('PoseTts', 'TTS init failed', null, e, st);
+    }
+  }
+
+  Future<void> _stopTts(FlutterTts tts) async {
+    try {
+      await tts.stop();
+    } catch (e, st) {
+      _log.warn('PoseTts', 'TTS stop failed', null, e, st);
     }
   }
 
@@ -201,8 +323,11 @@ class _PoseDetectorScreenState extends State<PoseDetectorScreen>
     _lastSpoken = text;
     _lastSpokenAt = now;
     unawaited(
-      tts.stop().then((_) => tts.speak(text)).catchError((Object e) {
-        debugPrint('TTS error: $e');
+      tts.stop().then((_) => tts.speak(text)).catchError((
+        Object e,
+        StackTrace st,
+      ) {
+        _log.warn('PoseTts', 'Speak failed', null, e, st);
         return null;
       }),
     );
@@ -218,6 +343,11 @@ class _PoseDetectorScreenState extends State<PoseDetectorScreen>
 
   bool get _countingDown => _countdownLeft > 0;
 
+  /// The small "where to stand" chip shows after the countdown until the
+  /// patient's first attempt (counted or rejected), then gets out of the way.
+  bool get _showSetupTip =>
+      !_countingDown && _repCounter == 0 && _rejectedReps == 0;
+
   /// Runs once, when the camera first shows: reps aren't counted until it
   /// reaches zero, giving the patient time to get into position.
   void _startCountdown() {
@@ -226,6 +356,7 @@ class _PoseDetectorScreenState extends State<PoseDetectorScreen>
     final seconds = _settings.countdownSeconds;
     if (seconds <= 0) return;
     setState(() => _countdownLeft = seconds);
+    _log.info('RepCycle', 'Countdown started', {'seconds': seconds});
     _speak('$seconds', force: true);
     _countdownTimer = Timer.periodic(const Duration(seconds: 1), (t) {
       if (!mounted) return t.cancel();
@@ -235,6 +366,7 @@ class _PoseDetectorScreenState extends State<PoseDetectorScreen>
       } else {
         t.cancel();
         _resetTracking(); // start the first rep from a clean slate
+        _log.info('RepCycle', 'Countdown finished', {'seconds': seconds});
         _speak('Go', force: true);
       }
     });
@@ -321,11 +453,31 @@ class _PoseDetectorScreenState extends State<PoseDetectorScreen>
     WidgetsBinding.instance.addObserver(this);
     _sessionStart = DateTime.now();
     _checker = FormChecker(widget.selectedExercise, thresholds: _thresholds);
-    Vibration.hasVibrator().then((v) => _hasVibrator = v);
-    _initAudio();
-    _initVoice();
+    _log.info('PosePipeline', 'Exercise screen opened', {
+      'exercise': widget.selectedExercise.type.name,
+      'targetReps': widget.selectedExercise.targetReps,
+      'holdSeconds': widget.selectedExercise.holdSeconds,
+      'prescribed': widget.selectedExercise.prescription != null,
+      'cameraView': widget.selectedExercise.cameraView.name,
+      'countdownS': _settings.countdownSeconds,
+      'voiceCues': _settings.voiceCues,
+      'repSound': _settings.repSound,
+      'repVibration': _settings.repVibration,
+      'showSkeleton': _settings.showSkeleton,
+      'minFrameIntervalMs': _minFrameIntervalMs,
+    });
+    unawaited(
+      Vibration.hasVibrator()
+          .then((v) => _hasVibrator = v)
+          .catchError((Object e, StackTrace st) {
+            _log.warn('PoseHaptics', 'Vibrator check failed', null, e, st);
+            return false;
+          }),
+    );
+    unawaited(_initAudio());
+    unawaited(_initVoice());
     _initPoseDetector();
-    _initCamera();
+    unawaited(_initCamera());
   }
 
   void _initPoseDetector() {
@@ -336,15 +488,36 @@ class _PoseDetectorScreenState extends State<PoseDetectorScreen>
       model: PoseDetectionModel.base,
     );
     _poseDetector = PoseDetector(options: options);
+    _log.info('PosePipeline', 'Pose detector created', {
+      'mode': 'stream',
+      'model': 'base',
+    });
   }
+
+  /// True when the camera init that started with [generation] has been
+  /// overtaken by a dispose (app paused, camera switch, screen closed).
+  bool _isSuperseded(int generation) =>
+      !mounted || generation != _cameraGeneration;
 
   Future<void> _initCamera() async {
     if (_initializingCamera || _isSessionComplete) return;
     _initializingCamera = true;
+    _reinitCameraWhenDone = false;
     if (mounted) setState(() => _cameraError = null);
+
+    final generation = ++_cameraGeneration;
+    final stopwatch = Stopwatch()..start();
+    CameraController? controller;
 
     try {
       _availableCameras = await availableCameras();
+      if (_isSuperseded(generation)) {
+        _log.info('PoseCamera', 'Camera init superseded', {
+          'stage': 'list',
+          'gen': generation,
+        });
+        return;
+      }
       if (_availableCameras.isEmpty) {
         throw CameraException('NoCamera', 'No camera found on this device.');
       }
@@ -359,7 +532,7 @@ class _PoseDetectorScreenState extends State<PoseDetectorScreen>
           (_lensDirection == CameraLensDirection.front) !=
           _settings.flipSkeleton;
 
-      final controller = CameraController(
+      controller = CameraController(
         camera,
         ResolutionPreset.low,
         enableAudio: false,
@@ -368,19 +541,66 @@ class _PoseDetectorScreenState extends State<PoseDetectorScreen>
       _cameraController = controller;
 
       await controller.initialize();
-      if (!mounted) {
-        await _disposeCamera();
+      if (_isSuperseded(generation)) {
+        // Paused / switched / closed while initialising. Whoever bumped the
+        // generation already cleared _cameraController; make sure this
+        // controller is released too (dispose is idempotent).
+        _log.info('PoseCamera', 'Camera init superseded', {
+          'stage': 'initialize',
+          'gen': generation,
+        });
+        await _releaseController(controller);
         return;
       }
+
+      _firstFrameLogged = false;
       await controller.startImageStream(
-        (image) => _processFrame(image, camera),
+        (image) => _onCameraFrame(image, camera, generation),
       );
-      if (mounted) {
-        setState(() {});
-        _startCountdown();
+      if (_isSuperseded(generation)) {
+        await _releaseController(controller);
+        return;
       }
-    } on CameraException catch (e) {
-      debugPrint('Camera error: ${e.code} ${e.description}');
+
+      final preview = controller.value.previewSize;
+      _resolutionLabel = preview == null
+          ? 'unknown'
+          : '${preview.width.round()}x${preview.height.round()}';
+      _log.info('PoseCamera', 'Camera started', {
+        'lens': camera.lensDirection.name,
+        'sensorOrientation': camera.sensorOrientation,
+        'preset': 'low',
+        'requestedFormat': 'nv21',
+        'preview': _resolutionLabel,
+        'cameras': _availableCameras.length,
+        'gen': generation,
+        'ms': stopwatch.elapsedMilliseconds,
+      });
+
+      setState(() {});
+      _startCountdown();
+    } on CameraException catch (e, st) {
+      if (_isSuperseded(generation)) {
+        // Expected: the controller was disposed under initialize().
+        _log.info('PoseCamera', 'Camera init superseded', {
+          'stage': 'error',
+          'code': e.code,
+          'gen': generation,
+        });
+        if (controller != null) await _releaseController(controller);
+        return;
+      }
+      _log.error(
+        'PoseCamera',
+        'Camera init failed',
+        {
+          'code': e.code,
+          'lens': _lensDirection.name,
+          'ms': stopwatch.elapsedMilliseconds,
+        },
+        e,
+        st,
+      );
       await _disposeCamera();
       if (mounted) {
         setState(() {
@@ -395,32 +615,66 @@ class _PoseDetectorScreenState extends State<PoseDetectorScreen>
           };
         });
       }
-    } catch (e) {
-      debugPrint('Camera init failed: $e');
+    } catch (e, st) {
+      if (_isSuperseded(generation)) {
+        _log.info('PoseCamera', 'Camera init superseded', {
+          'stage': 'error',
+          'gen': generation,
+        });
+        if (controller != null) await _releaseController(controller);
+        return;
+      }
+      _log.error(
+        'PoseCamera',
+        'Camera init failed',
+        {'code': 'unexpected', 'lens': _lensDirection.name},
+        e,
+        st,
+      );
       await _disposeCamera();
       if (mounted) {
         setState(() => _cameraError = 'Could not start the camera.');
       }
     } finally {
       _initializingCamera = false;
+      // The app came back to the foreground while this (now superseded)
+      // init was still running: start a fresh one.
+      if (_reinitCameraWhenDone) {
+        _reinitCameraWhenDone = false;
+        if (mounted &&
+            !_appInBackground &&
+            !_isSessionComplete &&
+            _cameraController == null) {
+          _log.info('PoseCamera', 'Restarting camera after superseded init');
+          unawaited(_initCamera());
+        }
+      }
     }
   }
 
+  /// Stops the stream and releases the current camera. Safe to call more
+  /// than once and concurrently: the first caller takes the controller.
   Future<void> _disposeCamera() async {
+    // Invalidate frames / in-flight results from this camera right away.
+    _cameraGeneration++;
     final controller = _cameraController;
     _cameraController = null;
     if (controller == null) return;
+    await _releaseController(controller);
+  }
+
+  Future<void> _releaseController(CameraController controller) async {
     try {
       if (controller.value.isStreamingImages) {
         await controller.stopImageStream();
       }
-    } catch (e) {
-      debugPrint('stopImageStream: $e');
+    } catch (e, st) {
+      _log.warn('PoseCamera', 'Stopping the image stream failed', null, e, st);
     }
     try {
       await controller.dispose();
-    } catch (e) {
-      debugPrint('camera dispose: $e');
+    } catch (e, st) {
+      _log.warn('PoseCamera', 'Camera dispose failed', null, e, st);
     }
   }
 
@@ -433,51 +687,162 @@ class _PoseDetectorScreenState extends State<PoseDetectorScreen>
   }
 
   Future<void> _switchCamera() async {
-    if (_availableCameras.length < 2 || _initializingCamera) return;
+    if (_availableCameras.length < 2 ||
+        _initializingCamera ||
+        _switchingCamera ||
+        _isSessionComplete) {
+      return;
+    }
+    _switchingCamera = true;
+    try {
+      final from = _lensDirection;
+      _lensDirection = _lensDirection == CameraLensDirection.front
+          ? CameraLensDirection.back
+          : CameraLensDirection.front;
+      _cameraSwitches++;
+      _log.info('PoseCamera', 'Camera switch requested', {
+        'from': from.name,
+        'to': _lensDirection.name,
+        'switches': _cameraSwitches,
+      });
 
-    _lensDirection = _lensDirection == CameraLensDirection.front
-        ? CameraLensDirection.back
-        : CameraLensDirection.front;
+      await _disposeCamera();
 
-    await _disposeCamera();
-
-    _resetTracking();
-    if (mounted) setState(() => _detectedPoses = []);
-    await _initCamera();
+      _resetTracking();
+      if (mounted) setState(() => _detectedPoses = []);
+      await _initCamera();
+    } finally {
+      _switchingCamera = false;
+    }
   }
 
   @override
   void didChangeAppLifecycleState(AppLifecycleState state) {
+    _log.info('PoseCamera', 'App lifecycle changed', {
+      'state': state.name,
+      'cameraActive': _cameraController != null,
+      'initializing': _initializingCamera,
+      'sessionComplete': _isSessionComplete,
+    });
     if (_isSessionComplete) return;
     if (state == AppLifecycleState.inactive ||
         state == AppLifecycleState.paused) {
+      if (!_appInBackground) _lifecyclePauses++;
+      _appInBackground = true;
+      // A resume that arrives later must start a NEW init, not rely on one
+      // that this pause is about to supersede.
+      _reinitCameraWhenDone = false;
       _resetTracking();
-      _disposeCamera().then((_) {
-        if (mounted) setState(() => _detectedPoses = []);
-      });
-    } else if (state == AppLifecycleState.resumed &&
-        _cameraController == null) {
-      _initCamera();
+      unawaited(
+        _disposeCamera().then((_) {
+          if (mounted) setState(() => _detectedPoses = []);
+        }),
+      );
+    } else if (state == AppLifecycleState.resumed) {
+      _appInBackground = false;
+      if (_cameraController != null) return;
+      if (_initializingCamera) {
+        // The running init was superseded by the pause; it restarts the
+        // camera when it unwinds (see _initCamera's finally block).
+        _reinitCameraWhenDone = true;
+      } else {
+        unawaited(_initCamera());
+      }
     }
   }
 
-  int _lastFrameMs = 0;
+  int _lastFrameMs = -_minFrameIntervalMs;
 
-  void _processFrame(CameraImage image, CameraDescription camera) async {
+  /// Camera stream callback. Decides cheaply whether to analyse this frame.
+  /// Must never throw: an exception here would surface in the camera
+  /// plugin's stream.
+  void _onCameraFrame(CameraImage image, CameraDescription camera, int gen) {
+    _stats.onReceived();
+    final nowMs = _frameClock.elapsedMilliseconds;
+    if (_stats.isWindowDue(nowMs)) _logPipelineWindow(nowMs);
+
+    if (!mounted ||
+        _isSessionComplete ||
+        _detectorClosing ||
+        gen != _cameraGeneration) {
+      _stats.onSkippedInactive();
+      return;
+    }
+
     // Back-pressure: skip frames while ML Kit is still busy.
-    if (_isProcessing || _isSessionComplete || !mounted) return;
+    if (_isProcessing) {
+      _stats.onSkippedBusy();
+      final busyMs = nowMs - _processingStartedMs;
+      if (busyMs > 2000 && !_stallReported) {
+        _stallReported = true;
+        _log.warn('PosePipeline', 'ML Kit call is taking unusually long', {
+          'busyMs': busyMs,
+        });
+      }
+      return;
+    }
 
-    final nowMs = DateTime.now().millisecondsSinceEpoch;
-    if (nowMs - _lastFrameMs < _minFrameIntervalMs) return;
+    if (nowMs - _lastFrameMs < _minFrameIntervalMs) {
+      _stats.onSkippedThrottle();
+      return;
+    }
     _lastFrameMs = nowMs;
 
+    if (!_firstFrameLogged) {
+      _firstFrameLogged = true;
+      _log.info('PoseCamera', 'First frame received', {
+        'width': image.width,
+        'height': image.height,
+        'formatRaw': image.format.raw,
+        'formatGroup': image.format.group.name,
+        'planes': image.planes.length,
+        'bytesPerRow': image.planes.isEmpty ? 0 : image.planes[0].bytesPerRow,
+        'gen': gen,
+      });
+    }
+
+    unawaited(_processFrame(image, camera, gen));
+  }
+
+  void _logPipelineWindow(int nowMs) {
+    final window = _stats.takeWindow(nowMs);
+    if (window == null) return;
+    window['lens'] = _lensDirection.name;
+    window['reps'] = _repCounter;
+    window['rejected'] = _rejectedReps;
+    window['countingDown'] = _countingDown;
+    _log.info('PosePipeline', 'Pipeline window', window);
+  }
+
+  Future<void> _processFrame(
+    CameraImage image,
+    CameraDescription camera,
+    int gen,
+  ) async {
     _isProcessing = true;
+    _stallReported = false;
+    _processingStartedMs = _frameClock.elapsedMilliseconds;
+    final inFlight = Completer<void>();
+    _inFlightFrame = inFlight;
+
     try {
       final inputImage = _inputImageFromCameraImage(image, camera);
-      if (inputImage == null) return;
+      if (inputImage == null) {
+        _stats.onConversionFailed();
+        return;
+      }
 
+      final mlStartUs = _frameClock.elapsedMicroseconds;
       final List<Pose> poses = await _poseDetector.processImage(inputImage);
-      if (!mounted || _isSessionComplete) return;
+      final latencyUs = _frameClock.elapsedMicroseconds - mlStartUs;
+      _stats.onProcessed(latencyUs: latencyUs, poseFound: poses.isNotEmpty);
+
+      // The world may have changed while ML Kit was busy: screen closed,
+      // session finished, or the camera was switched / paused (stale frame).
+      if (!mounted || _isSessionComplete || gen != _cameraGeneration) {
+        _stats.onResultDiscarded();
+        return;
+      }
 
       // Judge the form first so the overlay and the rep logic agree.
       final FormResult form;
@@ -489,6 +854,8 @@ class _PoseDetectorScreenState extends State<PoseDetectorScreen>
         final lm = poses.first.landmarks;
         form = _filterForm(_mergeExtraFaults(_checker.evaluate(lm), lm));
       }
+      _stats.onForm(form.status);
+      _logFormChange(form);
 
       if (form.isWrong && !_wasWrong) _triggerWrongFeedback();
       _wasWrong = form.isWrong;
@@ -511,6 +878,16 @@ class _PoseDetectorScreenState extends State<PoseDetectorScreen>
       final w = image.width.toDouble();
       final h = image.height.toDouble();
 
+      if (_log.isVerbose) {
+        _log.verbose('PosePipeline', 'Frame processed', {
+          'mlMs': latencyUs ~/ 1000,
+          'poses': poses.length,
+          'form': form.status.name,
+          'angle': _currentAngle.round(),
+          'stage': _stage,
+        });
+      }
+
       if (!mounted) return;
       setState(() {
         _detectedPoses = poses;
@@ -522,11 +899,47 @@ class _PoseDetectorScreenState extends State<PoseDetectorScreen>
         final tip = _effectiveForm.primary?.message;
         if (tip != null && tip.isNotEmpty) _speak(tip);
       }
-    } catch (e) {
-      debugPrint("ML Kit Detection Error: $e");
+    } catch (e, st) {
+      // One bad frame must never stop the stream: count it, log the first
+      // few in full, and carry on with the next frame.
+      _stats.onError();
+      if (_loggedFrameErrors < _maxLoggedFrameErrors) {
+        _loggedFrameErrors++;
+        _log.error(
+          'PosePipeline',
+          'Frame processing failed',
+          {
+            'errorsSoFar': _stats.totalErrors,
+            'logged': _loggedFrameErrors,
+            'width': image.width,
+            'height': image.height,
+          },
+          e,
+          st,
+        );
+      }
     } finally {
       _isProcessing = false;
+      inFlight.complete();
+      if (identical(_inFlightFrame, inFlight)) _inFlightFrame = null;
     }
+  }
+
+  /// Logs the screen's FINAL form verdict when it changes (status or the set
+  /// of issue codes). Cheap per frame: one int mask comparison.
+  void _logFormChange(FormResult form) {
+    var mask = 0;
+    for (final issue in form.issues) {
+      mask |= 1 << issue.code.index;
+    }
+    if (form.status == _loggedFormStatus && mask == _loggedFormMask) return;
+    _loggedFormStatus = form.status;
+    _loggedFormMask = mask;
+    _log.info('PoseForm', 'Form status changed', {
+      'status': form.status.name,
+      'issues': [for (final i in form.issues) i.code.name],
+      'reps': _repCounter,
+    });
   }
 
   /// Arm exercises: legs are usually cropped or half out of frame, and their
@@ -537,6 +950,7 @@ class _PoseDetectorScreenState extends State<PoseDetectorScreen>
       ExerciseType.forwardRaise ||
       ExerciseType.sideRaise ||
       ExerciseType.forwardPush ||
+      ExerciseType.overheadRaise ||
       ExerciseType.bicepCurl => true,
       _ => false,
     };
@@ -858,6 +1272,20 @@ class _PoseDetectorScreenState extends State<PoseDetectorScreen>
         }
         break;
 
+      case ExerciseType.miniSquat:
+      case ExerciseType.hipAbduction:
+      case ExerciseType.hamstringCurl:
+      case ExerciseType.marching:
+      case ExerciseType.overheadRaise:
+        out.addAll(
+          ExerciseGeometry.extraFaults(
+            exercise.type,
+            lm,
+            minLikelihood: _thresholds.minLikelihood,
+          ),
+        );
+        break;
+
       default:
         break;
     }
@@ -944,24 +1372,25 @@ class _PoseDetectorScreenState extends State<PoseDetectorScreen>
     switch (exercise.type) {
       case ExerciseType.kneeExtension:
         {
-          final left = _jointAngle(
+          // Which leg is working, and whether the other leg can really be
+          // seen, is decided in ExerciseGeometry.kneeExtensionLegs (see the
+          // comment there: a hidden far leg used to block every rep).
+          final legs = ExerciseGeometry.kneeExtensionLegs(
             landmarks,
-            PoseLandmarkType.leftHip,
-            PoseLandmarkType.leftKnee,
-            PoseLandmarkType.leftAnkle,
+            minLikelihood: _thresholds.minLikelihood,
           );
-          final right = _jointAngle(
-            landmarks,
-            PoseLandmarkType.rightHip,
-            PoseLandmarkType.rightKnee,
-            PoseLandmarkType.rightAnkle,
-          );
-          if (left != null && right != null) {
-            final working = max(left, right); // leg being extended
-            final resting = min(left, right); // must stay bent
-            calculatedAngle = working;
-            isValidRep = working >= exercise.targetAngle && resting < 120.0;
-            isRestPosition = working < exercise.restAngle;
+          if (legs != null) {
+            calculatedAngle = legs.working;
+            final reachedTarget = legs.working >= exercise.targetAngle;
+            final otherLegBent =
+                legs.resting == null || legs.resting! < _otherLegBentMaxDeg;
+            isValidRep = reachedTarget && otherLegBent;
+            isRestPosition = legs.working < exercise.restAngle;
+            _logOtherLegBlock(
+              blocked: reachedTarget && !otherLegBent,
+              working: legs.working,
+              resting: legs.resting,
+            );
           }
         }
         break;
@@ -1145,6 +1574,18 @@ class _PoseDetectorScreenState extends State<PoseDetectorScreen>
       case ExerciseType.singleLegBalance:
       case ExerciseType.wallSit:
         break; // handled by _analyzeHold above
+
+      // Second batch: geometry lives in exercise_geometry.dart (unit-tested).
+      case ExerciseType.miniSquat:
+      case ExerciseType.hipAbduction:
+      case ExerciseType.hamstringCurl:
+      case ExerciseType.marching:
+      case ExerciseType.overheadRaise:
+        final reading = ExerciseGeometry.readRep(exercise, landmarks);
+        if (reading != null) {
+          calculatedAngle = reading.angle;
+          isValidRep = reading.atTarget;
+        }
     }
 
     // Forgiving rest zone: count the rep once the joint is back through the
@@ -1249,6 +1690,28 @@ class _PoseDetectorScreenState extends State<PoseDetectorScreen>
     }
   }
 
+  /// Knee Extension: logs when the target angle is reached but the rep is
+  /// held back because the other leg is also straight, and when that
+  /// clears. Logged on change only, so it can't flood the log.
+  bool _otherLegBlocked = false;
+  void _logOtherLegBlock({
+    required bool blocked,
+    required double working,
+    required double? resting,
+  }) {
+    if (blocked == _otherLegBlocked) return;
+    _otherLegBlocked = blocked;
+    _log.info(
+      'RepCycle',
+      blocked ? 'Rep blocked: other leg straight' : 'Other-leg block cleared',
+      {
+        'working': working.round(),
+        'resting': resting?.round(),
+        'limit': _otherLegBentMaxDeg,
+      },
+    );
+  }
+
   void _learnBaseline(double angle) {
     _baseline = _baseline == null ? angle : _baseline! * 0.8 + angle * 0.2;
   }
@@ -1265,7 +1728,11 @@ class _PoseDetectorScreenState extends State<PoseDetectorScreen>
           (_cycleFaultFrames >= _faultFrameLimit ? _cycleFaultIssue : null);
 
       if (bad != null) {
-        _rejectRep(bad.withMessage('Rep not counted. ${bad.message}'));
+        _rejectRep(
+          bad.withMessage('Rep not counted. ${bad.message}'),
+          rule: 'formFault',
+          ms: ms,
+        );
       } else if (_targetHits > 1) {
         _rejectRep(
           const FormIssue(
@@ -1274,6 +1741,8 @@ class _PoseDetectorScreenState extends State<PoseDetectorScreen>
                 'Rep not counted. Use one smooth movement, not back and forth.',
             landmarks: <PoseLandmarkType>{},
           ),
+          rule: 'backAndForth',
+          ms: ms,
         );
       } else if (ms < _minRepMs) {
         _rejectRep(
@@ -1282,10 +1751,22 @@ class _PoseDetectorScreenState extends State<PoseDetectorScreen>
             message: 'Rep not counted. Too fast. Slow down and control it.',
             landmarks: <PoseLandmarkType>{},
           ),
+          rule: 'tooQuick',
+          ms: ms,
         );
       } else {
         _repCounter++;
         _repScores.add(1.0);
+        _log.info('RepCycle', 'Rep counted', {
+          'rep': _repCounter,
+          'target': exercise.targetReps,
+          'ms': ms,
+          'targetHits': _targetHits,
+          'faultFrames': _cycleFaultFrames,
+          'maxProgress': _round2(_maxProgress),
+          'angle': _currentAngle.round(),
+          'baseline': _baseline?.round(),
+        });
         _triggerFeedback();
       }
     } else if (_maxProgress >= _thresholds.attemptProgress && ms >= 500) {
@@ -1297,16 +1778,36 @@ class _PoseDetectorScreenState extends State<PoseDetectorScreen>
           message: 'Rep not counted. ${fb.message}',
           landmarks: fb.landmarks,
         ),
+        rule: 'partialRange',
+        ms: ms,
       );
     }
   }
 
-  void _rejectRep(FormIssue issue) {
+  /// [rule] says WHICH anti-flail rule fired (formFault, backAndForth,
+  /// tooQuick, partialRange); the issue code says what was wrong.
+  void _rejectRep(FormIssue issue, {required String rule, required int ms}) {
     _rejectedReps++;
     _repScores.add(0.0);
+    _rejectRules[rule] = (_rejectRules[rule] ?? 0) + 1;
+    _rejectCodes[issue.code.name] = (_rejectCodes[issue.code.name] ?? 0) + 1;
+    _log.info('RepCycle', 'Rep rejected', {
+      'rule': rule,
+      'code': issue.code.name,
+      'ms': ms,
+      'minRepMs': _minRepMs,
+      'targetHits': _targetHits,
+      'faultFrames': _cycleFaultFrames,
+      'faultFrameLimit': _faultFrameLimit,
+      'maxProgress': _round2(_maxProgress),
+      'rejected': _rejectedReps,
+      'reps': _repCounter,
+    });
     _flashIssue(issue);
     _triggerWrongFeedback();
   }
+
+  static double _round2(double v) => (v * 100).roundToDouble() / 100;
 
   void _cancelCycle() {
     _cycleActive = false;
@@ -1365,6 +1866,12 @@ class _PoseDetectorScreenState extends State<PoseDetectorScreen>
       case ExerciseType.singleLegBalance:
       case ExerciseType.wallSit:
         return (message: 'Hold the full position.', landmarks: ankles);
+      case ExerciseType.miniSquat:
+      case ExerciseType.hipAbduction:
+      case ExerciseType.hamstringCurl:
+      case ExerciseType.marching:
+      case ExerciseType.overheadRaise:
+        return ExerciseGeometry.rangeFeedback(type);
     }
   }
 
@@ -1457,6 +1964,13 @@ class _PoseDetectorScreenState extends State<PoseDetectorScreen>
 
     if (inPosition) {
       _lostSince = null;
+      if (_holdStart == null) {
+        _log.info('RepCycle', 'Hold started', {
+          'hold': _repCounter + 1,
+          'neededS': needed,
+          'angle': _currentAngle.round(),
+        });
+      }
       _holdStart ??= now;
       final elapsed = now.difference(_holdStart!).inMilliseconds / 1000.0;
       _holdElapsed = elapsed > needed ? needed.toDouble() : elapsed;
@@ -1465,6 +1979,11 @@ class _PoseDetectorScreenState extends State<PoseDetectorScreen>
         _holdCounted = true;
         _repScores.add(1.0);
         _repCounter++;
+        _log.info('RepCycle', 'Hold counted', {
+          'hold': _repCounter,
+          'target': widget.selectedExercise.targetReps,
+          'heldS': _round2(elapsed),
+        });
         _triggerFeedback();
         _checkCompletion();
       }
@@ -1472,6 +1991,12 @@ class _PoseDetectorScreenState extends State<PoseDetectorScreen>
       _lostSince ??= now;
       if (now.difference(_lostSince!) > _holdGrace) {
         if (_holdStart != null || _holdElapsed != 0.0) {
+          _log.info('RepCycle', 'Hold lost', {
+            'heldS': _round2(_holdElapsed),
+            'neededS': needed,
+            'alreadyCounted': _holdCounted,
+            'graceMs': _holdGrace.inMilliseconds,
+          });
           _holdStart = null;
           _holdCounted = false; // release, then hold again for the next one
           _holdElapsed = 0.0;
@@ -1489,7 +2014,8 @@ class _PoseDetectorScreenState extends State<PoseDetectorScreen>
     if (_repCounter < widget.selectedExercise.targetReps) return;
 
     setState(() => _isSessionComplete = true);
-    _disposeCamera();
+    _logSessionSummary('completed');
+    unawaited(_disposeCamera());
     // Saved from the completion dialog so the pain check-in is included.
     _showCompletionBanner();
   }
@@ -1498,35 +2024,69 @@ class _PoseDetectorScreenState extends State<PoseDetectorScreen>
   /// confirm, then save the partial session (with pain check-in) so the
   /// therapist still sees it.
   Future<void> _confirmEndEarly() async {
+    // A second back press while the dialog is up must not stack another.
+    if (_endDialogOpen || _isSessionComplete) return;
     if (_repCounter == 0 && _rejectedReps == 0) {
       setState(() => _isSessionComplete = true);
+      _logSessionSummary('leftBeforeFirstRep');
       Navigator.of(context).pop();
       return;
     }
-    final end = await showDialog<bool>(
-      context: context,
-      builder: (dialogContext) => AlertDialog(
-        title: const Text('End session early?'),
-        content: Text(
-          'You have done $_repCounter of ${widget.selectedExercise.targetReps}. '
-          'Your progress will be saved for your therapist.',
+    _endDialogOpen = true;
+    final bool? end;
+    try {
+      end = await showDialog<bool>(
+        context: context,
+        builder: (dialogContext) => AlertDialog(
+          title: const Text('End session early?'),
+          content: Text(
+            'You have done $_repCounter of ${widget.selectedExercise.targetReps}. '
+            'Your progress will be saved for your therapist.',
+          ),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.of(dialogContext).pop(false),
+              child: const Text('Keep going'),
+            ),
+            TextButton(
+              onPressed: () => Navigator.of(dialogContext).pop(true),
+              child: const Text('End session'),
+            ),
+          ],
         ),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.of(dialogContext).pop(false),
-            child: const Text('Keep going'),
-          ),
-          TextButton(
-            onPressed: () => Navigator.of(dialogContext).pop(true),
-            child: const Text('End session'),
-          ),
-        ],
-      ),
-    );
+      );
+    } finally {
+      _endDialogOpen = false;
+    }
     if (end != true || !mounted || _isSessionComplete) return;
     setState(() => _isSessionComplete = true);
-    _disposeCamera();
+    _logSessionSummary('endedEarly');
+    unawaited(_disposeCamera());
     _showCompletionBanner(endedEarly: true);
+  }
+
+  /// One info event per session with everything needed to judge how the
+  /// session went technically. Safe to call more than once (logs once).
+  void _logSessionSummary(String outcome) {
+    if (_summaryLogged) return;
+    _summaryLogged = true;
+    final exercise = widget.selectedExercise;
+    _log.info('PosePipeline', 'Session summary', {
+      'outcome': outcome,
+      'exercise': exercise.type.name,
+      'isHold': exercise.isHold,
+      'reps': _repCounter,
+      'targetReps': exercise.targetReps,
+      'rejected': _rejectedReps,
+      'rejectRules': Map<String, int>.of(_rejectRules),
+      'rejectCodes': Map<String, int>.of(_rejectCodes),
+      'durationS': DateTime.now().difference(_sessionStart).inSeconds,
+      'lens': _lensDirection.name,
+      'resolution': _resolutionLabel,
+      'cameraSwitches': _cameraSwitches,
+      'lifecyclePauses': _lifecyclePauses,
+      ..._stats.sessionTotals(_frameClock.elapsedMilliseconds),
+    });
   }
 
   Future<void> _saveSession({
@@ -1560,7 +2120,20 @@ class _PoseDetectorScreenState extends State<PoseDetectorScreen>
     );
 
     if (!mounted) return;
-    await context.read<AppProvider>().recordCompletedSession(session);
+    await _log.timed(
+      'PoseSession',
+      'Save session',
+      () => context.read<AppProvider>().recordCompletedSession(session),
+      data: {
+        'exercise': exercise.type.name,
+        'reps': _repCounter,
+        'rejected': _rejectedReps,
+        'endedEarly': endedEarly,
+        'painLevel': painLevel,
+        'hasPainNote': painNote != null,
+        'outsideSchedule': session.outsideSchedule,
+      },
+    );
   }
 
   void _showCompletionBanner({bool endedEarly = false}) {
@@ -1668,6 +2241,9 @@ class _PoseDetectorScreenState extends State<PoseDetectorScreen>
               onPressed: saving
                   ? null
                   : () async {
+                      // Two taps can land before the rebuild disables the
+                      // button: only the first one may save and navigate.
+                      if (saving) return;
                       setDialogState(() => saving = true);
                       final note = noteController.text.trim();
                       try {
@@ -1676,7 +2252,16 @@ class _PoseDetectorScreenState extends State<PoseDetectorScreen>
                           painNote: note.isEmpty ? null : note,
                           endedEarly: endedEarly,
                         );
-                      } catch (_) {
+                      } catch (e, st) {
+                        // _log.timed already logged the failure with its
+                        // timing; this records that the user was told.
+                        _log.error(
+                          'PoseSession',
+                          'Session not saved; user notified',
+                          {'endedEarly': endedEarly},
+                          e,
+                          st,
+                        );
                         if (mounted) {
                           ScaffoldMessenger.of(context).showSnackBar(
                             const SnackBar(
@@ -1690,7 +2275,16 @@ class _PoseDetectorScreenState extends State<PoseDetectorScreen>
                       if (dialogContext.mounted) {
                         Navigator.of(dialogContext).pop();
                       }
-                      if (mounted) Navigator.of(context).pop();
+                      if (!mounted) return;
+                      // If the target was reached while "End session
+                      // early?" was open, that dialog is still underneath
+                      // (showDialog uses the root navigator). Close it first,
+                      // or the pop below would close it instead of this
+                      // screen and strand the patient on a dead camera.
+                      if (_endDialogOpen) {
+                        Navigator.of(context, rootNavigator: true).pop();
+                      }
+                      Navigator.of(context).pop();
                     },
               child: const Text('Done'),
             ),
@@ -1712,6 +2306,8 @@ class _PoseDetectorScreenState extends State<PoseDetectorScreen>
     CameraImage image,
     CameraDescription camera,
   ) {
+    if (image.planes.isEmpty) return null;
+
     final sensorOrientation = camera.sensorOrientation;
     final rotation =
         InputImageRotationValue.fromRawValue(sensorOrientation) ??
@@ -1720,11 +2316,21 @@ class _PoseDetectorScreenState extends State<PoseDetectorScreen>
         InputImageFormatValue.fromRawValue(image.format.raw) ??
         InputImageFormat.nv21;
 
-    final WriteBuffer allBytes = WriteBuffer();
-    for (final Plane plane in image.planes) {
-      allBytes.putUint8List(plane.bytes);
+    // Android + ImageFormatGroup.nv21 delivers ONE plane holding the whole
+    // NV21 frame (camera_android_camerax converts it natively), so its bytes
+    // can go to ML Kit as they are. Copying them into a WriteBuffer, as the
+    // generic multi-plane path below does, would allocate and copy ~115 KB
+    // per analysed frame for nothing.
+    final Uint8List bytes;
+    if (image.planes.length == 1) {
+      bytes = image.planes.first.bytes;
+    } else {
+      final allBytes = WriteBuffer();
+      for (final Plane plane in image.planes) {
+        allBytes.putUint8List(plane.bytes);
+      }
+      bytes = allBytes.done().buffer.asUint8List();
     }
-    final bytes = allBytes.done().buffer.asUint8List();
 
     final metadata = InputImageMetadata(
       size: Size(image.width.toDouble(), image.height.toDouble()),
@@ -1739,12 +2345,65 @@ class _PoseDetectorScreenState extends State<PoseDetectorScreen>
   @override
   void dispose() {
     WidgetsBinding.instance.removeObserver(this);
-    _audioPlayer.dispose();
     _countdownTimer?.cancel();
-    _tts?.stop();
-    // Order matters: stop the stream and camera first, then close ML Kit.
-    _disposeCamera().whenComplete(() => _poseDetector.close());
+    _logSessionSummary('closed');
+    unawaited(
+      _audioPlayer.dispose().catchError(
+        (Object e, StackTrace st) =>
+            _log.warn('PoseAudio', 'Audio dispose failed', null, e, st),
+      ),
+    );
+    final tts = _tts;
+    _tts = null;
+    if (tts != null) unawaited(_stopTts(tts));
+    unawaited(_shutdownPipeline());
     super.dispose();
+  }
+
+  /// Order matters: stop the camera (no new frames), wait for the frame that
+  /// is still inside ML Kit, and only then close the detector. Closing it
+  /// while processImage is in flight makes that call fail natively, and on
+  /// Android a processImage that arrives after close() silently creates a
+  /// new native detector that is never closed (a leak).
+  Future<void> _shutdownPipeline() async {
+    _detectorClosing = true;
+    await _disposeCamera();
+
+    final inFlight = _inFlightFrame;
+    if (inFlight != null && !inFlight.isCompleted) {
+      await inFlight.future.timeout(
+        const Duration(seconds: 2),
+        onTimeout: () => _log.warn(
+          'PosePipeline',
+          'Closing detector with a frame still in flight',
+          {'waitedMs': 2000},
+        ),
+      );
+    }
+
+    try {
+      await _poseDetector.close();
+      _log.info('PosePipeline', 'Pose detector closed');
+    } catch (e, st) {
+      _log.warn('PosePipeline', 'Pose detector close failed', null, e, st);
+    }
+  }
+
+  // The preview subtree only depends on the controller (and on MediaQuery,
+  // which it subscribes to itself). Reusing the SAME widget instance lets
+  // Flutter skip rebuilding it on the ~15 setStates per second caused by
+  // processed frames; CameraPreview already repaints its own texture.
+  Widget? _previewWidget;
+  CameraController? _previewController;
+
+  Widget _cachedPreview(CameraController controller) {
+    if (_previewWidget == null || !identical(_previewController, controller)) {
+      _previewController = controller;
+      _previewWidget = RepaintBoundary(
+        child: _AspectCoverPreview(controller: controller, cover: _coverPreview),
+      );
+    }
+    return _previewWidget!;
   }
 
   @override
@@ -1822,12 +2481,7 @@ class _PoseDetectorScreenState extends State<PoseDetectorScreen>
           fit: StackFit.expand,
           children: [
             const ColoredBox(color: Colors.black),
-            RepaintBoundary(
-              child: _AspectCoverPreview(
-                controller: controller,
-                cover: _coverPreview,
-              ),
-            ),
+            _cachedPreview(controller),
 
             if (_settings.showSkeleton &&
                 _imageSize != null &&
@@ -1862,6 +2516,21 @@ class _PoseDetectorScreenState extends State<PoseDetectorScreen>
                         shadows: [Shadow(blurRadius: 8)],
                       ),
                     ),
+                    Padding(
+                      padding: const EdgeInsets.symmetric(
+                        horizontal: 32,
+                        vertical: 6,
+                      ),
+                      child: Text(
+                        exercise.setupTip,
+                        textAlign: TextAlign.center,
+                        style: const TextStyle(
+                          color: Colors.white,
+                          fontSize: 15,
+                          shadows: [Shadow(blurRadius: 8)],
+                        ),
+                      ),
+                    ),
                     Text(
                       '$_countdownLeft',
                       style: const TextStyle(
@@ -1875,12 +2544,23 @@ class _PoseDetectorScreenState extends State<PoseDetectorScreen>
                 ),
               ),
 
-            // "Keep Centered: ..." / "Wrong Form: ..." message
+            // "Keep Centered: ..." / "Wrong Form: ..." message, and until the
+            // first rep is attempted, where to stand (after the countdown
+            // the big centred version of the tip is gone).
             Positioned(
               top: 8,
               left: 16,
               right: 16,
-              child: _FormBanner(form: form),
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  _FormBanner(form: form),
+                  if (_showSetupTip) ...[
+                    const SizedBox(height: 6),
+                    _SetupTip(text: exercise.setupTip),
+                  ],
+                ],
+              ),
             ),
 
             Positioned(
@@ -1995,6 +2675,172 @@ class _PoseDetectorScreenState extends State<PoseDetectorScreen>
   }
 }
 
+/// Cheap counters for the camera -> ML Kit pipeline.
+///
+/// Updated on every camera frame, so it only increments ints (no
+/// allocation, no logging). Every [windowMs] the screen calls [takeWindow],
+/// which builds ONE data map for the "Pipeline window" log and starts a new
+/// window. [sessionTotals] feeds the "Session summary" log.
+///
+/// Times are passed in as monotonic milliseconds (a Stopwatch), which keeps
+/// the class pure and easy to unit test.
+///
+/// How to read a window (for a developer or an AI assistant):
+///   received      frames the camera delivered (CameraX: ~30 fps)
+///   processed     frames ML Kit analysed; processedFps is the real
+///                 analysis rate (capped at ~15 fps by the throttle)
+///   skippedBusy   frames dropped because ML Kit was still busy. High
+///                 values with avg/maxMlMs > 66 mean the phone is too slow
+///                 for the cap
+///   skippedThrottle  frames dropped by the fps cap (normal, ~half)
+///   skippedInactive  frames after close / session end / camera switch
+///   posesFound / posesEmpty  whether ML Kit saw a person at all
+///   wrongForm / notInFrame   processed frames per final form verdict
+///   errors / discarded / conversionFailed  should all be 0
+class PosePipelineStats {
+  PosePipelineStats({this.windowMs = 5000});
+
+  /// Length of one reporting window.
+  final int windowMs;
+
+  int _windowStartMs = 0;
+
+  // Current window.
+  int _received = 0;
+  int _processed = 0;
+  int _skippedBusy = 0;
+  int _skippedThrottle = 0;
+  int _skippedInactive = 0;
+  int _posesFound = 0;
+  int _posesEmpty = 0;
+  int _wrongForm = 0;
+  int _notInFrame = 0;
+  int _errors = 0;
+  int _discarded = 0;
+  int _conversionFailed = 0;
+  int _latencySumUs = 0;
+  int _latencyMaxUs = 0;
+
+  // Whole session.
+  int _totalReceived = 0;
+  int _totalProcessed = 0;
+  int _totalSkippedBusy = 0;
+  int _totalPosesEmpty = 0;
+  int _totalErrors = 0;
+  int _totalLatencySumUs = 0;
+  int _totalLatencyMaxUs = 0;
+
+  int get totalErrors => _totalErrors;
+  int get totalProcessed => _totalProcessed;
+
+  void onReceived() {
+    _received++;
+    _totalReceived++;
+  }
+
+  void onSkippedBusy() {
+    _skippedBusy++;
+    _totalSkippedBusy++;
+  }
+
+  void onSkippedThrottle() => _skippedThrottle++;
+  void onSkippedInactive() => _skippedInactive++;
+  void onConversionFailed() => _conversionFailed++;
+  void onResultDiscarded() => _discarded++;
+
+  void onError() {
+    _errors++;
+    _totalErrors++;
+  }
+
+  /// One ML Kit call finished after [latencyUs] microseconds.
+  void onProcessed({required int latencyUs, required bool poseFound}) {
+    _processed++;
+    _totalProcessed++;
+    _latencySumUs += latencyUs;
+    _totalLatencySumUs += latencyUs;
+    if (latencyUs > _latencyMaxUs) _latencyMaxUs = latencyUs;
+    if (latencyUs > _totalLatencyMaxUs) _totalLatencyMaxUs = latencyUs;
+    if (poseFound) {
+      _posesFound++;
+    } else {
+      _posesEmpty++;
+      _totalPosesEmpty++;
+    }
+  }
+
+  /// The screen's final form verdict for a processed frame.
+  void onForm(FormStatus status) {
+    if (status == FormStatus.wrongForm) _wrongForm++;
+    if (status == FormStatus.notInFrame) _notInFrame++;
+  }
+
+  bool isWindowDue(int nowMs) => nowMs - _windowStartMs >= windowMs;
+
+  /// Returns the finished window's numbers and starts a new window, or null
+  /// if nothing happened in it.
+  Map<String, Object?>? takeWindow(int nowMs) {
+    final elapsedMs = max(1, nowMs - _windowStartMs);
+    final data = _received == 0
+        ? null
+        : <String, Object?>{
+            'windowMs': elapsedMs,
+            'received': _received,
+            'processed': _processed,
+            'skippedBusy': _skippedBusy,
+            'skippedThrottle': _skippedThrottle,
+            'skippedInactive': _skippedInactive,
+            'receivedFps': _fps(_received, elapsedMs),
+            'processedFps': _fps(_processed, elapsedMs),
+            'avgMlMs': _avgMs(_latencySumUs, _processed),
+            'maxMlMs': _round1(_latencyMaxUs / 1000),
+            'posesFound': _posesFound,
+            'posesEmpty': _posesEmpty,
+            'wrongForm': _wrongForm,
+            'notInFrame': _notInFrame,
+            'errors': _errors,
+            'discarded': _discarded,
+            'conversionFailed': _conversionFailed,
+          };
+
+    _windowStartMs = nowMs;
+    _received = 0;
+    _processed = 0;
+    _skippedBusy = 0;
+    _skippedThrottle = 0;
+    _skippedInactive = 0;
+    _posesFound = 0;
+    _posesEmpty = 0;
+    _wrongForm = 0;
+    _notInFrame = 0;
+    _errors = 0;
+    _discarded = 0;
+    _conversionFailed = 0;
+    _latencySumUs = 0;
+    _latencyMaxUs = 0;
+    return data;
+  }
+
+  /// Whole-session numbers for the "Session summary" log.
+  Map<String, Object?> sessionTotals(int nowMs) => {
+    'framesReceived': _totalReceived,
+    'framesProcessed': _totalProcessed,
+    'framesSkippedBusy': _totalSkippedBusy,
+    'framesNoPose': _totalPosesEmpty,
+    'frameErrors': _totalErrors,
+    'avgProcessedFps': _fps(_totalProcessed, max(1, nowMs)),
+    'avgMlMs': _avgMs(_totalLatencySumUs, _totalProcessed),
+    'maxMlMs': _round1(_totalLatencyMaxUs / 1000),
+  };
+
+  static double _fps(int frames, int ms) => _round1(frames * 1000 / ms);
+
+  static double _avgMs(int sumUs, int count) =>
+      count == 0 ? 0 : _round1(sumUs / count / 1000);
+
+  static double _round1(double v) => (v * 10).roundToDouble() / 10;
+}
+
 /// Camera preview drawn at the sensor's native aspect ratio.
 ///  - cover=false: the whole frame is visible (letterboxed).
 ///  - cover=true : the frame fills the screen and the overflow is cropped.
@@ -2083,6 +2929,37 @@ class _FormBanner extends StatelessWidget {
             ),
           ],
         ),
+      ),
+    );
+  }
+}
+
+/// "Where to stand" reminder under the form banner (see [_showSetupTip]).
+class _SetupTip extends StatelessWidget {
+  final String text;
+  const _SetupTip({required this.text});
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+      decoration: BoxDecoration(
+        color: Colors.black.withValues(alpha: 0.55),
+        borderRadius: BorderRadius.circular(12),
+      ),
+      child: Row(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          const Icon(Icons.videocam_outlined, color: Colors.white70, size: 16),
+          const SizedBox(width: 6),
+          Flexible(
+            child: Text(
+              text,
+              textAlign: TextAlign.center,
+              style: const TextStyle(color: Colors.white, fontSize: 13),
+            ),
+          ),
+        ],
       ),
     );
   }

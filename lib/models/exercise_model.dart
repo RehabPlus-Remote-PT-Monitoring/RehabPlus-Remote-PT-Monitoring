@@ -16,6 +16,32 @@ enum ExerciseType {
   // hold exercises (timed)
   singleLegBalance,
   wallSit,
+  // --- second batch (geometry in lib/services/exercise_geometry.dart) ---
+  miniSquat,
+  hipAbduction,
+  hamstringCurl,
+  marching,
+  overheadRaise,
+}
+
+/// Where the camera must be for the angles to be measurable. The camera
+/// sees in 2D, so a movement towards or away from it can't be measured.
+enum CameraView {
+  /// The patient faces the camera.
+  front,
+
+  /// The patient is side-on (profile) to the camera.
+  side,
+
+  /// Either works.
+  either;
+
+  /// Short label for the exercise card.
+  String get label => switch (this) {
+    CameraView.front => 'Face the camera',
+    CameraView.side => 'Side-on to the camera',
+    CameraView.either => 'Front or side-on',
+  };
 }
 
 enum ExerciseDifficulty {
@@ -49,6 +75,13 @@ class ExerciseConfig {
   final ExerciseDifficulty difficulty;
   final int estimatedMinutes;
 
+  /// Camera position the exercise is measured from (see [CameraView]).
+  final CameraView cameraView;
+
+  /// One-sentence set-up instruction shown before and at the start of the
+  /// exercise ("Stand side-on to the camera, ...").
+  final String setupTip;
+
   /// The therapist assignment this config came from, if any.
   final Prescription? prescription;
 
@@ -62,6 +95,8 @@ class ExerciseConfig {
     required this.targetReps,
     required this.difficulty,
     required this.estimatedMinutes,
+    required this.cameraView,
+    required this.setupTip,
     this.holdSeconds = 0,
     this.prescription,
   });
@@ -86,6 +121,8 @@ class ExerciseConfig {
       restAngle: restAngle,
       difficulty: difficulty,
       estimatedMinutes: estimatedMinutes,
+      cameraView: cameraView,
+      setupTip: setupTip,
       targetReps: targetReps ?? this.targetReps,
       holdSeconds: holdSeconds ?? this.holdSeconds,
       prescription: prescription ?? this.prescription,
@@ -99,18 +136,27 @@ final List<ExerciseConfig> availableExercises = [
     type: ExerciseType.kneeExtension,
     title: 'Knee Extension',
     category: 'MCL Recovery',
+    cameraView: CameraView.side,
+    setupTip: 'Sit on a chair side-on to the camera, with both legs in view.',
     repsText: '1 Set | 10 Reps',
     targetReps: 10,
     difficulty: ExerciseDifficulty.moderate,
     estimatedMinutes: 12,
-    targetAngle:
-        125.0, // extended (lowered from 150: pose model rarely reads 180)
-    restAngle: 110.0, // seated, knee relaxed
+    // Tuned from a real session (seated side-on): the knee read ~105 deg
+    // at rest and 165-170 deg fully extended. The old 110 -> 125 band was
+    // only 15 deg wide, inside the ~10 deg frame-to-frame landmark jitter,
+    // so jitter alone made dozens of "too fast" mini-reps. 120 -> 150 is
+    // well clear of the jitter and still easy to reach (the pose model
+    // rarely reads a full 180).
+    targetAngle: 150.0, // extended
+    restAngle: 120.0, // seated, knee relaxed (rest zone ends ~129 deg)
   ),
   const ExerciseConfig(
     type: ExerciseType.straightLegRaise,
     title: 'Straight Leg Raise',
     category: 'MCL Recovery',
+    cameraView: CameraView.side,
+    setupTip: 'Lie on your back side-on to the camera, with your whole body in view.',
     repsText: '1 Set | 10 Reps',
     targetReps: 10,
     difficulty: ExerciseDifficulty.moderate,
@@ -122,6 +168,8 @@ final List<ExerciseConfig> availableExercises = [
     type: ExerciseType.kneeFlexion,
     title: 'Knee Flexion',
     category: 'MCL Recovery',
+    cameraView: CameraView.side,
+    setupTip: 'Lie face down side-on to the camera, with your whole body in view.',
     repsText: '1 Set | 10 Reps',
     targetReps: 10,
     difficulty: ExerciseDifficulty.easy,
@@ -133,6 +181,8 @@ final List<ExerciseConfig> availableExercises = [
     type: ExerciseType.heelSlide,
     title: 'Heel Slides',
     category: 'MCL Recovery',
+    cameraView: CameraView.side,
+    setupTip: 'Lie on your back side-on to the camera, with your whole body in view.',
     repsText: '1 Set | 10 Reps',
     targetReps: 10,
     difficulty: ExerciseDifficulty.easy,
@@ -144,6 +194,8 @@ final List<ExerciseConfig> availableExercises = [
     type: ExerciseType.sitToStand,
     title: 'Sit-to-Stand',
     category: 'Lower Body',
+    cameraView: CameraView.side,
+    setupTip: 'Sit on a chair side-on to the camera, with your whole body in view.',
     repsText: '1 Set | 10 Reps',
     targetReps: 10,
     difficulty: ExerciseDifficulty.moderate,
@@ -155,6 +207,8 @@ final List<ExerciseConfig> availableExercises = [
     type: ExerciseType.gluteBridge,
     title: 'Glute Bridge',
     category: 'Core & Hips',
+    cameraView: CameraView.side,
+    setupTip: 'Lie on your back side-on to the camera, knees bent, whole body in view.',
     repsText: '1 Set | 10 Reps',
     targetReps: 10,
     difficulty: ExerciseDifficulty.easy,
@@ -168,6 +222,8 @@ final List<ExerciseConfig> availableExercises = [
     type: ExerciseType.bicepCurl,
     title: 'Bicep Curl',
     category: 'Arm Rehabilitation',
+    cameraView: CameraView.front,
+    setupTip: 'Stand facing the camera, with your upper body and arms in view.',
     repsText: '1 Set | 10 Reps',
     targetReps: 10,
     difficulty: ExerciseDifficulty.easy,
@@ -179,6 +235,8 @@ final List<ExerciseConfig> availableExercises = [
     type: ExerciseType.forwardRaise,
     title: 'Forward Raise',
     category: 'Arm Rehabilitation',
+    cameraView: CameraView.side,
+    setupTip: 'Stand side-on to the camera, with your upper body and arm in view.',
     repsText: '1 Set | 10 Reps',
     targetReps: 10,
     difficulty: ExerciseDifficulty.moderate,
@@ -190,6 +248,8 @@ final List<ExerciseConfig> availableExercises = [
     type: ExerciseType.sideRaise,
     title: 'Side Raise',
     category: 'Arm Rehabilitation',
+    cameraView: CameraView.front,
+    setupTip: 'Stand facing the camera, with your upper body and both arms in view.',
     repsText: '1 Set | 10 Reps',
     targetReps: 10,
     difficulty: ExerciseDifficulty.moderate,
@@ -201,6 +261,8 @@ final List<ExerciseConfig> availableExercises = [
     type: ExerciseType.forwardPush,
     title: 'Forward Push',
     category: 'Arm Rehabilitation',
+    cameraView: CameraView.side,
+    setupTip: 'Stand side-on to the camera, with your upper body and arm in view.',
     repsText: '1 Set | 10 Reps',
     targetReps: 10,
     difficulty: ExerciseDifficulty.moderate,
@@ -214,6 +276,8 @@ final List<ExerciseConfig> availableExercises = [
     type: ExerciseType.singleLegBalance,
     title: 'Single-Leg Balance',
     category: 'Balance',
+    cameraView: CameraView.front,
+    setupTip: 'Stand facing the camera, with your whole body in view.',
     repsText: '3 Holds | 10 sec',
     targetReps: 3,
     difficulty: ExerciseDifficulty.hard,
@@ -226,6 +290,8 @@ final List<ExerciseConfig> availableExercises = [
     type: ExerciseType.wallSit,
     title: 'Wall Sit',
     category: 'Lower Body',
+    cameraView: CameraView.side,
+    setupTip: 'Stand with your back to a wall, side-on to the camera, whole body in view.',
     repsText: '3 Holds | 20 sec',
     targetReps: 3,
     difficulty: ExerciseDifficulty.hard,
@@ -233,5 +299,82 @@ final List<ExerciseConfig> availableExercises = [
     targetAngle: 90.0, // knee angle to hold (+/- 20 degrees)
     restAngle: 0.0, // not used for holds
     holdSeconds: 20,
+  ),
+
+  // ---------------- Second batch ----------------
+  // Measured in lib/services/exercise_geometry.dart. Angles are starting
+  // points from general physiotherapy guidance; confirm them with the
+  // clinic and tune on a phone. The camera view each one needs is noted.
+  const ExerciseConfig(
+    type: ExerciseType.miniSquat,
+    title: 'Mini Squat',
+    category: 'Lower Body',
+    cameraView: CameraView.either,
+    setupTip: 'Stand facing the camera (best) or side-on, with your whole body in view.',
+    repsText: '1 Set | 10 Reps',
+    targetReps: 10,
+    difficulty: ExerciseDifficulty.moderate,
+    estimatedMinutes: 10,
+    // Front or side view. Knee angle: ~45 deg of bend, not a full squat.
+    targetAngle: 135.0,
+    restAngle: 170.0, // standing
+  ),
+  const ExerciseConfig(
+    type: ExerciseType.hipAbduction,
+    title: 'Standing Hip Abduction',
+    category: 'Core & Hips',
+    cameraView: CameraView.front,
+    setupTip: 'Stand facing the camera, holding a chair, with your whole body in view.',
+    repsText: '1 Set | 10 Reps',
+    targetReps: 10,
+    difficulty: ExerciseDifficulty.moderate,
+    estimatedMinutes: 10,
+    // Front view. Degrees the leg is out to the side from the body line.
+    targetAngle: 30.0,
+    restAngle: 8.0, // feet together
+  ),
+  const ExerciseConfig(
+    type: ExerciseType.hamstringCurl,
+    title: 'Standing Hamstring Curl',
+    category: 'Lower Body',
+    cameraView: CameraView.side,
+    setupTip: 'Stand side-on to the camera, holding a chair, with your whole body in view.',
+    repsText: '1 Set | 10 Reps',
+    targetReps: 10,
+    difficulty: ExerciseDifficulty.easy,
+    estimatedMinutes: 10,
+    // Side view. Knee angle of the working leg: heel toward the buttock.
+    targetAngle: 90.0,
+    restAngle: 165.0, // standing, leg straight
+  ),
+  const ExerciseConfig(
+    type: ExerciseType.marching,
+    title: 'Marching in Place',
+    category: 'Lower Body',
+    cameraView: CameraView.side,
+    setupTip: 'Stand side-on to the camera, with your whole body in view.',
+    repsText: '1 Set | 10 Reps',
+    targetReps: 10,
+    difficulty: ExerciseDifficulty.easy,
+    estimatedMinutes: 8,
+    // Side view. Hip angle (shoulder-hip-knee) of the lifted leg; each
+    // knee lift is one rep, alternating legs.
+    targetAngle: 110.0,
+    restAngle: 170.0, // standing
+  ),
+  const ExerciseConfig(
+    type: ExerciseType.overheadRaise,
+    title: 'Overhead Arm Raise',
+    category: 'Arm Rehabilitation',
+    cameraView: CameraView.side,
+    setupTip: 'Stand side-on to the camera, with your upper body and arm in view.',
+    repsText: '1 Set | 10 Reps',
+    targetReps: 10,
+    difficulty: ExerciseDifficulty.easy,
+    estimatedMinutes: 10,
+    // Side view. Arm against the body (hip-shoulder-wrist), up beside the
+    // ear. Forward Raise stops at shoulder height; this one goes overhead.
+    targetAngle: 150.0,
+    restAngle: 30.0, // arm by the side
   ),
 ];

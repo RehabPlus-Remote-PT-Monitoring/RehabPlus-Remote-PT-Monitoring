@@ -1,11 +1,13 @@
 // lib/screens/exercise_page.dart
 import 'package:flutter/material.dart';
-import 'package:intl/intl.dart';
+// `show`: intl also exports a TextDirection that clashes with Flutter's.
+import 'package:intl/intl.dart' show DateFormat;
 import 'package:provider/provider.dart';
 
 import '../models/exercise_model.dart';
 import '../services/app_provider.dart';
 import '../services/prescription_service.dart';
+import '../services/progress_stats.dart';
 import '../widgets/today_checklist_sheet.dart';
 import '../widgets/unread_badge.dart';
 import 'notification_page.dart';
@@ -47,12 +49,11 @@ class _ExercisePageState extends State<ExercisePage> {
   }
 
   // How close the patient is to the prescribed sessions per week for this
-  // exercise, based on sessions saved in the last 7 days.
-  double _weeklyProgress(AppProvider provider, ExerciseConfig config) {
-    final weekAgo = DateTime.now().subtract(const Duration(days: 7));
-    final count = provider.sessionHistory
-        .where((s) => s.exerciseId == config.type.name && s.startTime.isAfter(weekAgo))
-        .length;
+  // exercise, based on sessions saved in the last 7 days (rolling).
+  // [lastWeek] comes from ProgressStats.countByExerciseSince, computed once
+  // per list build, so N cards cost one pass over the history, not N.
+  double _weeklyProgress(Map<String, int> lastWeek, ExerciseConfig config) {
+    final count = lastWeek[config.type.name] ?? 0;
     final weeklyGoal = config.prescription?.frequencyPerWeek ?? 3;
     return weeklyGoal > 0 ? (count / weeklyGoal).clamp(0.0, 1.0) : 1.0;
   }
@@ -219,7 +220,15 @@ class _ExercisePageState extends State<ExercisePage> {
                         color: primaryTeal,
                         onRefresh: _refresh,
                         child: Consumer<AppProvider>(
-                          builder: (context, provider, _) => ListView(
+                          builder: (context, provider, _) {
+                            final lastWeek =
+                                ProgressStats.countByExerciseSince(
+                                  provider.sessionHistory,
+                                  DateTime.now().subtract(
+                                    const Duration(days: 7),
+                                  ),
+                                );
+                            return ListView(
                             physics: const BouncingScrollPhysics(
                               parent: AlwaysScrollableScrollPhysics(),
                             ),
@@ -234,21 +243,29 @@ class _ExercisePageState extends State<ExercisePage> {
                               else
                                 for (var i = 0; i < exercises.length; i++)
                                   AnimatedExerciseCard(
+                                    // Keys keep each card's animation state
+                                    // with its exercise when a refresh
+                                    // reorders the plan.
+                                    key: ValueKey(
+                                      'plan-${exercises[i].prescription?.id ?? 'i$i'}',
+                                    ),
                                     index: i,
                                     config: exercises[i],
-                                    progress: _weeklyProgress(provider, exercises[i]),
+                                    progress: _weeklyProgress(lastWeek, exercises[i]),
                                   ),
                               if (others.isNotEmpty) ...[
                                 const SizedBox(height: 8),
                                 _buildSectionHeader('All Exercises', others.length),
                                 for (var i = 0; i < others.length; i++)
                                   AnimatedExerciseCard(
+                                    key: ValueKey('catalog-${others[i].type.name}'),
                                     index: exercises.length + i,
                                     config: others[i],
                                   ),
                               ],
                             ],
-                          ),
+                          );
+                          },
                         ),
                       );
                     },
@@ -571,6 +588,22 @@ class _AnimatedExerciseCardState extends State<AnimatedExerciseCard>
                                 Expanded(
                                   child: Text(
                                     config.repsText,
+                                    overflow: TextOverflow.ellipsis,
+                                    style: TextStyle(fontSize: 12, color: Colors.grey.shade600),
+                                  ),
+                                ),
+                              ],
+                            ),
+                            const SizedBox(height: 4),
+                            // Where to stand: the angles are only measurable
+                            // from the right camera view.
+                            Row(
+                              children: [
+                                Icon(Icons.videocam_outlined, size: 13, color: Colors.grey.shade500),
+                                const SizedBox(width: 4),
+                                Expanded(
+                                  child: Text(
+                                    config.cameraView.label,
                                     overflow: TextOverflow.ellipsis,
                                     style: TextStyle(fontSize: 12, color: Colors.grey.shade600),
                                   ),

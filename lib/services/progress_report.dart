@@ -1,7 +1,18 @@
+// lib/services/progress_report.dart
+//
+// "How am I doing?": the patient-facing progress report (verdict, findings,
+// key numbers, chart points and a per-exercise breakdown).
+//
+// Pure Dart (no Flutter, no Firebase, no clock reads), so it is unit-tested
+// with a fixed `now` and can run on a background isolate for long histories
+// (see progress_report_loader.dart). Day handling and the sanitising of odd
+// stored values follow the rules at the top of progress_stats.dart.
+
 import 'dart:math';
 
 import '../models/prescription.dart';
 import '../models/session.dart';
+import 'progress_stats.dart';
 
 /// Overall verdict shown at the top of the progress report.
 enum ProgressStatus {
@@ -121,26 +132,30 @@ class ProgressReport {
     return min(1.0, (plannedDone ?? 0) / planned);
   }
 
-  static DateTime _day(DateTime t) => DateTime(t.year, t.month, t.day);
-
-  static double? _avg(Iterable<double> xs) {
-    final list = xs.toList();
-    if (list.isEmpty) return null;
-    return list.reduce((a, b) => a + b) / list.length;
-  }
-
-  static double? _form(Iterable<ExerciseSession> s) => _avg(
-    s
-        .where((x) => x.repComplianceScores.isNotEmpty)
-        .map((x) => x.overallCompliance * 100),
-  );
-
-  static double? _pain(Iterable<ExerciseSession> s) => _avg(
-    s.where((x) => x.painLevel != null).map((x) => x.painLevel!.toDouble()),
-  );
+  /// Shortest and longest periods the report accepts. Out-of-range values
+  /// are clamped rather than throwing, so a bad caller can't break a screen.
+  static const int minDays = 1;
+  static const int maxDays = 3660;
 
   /// Chart grouping: daily for a week, 5-day groups for a month, weekly after.
   static int bucketDaysFor(int days) => days <= 7 ? 1 : (days <= 30 ? 5 : 7);
+
+  /// The sessions [ProgressReport.build] actually looks at: this period and
+  /// the one before it. Used to send less data to a background isolate.
+  /// Only compares instants, so it is cheap enough for the UI thread.
+  static List<ExerciseSession> relevantSessions(
+    List<ExerciseSession> all,
+    DateTime now, {
+    required int days,
+  }) {
+    final span = days.clamp(minDays, maxDays);
+    final end = CalendarDays.addDays(CalendarDays.startOf(now), 1);
+    final prevStart = CalendarDays.addDays(end, -2 * span);
+    return [
+      for (final s in all)
+        if (!s.startTime.isBefore(prevStart) && s.startTime.isBefore(end)) s,
+    ];
+  }
 
   factory ProgressReport.build(
     List<ExerciseSession> all,
@@ -148,111 +163,104 @@ class ProgressReport {
     required int days,
     List<Prescription> prescriptions = const [],
   }) {
-    final end = _day(now).add(const Duration(days: 1));
-    final start = end.subtract(Duration(days: days));
-    final prevStart = start.subtract(Duration(days: days));
+    final span = days.clamp(minDays, maxDays);
+    final today = CalendarDays.startOf(now);
+    final end = CalendarDays.addDays(today, 1); // exclusive: tomorrow 00:00
+    final start = CalendarDays.addDays(end, -span);
+    final prevStart = CalendarDays.addDays(start, -span);
 
-    bool inRange(ExerciseSession s, DateTime a, DateTime b) =>
-        !s.startTime.isBefore(a) && s.startTime.isBefore(b);
+    // ── Split into this period / the previous one ───────────────────────
+    // Sessions dated in the future (a wrong phone clock) fall outside both.
+    final cur = <ExerciseSession>[];
+    final curDaysAgo = <int>[]; // parallel to `cur`: 0 = today
+    final prev = <ExerciseSession>[];
+    for (final s in all) {
+      final t = s.startTime;
+      if (t.isBefore(prevStart) || !t.isBefore(end)) continue;
+      if (t.isBefore(start)) {
+        prev.add(s);
+      } else {
+        cur.add(s);
+        curDaysAgo.add(CalendarDays.between(t, today));
+      }
+    }
 
-    final cur = all.where((s) => inRange(s, start, end)).toList()
-      ..sort((a, b) => a.startTime.compareTo(b.startTime));
-    final prev = all.where((s) => inRange(s, prevStart, start)).toList();
-
+    // ── Totals ──────────────────────────────────────────────────────────
     var time = Duration.zero;
     var repsDone = 0;
     var repsTarget = 0;
-    for (final s in cur) {
-      final e = s.endTime;
-      if (e != null && e.isAfter(s.startTime)) {
-        time += e.difference(s.startTime);
-      }
-      repsDone += s.completedReps;
-      repsTarget += s.targetReps;
+    var endedEarly = 0;
+    final activeDayOffsets = <int>{};
+    for (var i = 0; i < cur.length; i++) {
+      final s = cur[i];
+      time += s.countedDuration;
+      repsDone += s.safeCompletedReps;
+      repsTarget += s.safeTargetReps;
+      if (s.endedEarly) endedEarly++;
+      activeDayOffsets.add(curDaysAgo[i]);
     }
 
-    // Chart buckets, oldest first, the last one ending today.
-    final bucket = bucketDaysFor(days);
-    final count = (days / bucket).ceil();
-    final points = <ProgressPoint>[];
-    for (var i = count - 1; i >= 0; i--) {
-      final bEnd = end.subtract(Duration(days: i * bucket));
-      final bStart = bEnd.subtract(Duration(days: bucket));
-      final inBucket = cur.where((s) => inRange(s, bStart, bEnd));
-      points.add(
+    // ── Chart buckets, oldest first, the last one ending today ──────────
+    // Bucket 0 (newest) covers 0..bucket-1 days ago, bucket 1 the group
+    // before it, and so on. Each session is placed by arithmetic instead of
+    // re-scanning the list once per bucket.
+    final bucket = bucketDaysFor(span);
+    final count = (span / bucket).ceil();
+    final bucketSessions = List<int>.filled(count, 0);
+    final bucketForm = List.generate(count, (_) => _Mean());
+    final bucketPain = List.generate(count, (_) => _Mean());
+    for (var i = 0; i < cur.length; i++) {
+      final b = curDaysAgo[i] ~/ bucket;
+      if (b >= count) continue; // can't happen; defensive
+      bucketSessions[b]++;
+      bucketForm[b].addNullable(cur[i].safeFormScore);
+      bucketPain[b].addNullable(cur[i].safePain);
+    }
+    final points = <ProgressPoint>[
+      for (var b = count - 1; b >= 0; b--)
         ProgressPoint(
-          start: bStart,
+          start: CalendarDays.addDays(end, -(b + 1) * bucket),
           days: bucket,
-          sessions: inBucket.length,
-          formScore: _form(inBucket),
-          pain: _pain(inBucket),
+          sessions: bucketSessions[b],
+          formScore: bucketForm[b].value,
+          pain: bucketPain[b].value,
         ),
-      );
-    }
+    ];
 
-    // Per exercise, most practised first.
-    final byName = <String, List<ExerciseSession>>{};
+    // ── Per exercise, most practised first ──────────────────────────────
+    final byName = <String, _ExerciseTotals>{};
     for (final s in cur) {
-      byName.putIfAbsent(s.exerciseName, () => []).add(s);
+      byName.putIfAbsent(s.exerciseName, _ExerciseTotals.new).add(s);
     }
-    final exercises =
-        byName.entries
-            .map(
-              (e) => ExerciseSummary(
-                name: e.key,
-                sessions: e.value.length,
-                lastDone: e.value.last.startTime,
-                formScore: _form(e.value),
-                pain: _pain(e.value),
-              ),
-            )
-            .toList()
-          ..sort((a, b) => b.sessions.compareTo(a.sessions));
+    final exercises = [
+      for (final e in byName.entries)
+        ExerciseSummary(
+          name: e.key,
+          sessions: e.value.sessions,
+          lastDone: e.value.lastDone!,
+          formScore: e.value.form.value,
+          pain: e.value.pain.value,
+        ),
+    ];
+    // List.sort isn't stable, so ties are broken by name to keep the order
+    // the same on every rebuild.
+    exercises.sort((a, b) {
+      final bySessions = b.sessions.compareTo(a.sessions);
+      return bySessions != 0 ? bySessions : a.name.compareTo(b.name);
+    });
 
-    // The therapist's plan, counted from when each prescription was
-    // assigned up to yesterday (today isn't over yet; sessions done today
-    // still count). With scheduled weekdays, each scheduled day is one
-    // session; otherwise frequencyPerWeek spread over the days.
-    int? planned;
-    int? plannedDone;
-    final today = _day(now);
-    for (final p in prescriptions) {
-      final assigned = p.assignedAt;
-      final from = assigned != null && _day(assigned).isAfter(start)
-          ? _day(assigned)
-          : start;
-      final spanDays = today.difference(from).inDays;
-      if (spanDays <= 0) continue;
-      final weekdays = p.schedule?.days ?? const <int>[];
-      final want = weekdays.isEmpty
-          ? (p.frequencyPerWeek * spanDays / 7).floor()
-          : [
-              for (var i = 0; i < spanDays; i++) from.add(Duration(days: i)),
-            ].where((d) => weekdays.contains(d.weekday)).length;
-      if (want == 0) continue;
-      final done = cur
-          .where(
-            (s) =>
-                s.prescriptionId == p.id &&
-                !s.endedEarly &&
-                !s.startTime.isBefore(from),
-          )
-          .length;
-      planned = (planned ?? 0) + want;
-      plannedDone = (plannedDone ?? 0) + min(done, want);
-    }
+    // ── The therapist's plan ────────────────────────────────────────────
+    final (planned, plannedDone) = _plan(prescriptions, cur, start, today);
 
     final formScore = _form(cur);
     final previousFormScore = _form(prev);
     final pain = _pain(cur);
     final previousPain = _pain(prev);
-    final activeDays = cur.map((s) => _day(s.startTime)).toSet().length;
-    final endedEarly = cur.where((s) => s.endedEarly).length;
 
     final (status, findings) = _assess(
-      days: days,
+      days: span,
       sessions: cur.length,
-      activeDays: activeDays,
+      activeDays: activeDayOffsets.length,
       endedEarly: endedEarly,
       formScore: formScore,
       previousFormScore: previousFormScore,
@@ -263,9 +271,9 @@ class ProgressReport {
     );
 
     return ProgressReport._(
-      days: days,
+      days: span,
       sessions: cur.length,
-      activeDays: activeDays,
+      activeDays: activeDayOffsets.length,
       endedEarly: endedEarly,
       time: time,
       formScore: formScore,
@@ -280,6 +288,91 @@ class ProgressReport {
       status: status,
       findings: findings,
     );
+  }
+
+  static double? _form(Iterable<ExerciseSession> sessions) {
+    final mean = _Mean();
+    for (final s in sessions) {
+      mean.addNullable(s.safeFormScore);
+    }
+    return mean.value;
+  }
+
+  static double? _pain(Iterable<ExerciseSession> sessions) {
+    final mean = _Mean();
+    for (final s in sessions) {
+      mean.addNullable(s.safePain);
+    }
+    return mean.value;
+  }
+
+  /// Sessions the plan called for in this period and how many were done.
+  ///
+  /// Each prescription is counted from the day it was assigned (or the
+  /// period start, whichever is later) up to yesterday: today isn't over
+  /// yet, but sessions done today still count as done. With scheduled
+  /// weekdays each scheduled day is one session; otherwise
+  /// frequencyPerWeek is spread over the days. Both are null when nothing
+  /// was planned yet.
+  static (int?, int?) _plan(
+    List<Prescription> prescriptions,
+    List<ExerciseSession> cur,
+    DateTime start,
+    DateTime today,
+  ) {
+    if (prescriptions.isEmpty) return (null, null);
+
+    // Completed (not ended early) sessions per prescription, built once
+    // instead of re-scanning `cur` for every prescription.
+    final doneByRx = <String, List<DateTime>>{};
+    for (final s in cur) {
+      final rx = s.prescriptionId;
+      if (rx == null || s.endedEarly) continue;
+      doneByRx.putIfAbsent(rx, () => []).add(s.startTime);
+    }
+
+    int? planned;
+    int? plannedDone;
+    for (final p in prescriptions) {
+      final assigned = p.assignedAt;
+      final assignedDay = assigned == null
+          ? null
+          : CalendarDays.startOf(assigned);
+      final from = assignedDay != null && assignedDay.isAfter(start)
+          ? assignedDay
+          : start;
+      // Assigned today or in the future (clock skew): nothing due yet.
+      final spanDays = CalendarDays.between(from, today);
+      if (spanDays <= 0) continue;
+
+      // Only real weekdays (1 = Mon … 7 = Sun); bad values are ignored.
+      final weekdays = {
+        for (final d in p.schedule?.days ?? const <int>[])
+          if (d >= 1 && d <= 7) d,
+      };
+      final int want;
+      if (weekdays.isEmpty) {
+        want = p.frequencyPerWeek <= 0
+            ? 0
+            : (p.frequencyPerWeek * spanDays / 7).floor();
+      } else {
+        var scheduled = 0;
+        for (var i = 0; i < spanDays; i++) {
+          // Weekday by arithmetic: no DateTime per day, no DST surprises.
+          final weekday = (from.weekday - 1 + i) % 7 + 1;
+          if (weekdays.contains(weekday)) scheduled++;
+        }
+        want = scheduled;
+      }
+      if (want <= 0) continue;
+
+      final done = (doneByRx[p.id] ?? const <DateTime>[])
+          .where((t) => !t.isBefore(from))
+          .length;
+      planned = (planned ?? 0) + want;
+      plannedDone = (plannedDone ?? 0) + min(done, want);
+    }
+    return (planned, plannedDone);
   }
 
   /// Turns the numbers into a verdict and plain-language findings. These are
@@ -424,5 +517,35 @@ class ProgressReport {
     }
     // Warnings first, so the important thing is read first.
     return (status, [...warn, ...good, ...info]);
+  }
+}
+
+/// Running mean that ignores missing (null) and non-finite values.
+class _Mean {
+  double _sum = 0;
+  int _count = 0;
+
+  void addNullable(double? value) {
+    if (value == null || !value.isFinite) return;
+    _sum += value;
+    _count++;
+  }
+
+  double? get value => _count == 0 ? null : _sum / _count;
+}
+
+/// Accumulates one exercise's sessions for [ExerciseSummary].
+class _ExerciseTotals {
+  int sessions = 0;
+  DateTime? lastDone;
+  final form = _Mean();
+  final pain = _Mean();
+
+  void add(ExerciseSession s) {
+    sessions++;
+    final last = lastDone;
+    if (last == null || s.startTime.isAfter(last)) lastDone = s.startTime;
+    form.addNullable(s.safeFormScore);
+    pain.addNullable(s.safePain);
   }
 }

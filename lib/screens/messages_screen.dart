@@ -1,15 +1,34 @@
 import 'dart:async';
 
 import 'package:flutter/material.dart';
-import 'package:intl/intl.dart';
+// `show`: the full intl library also exports a TextDirection that clashes
+// with Flutter's.
+import 'package:intl/intl.dart' show DateFormat;
 import 'package:provider/provider.dart';
 import 'package:url_launcher/url_launcher.dart';
 
+import '../core/diagnostic_logger.dart';
 import '../models/chat.dart';
 import '../services/app_provider.dart';
 import '../services/chat_service.dart';
 
 const Color _primaryTeal = Color(0xFF23A8AA);
+const String _tag = 'Messages';
+
+/// Firestore rules limit a message to 1000 characters. Dart's String.length
+/// counts UTF-16 units, which is never less than the rules' count, so a
+/// message that passes this check always passes the rule.
+const int _maxMessageLength = 1000;
+
+/// Keeps only what a phone dialer understands (digits, and + at the start),
+/// so a badly entered clinic number can't smuggle other characters into the
+/// tel: link. Returns null if no digits are left.
+String? _dialableNumber(String raw) {
+  final trimmed = raw.trim();
+  final digits = trimmed.replaceAll(RegExp(r'[^0-9]'), '');
+  if (digits.isEmpty) return null;
+  return trimmed.startsWith('+') ? '+$digits' : digits;
+}
 
 String _threadTitle(BuildContext context, ChatThread thread) {
   if (thread == ChatThread.clinic) return 'RehabPlus Clinic';
@@ -26,15 +45,23 @@ IconData _threadIcon(ChatThread thread) =>
     thread == ChatThread.clinic ? Icons.groups : Icons.person_outline;
 
 /// Opens the phone dialer with the clinic number (settings/clinic.phone).
+///
+/// The messenger is captured before any await, so the SnackBars still work
+/// if the calling screen is closed meanwhile.
 Future<void> callClinic(BuildContext context) async {
+  final logger = DiagnosticLogger.I;
   final messenger = ScaffoldMessenger.of(context);
+  logger.info(_tag, 'Call clinic tapped');
   String? phone;
   try {
-    phone = await ChatService().clinicPhone();
-  } catch (_) {
+    final configured = await ChatService().clinicPhone();
+    phone = configured == null ? null : _dialableNumber(configured);
+  } catch (e, st) {
+    logger.warn(_tag, 'Could not read the clinic phone number', null, e, st);
     phone = null;
   }
   if (phone == null) {
+    logger.warn(_tag, 'Clinic phone number not configured');
     messenger.showSnackBar(
       const SnackBar(
         content: Text('The clinic phone number is not set up yet.'),
@@ -42,7 +69,15 @@ Future<void> callClinic(BuildContext context) async {
     );
     return;
   }
-  final launched = await launchUrl(Uri(scheme: 'tel', path: phone));
+  bool launched;
+  try {
+    // tel: only opens the dialer; the patient still has to press call.
+    launched = await launchUrl(Uri(scheme: 'tel', path: phone));
+  } catch (e, st) {
+    logger.warn(_tag, 'Opening the dialer failed', null, e, st);
+    launched = false;
+  }
+  logger.info(_tag, 'Dialer result', {'launched': launched});
   if (!launched) {
     messenger.showSnackBar(
       SnackBar(content: Text('Call the clinic at $phone')),
@@ -51,8 +86,20 @@ Future<void> callClinic(BuildContext context) async {
 }
 
 // --- CONVERSATION LIST ---
-class MessagesScreen extends StatelessWidget {
+// Stateful only so "Screen opened" is logged once, not on every rebuild.
+class MessagesScreen extends StatefulWidget {
   const MessagesScreen({super.key});
+
+  @override
+  State<MessagesScreen> createState() => _MessagesScreenState();
+}
+
+class _MessagesScreenState extends State<MessagesScreen> {
+  @override
+  void initState() {
+    super.initState();
+    DiagnosticLogger.I.info(_tag, 'Screen opened');
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -99,9 +146,21 @@ class _ThreadTile extends StatefulWidget {
 }
 
 class _ThreadTileState extends State<_ThreadTile> {
-  late final Stream<ChatThreadSummary> _summary = ChatService().summary(
-    widget.thread,
-  );
+  /// Created once (not in build), so rebuilds don't re-subscribe Firestore.
+  late final Stream<ChatThreadSummary> _summary = _openSummary();
+
+  Stream<ChatThreadSummary> _openSummary() {
+    try {
+      // ChatService logs the stream's start, first snapshot and errors.
+      return ChatService().summary(widget.thread);
+    } catch (e, st) {
+      // Thrown synchronously when nobody is signed in (e.g. mid sign-out).
+      DiagnosticLogger.I.warn(_tag, 'Thread summary unavailable', {
+        'thread': widget.thread.name,
+      }, e, st);
+      return Stream.value(ChatThreadSummary.empty);
+    }
+  }
 
   String _time(DateTime t) {
     final now = DateTime.now();
@@ -126,10 +185,16 @@ class _ThreadTileState extends State<_ThreadTile> {
             horizontal: 16,
             vertical: 4,
           ),
-          onTap: () => Navigator.push(
-            context,
-            MaterialPageRoute(builder: (_) => ChatDetailScreen(thread: thread)),
-          ),
+          onTap: () {
+            DiagnosticLogger.I.info(_tag, 'Thread opened', {
+              'thread': thread.name,
+              'unread': unread,
+            });
+            Navigator.push(
+              context,
+              MaterialPageRoute(builder: (_) => ChatDetailScreen(thread: thread)),
+            );
+          },
           leading: CircleAvatar(
             radius: 26,
             backgroundColor: Colors.grey.shade300,
@@ -200,10 +265,16 @@ class ChatDetailScreen extends StatefulWidget {
 class _ChatDetailScreenState extends State<ChatDetailScreen> {
   final _chat = ChatService();
   final _textController = TextEditingController();
-  late final Stream<List<ChatMessage>> _messages = _chat.messages(
-    widget.thread,
-  );
+  final DiagnosticLogger _logger = DiagnosticLogger.I;
+
+  /// Created once in initState, so rebuilds (keyboard, typing) don't
+  /// re-subscribe to Firestore.
+  late final Stream<List<ChatMessage>> _messages;
   StreamSubscription<ChatThreadSummary>? _unreadSub;
+
+  /// The thread's `unreadForStaff` counter, for read receipts (two ticks once
+  /// staff have seen a message). Null until the summary first loads.
+  int? _unreadForStaff;
 
   /// Starters for the clinic thread; they fill the box so the patient can
   /// add details before sending.
@@ -218,10 +289,43 @@ class _ChatDetailScreenState extends State<ChatDetailScreen> {
   @override
   void initState() {
     super.initState();
-    // Clear the unread badge on open and whenever staff replies arrive.
-    _unreadSub = _chat.summary(widget.thread).listen((s) {
-      if (s.unreadForPatient > 0) _chat.markRead(widget.thread);
-    });
+    final thread = widget.thread.name;
+    _logger.info(_tag, 'Chat opened', {'thread': thread});
+    try {
+      // ChatService logs the stream's start, first snapshot and errors.
+      _messages = _chat.messages(widget.thread);
+      // Clear the unread badge on open and whenever staff replies arrive.
+      _unreadSub = _chat
+          .summary(widget.thread)
+          .listen(
+            (s) {
+              // Drives the ticks; Firestore applies our own sends to the
+              // summary locally too, so a new message starts as unseen.
+              if (mounted && s.unreadForStaff != _unreadForStaff) {
+                setState(() => _unreadForStaff = s.unreadForStaff);
+              }
+              if (s.unreadForPatient > 0) {
+                _logger.verbose(_tag, 'Marking thread read', {
+                  'thread': thread,
+                  'unread': s.unreadForPatient,
+                });
+                _chat.markRead(widget.thread);
+              }
+            },
+            // Without this a listener error would be an uncaught error.
+            onError: (Object e, StackTrace st) => _logger.warn(
+              _tag,
+              'Unread listener failed',
+              {'thread': thread},
+              e,
+              st,
+            ),
+          );
+    } catch (e, st) {
+      // Thrown synchronously when nobody is signed in.
+      _logger.error(_tag, 'Chat unavailable', {'thread': thread}, e, st);
+      _messages = Stream.error(e, st); // shows "Couldn't load messages."
+    }
   }
 
   @override
@@ -234,11 +338,37 @@ class _ChatDetailScreenState extends State<ChatDetailScreen> {
   void _send() {
     final text = _textController.text.trim();
     if (text.isEmpty) return;
-    _chat.send(widget.thread, text);
+    if (text.length > _maxMessageLength) {
+      // Possible with many emoji (each counts as 2+ units): the server
+      // would reject it, so say so instead of failing silently.
+      _logger.warn(_tag, 'Message too long', {'length': text.length});
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text('That message is too long. Please shorten it.'),
+        ),
+      );
+      return;
+    }
+    try {
+      // Not awaited: Firestore's offline cache queues it. ChatService logs
+      // "Message queued" with the length (never the text) and the sync
+      // result. The text is cleared at once, so a double tap can't send it
+      // twice.
+      _chat.send(widget.thread, text);
+    } catch (e, st) {
+      _logger.error(_tag, 'Sending failed', {'thread': widget.thread.name}, e, st);
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text('Could not send. Please sign in again.'),
+        ),
+      );
+      return;
+    }
     _textController.clear();
   }
 
-  void _usePrompt(String prompt) {
+  void _usePrompt(String label, String prompt) {
+    _logger.info(_tag, 'Prompt chip used', {'prompt': label});
     _textController
       ..text = prompt
       ..selection = TextSelection.collapsed(offset: prompt.length);
@@ -343,6 +473,7 @@ class _ChatDetailScreenState extends State<ChatDetailScreen> {
                       ),
                     );
                   }
+                  final seen = seenByStaff(msgs, _unreadForStaff);
                   return ListView.builder(
                     reverse: true, // newest at the bottom, auto-scrolls
                     padding: const EdgeInsets.symmetric(
@@ -361,6 +492,7 @@ class _ChatDetailScreenState extends State<ChatDetailScreen> {
                         msg: msg,
                         icon: _threadIcon(thread),
                         showTime: showTime,
+                        seen: seen.contains(msg.id),
                       );
                     },
                   );
@@ -380,7 +512,7 @@ class _ChatDetailScreenState extends State<ChatDetailScreen> {
                   runSpacing: 6,
                   children: _clinicPrompts.entries.map((e) {
                     return GestureDetector(
-                      onTap: () => _usePrompt(e.value),
+                      onTap: () => _usePrompt(e.key, e.value),
                       child: Container(
                         padding: const EdgeInsets.symmetric(
                           horizontal: 12,
@@ -478,11 +610,33 @@ class _Bubble extends StatelessWidget {
   final IconData icon;
   final bool showTime;
 
+  /// Staff have opened the conversation since this (patient) message.
+  final bool seen;
+
   const _Bubble({
     required this.msg,
     required this.icon,
     required this.showTime,
+    this.seen = false,
   });
+
+  /// Like other messaging apps: a clock while it's still uploading, one tick
+  /// once it reached the server, two ticks once staff have seen it.
+  Widget _receipt() {
+    final (IconData glyph, String label) = msg.pending
+        ? (Icons.schedule, 'Sending')
+        : seen
+        ? (Icons.done_all, 'Seen')
+        : (Icons.done, 'Sent');
+    return Semantics(
+      label: label,
+      child: Icon(
+        glyph,
+        size: 14,
+        color: seen ? _primaryTeal : Colors.black45,
+      ),
+    );
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -538,14 +692,7 @@ class _Bubble extends StatelessWidget {
                   ),
                 ),
               ),
-              if (mine) ...[
-                const SizedBox(width: 4),
-                Icon(
-                  msg.pending ? Icons.schedule : Icons.done,
-                  size: 12,
-                  color: Colors.black45,
-                ),
-              ],
+              if (mine) ...[const SizedBox(width: 4), _receipt()],
             ],
           ),
         ),

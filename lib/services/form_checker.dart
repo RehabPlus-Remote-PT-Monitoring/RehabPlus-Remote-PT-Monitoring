@@ -19,17 +19,20 @@ import 'package:google_mlkit_pose_detection/google_mlkit_pose_detection.dart';
 
 import '../core/diagnostic_logger.dart';
 import '../models/exercise_model.dart';
+import 'exercise_geometry.dart';
 
 // Declared in priority order: lower index is shown first in the banner.
 enum FormIssueCode {
   armsMoving,
   legsMoving,
   elbowDrift,
+  thighDrift,
   armBent,
   bodySway,
   trunkLean,
   tooFast,
   kneeBent,
+  kneesIn,
   otherLeg,
   shortRange,
   notInFrame,
@@ -229,8 +232,11 @@ class _Profile {
 _Profile _profileFor(ExerciseType type) {
   switch (type) {
     case ExerciseType.kneeExtension: // seated
+      // Arms are not checked: seated side-on, the hidden far arm's guessed
+      // landmarks jitter and rejected real reps as "arms moving" in testing,
+      // and arm movement doesn't affect a knee extension.
       return _Profile(
-        stationary: _arms,
+        stationary: <PoseLandmarkType>{},
         working: _legs,
         torsoStill: true,
         upright: true,
@@ -298,6 +304,51 @@ _Profile _profileFor(ExerciseType type) {
         upright: true,
         needsLegs: true,
       );
+
+    // --- Second batch (measured in exercise_geometry.dart) ---
+
+    case ExerciseType.miniSquat:
+      // Arms often reach forward for balance, and the torso travels down,
+      // so neither is checked. Forward lean has its own, looser limit in
+      // exercise_geometry.dart instead of the strict upright check.
+      return _Profile(
+        stationary: <PoseLandmarkType>{},
+        working: _legs,
+        torsoStill: false,
+        upright: false,
+        needsLegs: true,
+      );
+
+    case ExerciseType.hipAbduction:
+    case ExerciseType.hamstringCurl:
+      // Hands rest on a chair or the hips. The hips shift a little as the
+      // weight moves onto the standing leg, so torso sway isn't checked.
+      return _Profile(
+        stationary: _arms,
+        working: _legs,
+        torsoStill: false,
+        upright: true,
+        needsLegs: true,
+      );
+
+    case ExerciseType.marching:
+      // Arms may swing naturally while marching.
+      return _Profile(
+        stationary: <PoseLandmarkType>{},
+        working: _legs,
+        torsoStill: false,
+        upright: true,
+        needsLegs: true,
+      );
+
+    case ExerciseType.overheadRaise:
+      return _Profile(
+        stationary: _legs, // feet stay planted
+        working: _arms,
+        torsoStill: true,
+        upright: true,
+        needsArms: true,
+      );
   }
 }
 
@@ -306,6 +357,9 @@ class _Sample {
   final Map<PoseLandmarkType, Offset> points;
   _Sample(this.t, this.points);
 }
+
+/// The checker's overall verdict, for change-only diagnostic logging.
+enum _Verdict { ok, wrongForm, noPose, landmarksHidden }
 
 class FormChecker {
   final ExerciseConfig exercise;
@@ -320,8 +374,23 @@ class FormChecker {
   }) : th = thresholds,
        _profile = _profileFor(exercise.type),
        _logger = logger ?? DiagnosticLogger.I {
-    _logger.info('FormChecker', 'Initialized for ${exercise.title}',
-        {'type': exercise.type.name, 'thresholds': 'strict'});
+    _logger.info('FormChecker', 'Initialized', {
+      'type': exercise.type.name,
+      'thresholds': _presetName(thresholds),
+      'stationaryRange': thresholds.stationaryRange,
+      'torsoSwayRange': thresholds.torsoSwayRange,
+      'maxWorkingSpeed': thresholds.maxWorkingSpeed,
+      'maxTrunkLeanDeg': thresholds.maxTrunkLeanDeg,
+      'maxUpperArmSwingDeg': thresholds.maxUpperArmSwingDeg,
+      'confirmMs': thresholds.confirm.inMilliseconds,
+      'holdMs': thresholds.hold.inMilliseconds,
+    });
+  }
+
+  static String _presetName(FormThresholds t) {
+    if (identical(t, FormThresholds.strict)) return 'strict';
+    if (identical(t, FormThresholds.standard)) return 'standard';
+    return 'custom';
   }
 
   static const double _smoothing = 0.6; // EMA weight of the newest frame
@@ -336,6 +405,12 @@ class FormChecker {
   final Map<FormIssueCode, int> _lastSeen = {};
   final Map<FormIssueCode, FormIssue> _latest = {};
 
+  // ---- Diagnostics: log CHANGES of the verdict, never every frame. ----
+  // evaluate() runs ~15 times a second; one log per frame would flood the
+  // console and the log file. These remember what was logged last.
+  _Verdict _loggedVerdict = _Verdict.ok;
+  int _loggedMask = 0; // issue-code bits (wrong form) or missing-group bits
+
   static final FormIssue _notInFrameIssue = FormIssue(
     code: FormIssueCode.notInFrame,
     message:
@@ -347,28 +422,33 @@ class FormChecker {
       FormResult(FormStatus.notInFrame, [_notInFrameIssue]);
 
   void reset() {
+    if (_logger.isVerbose && _history.isNotEmpty) {
+      _logger.verbose('FormChecker', 'State reset', {
+        'samples': _history.length,
+      });
+    }
     _history.clear();
     _smooth.clear();
     _torsoLen = null;
     _firstSeen.clear();
     _lastSeen.clear();
     _latest.clear();
-    _logger.info('FormChecker', 'State reset');
   }
 
   /// Call when ML Kit found nobody in the frame.
   FormResult evaluateNoPose() {
     reset();
-    _logger.info('FormChecker', 'No pose detected - not in frame');
+    _logVerdict(_Verdict.noPose, 0);
     return _notInFrame;
   }
 
   FormResult evaluate(Map<PoseLandmarkType, PoseLandmark> lm, {DateTime? now}) {
     _now = (now ?? DateTime.now()).millisecondsSinceEpoch;
 
-    if (!_requiredVisible(lm)) {
+    final missing = _missingGroups(lm);
+    if (missing != 0) {
       reset();
-      _logger.info('FormChecker', 'Required landmarks not visible');
+      _logVerdict(_Verdict.landmarksHidden, missing);
       return _notInFrame;
     }
 
@@ -387,10 +467,48 @@ class FormChecker {
 
     final result = _stabilise(raw);
     if (result.isWrong) {
-      _logger.warn('FormChecker', 'Form issues detected',
-          {'issues': result.issues.map((i) => i.code.name).toList()});
+      var mask = 0;
+      for (final issue in result.issues) {
+        mask |= 1 << issue.code.index;
+      }
+      _logVerdict(_Verdict.wrongForm, mask);
+    } else {
+      _logVerdict(_Verdict.ok, 0);
     }
     return result;
+  }
+
+  /// Logs the checker's own verdict when it changes. "Not in frame" is
+  /// info level and names the missing body parts, because that is the most
+  /// common "why isn't it counting?" question. Wrong-form changes are
+  /// verbose here: the screen logs its final (merged, filtered) verdict.
+  void _logVerdict(_Verdict verdict, int mask) {
+    if (verdict == _loggedVerdict && mask == _loggedMask) return;
+    _loggedVerdict = verdict;
+    _loggedMask = mask;
+    switch (verdict) {
+      case _Verdict.noPose:
+        _logger.info('FormChecker', 'No pose detected', {
+          'type': exercise.type.name,
+        });
+      case _Verdict.landmarksHidden:
+        _logger.info('FormChecker', 'Required landmarks not visible', {
+          'type': exercise.type.name,
+          'missing': _groupNames(mask),
+          'minLikelihood': th.minLikelihood,
+        });
+      case _Verdict.wrongForm:
+        if (_logger.isVerbose) {
+          _logger.verbose('FormChecker', 'Form issues changed', {
+            'issues': [
+              for (final code in FormIssueCode.values)
+                if (mask & (1 << code.index) != 0) code.name,
+            ],
+          });
+        }
+      case _Verdict.ok:
+        _logger.verbose('FormChecker', 'Form ok');
+    }
   }
 
   // -------------------------------------------------------------------------
@@ -399,27 +517,60 @@ class FormChecker {
 
   bool _ok(PoseLandmark? p) => p != null && p.likelihood >= th.minLikelihood;
 
-  bool _requiredVisible(Map<PoseLandmarkType, PoseLandmark> lm) {
+  // Bits for [_missingGroups]; names are what the log shows.
+  static const int _missShoulders = 1 << 0;
+  static const int _missHips = 1 << 1;
+  static const int _missKnees = 1 << 2;
+  static const int _missAnkles = 1 << 3;
+  static const int _missElbows = 1 << 4;
+  static const int _missWrists = 1 << 5;
+  static const Map<int, String> _groupLabels = {
+    _missShoulders: 'shoulders',
+    _missHips: 'hips',
+    _missKnees: 'knees',
+    _missAnkles: 'ankles',
+    _missElbows: 'elbows',
+    _missWrists: 'wrists',
+  };
+
+  static List<String> _groupNames(int mask) => [
+    for (final entry in _groupLabels.entries)
+      if (mask & entry.key != 0) entry.value,
+  ];
+
+  /// 0 when everything this exercise needs is confidently visible;
+  /// otherwise one bit per missing body-part group. (An int, not a list, so
+  /// the every-frame check allocates nothing.)
+  int _missingGroups(Map<PoseLandmarkType, PoseLandmark> lm) {
     // At least one side of each pair must be visible (a side-on camera
     // usually hides the far limb).
     bool pair(PoseLandmarkType l, PoseLandmarkType r) =>
         _ok(lm[l]) || _ok(lm[r]);
 
-    if (!pair(PoseLandmarkType.leftShoulder, PoseLandmarkType.rightShoulder) ||
-        !pair(PoseLandmarkType.leftHip, PoseLandmarkType.rightHip)) {
-      return false;
+    var missing = 0;
+    if (!pair(PoseLandmarkType.leftShoulder, PoseLandmarkType.rightShoulder)) {
+      missing |= _missShoulders;
     }
-    if (_profile.needsLegs &&
-        !(pair(PoseLandmarkType.leftKnee, PoseLandmarkType.rightKnee) &&
-            pair(PoseLandmarkType.leftAnkle, PoseLandmarkType.rightAnkle))) {
-      return false;
+    if (!pair(PoseLandmarkType.leftHip, PoseLandmarkType.rightHip)) {
+      missing |= _missHips;
     }
-    if (_profile.needsArms &&
-        !(pair(PoseLandmarkType.leftElbow, PoseLandmarkType.rightElbow) &&
-            pair(PoseLandmarkType.leftWrist, PoseLandmarkType.rightWrist))) {
-      return false;
+    if (_profile.needsLegs) {
+      if (!pair(PoseLandmarkType.leftKnee, PoseLandmarkType.rightKnee)) {
+        missing |= _missKnees;
+      }
+      if (!pair(PoseLandmarkType.leftAnkle, PoseLandmarkType.rightAnkle)) {
+        missing |= _missAnkles;
+      }
     }
-    return true;
+    if (_profile.needsArms) {
+      if (!pair(PoseLandmarkType.leftElbow, PoseLandmarkType.rightElbow)) {
+        missing |= _missElbows;
+      }
+      if (!pair(PoseLandmarkType.leftWrist, PoseLandmarkType.rightWrist)) {
+        missing |= _missWrists;
+      }
+    }
+    return missing;
   }
 
   // -------------------------------------------------------------------------
@@ -646,7 +797,10 @@ class FormChecker {
           PoseLandmarkType.rightKnee,
           PoseLandmarkType.rightAnkle,
         );
-        if (l != null && r != null) {
+        // Only when the other leg is really seen as a separate leg: from
+        // the side, ML Kit draws the hidden far leg on top of the lifted
+        // one (see ExerciseGeometry.kneeExtensionLegs).
+        if (l != null && r != null && ExerciseGeometry.anklesApart(lm)) {
           final working = max(l, r);
           final resting = min(l, r);
           // Both legs straightened = cheating the rep.
@@ -747,6 +901,7 @@ class FormChecker {
 
       case ExerciseType.forwardRaise:
       case ExerciseType.sideRaise:
+      case ExerciseType.overheadRaise:
         {
           // Assumes straight-arm raises. Delete this case if your clinic's
           // protocol allows a bent elbow.

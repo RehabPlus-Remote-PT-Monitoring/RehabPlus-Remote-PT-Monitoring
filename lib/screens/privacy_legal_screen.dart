@@ -1,16 +1,34 @@
 import 'package:flutter/material.dart';
 
+import '../core/diagnostic_logger.dart';
 import '../legal/legal_info.dart';
 import 'account_info_screen.dart';
 import 'legal_document_screen.dart';
 
 /// Profile > Privacy & Legal: the patient's account information, the Terms
 /// and Conditions and the Privacy Policy.
-class PrivacyLegalScreen extends StatelessWidget {
+///
+/// Stateful only so "Screen opened" is logged once, not on every rebuild.
+class PrivacyLegalScreen extends StatefulWidget {
   const PrivacyLegalScreen({super.key});
 
   static const Color primaryTeal = Color(0xFF23A8AA);
   static const Color darkTeal = Color(0xFF0D6E71);
+
+  @override
+  State<PrivacyLegalScreen> createState() => _PrivacyLegalScreenState();
+}
+
+class _PrivacyLegalScreenState extends State<PrivacyLegalScreen> {
+  static const String _tag = 'PrivacyLegal';
+  static const Color primaryTeal = PrivacyLegalScreen.primaryTeal;
+  static const Color darkTeal = PrivacyLegalScreen.darkTeal;
+
+  @override
+  void initState() {
+    super.initState();
+    DiagnosticLogger.I.info(_tag, 'Screen opened');
+  }
 
   void _open(BuildContext context, Widget screen) =>
       Navigator.push(context, MaterialPageRoute(builder: (_) => screen));

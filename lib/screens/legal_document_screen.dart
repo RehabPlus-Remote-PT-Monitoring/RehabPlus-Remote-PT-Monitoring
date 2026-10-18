@@ -1,11 +1,18 @@
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart' show rootBundle;
 
+import '../core/diagnostic_logger.dart';
 import '../legal/legal_info.dart';
 
 /// Shows one of the legal documents in assets/legal/ (Terms and Conditions or
 /// Privacy Policy), with the clinic details filled in.
-class LegalDocumentScreen extends StatelessWidget {
+///
+/// The document is loaded once in initState (not in build), so rebuilds
+/// (keyboard, rotation, text size) don't reload and re-parse it. The files
+/// are ~10 KB, so loading and filling them on the UI isolate takes about a
+/// millisecond; a background isolate would cost more than it saves. The
+/// load time is logged so that can be checked.
+class LegalDocumentScreen extends StatefulWidget {
   const LegalDocumentScreen({
     super.key,
     required this.title,
@@ -27,6 +34,50 @@ class LegalDocumentScreen extends StatelessWidget {
   static const Color darkTeal = Color(0xFF0D6E71);
 
   @override
+  State<LegalDocumentScreen> createState() => _LegalDocumentScreenState();
+}
+
+class _LegalDocumentScreenState extends State<LegalDocumentScreen> {
+  static const String _tag = 'LegalDocument';
+  static const Color primaryTeal = LegalDocumentScreen.primaryTeal;
+  static const Color darkTeal = LegalDocumentScreen.darkTeal;
+
+  final DiagnosticLogger _logger = DiagnosticLogger.I;
+
+  /// The filled-in document; created once so rebuilds reuse it.
+  late final Future<String> _document = _load();
+
+  String get title => widget.title;
+
+  @override
+  void initState() {
+    super.initState();
+    _logger.info(_tag, 'Screen opened', {'asset': widget.asset});
+  }
+
+  Future<String> _load() async {
+    final stopwatch = Stopwatch()..start();
+    try {
+      final text = LegalInfo.fill(await rootBundle.loadString(widget.asset));
+      _logger.info(_tag, 'Document loaded', {
+        'asset': widget.asset,
+        'chars': text.length,
+        'ms': stopwatch.elapsedMilliseconds,
+      });
+      return text;
+    } catch (e, st) {
+      _logger.error(
+        _tag,
+        'Document failed to load',
+        {'asset': widget.asset},
+        e,
+        st,
+      );
+      rethrow; // shown as "Could not open this document."
+    }
+  }
+
+  @override
   Widget build(BuildContext context) {
     return Scaffold(
       backgroundColor: const Color(0xFFF0F4F4),
@@ -35,7 +86,7 @@ class LegalDocumentScreen extends StatelessWidget {
           _header(context),
           Expanded(
             child: FutureBuilder<String>(
-              future: rootBundle.loadString(asset),
+              future: _document,
               builder: (context, snap) {
                 if (snap.hasError) {
                   return const Center(
@@ -48,7 +99,7 @@ class LegalDocumentScreen extends StatelessWidget {
                 return SingleChildScrollView(
                   padding: const EdgeInsets.fromLTRB(20, 20, 20, 32),
                   child: SelectionArea(
-                    child: LegalText(LegalInfo.fill(snap.data!)),
+                    child: LegalText(snap.data!),
                   ),
                 );
               },
@@ -109,6 +160,9 @@ class LegalText extends StatelessWidget {
   const LegalText(this.markdown, {super.key});
 
   final String markdown;
+
+  /// `*italic*` markers (the text is kept, the stars are dropped).
+  static final RegExp _italic = RegExp(r'\*([^*]+)\*');
 
   static const _body = TextStyle(
     fontSize: 14,
@@ -201,10 +255,7 @@ class LegalText extends StatelessWidget {
       children: [
         for (var i = 0; i < parts.length; i++)
           TextSpan(
-            text: parts[i].replaceAllMapped(
-              RegExp(r'\*([^*]+)\*'),
-              (m) => m[1]!,
-            ),
+            text: parts[i].replaceAllMapped(_italic, (m) => m[1]!),
             style: i.isOdd
                 ? const TextStyle(fontWeight: FontWeight.bold)
                 : null,

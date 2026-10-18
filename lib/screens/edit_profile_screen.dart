@@ -5,6 +5,7 @@ import 'package:flutter/services.dart' show PlatformException;
 import 'package:image_picker/image_picker.dart';
 import 'package:permission_handler/permission_handler.dart';
 
+import '../core/diagnostic_logger.dart';
 import '../services/profile_service.dart';
 import '../widgets/profile_avatar.dart';
 
@@ -46,6 +47,13 @@ class _EditProfileScreenState extends State<EditProfileScreen>
     with SingleTickerProviderStateMixin {
   static const Color primaryTeal = Color(0xFF23A8AA);
   static const Color darkTeal = Color(0xFF0D6E71);
+  static const String _tag = 'EditProfile';
+
+  final DiagnosticLogger _logger = DiagnosticLogger.I;
+
+  /// True while the photo sheet / camera / gallery is open, so a second tap
+  /// can't open two pickers (image_picker throws "already_active").
+  bool _pickingPhoto = false;
 
   late final AnimationController _ctrl;
   late final Animation<double> _fade;
@@ -66,6 +74,20 @@ class _EditProfileScreenState extends State<EditProfileScreen>
   bool _photoChanged = false;
 
   Future<void> _choosePhoto() async {
+    if (_pickingPhoto) return;
+    _pickingPhoto = true;
+    try {
+      await _choosePhotoUnguarded();
+    } catch (e, st) {
+      // Permission plugin or file read failures: report, never crash.
+      _logger.error(_tag, 'Choosing a photo failed', null, e, st);
+      _snack('Could not open the photo. Please try again.');
+    } finally {
+      _pickingPhoto = false;
+    }
+  }
+
+  Future<void> _choosePhotoUnguarded() async {
     final source = await showModalBottomSheet<Object>(
       context: context,
       showDragHandle: true,
@@ -106,6 +128,7 @@ class _EditProfileScreenState extends State<EditProfileScreen>
     );
     if (source == null || !mounted) return;
     if (source == 'remove') {
+      _logger.info(_tag, 'Photo removed (not saved yet)');
       setState(() {
         _photo = null;
         _photoChanged = true;
@@ -117,6 +140,7 @@ class _EditProfileScreenState extends State<EditProfileScreen>
     // requires it to be granted before another app's camera can be used.
     if (imageSource == ImageSource.camera &&
         !(await Permission.camera.request()).isGranted) {
+      _logger.warn(_tag, 'Camera permission denied for profile photo');
       _snack('Allow camera access in your phone settings to take a photo.');
       return;
     }
@@ -129,18 +153,27 @@ class _EditProfileScreenState extends State<EditProfileScreen>
         imageQuality: 75,
         preferredCameraDevice: CameraDevice.front,
       );
-      if (file == null) return;
+      if (file == null) return; // cancelled
       final bytes = await file.readAsBytes();
       if (bytes.length > ProfileService.maxPhotoBytes) {
+        _logger.warn(_tag, 'Photo too large', {
+          'bytes': bytes.length,
+          'max': ProfileService.maxPhotoBytes,
+        });
         _snack('That photo is too large. Please choose another one.');
         return;
       }
+      _logger.info(_tag, 'Photo chosen (not saved yet)', {
+        'source': imageSource.name,
+        'bytes': bytes.length,
+      });
       if (!mounted) return;
       setState(() {
         _photo = bytes;
         _photoChanged = true;
       });
-    } on PlatformException {
+    } on PlatformException catch (e, st) {
+      _logger.warn(_tag, 'Image picker failed', {'code': e.code}, e, st);
       _snack('Could not open the photo. Please try again.');
     }
   }
@@ -172,6 +205,8 @@ class _EditProfileScreenState extends State<EditProfileScreen>
       end: Offset.zero,
     ).animate(CurvedAnimation(parent: _ctrl, curve: Curves.easeOutCubic));
     _ctrl.forward();
+
+    _logger.info(_tag, 'Screen opened');
   }
 
   @override
@@ -187,15 +222,31 @@ class _EditProfileScreenState extends State<EditProfileScreen>
   }
 
   Future<void> _save() async {
-    if (!_formKey.currentState!.validate()) return;
+    if (_isSaving) return;
+    if (!_formKey.currentState!.validate()) {
+      _logger.info(_tag, 'Save blocked by validation');
+      return;
+    }
     setState(() => _isSaving = true);
     final name = _nameCtrl.text.trim();
     final phone = _phoneCtrl.text.trim();
     final dob = _dobCtrl.text.trim();
+    // Which fields changed, never their values (personal data).
+    _logger.info(_tag, 'Saving profile', {
+      'nameChanged': name != widget.initial.name,
+      'phoneChanged': phone != widget.initial.phone,
+      'dobChanged': dob != widget.initial.dob,
+      'photoChanged': _photoChanged,
+    });
     try {
       ProfileService().saveContact(name: name, phone: phone, dob: dob);
       if (_photoChanged) ProfileService().savePhoto(_photo);
-    } catch (_) {
+    } catch (e, st) {
+      // Thrown synchronously when signed out (or, in theory, for a value the
+      // validators above already reject); the upload itself runs in the
+      // background and ProfileService logs its result.
+      _logger.error(_tag, 'Saving profile failed', null, e, st);
+      if (!mounted) return;
       setState(() => _isSaving = false);
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(content: Text('Could not save. Please sign in again.')),
@@ -251,6 +302,8 @@ class _EditProfileScreenState extends State<EditProfileScreen>
                             Icons.person_outline,
                             keyboardType: TextInputType.name,
                             validator: _requiredName,
+                            autofillHints: const [AutofillHints.name],
+                            capitalization: TextCapitalization.words,
                           ),
                           _divider(),
                           _field(
@@ -265,7 +318,8 @@ class _EditProfileScreenState extends State<EditProfileScreen>
                             'Phone',
                             Icons.phone_outlined,
                             keyboardType: TextInputType.phone,
-                            validator: _required,
+                            validator: _phone,
+                            autofillHints: const [AutofillHints.telephoneNumber],
                           ),
                           _divider(),
                           _field(
@@ -273,6 +327,7 @@ class _EditProfileScreenState extends State<EditProfileScreen>
                             'Date of Birth',
                             Icons.cake_outlined,
                             validator: _required,
+                            autofillHints: const [AutofillHints.birthday],
                           ),
                         ]),
                         const SizedBox(height: 20),
@@ -463,6 +518,8 @@ class _EditProfileScreenState extends State<EditProfileScreen>
     TextInputType? keyboardType,
     String? Function(String?)? validator,
     bool readOnly = false,
+    Iterable<String>? autofillHints,
+    TextCapitalization capitalization = TextCapitalization.none,
   }) {
     return Padding(
       padding: const EdgeInsets.symmetric(vertical: 4),
@@ -471,6 +528,8 @@ class _EditProfileScreenState extends State<EditProfileScreen>
         keyboardType: keyboardType,
         readOnly: readOnly,
         validator: validator,
+        autofillHints: readOnly ? null : autofillHints,
+        textCapitalization: capitalization,
         style: const TextStyle(
           fontSize: 14,
           color: Colors.black87,
@@ -506,6 +565,20 @@ class _EditProfileScreenState extends State<EditProfileScreen>
     final t = v?.trim() ?? '';
     if (t.isEmpty) return 'Required';
     return t.length > max ? 'Must be $max characters or fewer' : null;
+  }
+
+  /// Digits plus the usual separators (+, spaces, dashes, dots, brackets),
+  /// with at least one digit. Keeps stray text out of the clinic's records.
+  static final RegExp _phonePattern = RegExp(r'^[0-9+()\-.\s]+$');
+
+  String? _phone(String? v) {
+    final basic = _check(v, 30);
+    if (basic != null) return basic;
+    final t = v!.trim();
+    if (!_phonePattern.hasMatch(t) || !t.contains(RegExp('[0-9]'))) {
+      return 'Enter a valid phone number';
+    }
+    return null;
   }
 
   Widget _buildSaveButton() {

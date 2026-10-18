@@ -1,11 +1,14 @@
+import 'dart:async';
+
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 
+import '../core/diagnostic_logger.dart';
 import '../legal/legal_info.dart';
 import '../services/app_provider.dart';
 import '../services/consent_service.dart';
 import '../services/push_service.dart';
-import 'dashboard_screen.dart';
+import 'app_lock_offer_screen.dart';
 import 'legal_document_screen.dart';
 import 'login_page.dart';
 
@@ -16,12 +19,32 @@ import 'login_page.dart';
 class ConsentScreen extends StatefulWidget {
   const ConsentScreen({super.key});
 
+  static const String _tag = 'ConsentScreen';
+
   /// The screen to show a signed-in patient: the dashboard if they have
   /// accepted the current version, otherwise this screen.
+  ///
+  /// Never throws. If the check itself fails it fails closed (asks again),
+  /// so nobody gets in without a consent record.
   static Future<Widget> gate() async {
-    if (await ConsentService.I.hasAcceptedCurrent()) {
-      PushService.I.registerForCurrentUser(); // not awaited: may show a prompt
-      return const DashboardScreen();
+    final logger = DiagnosticLogger.I;
+    bool accepted;
+    try {
+      accepted = await ConsentService.I.hasAcceptedCurrent();
+    } catch (e, st) {
+      logger.error(_tag, 'Consent check failed; asking again', null, e, st);
+      accepted = false;
+    }
+    logger.info(_tag, 'Consent gate', {
+      'version': LegalInfo.version,
+      'accepted': accepted,
+    });
+    if (accepted) {
+      // Not awaited: it may show the notification-permission prompt.
+      unawaited(PushService.I.registerForCurrentUser());
+      // The dashboard, or first the offer to set up the PIN/fingerprint
+      // lock when it's off (so patients find it without Settings).
+      return AppLockOfferScreen.orDashboard();
     }
     return const ConsentScreen();
   }
@@ -37,29 +60,61 @@ class _ConsentScreenState extends State<ConsentScreen> {
   bool _terms = false;
   bool _health = false;
   bool _camera = false;
+  /// True while accepting or signing out: every button is disabled so a
+  /// double tap can't send two requests.
   bool _saving = false;
+
+  final DiagnosticLogger _logger = DiagnosticLogger.I;
+  static const String _tag = ConsentScreen._tag;
 
   bool get _allChecked => _terms && _health && _camera;
 
+  @override
+  void initState() {
+    super.initState();
+    _logger.info(_tag, 'Screen opened', {'version': LegalInfo.version});
+  }
+
+  void _showError(String message) {
+    if (!mounted) return;
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(content: Text(message), backgroundColor: Colors.red[700]),
+    );
+  }
+
   Future<void> _accept() async {
+    if (_saving || !_allChecked) return;
     setState(() => _saving = true);
+    _logger.info(_tag, 'Consent accept tapped', {'version': LegalInfo.version});
     try {
       await ConsentService.I.accept();
     } on ConsentFailure catch (e) {
+      _logger.warn(_tag, 'Consent not saved', {'version': LegalInfo.version});
       if (!mounted) return;
       setState(() => _saving = false);
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text(e.message), backgroundColor: Colors.red[700]),
-      );
+      _showError(e.message);
+      return;
+    } catch (e, st) {
+      // ConsentService wraps Firestore errors; this is anything else (e.g.
+      // the phone's preferences store failing).
+      _logger.error(_tag, 'Consent accept crashed', null, e, st);
+      if (!mounted) return;
+      setState(() => _saving = false);
+      _showError('Could not save your acceptance. Please try again.');
       return;
     }
+    _logger.info(_tag, 'Consent accepted', {'version': LegalInfo.version});
     if (!mounted) return;
-    PushService.I.registerForCurrentUser(); // not awaited: may show a prompt
+    // Not awaited: it may show the notification-permission prompt.
+    unawaited(PushService.I.registerForCurrentUser());
+    // The dashboard, or first the offer to set up the PIN/fingerprint lock.
+    final next = await AppLockOfferScreen.orDashboard();
+    if (!mounted) return;
     Navigator.pushReplacement(
       context,
       PageRouteBuilder(
         transitionDuration: const Duration(milliseconds: 500),
-        pageBuilder: (_, _, _) => const DashboardScreen(),
+        pageBuilder: (_, _, _) => next,
         transitionsBuilder: (_, anim, _, child) =>
             FadeTransition(opacity: anim, child: child),
       ),
@@ -67,6 +122,7 @@ class _ConsentScreenState extends State<ConsentScreen> {
   }
 
   Future<void> _decline() async {
+    if (_saving) return;
     final confirmed = await showDialog<bool>(
       context: context,
       builder: (ctx) => AlertDialog(
@@ -89,7 +145,18 @@ class _ConsentScreenState extends State<ConsentScreen> {
       ),
     );
     if (confirmed != true || !mounted) return;
-    await context.read<AppProvider>().signOut();
+    _logger.info(_tag, 'Consent declined', {'version': LegalInfo.version});
+    setState(() => _saving = true);
+    try {
+      await context.read<AppProvider>().signOut();
+    } catch (e, st) {
+      // Stay here (the patient still can't use the app) and let them retry.
+      _logger.error(_tag, 'Sign-out after decline failed', null, e, st);
+      if (!mounted) return;
+      setState(() => _saving = false);
+      _showError('Could not sign out. Please try again.');
+      return;
+    }
     if (!mounted) return;
     Navigator.pushAndRemoveUntil(
       context,
@@ -98,8 +165,12 @@ class _ConsentScreenState extends State<ConsentScreen> {
     );
   }
 
-  void _open(Widget screen) =>
-      Navigator.push(context, MaterialPageRoute(builder: (_) => screen));
+  void _open(Widget screen) {
+    _logger.info(_tag, 'Opened legal document', {
+      'screen': screen.runtimeType.toString(),
+    });
+    Navigator.push(context, MaterialPageRoute(builder: (_) => screen));
+  }
 
   @override
   Widget build(BuildContext context) {

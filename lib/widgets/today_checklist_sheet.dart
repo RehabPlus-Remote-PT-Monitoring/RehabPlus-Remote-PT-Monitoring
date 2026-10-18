@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
-import 'package:intl/intl.dart';
+// `show`: intl also exports a TextDirection that clashes with Flutter's.
+import 'package:intl/intl.dart' show DateFormat;
 import 'package:provider/provider.dart';
 
 import '../models/exercise_model.dart';
@@ -30,30 +31,37 @@ class TodayChecklistSheet extends StatelessWidget {
   }
 
   /// How many exercises due today are not done yet (for the button badge).
+  /// One pass over [sessions] however many exercises there are.
   static int remainingToday(
     List<ExerciseConfig> exercises,
     List<ExerciseSession> sessions,
     DateTime now,
-  ) => exercises
-      .where((e) => e.prescription?.isDueOn(now) ?? true)
-      .where((e) => !ProgressStats.doneOn(sessions, e.type.name, now))
-      .length;
+  ) {
+    if (exercises.isEmpty) return 0;
+    final activity = ProgressStats.activity(sessions, now);
+    return exercises
+        .where((e) => e.prescription?.isDueOn(now) ?? true)
+        .where((e) => !activity.isDoneToday(e.type.name))
+        .length;
+  }
 
   @override
   Widget build(BuildContext context) {
     final sessions = context.watch<AppProvider>().sessionHistory;
     final now = DateTime.now();
+    // "Done today" and "this week" for every exercise in a single pass,
+    // instead of re-scanning the history two or three times per row.
+    final activity = ProgressStats.activity(sessions, now);
     final today = exercises
         .where((e) => e.prescription?.isDueOn(now) ?? true)
         .toList();
-    final other = exercises.where((e) => !today.contains(e)).toList();
-    final done = today
-        .where((e) => ProgressStats.doneOn(sessions, e.type.name, now))
-        .length;
+    final todaySet = today.toSet();
+    final other = exercises.where((e) => !todaySet.contains(e)).toList();
+    final done = today.where((e) => activity.isDoneToday(e.type.name)).length;
 
     Widget row(ExerciseConfig e, {required bool dueToday}) {
-      final isDone = ProgressStats.doneOn(sessions, e.type.name, now);
-      final week = ProgressStats.completedThisWeek(sessions, e.type.name, now);
+      final isDone = activity.isDoneToday(e.type.name);
+      final week = activity.weekCount(e.type.name);
       final goal = e.prescription?.frequencyPerWeek;
       return ListTile(
         contentPadding: EdgeInsets.zero,
@@ -158,7 +166,7 @@ class TodayChecklistSheet extends StatelessWidget {
                   style: const TextStyle(fontSize: 12, color: Colors.black54),
                 ),
                 const SizedBox(height: 8),
-                ...today.map((e) => row(e, dueToday: true)),
+                for (final e in today) row(e, dueToday: true),
               ] else
                 const Padding(
                   padding: EdgeInsets.symmetric(vertical: 12),
@@ -177,7 +185,7 @@ class TodayChecklistSheet extends StatelessWidget {
                     color: Colors.black54,
                   ),
                 ),
-                ...other.map((e) => row(e, dueToday: false)),
+                for (final e in other) row(e, dueToday: false),
               ],
             ],
           ],

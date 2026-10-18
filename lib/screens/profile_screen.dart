@@ -1,6 +1,9 @@
 import 'package:flutter/material.dart';
-import 'package:intl/intl.dart';
+// `show`: the full intl library also exports a TextDirection that clashes
+// with Flutter's.
+import 'package:intl/intl.dart' show DateFormat;
 import 'package:provider/provider.dart';
+import '../core/diagnostic_logger.dart';
 import '../services/app_provider.dart';
 import '../models/session.dart';
 import 'login_page.dart';
@@ -19,6 +22,19 @@ class ProfileScreen extends StatefulWidget {
 class _ProfileScreenState extends State<ProfileScreen> {
   static const Color primaryTeal = Color(0xFF23A8AA);
   static const Color darkTeal = Color(0xFF0D6E71);
+  static const String _tag = 'Profile';
+
+  final DiagnosticLogger _logger = DiagnosticLogger.I;
+
+  /// Guards against double taps on Edit and Sign Out.
+  bool _editing = false;
+  bool _signingOut = false;
+
+  @override
+  void initState() {
+    super.initState();
+    _logger.info(_tag, 'Screen opened');
+  }
 
   static const _emptyProfile = ProfileData(
     name: '',
@@ -34,10 +50,18 @@ class _ProfileScreenState extends State<ProfileScreen> {
       context.read<AppProvider>().profile ?? _emptyProfile;
 
   Future<void> _openEdit() async {
-    final result = await Navigator.push<ProfileData>(
-      context,
-      MaterialPageRoute(builder: (_) => EditProfileScreen(initial: _profile)),
-    );
+    if (_editing) return;
+    _editing = true;
+    _logger.info(_tag, 'Opening edit profile');
+    final ProfileData? result;
+    try {
+      result = await Navigator.push<ProfileData>(
+        context,
+        MaterialPageRoute(builder: (_) => EditProfileScreen(initial: _profile)),
+      );
+    } finally {
+      _editing = false;
+    }
     if (result != null && mounted) {
       context.read<AppProvider>().updateProfile(result);
       ScaffoldMessenger.of(context).showSnackBar(SnackBar(
@@ -412,19 +436,35 @@ class _ProfileScreenState extends State<ProfileScreen> {
     );
   }
 
+  Future<void> _signOut() async {
+    if (_signingOut) return;
+    setState(() => _signingOut = true);
+    _logger.info(_tag, 'Sign-out requested');
+    try {
+      await context.read<AppProvider>().signOut();
+    } catch (e, st) {
+      _logger.error(_tag, 'Sign-out failed', null, e, st);
+      if (!mounted) return;
+      setState(() => _signingOut = false);
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Could not sign out. Please try again.')),
+      );
+      return;
+    }
+    _logger.info(_tag, 'Signed out');
+    if (!mounted) return;
+    Navigator.pushAndRemoveUntil(
+      context,
+      MaterialPageRoute(builder: (_) => const LoginPage()),
+      (_) => false,
+    );
+  }
+
   Widget _buildSignOutButton() {
     return Padding(
       padding: const EdgeInsets.symmetric(horizontal: 16),
       child: GestureDetector(
-        onTap: () async {
-          await context.read<AppProvider>().signOut();
-          if (!mounted) return;
-          Navigator.pushAndRemoveUntil(
-            context,
-            MaterialPageRoute(builder: (_) => const LoginPage()),
-            (_) => false,
-          );
-        },
+        onTap: _signingOut ? null : _signOut,
         child: Container(
           width: double.infinity,
           padding: const EdgeInsets.symmetric(vertical: 15),

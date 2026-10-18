@@ -17,6 +17,19 @@ void main() {
         expect(filled, contains(LegalInfo.version));
       });
     }
+
+    test('fill is a single pass and leaves unknown tokens visible', () {
+      // A token's value is inserted as plain text: braces around it are not
+      // expanded again, and an unknown token stays so typos are noticed.
+      expect(
+        LegalInfo.fill('{{CLINIC_NAME}} {{NOT_A_TOKEN}} {{lowercase}}'),
+        '${LegalInfo.clinicName} {{NOT_A_TOKEN}} {{lowercase}}',
+      );
+      expect(
+        LegalInfo.fill('{{{{VERSION}}}}'),
+        '{{${LegalInfo.version}}}',
+      );
+    });
   });
 
   testWidgets('LegalText renders headings, bullets and bold text', (

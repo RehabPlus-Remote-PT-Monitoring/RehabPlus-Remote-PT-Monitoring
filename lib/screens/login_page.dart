@@ -1,10 +1,24 @@
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart'
+    show LengthLimitingTextInputFormatter, TextInput;
 import 'package:phosphor_flutter/phosphor_flutter.dart';
 import 'package:provider/provider.dart';
+import '../core/diagnostic_logger.dart';
 import '../services/app_provider.dart';
 import '../services/auth_service.dart';
 import 'consent_screen.dart';
 import 'forgot_password_screen.dart';
+
+/// Longest e-mail address allowed by the standards (RFC 5321).
+const int maxEmailLength = 254;
+
+/// A cheap "is this shaped like an e-mail address" check, run before any
+/// network call: something@something.tld, no spaces. Firebase does the real
+/// validation; this only catches obvious typos early.
+bool looksLikeEmail(String value) {
+  if (value.isEmpty || value.length > maxEmailLength) return false;
+  return RegExp(r'^[^@\s]+@[^@\s]+\.[^@\s]+$').hasMatch(value);
+}
 
 class LoginPage extends StatefulWidget {
   const LoginPage({super.key});
@@ -14,6 +28,9 @@ class LoginPage extends StatefulWidget {
 }
 
 class _LoginPageState extends State<LoginPage> with TickerProviderStateMixin {
+  static const String _tag = 'LoginPage';
+  final DiagnosticLogger _logger = DiagnosticLogger.I;
+
   final emailController = TextEditingController();
   final passwordController = TextEditingController();
   bool showPassword = false;
@@ -37,10 +54,15 @@ class _LoginPageState extends State<LoginPage> with TickerProviderStateMixin {
     _logoScaleAnim = Tween<double>(begin: 0.5, end: 1.0)
         .animate(CurvedAnimation(parent: _fadeCtrl, curve: Curves.elasticOut));
 
+    // The page may already be gone after the delay (e.g. a fast sign-in from
+    // a test or a push tap); a disposed controller throws if started.
     Future.delayed(const Duration(milliseconds: 100), () {
+      if (!mounted) return;
       _fadeCtrl.forward();
       _slideCtrl.forward();
     });
+
+    _logger.info(_tag, 'Screen opened');
   }
 
   @override
@@ -53,28 +75,75 @@ class _LoginPageState extends State<LoginPage> with TickerProviderStateMixin {
   }
 
   Future<void> login() async {
+    // The button is disabled while loading, but the keyboard's "done" key
+    // can still call this: never run two sign-ins at once.
+    if (_isLoading) return;
+
     final email = emailController.text.trim();
-    final password = passwordController.text.trim();
+    // The password is used exactly as typed: spaces can be part of it, and
+    // trimming would silently sign in with a different password.
+    final password = passwordController.text;
 
     if (email.isEmpty || password.isEmpty) {
       _showSnack('Please enter your email and password.', isError: true);
       return;
     }
-    setState(() => _isLoading = true);
-    try {
-      await AuthService.I.signIn(email, password);
-    } on AuthFailure catch (e) {
-      if (!mounted) return;
-      setState(() => _isLoading = false);
-      _showSnack(e.message, isError: true);
+    if (!looksLikeEmail(email)) {
+      _showSnack('Enter a valid email address.', isError: true);
       return;
     }
 
+    FocusScope.of(context).unfocus();
+    setState(() => _isLoading = true);
+    final stopwatch = Stopwatch()..start();
+    // Never log the e-mail or password; AuthService logs the Firebase code.
+    _logger.info(_tag, 'Sign-in attempt');
+    try {
+      await AuthService.I.signIn(email, password);
+    } on AuthFailure catch (e) {
+      _logger.warn(_tag, 'Sign-in rejected', {
+        'ms': stopwatch.elapsedMilliseconds,
+      });
+      if (!mounted) return;
+      setState(() => _isLoading = false);
+      // AuthFailure.message is written for the patient and is deliberately
+      // generic ("Invalid email or password.") so accounts can't be probed.
+      _showSnack(e.message, isError: true);
+      return;
+    } catch (e, st) {
+      // Anything unexpected (plugin error, no Firebase): never leave the
+      // button spinning forever.
+      _logger.error(_tag, 'Sign-in crashed', null, e, st);
+      if (!mounted) return;
+      setState(() => _isLoading = false);
+      _showSnack('Sign-in failed. Please try again.', isError: true);
+      return;
+    }
+    _logger.info(_tag, 'Sign-in succeeded', {
+      'ms': stopwatch.elapsedMilliseconds,
+    });
+    // Lets the phone's password manager offer to save the login.
+    TextInput.finishAutofillContext();
+
     if (!mounted) return;
-    await context.read<AppProvider>().loadUserData();
+    try {
+      await context.read<AppProvider>().loadUserData();
+    } catch (e, st) {
+      // Not fatal: the dashboard shows empty data and reloads later.
+      _logger.warn(_tag, 'Loading patient data after sign-in failed', null, e, st);
+    }
+
     // The dashboard, or the Terms & Privacy screen if not accepted yet.
-    final next = await ConsentScreen.gate();
+    Widget next;
+    try {
+      next = await ConsentScreen.gate();
+    } catch (e, st) {
+      // Fail closed: if we can't tell whether they accepted, ask again.
+      _logger.error(_tag, 'Consent check after sign-in failed', null, e, st);
+      next = const ConsentScreen();
+    }
     if (!mounted) return;
+    _logger.info(_tag, 'Leaving login', {'next': next.runtimeType.toString()});
     Navigator.pushReplacement(
       context,
       PageRouteBuilder(
@@ -93,6 +162,7 @@ class _LoginPageState extends State<LoginPage> with TickerProviderStateMixin {
   }
 
   void _showSnack(String msg, {bool isError = false}) {
+    if (!mounted) return;
     ScaffoldMessenger.of(context).showSnackBar(
       SnackBar(
         content: Text(msg),
@@ -250,27 +320,43 @@ class _LoginPageState extends State<LoginPage> with TickerProviderStateMixin {
 
                                 const SizedBox(height: 28),
 
-                                _RehabTextField(
-                                  controller: emailController,
-                                  hint: 'Email address',
-                                  icon: PhosphorIcons.envelopeSimple(),
-                                  keyboardType: TextInputType.emailAddress,
-                                ),
+                                // One autofill group, so password managers
+                                // fill (and later save) both fields together.
+                                AutofillGroup(
+                                  child: Column(
+                                    children: [
+                                      _RehabTextField(
+                                        controller: emailController,
+                                        hint: 'Email address',
+                                        icon: PhosphorIcons.envelopeSimple(),
+                                        keyboardType: TextInputType.emailAddress,
+                                        autofillHints: const [AutofillHints.email, AutofillHints.username],
+                                        textInputAction: TextInputAction.next,
+                                        maxLength: maxEmailLength,
+                                      ),
 
-                                const SizedBox(height: 14),
+                                      const SizedBox(height: 14),
 
-                                _RehabTextField(
-                                  controller: passwordController,
-                                  hint: 'Password',
-                                  icon: PhosphorIcons.lockSimple(),
-                                  obscureText: !showPassword,
-                                  suffix: IconButton(
-                                    onPressed: () => setState(() => showPassword = !showPassword),
-                                    icon: PhosphorIcon(
-                                      showPassword ? PhosphorIcons.eyeSlash() : PhosphorIcons.eye(),
-                                      size: 20,
-                                      color: Colors.grey.shade400,
-                                    ),
+                                      _RehabTextField(
+                                        controller: passwordController,
+                                        hint: 'Password',
+                                        icon: PhosphorIcons.lockSimple(),
+                                        obscureText: !showPassword,
+                                        isPassword: true,
+                                        autofillHints: const [AutofillHints.password],
+                                        textInputAction: TextInputAction.done,
+                                        onSubmitted: (_) => login(),
+                                        suffix: IconButton(
+                                          tooltip: showPassword ? 'Hide password' : 'Show password',
+                                          onPressed: () => setState(() => showPassword = !showPassword),
+                                          icon: PhosphorIcon(
+                                            showPassword ? PhosphorIcons.eyeSlash() : PhosphorIcons.eye(),
+                                            size: 20,
+                                            color: Colors.grey.shade400,
+                                          ),
+                                        ),
+                                      ),
+                                    ],
                                   ),
                                 ),
 
@@ -412,6 +498,16 @@ class _RehabTextField extends StatelessWidget {
   final Widget? suffix;
   final TextInputType? keyboardType;
 
+  /// A password field: never autocorrected, never learnt by the keyboard's
+  /// suggestion dictionary (even while "show password" is on).
+  final bool isPassword;
+  final Iterable<String>? autofillHints;
+  final TextInputAction? textInputAction;
+  final ValueChanged<String>? onSubmitted;
+
+  /// Hard input limit (no counter is shown); null for no limit.
+  final int? maxLength;
+
   const _RehabTextField({
     required this.controller,
     required this.hint,
@@ -419,14 +515,30 @@ class _RehabTextField extends StatelessWidget {
     this.obscureText = false,
     this.suffix,
     this.keyboardType,
+    this.isPassword = false,
+    this.autofillHints,
+    this.textInputAction,
+    this.onSubmitted,
+    this.maxLength,
   });
 
   @override
   Widget build(BuildContext context) {
+    // E-mail addresses and passwords must not be "corrected" by the keyboard.
+    final noAutocorrect =
+        isPassword || keyboardType == TextInputType.emailAddress;
     return TextField(
       controller: controller,
       obscureText: obscureText,
       keyboardType: keyboardType,
+      autocorrect: !noAutocorrect,
+      enableSuggestions: !noAutocorrect,
+      autofillHints: autofillHints,
+      textInputAction: textInputAction,
+      onSubmitted: onSubmitted,
+      inputFormatters: [
+        if (maxLength != null) LengthLimitingTextInputFormatter(maxLength),
+      ],
       style: const TextStyle(fontSize: 14, color: Color(0xFF1A1A1A)),
       decoration: InputDecoration(
         hintText: hint,

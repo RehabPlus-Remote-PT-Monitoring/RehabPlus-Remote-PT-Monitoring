@@ -4,10 +4,11 @@ import 'package:flutter/material.dart';
 import 'package:intl/intl.dart' show DateFormat;
 import 'package:phosphor_flutter/phosphor_flutter.dart';
 import 'package:provider/provider.dart';
+import '../core/diagnostic_logger.dart';
 import '../services/app_provider.dart';
 import '../models/prescription.dart';
 import '../services/prescription_service.dart';
-import '../services/progress_report.dart';
+import '../services/progress_report_loader.dart';
 import '../services/progress_stats.dart';
 import '../widgets/profile_avatar.dart';
 import '../widgets/unread_badge.dart';
@@ -40,7 +41,7 @@ class _DashboardScreenState extends State<DashboardScreen>
   static const Color darkTeal = Color(0xFF0D6E71);
   static const Color lightTealBg = Color(0xFFE0F5F5);
 
-  final List<String> _days = ['M', 'T', 'W', 'T', 'F', 'S', 'S'];
+  static const List<String> _days = ['M', 'T', 'W', 'T', 'F', 'S', 'S'];
 
   /// Window sizes for the 7 / 30 / 90 day tabs.
   static const List<int> _tabDays = [7, 30, 90];
@@ -51,6 +52,19 @@ class _DashboardScreenState extends State<DashboardScreen>
   late final Animation<Offset> _headerSlide;
   late final Animation<double> _cardsFade;
   late final Animation<Offset> _cardsSlide;
+
+  // ── PROGRESS NUMBERS ───────────────────────────────────────────────────────
+  // The week tracker, stat cards and "How you're doing" card are computed by
+  // the loader once per change of the sessions, plan, day or period, not on
+  // every rebuild (tab taps, nav animations and clock ticks all rebuild this
+  // screen). Long histories are built on a background isolate; see
+  // progress_report_loader.dart for the threshold.
+  late final ProgressReportLoader _progress = ProgressReportLoader(
+    owner: 'dashboard',
+    onBackgroundResult: () {
+      if (mounted) setState(() {});
+    },
+  );
 
   @override
   void initState() {
@@ -101,8 +115,15 @@ class _DashboardScreenState extends State<DashboardScreen>
             if (e.prescription != null) e.prescription!,
         ];
       });
-    } catch (_) {
+    } catch (e, st) {
       // Offline or not signed in: the report falls back to active days.
+      DiagnosticLogger.I.warn(
+        'Dashboard',
+        'Plan load failed; report uses active days',
+        {'errorType': e.runtimeType.toString()},
+        e,
+        st,
+      );
     }
   }
 
@@ -152,12 +173,23 @@ class _DashboardScreenState extends State<DashboardScreen>
   void dispose() {
     WidgetsBinding.instance.removeObserver(this);
     _clockTimer?.cancel();
+    _progress.dispose();
     _headerCtrl.dispose();
     _cardsCtrl.dispose();
     super.dispose();
   }
 
   Widget _buildDashboardBody() {
+    // Read once per build; the loader returns cached results unless the
+    // list (or the day, plan or period) actually changed.
+    final sessions = context.watch<AppProvider>().sessionHistory;
+    final overview = _progress.overviewFor(sessions, prescriptions: _plan);
+    final reportView = _progress.reportFor(
+      sessions,
+      days: _tabDays[_selectedTab],
+      prescriptions: _plan,
+    );
+
     return Column(
       children: [
         SlideTransition(
@@ -177,19 +209,11 @@ class _DashboardScreenState extends State<DashboardScreen>
                     const SizedBox(height: 18),
                     _buildActionChips(),
                     const SizedBox(height: 16),
-                    _buildProgressCard(),
+                    _buildProgressCard(overview.week),
                     const SizedBox(height: 14),
-                    _buildStatsRow(),
+                    _buildStatsRow(overview),
                     const SizedBox(height: 14),
-                    ProgressSummaryCard(
-                      report: ProgressReport.build(
-                        context.watch<AppProvider>().sessionHistory,
-                        DateTime.now(),
-                        days: _tabDays[_selectedTab],
-                        prescriptions: _plan,
-                      ),
-                      onOpenReport: _openReport,
-                    ),
+                    _buildSummaryCard(reportView),
                     const SizedBox(height: 14),
                     _buildQuoteCard(),
                     const SizedBox(height: 14),
@@ -205,15 +229,37 @@ class _DashboardScreenState extends State<DashboardScreen>
     );
   }
 
+  /// "How you're doing" for the selected period. Small histories always
+  /// have a report ready; only a very long one shows a placeholder on first
+  /// load, then the previous report (dimmed) while a new one is built.
+  Widget _buildSummaryCard(ProgressReportView view) {
+    final report = view.report;
+    if (report == null) {
+      // Failed (already logged with the stack): leave the card out rather
+      // than show wrong numbers.
+      return view.failed
+          ? const SizedBox.shrink()
+          : const ProgressSummaryLoading();
+    }
+    return AnimatedOpacity(
+      opacity: view.isStale ? 0.55 : 1,
+      duration: const Duration(milliseconds: 200),
+      child: ProgressSummaryCard(report: report, onOpenReport: _openReport),
+    );
+  }
+
+  /// Builds only the page that is showing. (The list of all four pages used
+  /// to be built on every rebuild, including the whole Home body with its
+  /// statistics while another tab was open.)
+  Widget _buildPage(int index) => switch (index) {
+    0 => _buildDashboardBody(),
+    1 => const ExercisePage(),
+    2 => const MessagesScreen(),
+    _ => const Scaffold(body: ProfileScreen()),
+  };
+
   @override
   Widget build(BuildContext context) {
-    final screens = [
-      _buildDashboardBody(),
-      const ExercisePage(),
-      const MessagesScreen(),
-      const Scaffold(body: ProfileScreen()),
-    ];
-
     return Scaffold(
       backgroundColor: const Color(0xFFF0F4F4),
       // Pages slide sideways like a carousel: tapping a tab to the right pushes
@@ -237,7 +283,7 @@ class _DashboardScreenState extends State<DashboardScreen>
           },
           child: KeyedSubtree(
             key: ValueKey(_bottomNavIndex),
-            child: screens[_bottomNavIndex],
+            child: _buildPage(_bottomNavIndex),
           ),
         ),
       ),
@@ -550,12 +596,10 @@ class _DashboardScreenState extends State<DashboardScreen>
   }
 
   // ── PROGRESS CARD ────────────────────────────────────────────────────────────
-  Widget _buildProgressCard() {
+  /// [week] = exercised on each day of this week, Monday first (from
+  /// [ProgressOverview.week]).
+  Widget _buildProgressCard(List<bool> week) {
     final now = DateTime.now();
-    final week = ProgressStats.currentWeek(
-      context.watch<AppProvider>().sessionHistory,
-      now,
-    );
     final todayIndex = now.weekday - 1;
     final activeThisWeek = week.where((d) => d).length;
 
@@ -739,6 +783,10 @@ class _DashboardScreenState extends State<DashboardScreen>
         behavior: HitTestBehavior.opaque,
         onTap: () {
           if (index == _selectedTab) return;
+          DiagnosticLogger.I.info('Dashboard', 'Range changed', {
+            'fromDays': _tabDays[_selectedTab],
+            'toDays': _tabDays[index],
+          });
           setState(() {
             _prevSelectedTab = _selectedTab;
             _selectedTab = index;
@@ -764,7 +812,7 @@ class _DashboardScreenState extends State<DashboardScreen>
   // ── STATS ROW ────────────────────────────────────────────────────────────────
   /// The stat cards for the chosen window. Switching 7/30/90 days slides the
   /// new numbers in from the side of the tab that was tapped.
-  Widget _buildStatsRow() {
+  Widget _buildStatsRow(ProgressOverview overview) {
     final forward = _selectedTab >= _prevSelectedTab;
     return ClipRect(
       child: AnimatedSwitcher(
@@ -787,18 +835,15 @@ class _DashboardScreenState extends State<DashboardScreen>
         },
         child: KeyedSubtree(
           key: ValueKey(_selectedTab),
-          child: _buildStatCards(),
+          child: _buildStatCards(overview.periodFor(_tabDays[_selectedTab])),
         ),
       ),
     );
   }
 
-  Widget _buildStatCards() {
-    final sessions = context.watch<AppProvider>().sessionHistory;
-    final now = DateTime.now();
-    final days = _tabDays[_selectedTab];
-    final cur = ProgressStats.period(sessions, now, days: days);
-    final prev = ProgressStats.period(sessions, now, days: days, periodsAgo: 1);
+  Widget _buildStatCards(PeriodComparison period) {
+    final cur = period.current;
+    final prev = period.previous;
     final timeDelta = cur.time.inMinutes - prev.time.inMinutes;
 
     // Trend badges compare with the previous window of the same length.
