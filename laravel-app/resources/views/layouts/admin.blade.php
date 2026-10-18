@@ -131,12 +131,6 @@
                             Staff Accounts
                         </a>
                     </li>
-                    <li class="nav-item">
-                        <a class="nav-link {{ request()->is('patient-statistics*') ? 'active' : '' }}" href="{{ route('patient-statistics') }}">
-                            <i class="bi bi-bar-chart-line"></i>
-                            Patient Statistics
-                        </a>
-                    </li>
                 </ul>
             @endif
         </nav>

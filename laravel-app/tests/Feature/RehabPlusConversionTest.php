@@ -17,7 +17,7 @@ class RehabPlusConversionTest extends TestCase
 
         $pages = [
             '/dashboard' => 'RehabPlus Dashboard',
-            '/reports' => 'Reports & Analytics',
+            '/analytics' => 'Reports & Analytics',
             '/patients' => 'Patients',
             '/patients/create' => 'Add Patient',
             '/messages' => 'Messages',

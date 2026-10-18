@@ -1,6 +1,5 @@
 <?php
 
-use App\Http\Controllers\AdminPageController;
 use App\Http\Controllers\AppointmentController;
 use App\Http\Controllers\AuthController;
 use App\Http\Controllers\ClinicalRecordController;
@@ -11,8 +10,10 @@ use App\Http\Controllers\MessageController;
 use App\Http\Controllers\PatientController;
 use App\Http\Controllers\PaymentController;
 use App\Http\Controllers\PrescriptionController;
+use App\Http\Controllers\ReportController;
 use App\Http\Controllers\StaffScheduleController;
 use App\Http\Controllers\UserController;
+use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Route;
 
 // Firebase uids / Firestore ids in URLs: checked before they reach a document path.
@@ -36,7 +37,23 @@ Route::post('/csp-report', CspReportController::class)->middleware('throttle:60,
 // Signed-in staff: admin, therapist or front-desk staff (see App\Auth\StaffUser).
 Route::middleware(['auth.rehab'])->group(function () {
     Route::get('/dashboard', [DashboardController::class, 'index'])->name('dashboard');
-    Route::get('/analytics', [DashboardController::class, 'analytics'])->name('analytics');
+
+    // Reports & Analytics: one page, sections by role (see ReportService).
+    Route::get('/analytics', [ReportController::class, 'index'])->name('analytics');
+    Route::middleware(['role:admin'])->group(function () {
+        Route::get('/analytics/export/csv', [ReportController::class, 'csv'])->name('analytics.export.csv');
+        Route::get('/analytics/export/pdf', [ReportController::class, 'pdf'])->name('analytics.export.pdf');
+    });
+
+    // Old addresses of pages merged into Reports & Analytics; filters are kept.
+    $toReports = fn (string $route, string $anchor = '') => fn (Request $request) => redirect()->to(
+        route($route).($request->getQueryString() ? '?'.$request->getQueryString() : '').$anchor,
+        301,
+    );
+    Route::get('/reports', $toReports('analytics'))->name('reports');
+    Route::get('/patient-statistics', $toReports('analytics', '#patients'))->name('patient-statistics');
+    Route::get('/patient-statistics/export/csv', $toReports('analytics.export.csv'))->name('patient-statistics.export.csv');
+    Route::get('/patient-statistics/export/pdf', $toReports('analytics.export.pdf'))->name('patient-statistics.export.pdf');
 
     // Patients (Firestore). Everyone sees the list (therapists: their own);
     // the controller checks who may change each patient.
@@ -88,7 +105,6 @@ Route::middleware(['auth.rehab'])->group(function () {
     Route::delete('/appointments/{id}', [AppointmentController::class, 'delete'])->name('appointments.delete');
     Route::post('/appointments/{id}/status', [AppointmentController::class, 'changeStatus'])->name('appointments.status');
 
-    Route::get('/reports', [AdminPageController::class, 'reports'])->name('reports');
     Route::get('/billing', [PaymentController::class, 'index'])->name('billing');
     Route::post('/billing', [PaymentController::class, 'store'])->name('billing.store');
     Route::patch('/billing/{id}/status', [PaymentController::class, 'updateStatus'])->name('billing.status');
@@ -100,10 +116,6 @@ Route::middleware(['auth.rehab'])->group(function () {
     Route::post('/schedule/time-off/save', [StaffScheduleController::class, 'storeTimeOff'])->name('schedule.timeoff.store');
 
     Route::middleware(['role:admin'])->group(function () {
-        Route::get('/patient-statistics', [DashboardController::class, 'patientStatistics'])->name('patient-statistics');
-        Route::get('/patient-statistics/export/csv', [DashboardController::class, 'exportPatientStatisticsCsv'])->name('patient-statistics.export.csv');
-        Route::get('/patient-statistics/export/pdf', [DashboardController::class, 'exportPatientStatisticsPdf'])->name('patient-statistics.export.pdf');
-
         // Staff accounts (Firebase Auth + users/{uid}).
         Route::get('/users', [UserController::class, 'index'])->name('users.index');
         Route::get('/users/create', [UserController::class, 'create'])->name('users.create');

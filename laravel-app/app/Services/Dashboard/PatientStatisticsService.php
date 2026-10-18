@@ -2,37 +2,40 @@
 
 namespace App\Services\Dashboard;
 
-use App\Auth\StaffUser;
-use App\Services\Patient\PatientService;
 use Carbon\Carbon;
 use Illuminate\Http\Request;
 use Illuminate\Pagination\LengthAwarePaginator;
 use Illuminate\Support\Collection;
 
 /**
- * Patient registration statistics (admin only), computed from the Firestore
- * patients collection. "Active" means not archived (the app login is enabled).
+ * Patient registration statistics for the Reports & Analytics page (admin
+ * section), computed from already-loaded patients (ReportService loads them
+ * together with the page's other data). "Active" means not archived (the app
+ * login is enabled).
  */
 class PatientStatisticsService
 {
-    public function __construct(private PatientService $patients)
-    {
-    }
-
-    public function patientStatistics(Request $request): array
+    /**
+     * Everything the "Patient registrations" section and the exports need.
+     *
+     * @param  array  $patients  presented patients, archived ones included
+     */
+    public function build(Request $request, array $patients): array
     {
         $filters = $this->resolveFilters($request);
-        $range = $this->resolveDateRange($request);
-        $all = $this->allPatients($request->user());
+        $range = $this->dateRange($request);
+        $all = $this->asRecords($patients);
         $selected = $this->filter($all, $filters, $range['start'], $range['end']);
 
         return [
             'filters' => $filters,
+            'range' => $range,
             'rangeLabel' => $range['label'],
             'summary' => $this->summary($all, $selected, $filters),
             'registrationTrend' => $this->buildRegistrationTrend($all, $filters, $range['start'], $range['end']),
             'conditionChart' => $this->buildConditionChart($selected),
             'growthSummary' => $this->buildGrowthComparison($all, $filters, $range),
+            'selected' => $selected,
             'recentPatients' => $this->paginate($selected, 10, $request),
             'conditionOptions' => $this->distinct($all, 'condition'),
             'therapistOptions' => $this->distinct($all, 'assigned_to'),
@@ -40,60 +43,20 @@ class PatientStatisticsService
     }
 
     /**
-     * Rows for the patient statistics CSV export.
+     * The report's date range from ?range= (and ?from= / ?to= for "custom").
+     * Shared by every section of the reports page so they cover the same days.
+     *
+     * @return array{start: Carbon, end: Carbon, label: string}
      */
-    public function patientStatisticsCsvRows(Request $request): array
+    public function dateRange(Request $request): array
     {
-        $filters = $this->resolveFilters($request);
-        $range = $this->resolveDateRange($request);
-        $all = $this->allPatients($request->user());
-        $selected = $this->filter($all, $filters, $range['start'], $range['end']);
-        $summary = $this->summary($all, $selected, $filters);
-
-        $rows = [
-            ['RehabPlus', 'Patient Statistics'],
-            ['Selected range', $range['label']],
-            ['Generated', now()->format('F j, Y H:i:s')],
-            [],
-            ['Total Patients', $summary['totalPatients']],
-            ['Active Patients', $summary['activePatients']],
-            ['Inactive Patients', $summary['inactivePatients']],
-            ['New Patients This Month', $summary['newPatientsThisMonth']],
-            [],
-            ['Patient Name', 'Condition', 'Assigned Therapist', 'Registration Date', 'Status'],
-        ];
-
-        foreach ($selected as $patient) {
-            $rows[] = [
-                $patient->name,
-                $patient->condition ?: 'Unspecified',
-                $patient->assigned_to ?: 'Unassigned',
-                $patient->created_at ? $patient->created_at->format('Y-m-d H:i:s') : '',
-                $patient->patient_is_active ? 'Active' : 'Inactive',
-            ];
-        }
-
-        return $rows;
-    }
-
-    public function patientStatisticsPdf(Request $request): array
-    {
-        $filters = $this->resolveFilters($request);
-        $range = $this->resolveDateRange($request);
-        $all = $this->allPatients($request->user());
-        $selected = $this->filter($all, $filters, $range['start'], $range['end']);
-
-        return [
-            'summary' => $this->summary($all, $selected, $filters),
-            'rangeLabel' => $range['label'],
-            'recentPatients' => $this->paginate($selected, 20, $request),
-        ];
+        return $this->resolveDateRange($request);
     }
 
     /** Patients (newest first) as objects with the properties the statistics views use. */
-    protected function allPatients(StaffUser $user): Collection
+    protected function asRecords(array $patients): Collection
     {
-        return collect($this->patients->visible($user, includeArchived: true))
+        return collect($patients)
             ->map(fn (array $p) => (object) [
                 'id' => $p['uid'],
                 'name' => $p['name'],

@@ -35,6 +35,18 @@ class DashboardOverviewService
             ]);
         }
 
+        return self::summarise($patients, $sessionsByPatient);
+    }
+
+    /**
+     * The overview numbers from already-loaded data (the reports page loads
+     * patients and sessions itself, together with its other data).
+     *
+     * @param  array  $patients  active patients the user may see
+     * @param  array<string, array>  $sessionsByPatient  from PatientProgress::sessionsByPatient()
+     */
+    public static function summarise(array $patients, array $sessionsByPatient): array
+    {
         $patientStats = array_map(function (array $patient) use ($sessionsByPatient) {
             $stats = PatientProgress::stats($sessionsByPatient[$patient['uid']] ?? []);
 

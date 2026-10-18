@@ -9,7 +9,7 @@ use Illuminate\Support\Facades\Http;
 use Tests\Support\FakeFirebase;
 use Tests\TestCase;
 
-/** Dashboard, analytics and patient statistics, computed from Firestore. */
+/** Dashboard numbers, computed from Firestore. Reports & Analytics: ReportTest. */
 class DashboardTest extends TestCase
 {
     use FakeFirebase, RefreshDatabase;
@@ -51,47 +51,6 @@ class DashboardTest extends TestCase
         $this->actingAs($this->staff('admin'))->get('/dashboard')->assertOk()->assertSee('Olive One')->assertSee('Tom Two');
 
         $this->assertSame(['sessions'], $this->collectionGroupReads());
-    }
-
-    public function test_patient_statistics_for_admins(): void
-    {
-        $this->actingAs($this->staff('admin'))->get('/patient-statistics')->assertOk()
-            ->assertSee('Patient Statistics')->assertSee('Olive One')->assertSee('Otto Old')->assertSee('Dr. Ben');
-
-        $this->actingAs($this->staff('admin'))->get('/patient-statistics?status=inactive')->assertOk()
-            ->assertSee('Otto Old')->assertDontSee('Olive One');
-
-        $csv = $this->actingAs($this->staff('admin'))->get('/patient-statistics/export/csv?condition=ACL')->streamedContent();
-        $this->assertStringContainsString('"Olive One",ACL,"Dr. Ana"', $csv);
-        $this->assertStringNotContainsString('Tom Two', $csv);
-    }
-
-    public function test_patient_statistics_ignore_malformed_dates(): void
-    {
-        foreach (['from=nonsense&to=2026-01-01', 'from=2026-13-45&to=2026-02-31', 'from[]=x&to=2026-01-01', 'condition[]=x&status[]=y&range[]=z'] as $query) {
-            $this->actingAs($this->staff('admin'))->get("/patient-statistics?range=custom&{$query}")->assertOk();
-        }
-
-        // Reversed dates are swapped rather than giving an empty report.
-        $this->actingAs($this->staff('admin'))->get('/patient-statistics?range=custom&from=2030-01-01&to=2000-01-01')
-            ->assertOk()->assertSee('Jan 1, 2000 - Jan 1, 2030');
-    }
-
-    public function test_csv_export_neutralises_spreadsheet_formulas(): void
-    {
-        $this->patientDoc('evil', ['name' => '=HYPERLINK("http://x","click")', 'condition' => '+SUM(A1)']);
-
-        $csv = $this->actingAs($this->staff('admin'))->get('/patient-statistics/export/csv')->streamedContent();
-
-        $this->assertStringContainsString('"\'=HYPERLINK(""http://x"",""click"")"', $csv);
-        $this->assertStringContainsString("'+SUM(A1)", $csv);
-        $this->assertDoesNotMatchRegularExpression('/(^|,)"?[=+@]/m', $csv);
-    }
-
-    public function test_patient_statistics_is_admin_only(): void
-    {
-        $this->actingAs($this->staff('therapist'))->get('/patient-statistics')->assertForbidden();
-        $this->actingAs($this->staff('staff'))->get('/patient-statistics')->assertForbidden();
     }
 
     public function test_firebase_outage_shows_friendly_page_instead_of_500(): void

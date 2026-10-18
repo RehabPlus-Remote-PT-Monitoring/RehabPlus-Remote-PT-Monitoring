@@ -85,7 +85,7 @@ class ContentSecurityPolicyTest extends TestCase
             '/dashboard', '/analytics', '/patients', '/patients/pat1', '/patients/pat1/edit', '/patients/create',
             '/patients/pat1/prescriptions/create', '/assessments', '/notes', '/messages', '/messages/pat1',
             '/appointments', '/appointments/create', '/billing', '/inventory', '/schedule', '/users', '/users/create',
-            '/patient-statistics', '/reports',
+            '/analytics?range=year',
         ];
 
         foreach ($pages as $page) {
@@ -120,7 +120,7 @@ class ContentSecurityPolicyTest extends TestCase
 
     public function test_json_and_csv_responses_get_no_policy(): void
     {
-        $csv = $this->actingAs($this->staff('admin'))->get('/patient-statistics/export/csv');
+        $csv = $this->actingAs($this->staff('admin'))->get('/analytics/export/csv');
 
         $this->assertNull($csv->headers->get('Content-Security-Policy'));
     }
