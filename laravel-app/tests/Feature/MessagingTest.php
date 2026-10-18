@@ -107,6 +107,7 @@ class MessagingTest extends TestCase
         $this->assertSame('Ice it for 15 minutes.', $message['update']['fields']['text']['stringValue']);
         $this->assertSame('staff', $message['update']['fields']['senderRole']['stringValue']);
         $this->assertSame('therapistUid1', $message['update']['fields']['senderId']['stringValue']);
+        $this->assertSame('Dr. Reyes', $message['update']['fields']['senderName']['stringValue']);
         $this->assertArrayHasKey('timestampValue', $message['update']['fields']['sentAt']);
         $this->assertSame([['fieldPath' => 'createdAt', 'setToServerValue' => 'REQUEST_TIME']], $message['updateTransforms']);
 
@@ -149,6 +150,26 @@ class MessagingTest extends TestCase
         $this->assertStringContainsString('/patients/pBen/threads/clinic/messages/', $message['update']['name']);
         $this->assertSame('clinic', $message['update']['fields']['senderId']['stringValue']);
         $this->assertSame('Message from RehabPlus Clinic', $notification['update']['fields']['title']['stringValue']);
+    }
+
+    public function test_patient_messages_are_left_and_staff_right_with_sender_names(): void
+    {
+        $t = CarbonImmutable::parse('2026-10-18 10:00:00');
+        $this->docs += [
+            'patients/pBen/threads/clinic/messages/c1' => ['text' => 'Can I book Tuesday?', 'senderRole' => 'patient', 'sentAt' => $t],
+            'patients/pBen/threads/clinic/messages/c2' => ['text' => 'Tuesday works.', 'senderRole' => 'staff', 'senderName' => 'Maria Santos', 'sentAt' => $t->addMinute()],
+            'patients/pBen/threads/clinic/messages/c3' => ['text' => 'Old reply.', 'senderRole' => 'staff', 'sentAt' => $t->addMinutes(2)],
+        ];
+
+        $html = $this->actingAs($this->staff('admin'))->get('/messages/pBen/feed')->assertOk()->getContent();
+
+        $rows = preg_split('/(?=<div class="d-flex flex-column)/', $html);
+        $row = fn ($text) => collect($rows)->first(fn ($r) => str_contains($r, $text));
+        $this->assertStringContainsString('align-items-start', $row('Can I book Tuesday?'));
+        $this->assertStringContainsString('Ben Lim', $row('Can I book Tuesday?'));
+        $this->assertStringContainsString('align-items-end', $row('Tuesday works.'));
+        $this->assertStringContainsString('Maria Santos', $row('Tuesday works.'));
+        $this->assertStringContainsString('RehabPlus Clinic', $row('Old reply.'), 'older replies without a name');
     }
 
     public function test_empty_and_too_long_replies_are_rejected(): void

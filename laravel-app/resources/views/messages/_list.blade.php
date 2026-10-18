@@ -1,5 +1,7 @@
+{{-- Patient messages on the left, staff replies on the right, each labelled with the sender. --}}
 @forelse ($messages as $m)
-    <div class="d-flex mb-2 {{ $m['fromPatient'] ? 'justify-content-start' : 'justify-content-end' }}">
+    <div class="d-flex flex-column mb-2 {{ $m['fromPatient'] ? 'align-items-start' : 'align-items-end' }}">
+        <div class="chat-sender">{{ $m['senderName'] }}</div>
         <div class="chat-bubble {{ $m['fromPatient'] ? 'chat-bubble-patient' : 'chat-bubble-staff' }}">{{ $m['text'] }}<div class="chat-time">{{ $m['sentAt']?->setTimezone(config('app.timezone'))->format('M j, g:i A') }}</div></div>
     </div>
 @empty

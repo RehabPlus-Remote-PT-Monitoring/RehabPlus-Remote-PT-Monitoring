@@ -48,7 +48,7 @@ class MessageController extends Controller
             'thread' => $thread,
             'patient' => $patient,
             'patientUid' => $patientUid,
-            'messages' => $this->loadAndMarkRead($patientUid, $thread),
+            'messages' => $this->loadAndMarkRead($patientUid, $thread, $patient),
             'maxLength' => MessagingService::MAX_LENGTH,
         ]);
     }
@@ -56,9 +56,9 @@ class MessageController extends Controller
     /** Just the message list, polled by the conversation page for new messages. */
     public function feed(Request $request, string $patientUid): View
     {
-        [$thread] = $this->authorizeThread($request, $patientUid);
+        [$thread, $patient] = $this->authorizeThread($request, $patientUid);
 
-        return view('messages._list', ['messages' => $this->loadAndMarkRead($patientUid, $thread)]);
+        return view('messages._list', ['messages' => $this->loadAndMarkRead($patientUid, $thread, $patient)]);
     }
 
     public function reply(Request $request, string $patientUid): RedirectResponse
@@ -88,11 +88,11 @@ class MessageController extends Controller
     }
 
     /** Load the messages and clear the unread badge, in parallel. */
-    private function loadAndMarkRead(string $patientUid, string $thread): array
+    private function loadAndMarkRead(string $patientUid, string $thread, array $patient): array
     {
         try {
             [$messages] = $this->firebase->concurrently([
-                fn () => $this->messaging->messages($patientUid, $thread),
+                fn () => $this->messaging->messages($patientUid, $thread, $patient),
                 function () use ($patientUid, $thread) {
                     try {
                         $this->messaging->markRead($patientUid, $thread);

@@ -109,8 +109,11 @@ class MessagingService
         return $patient;
     }
 
-    /** Messages oldest-first (last 200). Call authorize() first. */
-    public function messages(string $patientUid, string $thread): array
+    /**
+     * Messages oldest-first (last 200), each with the sender's display name.
+     * Call authorize() first and pass the patient profile it returned.
+     */
+    public function messages(string $patientUid, string $thread, array $patient = []): array
     {
         $messages = $this->db->query(
             "patients/{$patientUid}/threads/{$thread}",
@@ -119,12 +122,23 @@ class MessagingService
             limit: 200,
         );
 
-        return array_reverse(array_map(fn ($m) => [
-            'id' => $m['_id'],
-            'text' => $m['text'] ?? '',
-            'fromPatient' => ($m['senderRole'] ?? null) === 'patient',
-            'sentAt' => $m['sentAt'] ?? $m['createdAt'] ?? null,
-        ], $messages));
+        $patientName = ($patient['name'] ?? '') ?: 'Patient';
+        // Staff messages sent before senderName was stored fall back to the thread's owner.
+        $staffFallback = $thread === self::THREAD_THERAPIST
+            ? (($patient['therapistName'] ?? '') ?: 'Therapist')
+            : 'RehabPlus Clinic';
+
+        return array_reverse(array_map(function ($m) use ($patientName, $staffFallback) {
+            $fromPatient = ($m['senderRole'] ?? null) === 'patient';
+
+            return [
+                'id' => $m['_id'],
+                'text' => $m['text'] ?? '',
+                'fromPatient' => $fromPatient,
+                'senderName' => $fromPatient ? $patientName : (($m['senderName'] ?? '') ?: $staffFallback),
+                'sentAt' => $m['sentAt'] ?? $m['createdAt'] ?? null,
+            ];
+        }, $messages));
     }
 
     /** Clear the staff unread badge for this thread (only writes if it's set). */
@@ -166,6 +180,8 @@ class MessagingService
                 'text' => $text,
                 'senderId' => $senderId,
                 'senderRole' => 'staff',
+                // Dashboard-only: who on staff wrote it (the app ignores this field).
+                'senderName' => $user->name ?: 'Staff',
                 'sentAt' => $now,
             ], serverTimestamps: ['createdAt']),
             $this->db->mergeWrite($threadPath, [

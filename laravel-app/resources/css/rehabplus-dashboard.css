@@ -733,6 +733,13 @@ html.dark-mode{
             color:#fff;
         }
 
+        .chat-sender{
+            margin:0 .5rem .125rem;
+            font-size:.8rem;
+            font-weight:600;
+            color:var(--muted);
+        }
+
         .chat-time{
             margin-top:.25rem;
             font-size:.875em;
