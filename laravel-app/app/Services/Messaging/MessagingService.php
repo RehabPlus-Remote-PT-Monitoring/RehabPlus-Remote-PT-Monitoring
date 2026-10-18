@@ -143,9 +143,10 @@ class MessagingService
      * in one atomic commit, then a push to each of the patient's phones.
      * Push failures are logged but don't fail the reply (the message is saved).
      *
-     * @return int number of phones the push reached
+     * @return int|null number of phones the push reached, or null if the
+     *                  patient turned message notifications off
      */
-    public function reply(StaffUser $user, string $patientUid, array $patient, string $thread, string $text): int
+    public function reply(StaffUser $user, string $patientUid, array $patient, string $thread, string $text): ?int
     {
         $text = trim($text);
         if ($text === '' || mb_strlen($text) > self::MAX_LENGTH) {

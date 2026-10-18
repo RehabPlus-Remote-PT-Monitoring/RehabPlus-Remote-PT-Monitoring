@@ -8,9 +8,19 @@ use Illuminate\Support\Facades\Log;
  * Tells a patient's phone about something: an entry on the app's
  * Notifications page (patients/{uid}/notifications) plus an FCM push to every
  * registered device (patients/{uid}/devices). See API_CONTRACT.md in the app repo.
+ *
+ * Patients can turn pushes off per kind in the app (Settings > Notifications,
+ * stored at patients/{uid}/preferences/notifications). The Notifications-page
+ * entry is always written; only the push is skipped.
  */
 class PatientNotifier
 {
+    /** Push `data.type` => the preference field that controls it. */
+    private const PREFERENCE_FOR_TYPE = [
+        'chat' => 'messages',
+        'exercise_assigned' => 'exercises',
+    ];
+
     public function __construct(private FirestoreClient $db, private FirebaseAdmin $admin)
     {
     }
@@ -34,10 +44,15 @@ class PatientNotifier
      * Push to each of the patient's phones. Dead tokens are deleted; other
      * failures are logged and never thrown (the data is already saved).
      *
-     * @return int number of phones reached
+     * @return int|null number of phones reached, or null if the patient turned
+     *                  this kind of notification off
      */
-    public function push(string $patientUid, string $title, string $body, array $data): int
+    public function push(string $patientUid, string $title, string $body, array $data): ?int
     {
+        if (! $this->wantsPush($patientUid, $data['type'] ?? null)) {
+            return null;
+        }
+
         $sent = 0;
 
         try {
@@ -57,5 +72,27 @@ class PatientNotifier
         }
 
         return $sent;
+    }
+
+    /**
+     * False only when the patient turned this kind of push off. If the
+     * preference can't be read, the push is sent (better than a missed message).
+     */
+    private function wantsPush(string $patientUid, ?string $type): bool
+    {
+        $field = self::PREFERENCE_FOR_TYPE[$type] ?? null;
+        if ($field === null) {
+            return true;
+        }
+
+        try {
+            $prefs = $this->db->get("patients/{$patientUid}/preferences/notifications");
+        } catch (FirebaseException $e) {
+            Log::warning('Notification preferences unreadable: '.$e->getMessage(), ['patient' => $patientUid]);
+
+            return true;
+        }
+
+        return ($prefs[$field] ?? true) !== false;
     }
 }

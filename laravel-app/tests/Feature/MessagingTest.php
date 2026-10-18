@@ -128,6 +128,19 @@ class MessagingTest extends TestCase
         $this->assertSame(['patients/pAnna/devices/deadToken'], $this->deleted);
     }
 
+    public function test_no_push_when_the_patient_turned_message_notifications_off(): void
+    {
+        $this->docs['patients/pAnna/preferences/notifications'] = ['messages' => false, 'exercises' => true];
+
+        $this->actingAs($this->therapist())
+            ->post('/messages/pAnna', ['text' => 'See you Monday.'])
+            ->assertSessionHas('success', 'Message sent. The patient turned off message alerts, so they will see it next time they open the app.');
+
+        $this->assertCount(3, $this->commits[0], 'message, thread and Notifications-page entry still written');
+        $this->assertCount(0, $this->pushes);
+        $this->assertSame([], $this->deleted, 'devices are not touched');
+    }
+
     public function test_clinic_reply_is_sent_as_the_clinic(): void
     {
         $this->actingAs($this->staff('admin'))->post('/messages/pBen', ['text' => 'Tuesday 10am works.'])

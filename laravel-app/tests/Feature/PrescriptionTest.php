@@ -63,6 +63,21 @@ class PrescriptionTest extends TestCase
         $this->assertSame('chat_messages', $this->pushes[0]['android']['notification']['channel_id']);
     }
 
+    public function test_no_push_when_the_patient_turned_exercise_notifications_off(): void
+    {
+        $this->docs['patients/pOne/preferences/notifications'] = ['messages' => true, 'exercises' => false];
+
+        $this->actingAs($this->therapist())->post('/patients/pOne/prescriptions', [
+            'exercise_type' => 'kneeExtension',
+            'target_reps' => 10,
+            'frequency_per_week' => 3,
+        ])->assertRedirect('/patients/pOne');
+
+        $this->assertCount(1, $this->docsLike('patients/pOne/prescriptions/*'));
+        $this->assertCount(1, $this->docsLike('patients/pOne/notifications/*'), 'still on the Notifications page');
+        $this->assertCount(0, $this->pushes);
+    }
+
     public function test_hold_exercise_keeps_hold_length_and_no_schedule_means_any_time(): void
     {
         $this->actingAs($this->therapist())->post('/patients/pOne/prescriptions', [

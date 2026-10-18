@@ -78,7 +78,11 @@ class MessageController extends Controller
 
         return redirect()->route('messages.show', $patientUid)->with(
             'success',
-            $phones > 0 ? 'Message sent.' : 'Message sent. The patient will see it next time they open the app (no phone is registered for notifications).',
+            match (true) {
+                $phones === null => 'Message sent. The patient turned off message alerts, so they will see it next time they open the app.',
+                $phones > 0 => 'Message sent.',
+                default => 'Message sent. The patient will see it next time they open the app (no phone is registered for notifications).',
+            },
         );
     }
 
