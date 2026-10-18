@@ -1,6 +1,12 @@
+import 'dart:typed_data';
+
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart' show PlatformException;
+import 'package:image_picker/image_picker.dart';
+import 'package:permission_handler/permission_handler.dart';
 
 import '../services/profile_service.dart';
+import '../widgets/profile_avatar.dart';
 
 class ProfileData {
   final String name;
@@ -13,6 +19,9 @@ class ProfileData {
   /// When the patient's program started (patients/{uid}.createdAt).
   final DateTime? programStart;
 
+  /// Profile picture (JPEG bytes), or null for the default icon.
+  final Uint8List? photo;
+
   const ProfileData({
     required this.name,
     required this.email,
@@ -21,6 +30,7 @@ class ProfileData {
     required this.condition,
     this.therapist = '',
     this.programStart,
+    this.photo,
   });
 }
 
@@ -51,6 +61,97 @@ class _EditProfileScreenState extends State<EditProfileScreen>
 
   bool _isSaving = false;
 
+  /// The photo shown in the form; saved with Save Changes.
+  late Uint8List? _photo = widget.initial.photo;
+  bool _photoChanged = false;
+
+  Future<void> _choosePhoto() async {
+    final source = await showModalBottomSheet<Object>(
+      context: context,
+      showDragHandle: true,
+      // Light like the rest of this screen, even when the phone is in dark mode.
+      backgroundColor: Colors.white,
+      builder: (ctx) => Theme(
+        data: ThemeData.light(useMaterial3: true),
+        child: SafeArea(
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              ListTile(
+                leading: const Icon(
+                  Icons.photo_camera_outlined,
+                  color: primaryTeal,
+                ),
+                title: const Text('Take a photo'),
+                onTap: () => Navigator.pop(ctx, ImageSource.camera),
+              ),
+              ListTile(
+                leading: const Icon(
+                  Icons.photo_library_outlined,
+                  color: primaryTeal,
+                ),
+                title: const Text('Choose from gallery'),
+                onTap: () => Navigator.pop(ctx, ImageSource.gallery),
+              ),
+              if (_photo != null)
+                ListTile(
+                  leading: Icon(Icons.delete_outline, color: Colors.red[700]),
+                  title: const Text('Remove photo'),
+                  onTap: () => Navigator.pop(ctx, 'remove'),
+                ),
+            ],
+          ),
+        ),
+      ),
+    );
+    if (source == null || !mounted) return;
+    if (source == 'remove') {
+      setState(() {
+        _photo = null;
+        _photoChanged = true;
+      });
+      return;
+    }
+    final imageSource = source as ImageSource;
+    // The app declares the camera permission (for exercises), so Android
+    // requires it to be granted before another app's camera can be used.
+    if (imageSource == ImageSource.camera &&
+        !(await Permission.camera.request()).isGranted) {
+      _snack('Allow camera access in your phone settings to take a photo.');
+      return;
+    }
+    try {
+      // Small enough to store with the profile (see ProfileService.savePhoto).
+      final file = await ImagePicker().pickImage(
+        source: imageSource,
+        maxWidth: ProfileService.photoSize,
+        maxHeight: ProfileService.photoSize,
+        imageQuality: 75,
+        preferredCameraDevice: CameraDevice.front,
+      );
+      if (file == null) return;
+      final bytes = await file.readAsBytes();
+      if (bytes.length > ProfileService.maxPhotoBytes) {
+        _snack('That photo is too large. Please choose another one.');
+        return;
+      }
+      if (!mounted) return;
+      setState(() {
+        _photo = bytes;
+        _photoChanged = true;
+      });
+    } on PlatformException {
+      _snack('Could not open the photo. Please try again.');
+    }
+  }
+
+  void _snack(String message) {
+    if (!mounted) return;
+    ScaffoldMessenger.of(
+      context,
+    ).showSnackBar(SnackBar(content: Text(message)));
+  }
+
   @override
   void initState() {
     super.initState();
@@ -61,10 +162,15 @@ class _EditProfileScreenState extends State<EditProfileScreen>
     _conditionCtrl = TextEditingController(text: widget.initial.condition);
     _therapistCtrl = TextEditingController(text: widget.initial.therapist);
 
-    _ctrl = AnimationController(vsync: this, duration: const Duration(milliseconds: 600));
+    _ctrl = AnimationController(
+      vsync: this,
+      duration: const Duration(milliseconds: 600),
+    );
     _fade = CurvedAnimation(parent: _ctrl, curve: Curves.easeOut);
-    _slide = Tween<Offset>(begin: const Offset(0, 0.1), end: Offset.zero)
-        .animate(CurvedAnimation(parent: _ctrl, curve: Curves.easeOutCubic));
+    _slide = Tween<Offset>(
+      begin: const Offset(0, 0.1),
+      end: Offset.zero,
+    ).animate(CurvedAnimation(parent: _ctrl, curve: Curves.easeOutCubic));
     _ctrl.forward();
   }
 
@@ -83,10 +189,12 @@ class _EditProfileScreenState extends State<EditProfileScreen>
   Future<void> _save() async {
     if (!_formKey.currentState!.validate()) return;
     setState(() => _isSaving = true);
+    final name = _nameCtrl.text.trim();
     final phone = _phoneCtrl.text.trim();
     final dob = _dobCtrl.text.trim();
     try {
-      ProfileService().saveContact(phone: phone, dob: dob);
+      ProfileService().saveContact(name: name, phone: phone, dob: dob);
+      if (_photoChanged) ProfileService().savePhoto(_photo);
     } catch (_) {
       setState(() => _isSaving = false);
       ScaffoldMessenger.of(context).showSnackBar(
@@ -97,13 +205,14 @@ class _EditProfileScreenState extends State<EditProfileScreen>
     Navigator.pop(
       context,
       ProfileData(
-        name: widget.initial.name,
+        name: name,
         email: widget.initial.email,
         phone: phone,
         dob: dob,
         condition: widget.initial.condition,
         therapist: widget.initial.therapist,
         programStart: widget.initial.programStart,
+        photo: _photo,
       ),
     );
   }
@@ -129,26 +238,63 @@ class _EditProfileScreenState extends State<EditProfileScreen>
                       children: [
                         _buildAvatarSection(),
                         const SizedBox(height: 24),
-                        _sectionLabel('Personal Info', Icons.person_outline_rounded),
+                        _sectionLabel(
+                          'Personal Info',
+                          Icons.person_outline_rounded,
+                        ),
                         const SizedBox(height: 12),
                         _buildCard([
-                          // Name, email and condition are managed by the clinic.
-                          _field(_nameCtrl, 'Full Name', Icons.person_outline, readOnly: true),
+                          // The email (the login) and rehab info are managed by the clinic.
+                          _field(
+                            _nameCtrl,
+                            'Full Name',
+                            Icons.person_outline,
+                            keyboardType: TextInputType.name,
+                            validator: _requiredName,
+                          ),
                           _divider(),
-                          _field(_emailCtrl, 'Email', Icons.email_outlined, readOnly: true),
+                          _field(
+                            _emailCtrl,
+                            'Email',
+                            Icons.email_outlined,
+                            readOnly: true,
+                          ),
                           _divider(),
-                          _field(_phoneCtrl, 'Phone', Icons.phone_outlined,
-                              keyboardType: TextInputType.phone, validator: _required),
+                          _field(
+                            _phoneCtrl,
+                            'Phone',
+                            Icons.phone_outlined,
+                            keyboardType: TextInputType.phone,
+                            validator: _required,
+                          ),
                           _divider(),
-                          _field(_dobCtrl, 'Date of Birth', Icons.cake_outlined, validator: _required),
+                          _field(
+                            _dobCtrl,
+                            'Date of Birth',
+                            Icons.cake_outlined,
+                            validator: _required,
+                          ),
                         ]),
                         const SizedBox(height: 20),
-                        _sectionLabel('Rehab Info', Icons.medical_services_outlined),
+                        _sectionLabel(
+                          'Rehab Info',
+                          Icons.medical_services_outlined,
+                        ),
                         const SizedBox(height: 12),
                         _buildCard([
-                          _field(_conditionCtrl, 'Condition', Icons.medical_services_outlined, readOnly: true),
+                          _field(
+                            _conditionCtrl,
+                            'Condition',
+                            Icons.medical_services_outlined,
+                            readOnly: true,
+                          ),
                           _divider(),
-                          _field(_therapistCtrl, 'Therapist', Icons.person_pin_outlined, readOnly: true),
+                          _field(
+                            _therapistCtrl,
+                            'Therapist',
+                            Icons.person_pin_outlined,
+                            readOnly: true,
+                          ),
                         ]),
                         const SizedBox(height: 28),
                         _buildSaveButton(),
@@ -183,12 +329,17 @@ class _EditProfileScreenState extends State<EditProfileScreen>
               GestureDetector(
                 onTap: () => Navigator.pop(context),
                 child: Container(
-                  width: 40, height: 40,
+                  width: 40,
+                  height: 40,
                   decoration: BoxDecoration(
                     color: Colors.white.withValues(alpha: 0.15),
                     borderRadius: BorderRadius.circular(12),
                   ),
-                  child: const Icon(Icons.arrow_back_ios_new_rounded, color: Colors.white, size: 18),
+                  child: const Icon(
+                    Icons.arrow_back_ios_new_rounded,
+                    color: Colors.white,
+                    size: 18,
+                  ),
                 ),
               ),
               const SizedBox(width: 14),
@@ -196,8 +347,18 @@ class _EditProfileScreenState extends State<EditProfileScreen>
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
-                    Text('Edit Profile', style: TextStyle(fontSize: 22, fontWeight: FontWeight.bold, color: Colors.white)),
-                    Text('Update your personal information', style: TextStyle(fontSize: 12, color: Colors.white70)),
+                    Text(
+                      'Update Account',
+                      style: TextStyle(
+                        fontSize: 22,
+                        fontWeight: FontWeight.bold,
+                        color: Colors.white,
+                      ),
+                    ),
+                    Text(
+                      'Update your personal information',
+                      style: TextStyle(fontSize: 12, color: Colors.white70),
+                    ),
                   ],
                 ),
               ),
@@ -210,27 +371,47 @@ class _EditProfileScreenState extends State<EditProfileScreen>
 
   Widget _buildAvatarSection() {
     return Center(
-      child: Stack(
+      child: Column(
         children: [
-          Container(
-            width: 90, height: 90,
-            decoration: BoxDecoration(
-              gradient: const LinearGradient(colors: [Color(0xFF23A8AA), Color(0xFF0D6E71)]),
-              shape: BoxShape.circle,
-              boxShadow: [BoxShadow(color: primaryTeal.withValues(alpha: 0.3), blurRadius: 16, offset: const Offset(0, 6))],
+          GestureDetector(
+            onTap: _isSaving ? null : _choosePhoto,
+            child: Stack(
+              children: [
+                ProfileAvatar(photo: _photo, size: 96),
+                Positioned(
+                  bottom: 0,
+                  right: 0,
+                  child: Container(
+                    width: 32,
+                    height: 32,
+                    decoration: BoxDecoration(
+                      color: Colors.white,
+                      shape: BoxShape.circle,
+                      boxShadow: [
+                        BoxShadow(
+                          color: Colors.black.withValues(alpha: 0.1),
+                          blurRadius: 6,
+                        ),
+                      ],
+                    ),
+                    child: const Icon(
+                      Icons.camera_alt_rounded,
+                      size: 17,
+                      color: primaryTeal,
+                    ),
+                  ),
+                ),
+              ],
             ),
-            child: const Icon(Icons.person, size: 46, color: Colors.white),
           ),
-          Positioned(
-            bottom: 0, right: 0,
-            child: Container(
-              width: 30, height: 30,
-              decoration: BoxDecoration(
-                color: Colors.white,
-                shape: BoxShape.circle,
-                boxShadow: [BoxShadow(color: Colors.black.withValues(alpha: 0.1), blurRadius: 6)],
+          TextButton(
+            onPressed: _isSaving ? null : _choosePhoto,
+            child: Text(
+              _photo == null ? 'Add profile picture' : 'Change profile picture',
+              style: const TextStyle(
+                color: primaryTeal,
+                fontWeight: FontWeight.w600,
               ),
-              child: const Icon(Icons.camera_alt_rounded, size: 16, color: primaryTeal),
             ),
           ),
         ],
@@ -243,7 +424,14 @@ class _EditProfileScreenState extends State<EditProfileScreen>
       children: [
         Icon(icon, size: 16, color: primaryTeal),
         const SizedBox(width: 8),
-        Text(label, style: const TextStyle(fontSize: 14, fontWeight: FontWeight.bold, color: Colors.black54)),
+        Text(
+          label,
+          style: const TextStyle(
+            fontSize: 14,
+            fontWeight: FontWeight.bold,
+            color: Colors.black54,
+          ),
+        ),
       ],
     );
   }
@@ -253,7 +441,13 @@ class _EditProfileScreenState extends State<EditProfileScreen>
       decoration: BoxDecoration(
         color: Colors.white,
         borderRadius: BorderRadius.circular(20),
-        boxShadow: [BoxShadow(color: Colors.black.withValues(alpha: 0.05), blurRadius: 12, offset: const Offset(0, 3))],
+        boxShadow: [
+          BoxShadow(
+            color: Colors.black.withValues(alpha: 0.05),
+            blurRadius: 12,
+            offset: const Offset(0, 3),
+          ),
+        ],
       ),
       child: Padding(
         padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
@@ -277,13 +471,26 @@ class _EditProfileScreenState extends State<EditProfileScreen>
         keyboardType: keyboardType,
         readOnly: readOnly,
         validator: validator,
-        style: const TextStyle(fontSize: 14, color: Colors.black87, fontWeight: FontWeight.w500),
+        style: const TextStyle(
+          fontSize: 14,
+          color: Colors.black87,
+          fontWeight: FontWeight.w500,
+        ),
         decoration: InputDecoration(
-          prefixIcon: Icon(icon, size: 18, color: readOnly ? Colors.black26 : primaryTeal),
+          prefixIcon: Icon(
+            icon,
+            size: 18,
+            color: readOnly ? Colors.black26 : primaryTeal,
+          ),
           labelText: label,
-          labelStyle: TextStyle(fontSize: 13, color: readOnly ? Colors.black26 : Colors.black45),
+          labelStyle: TextStyle(
+            fontSize: 13,
+            color: readOnly ? Colors.black26 : Colors.black45,
+          ),
           border: InputBorder.none,
-          suffixIcon: readOnly ? const Icon(Icons.lock_outline, size: 14, color: Colors.black26) : null,
+          suffixIcon: readOnly
+              ? const Icon(Icons.lock_outline, size: 14, color: Colors.black26)
+              : null,
         ),
       ),
     );
@@ -291,7 +498,15 @@ class _EditProfileScreenState extends State<EditProfileScreen>
 
   Widget _divider() => const Divider(height: 1, color: Color(0xFFF0F0F0));
 
-  String? _required(String? v) => (v == null || v.trim().isEmpty) ? 'Required' : null;
+  // Lengths match the Firestore rules (name ≤ 100, phone/date of birth ≤ 30).
+  String? _required(String? v) => _check(v, 30);
+  String? _requiredName(String? v) => _check(v, 100);
+
+  String? _check(String? v, int max) {
+    final t = v?.trim() ?? '';
+    if (t.isEmpty) return 'Required';
+    return t.length > max ? 'Must be $max characters or fewer' : null;
+  }
 
   Widget _buildSaveButton() {
     return SizedBox(
@@ -303,11 +518,23 @@ class _EditProfileScreenState extends State<EditProfileScreen>
           foregroundColor: Colors.white,
           elevation: 0,
           padding: const EdgeInsets.symmetric(vertical: 16),
-          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+          shape: RoundedRectangleBorder(
+            borderRadius: BorderRadius.circular(16),
+          ),
         ),
         child: _isSaving
-            ? const SizedBox(width: 20, height: 20, child: CircularProgressIndicator(color: Colors.white, strokeWidth: 2))
-            : const Text('Save Changes', style: TextStyle(fontSize: 15, fontWeight: FontWeight.bold)),
+            ? const SizedBox(
+                width: 20,
+                height: 20,
+                child: CircularProgressIndicator(
+                  color: Colors.white,
+                  strokeWidth: 2,
+                ),
+              )
+            : const Text(
+                'Save Changes',
+                style: TextStyle(fontSize: 15, fontWeight: FontWeight.bold),
+              ),
       ),
     );
   }

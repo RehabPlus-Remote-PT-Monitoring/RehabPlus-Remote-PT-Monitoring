@@ -30,6 +30,7 @@ import 'package:flutter/foundation.dart';
 import 'package:camera/camera.dart';
 import 'package:vibration/vibration.dart';
 import 'package:audioplayers/audioplayers.dart';
+import 'package:flutter_tts/flutter_tts.dart';
 import 'package:provider/provider.dart';
 
 import 'package:google_mlkit_pose_detection/google_mlkit_pose_detection.dart';
@@ -37,6 +38,7 @@ import 'package:google_mlkit_pose_detection/google_mlkit_pose_detection.dart';
 import '../models/exercise_model.dart';
 import '../models/session.dart';
 import '../services/app_provider.dart';
+import '../services/app_settings.dart';
 import '../services/form_checker.dart';
 import '../widgets/pose_painter.dart';
 
@@ -146,8 +148,11 @@ class _PoseDetectorScreenState extends State<PoseDetectorScreen>
   }
 
   void _triggerFeedback() {
-    _playSuccessSound();
-    if (_hasVibrator) Vibration.vibrate(duration: 100);
+    if (_settings.repSound) _playSuccessSound();
+    if (_settings.repVibration && _hasVibrator) {
+      Vibration.vibrate(duration: 100);
+    }
+    if (_settings.voiceCues) _speak('$_repCounter', force: true);
   }
 
   /// Double buzz for wrong form / rejected rep (throttled so it can't spam).
@@ -156,7 +161,83 @@ class _PoseDetectorScreenState extends State<PoseDetectorScreen>
     final now = DateTime.now();
     if (now.difference(_lastBuzz).inMilliseconds < 1500) return;
     _lastBuzz = now;
-    if (_hasVibrator) Vibration.vibrate(pattern: [0, 120, 80, 120]);
+    if (_settings.repVibration && _hasVibrator) {
+      Vibration.vibrate(pattern: [0, 120, 80, 120]);
+    }
+  }
+
+  // ---------------------------------------------------------------------
+  // Spoken cues (Settings > Spoken cues)
+  // ---------------------------------------------------------------------
+
+  final AppSettings _settings = AppSettings.I;
+  FlutterTts? _tts;
+  String? _lastSpoken;
+  DateTime _lastSpokenAt = DateTime.fromMillisecondsSinceEpoch(0);
+
+  Future<void> _initVoice() async {
+    if (!_settings.voiceCues) return;
+    final tts = FlutterTts();
+    try {
+      await tts.setLanguage('en-US');
+      await tts.setSpeechRate(0.5);
+      _tts = tts;
+    } catch (e) {
+      debugPrint('TTS init error: $e');
+    }
+  }
+
+  /// Says [text]. Form tips are throttled (a new tip at most every 3 s, the
+  /// same tip again after 8 s); [force] is for rep counts and the countdown.
+  void _speak(String text, {bool force = false}) {
+    final tts = _tts;
+    if (tts == null) return;
+    final now = DateTime.now();
+    final since = now.difference(_lastSpokenAt).inMilliseconds;
+    if (!force) {
+      if (since < 3000) return;
+      if (text == _lastSpoken && since < 8000) return;
+    }
+    _lastSpoken = text;
+    _lastSpokenAt = now;
+    unawaited(
+      tts.stop().then((_) => tts.speak(text)).catchError((Object e) {
+        debugPrint('TTS error: $e');
+        return null;
+      }),
+    );
+  }
+
+  // ---------------------------------------------------------------------
+  // Start countdown (Settings > Countdown before counting)
+  // ---------------------------------------------------------------------
+
+  int _countdownLeft = 0;
+  bool _countdownStarted = false;
+  Timer? _countdownTimer;
+
+  bool get _countingDown => _countdownLeft > 0;
+
+  /// Runs once, when the camera first shows: reps aren't counted until it
+  /// reaches zero, giving the patient time to get into position.
+  void _startCountdown() {
+    if (_countdownStarted) return;
+    _countdownStarted = true;
+    final seconds = _settings.countdownSeconds;
+    if (seconds <= 0) return;
+    setState(() => _countdownLeft = seconds);
+    _speak('$seconds', force: true);
+    _countdownTimer = Timer.periodic(const Duration(seconds: 1), (t) {
+      if (!mounted) return t.cancel();
+      setState(() => _countdownLeft--);
+      if (_countdownLeft > 0) {
+        _speak('$_countdownLeft', force: true);
+      } else {
+        t.cancel();
+        _resetTracking(); // start the first rep from a clean slate
+        _speak('Go', force: true);
+      }
+    });
   }
 
   // ---------------------------------------------------------------------
@@ -211,7 +292,9 @@ class _PoseDetectorScreenState extends State<PoseDetectorScreen>
   List<Pose> _detectedPoses = [];
   Size? _imageSize;
   InputImageRotation _rotation = InputImageRotation.rotation0deg;
-  CameraLensDirection _lensDirection = CameraLensDirection.front;
+  late CameraLensDirection _lensDirection = AppSettings.I.useBackCamera
+      ? CameraLensDirection.back
+      : CameraLensDirection.front;
 
   /// Front camera preview is a selfie mirror while ML Kit data is not, so the
   /// skeleton is flipped. The app-bar button is an on-device override.
@@ -240,6 +323,7 @@ class _PoseDetectorScreenState extends State<PoseDetectorScreen>
     _checker = FormChecker(widget.selectedExercise, thresholds: _thresholds);
     Vibration.hasVibrator().then((v) => _hasVibrator = v);
     _initAudio();
+    _initVoice();
     _initPoseDetector();
     _initCamera();
   }
@@ -270,7 +354,10 @@ class _PoseDetectorScreenState extends State<PoseDetectorScreen>
         orElse: () => _availableCameras.first,
       );
       _lensDirection = camera.lensDirection;
-      _mirrorSkeleton = _lensDirection == CameraLensDirection.front;
+      // Front camera previews are mirrored; Settings can flip that default.
+      _mirrorSkeleton =
+          (_lensDirection == CameraLensDirection.front) !=
+          _settings.flipSkeleton;
 
       final controller = CameraController(
         camera,
@@ -288,7 +375,10 @@ class _PoseDetectorScreenState extends State<PoseDetectorScreen>
       await controller.startImageStream(
         (image) => _processFrame(image, camera),
       );
-      if (mounted) setState(() {});
+      if (mounted) {
+        setState(() {});
+        _startCountdown();
+      }
     } on CameraException catch (e) {
       debugPrint('Camera error: ${e.code} ${e.description}');
       await _disposeCamera();
@@ -391,7 +481,9 @@ class _PoseDetectorScreenState extends State<PoseDetectorScreen>
 
       // Judge the form first so the overlay and the rep logic agree.
       final FormResult form;
-      if (poses.isEmpty) {
+      if (_countingDown) {
+        form = FormResult.ok;
+      } else if (poses.isEmpty) {
         form = _filterForm(_checker.evaluateNoPose());
       } else {
         final lm = poses.first.landmarks;
@@ -402,7 +494,9 @@ class _PoseDetectorScreenState extends State<PoseDetectorScreen>
       _wasWrong = form.isWrong;
 
       // Run all logic BEFORE the single setState below.
-      if (poses.isNotEmpty) {
+      if (_countingDown) {
+        // Getting into position: nothing is counted yet.
+      } else if (poses.isNotEmpty) {
         _analyzeMotion(poses.first.landmarks, form);
       } else {
         _cancelCycle();
@@ -424,6 +518,10 @@ class _PoseDetectorScreenState extends State<PoseDetectorScreen>
         _rotation = rotation;
         _form = form;
       });
+      if (_settings.voiceCues) {
+        final tip = _effectiveForm.primary?.message;
+        if (tip != null && tip.isNotEmpty) _speak(tip);
+      }
     } catch (e) {
       debugPrint("ML Kit Detection Error: $e");
     } finally {
@@ -1642,6 +1740,8 @@ class _PoseDetectorScreenState extends State<PoseDetectorScreen>
   void dispose() {
     WidgetsBinding.instance.removeObserver(this);
     _audioPlayer.dispose();
+    _countdownTimer?.cancel();
+    _tts?.stop();
     // Order matters: stop the stream and camera first, then close ML Kit.
     _disposeCamera().whenComplete(() => _poseDetector.close());
     super.dispose();
@@ -1729,7 +1829,9 @@ class _PoseDetectorScreenState extends State<PoseDetectorScreen>
               ),
             ),
 
-            if (_imageSize != null && _detectedPoses.isNotEmpty)
+            if (_settings.showSkeleton &&
+                _imageSize != null &&
+                _detectedPoses.isNotEmpty)
               RepaintBoundary(
                 child: CustomPaint(
                   painter: PosePainter(
@@ -1743,6 +1845,33 @@ class _PoseDetectorScreenState extends State<PoseDetectorScreen>
                     flaggedLandmarks: form.flagged,
                     issues: form.issues,
                   ),
+                ),
+              ),
+
+            if (_countingDown)
+              Center(
+                child: Column(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    const Text(
+                      'Get into position',
+                      style: TextStyle(
+                        color: Colors.white,
+                        fontSize: 18,
+                        fontWeight: FontWeight.w600,
+                        shadows: [Shadow(blurRadius: 8)],
+                      ),
+                    ),
+                    Text(
+                      '$_countdownLeft',
+                      style: const TextStyle(
+                        color: Colors.white,
+                        fontSize: 96,
+                        fontWeight: FontWeight.bold,
+                        shadows: [Shadow(blurRadius: 12)],
+                      ),
+                    ),
+                  ],
                 ),
               ),
 

@@ -42,12 +42,20 @@ class PushService {
 
     FirebaseMessaging.onMessage.listen(_showInApp);
     FirebaseMessaging.onMessageOpenedApp.listen(_open);
-    // App launched by tapping a notification while it was closed.
-    _fm.getInitialMessage().then((m) {
-      if (m != null) {
-        WidgetsBinding.instance.addPostFrameCallback((_) => _open(m));
-      }
-    });
+    // App launched by tapping a notification while it was closed: kept until
+    // the startup splash hands over (see [openLaunchMessage]); opening it
+    // earlier would put the chat under the splash's replacement route.
+    _launchMessage = _fm.getInitialMessage();
+  }
+
+  Future<RemoteMessage?>? _launchMessage;
+
+  /// Opens the notification that launched the app, if any. Called by the
+  /// splash once the first real screen is showing.
+  Future<void> openLaunchMessage() async {
+    final m = await _launchMessage;
+    _launchMessage = null;
+    if (m != null) _open(m);
   }
 
   /// Asks for permission (Android 13+) and saves this device's token for the
@@ -75,7 +83,9 @@ class PushService {
       });
     } catch (e) {
       // No Play Services, no network, etc. Messaging still works in-app.
-      _logger.warn('PushService', 'Registration failed', {'error': e.toString()});
+      _logger.warn('PushService', 'Registration failed', {
+        'error': e.toString(),
+      });
     }
   }
 

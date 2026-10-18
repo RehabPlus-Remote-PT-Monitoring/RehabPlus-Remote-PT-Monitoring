@@ -5,10 +5,9 @@ import '../services/app_provider.dart';
 import '../models/session.dart';
 import 'login_page.dart';
 import 'edit_profile_screen.dart';
-import 'notification_page.dart';
-import 'privacy_policy_screen.dart';
-import '../models/chat.dart';
-import 'messages_screen.dart';
+import 'privacy_legal_screen.dart';
+import 'settings_screen.dart';
+import '../widgets/profile_avatar.dart';
 
 class ProfileScreen extends StatefulWidget {
   const ProfileScreen({super.key});
@@ -106,6 +105,8 @@ class _ProfileScreenState extends State<ProfileScreen> {
                 const SizedBox(height: 14),
                 _buildSettingsCard(),
                 const SizedBox(height: 14),
+                _buildLegalCard(),
+                const SizedBox(height: 14),
                 _buildSignOutButton(),
                 const SizedBox(height: 28),
               ],
@@ -159,15 +160,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
               const SizedBox(height: 20),
               Row(
                 children: [
-                  Container(
-                    width: 64, height: 64,
-                    decoration: BoxDecoration(
-                      color: Colors.white.withValues(alpha: 0.2),
-                      shape: BoxShape.circle,
-                      border: Border.all(color: Colors.white.withValues(alpha: 0.4), width: 2),
-                    ),
-                    child: const Icon(Icons.person, size: 34, color: Colors.white),
-                  ),
+                  ProfileAvatar(photo: _profile.photo, size: 64, onHeader: true),
                   const SizedBox(width: 16),
                   Column(
                     crossAxisAlignment: CrossAxisAlignment.start,
@@ -366,6 +359,8 @@ class _ProfileScreenState extends State<ProfileScreen> {
     );
   }
 
+  /// Opens Settings: exercise feedback, camera, reminders, notifications,
+  /// text size, account and support.
   Widget _buildSettingsCard() {
     return Padding(
       padding: const EdgeInsets.symmetric(horizontal: 16),
@@ -375,48 +370,45 @@ class _ProfileScreenState extends State<ProfileScreen> {
           borderRadius: BorderRadius.circular(20),
           boxShadow: [BoxShadow(color: Colors.black.withValues(alpha: 0.05), blurRadius: 12, offset: const Offset(0, 3))],
         ),
-        child: Column(
-          children: [
-            Padding(
-              padding: const EdgeInsets.fromLTRB(16, 16, 16, 10),
-              child: Row(
-                children: [
-                  Container(
-                    padding: const EdgeInsets.all(7),
-                    decoration: BoxDecoration(color: primaryTeal.withValues(alpha: 0.1), borderRadius: BorderRadius.circular(9)),
-                    child: const Icon(Icons.settings_outlined, size: 16, color: primaryTeal),
-                  ),
-                  const SizedBox(width: 10),
-                  const Text('Settings', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 14, color: Colors.black87)),
-                ],
-              ),
-            ),
-            const Divider(height: 1, indent: 16, endIndent: 16),
-            _settingsTile(icon: Icons.notifications_outlined, label: 'Notifications',
-                onTap: () => Navigator.push(context, MaterialPageRoute(builder: (_) => const NotificationPage()))),
-            const Divider(height: 1, indent: 56, endIndent: 16),
-            _settingsTile(icon: Icons.lock_outline_rounded, label: 'Privacy & Security',
-                onTap: () => Navigator.push(context, MaterialPageRoute(builder: (_) => const PrivacyPolicyScreen()))),
-            const Divider(height: 1, indent: 56, endIndent: 16),
-            _settingsTile(icon: Icons.help_outline_rounded, label: 'Help & Support',
-                onTap: () => Navigator.push(context, MaterialPageRoute(builder: (_) => const ChatDetailScreen(thread: ChatThread.clinic)))),
-          ],
+        child: ListTile(
+          onTap: () => Navigator.push(context, MaterialPageRoute(builder: (_) => const SettingsScreen())),
+          contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 6),
+          leading: Container(
+            padding: const EdgeInsets.all(7),
+            decoration: BoxDecoration(color: primaryTeal.withValues(alpha: 0.1), borderRadius: BorderRadius.circular(9)),
+            child: const Icon(Icons.settings_outlined, size: 16, color: primaryTeal),
+          ),
+          title: const Text('Settings', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 14, color: Colors.black87)),
+          subtitle: const Text('Exercise, camera, reminders, notifications and more', style: TextStyle(fontSize: 12, color: Colors.black45)),
+          trailing: const Icon(Icons.chevron_right_rounded, color: Colors.black26, size: 20),
         ),
       ),
     );
   }
 
-  Widget _settingsTile({required IconData icon, required String label, required VoidCallback onTap}) {
-    return ListTile(
-      onTap: onTap,
-      contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 2),
-      leading: Container(
-        width: 36, height: 36,
-        decoration: BoxDecoration(color: primaryTeal.withValues(alpha: 0.08), borderRadius: BorderRadius.circular(10)),
-        child: Icon(icon, size: 18, color: primaryTeal),
+  /// Opens Privacy & Legal: account info, Terms and Conditions, Privacy Policy.
+  Widget _buildLegalCard() {
+    return Padding(
+      padding: const EdgeInsets.symmetric(horizontal: 16),
+      child: Container(
+        decoration: BoxDecoration(
+          color: Colors.white,
+          borderRadius: BorderRadius.circular(20),
+          boxShadow: [BoxShadow(color: Colors.black.withValues(alpha: 0.05), blurRadius: 12, offset: const Offset(0, 3))],
+        ),
+        child: ListTile(
+          onTap: () => Navigator.push(context, MaterialPageRoute(builder: (_) => const PrivacyLegalScreen())),
+          contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 6),
+          leading: Container(
+            padding: const EdgeInsets.all(7),
+            decoration: BoxDecoration(color: primaryTeal.withValues(alpha: 0.1), borderRadius: BorderRadius.circular(9)),
+            child: const Icon(Icons.shield_outlined, size: 16, color: primaryTeal),
+          ),
+          title: const Text('Privacy & Legal', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 14, color: Colors.black87)),
+          subtitle: const Text('Account info, terms and privacy policy', style: TextStyle(fontSize: 12, color: Colors.black45)),
+          trailing: const Icon(Icons.chevron_right_rounded, color: Colors.black26, size: 20),
+        ),
       ),
-      title: Text(label, style: const TextStyle(fontSize: 14, fontWeight: FontWeight.w500, color: Colors.black87)),
-      trailing: const Icon(Icons.chevron_right_rounded, color: Colors.black26, size: 20),
     );
   }
 

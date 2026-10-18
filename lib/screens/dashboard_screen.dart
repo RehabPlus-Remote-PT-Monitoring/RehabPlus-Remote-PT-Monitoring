@@ -1,14 +1,22 @@
+import 'dart:async';
+
 import 'package:flutter/material.dart';
+import 'package:intl/intl.dart' show DateFormat;
 import 'package:phosphor_flutter/phosphor_flutter.dart';
 import 'package:provider/provider.dart';
 import '../services/app_provider.dart';
+import '../models/prescription.dart';
+import '../services/prescription_service.dart';
+import '../services/progress_report.dart';
 import '../services/progress_stats.dart';
+import '../widgets/profile_avatar.dart';
 import '../widgets/unread_badge.dart';
 import 'messages_screen.dart';
 import 'profile_screen.dart';
 import 'notification_page.dart';
 import 'demo_screen.dart';
 import 'exercise_page.dart';
+import 'progress_report_screen.dart';
 
 class DashboardScreen extends StatefulWidget {
   const DashboardScreen({super.key});
@@ -18,10 +26,15 @@ class DashboardScreen extends StatefulWidget {
 }
 
 class _DashboardScreenState extends State<DashboardScreen>
-    with TickerProviderStateMixin {
+    with TickerProviderStateMixin, WidgetsBindingObserver {
   int _selectedTab = 0;
+  int _prevSelectedTab = 0;
   int _bottomNavIndex = 0;
   int _prevNavIndex = 0;
+
+  /// Shared by the page slide and the bottom-nav pill so they move in step.
+  static const Duration _navDuration = Duration(milliseconds: 380);
+  static const Curve _navCurve = Curves.easeInOutCubic;
 
   static const Color primaryTeal = Color(0xFF23A8AA);
   static const Color darkTeal = Color(0xFF0D6E71);
@@ -69,10 +82,76 @@ class _DashboardScreenState extends State<DashboardScreen>
       const Duration(milliseconds: 250),
       () => _cardsCtrl.forward(),
     );
+
+    WidgetsBinding.instance.addObserver(this);
+    _scheduleClockRefresh();
+    _loadPlan();
+  }
+
+  // ── THE THERAPIST'S PLAN (for "followed X% of your plan") ───────────────────
+  List<Prescription> _plan = const [];
+
+  Future<void> _loadPlan() async {
+    try {
+      final assigned = await PrescriptionService().loadAssignedExercises();
+      if (!mounted) return;
+      setState(() {
+        _plan = [
+          for (final e in assigned)
+            if (e.prescription != null) e.prescription!,
+        ];
+      });
+    } catch (_) {
+      // Offline or not signed in: the report falls back to active days.
+    }
+  }
+
+  void _openReport() => Navigator.push(
+    context,
+    MaterialPageRoute(
+      builder: (_) => ProgressReportScreen(
+        initialDays: _tabDays[_selectedTab],
+        prescriptions: _plan,
+      ),
+    ),
+  );
+
+  // ── KEEP THE DATE AND GREETING CURRENT ─────────────────────────────────────
+  // Both are read from the clock when the screen redraws. Redraw at the next
+  // change (noon, 6 PM, midnight) and whenever the app comes back to the
+  // foreground (timers don't run while it's in the background).
+  Timer? _clockTimer;
+
+  void _scheduleClockRefresh() {
+    _clockTimer?.cancel();
+    final now = DateTime.now();
+    final today = DateTime(now.year, now.month, now.day);
+    final next = [
+      today.add(const Duration(hours: 12)),
+      today.add(const Duration(hours: 18)),
+      DateTime(now.year, now.month, now.day + 1),
+    ].firstWhere((t) => t.isAfter(now));
+    // A second late so the clock is safely past the boundary.
+    _clockTimer = Timer(next.difference(now) + const Duration(seconds: 1), () {
+      if (!mounted) return;
+      setState(() {});
+      _scheduleClockRefresh();
+    });
+  }
+
+  @override
+  void didChangeAppLifecycleState(AppLifecycleState state) {
+    if (state == AppLifecycleState.resumed && mounted) {
+      setState(() {});
+      _scheduleClockRefresh();
+      _loadPlan(); // the therapist may have changed it
+    }
   }
 
   @override
   void dispose() {
+    WidgetsBinding.instance.removeObserver(this);
+    _clockTimer?.cancel();
     _headerCtrl.dispose();
     _cardsCtrl.dispose();
     super.dispose();
@@ -102,6 +181,16 @@ class _DashboardScreenState extends State<DashboardScreen>
                     const SizedBox(height: 14),
                     _buildStatsRow(),
                     const SizedBox(height: 14),
+                    ProgressSummaryCard(
+                      report: ProgressReport.build(
+                        context.watch<AppProvider>().sessionHistory,
+                        DateTime.now(),
+                        days: _tabDays[_selectedTab],
+                        prescriptions: _plan,
+                      ),
+                      onOpenReport: _openReport,
+                    ),
+                    const SizedBox(height: 14),
                     _buildQuoteCard(),
                     const SizedBox(height: 14),
                     _buildTherapistCard(),
@@ -127,27 +216,29 @@ class _DashboardScreenState extends State<DashboardScreen>
 
     return Scaffold(
       backgroundColor: const Color(0xFFF0F4F4),
-      body: AnimatedSwitcher(
-        duration: const Duration(milliseconds: 380),
-        switchInCurve: Curves.easeOutCubic,
-        switchOutCurve: Curves.easeInCubic,
-        transitionBuilder: (child, anim) {
-          final isIncoming = child.key == ValueKey(_bottomNavIndex);
-          final dir = _bottomNavIndex >= _prevNavIndex ? 1.0 : -1.0;
-          return FadeTransition(
-            opacity: anim,
-            child: SlideTransition(
+      // Pages slide sideways like a carousel: tapping a tab to the right pushes
+      // the current page out to the left, and vice versa. Both pages share the
+      // same curve so they move together without a gap.
+      body: ClipRect(
+        child: AnimatedSwitcher(
+          duration: _navDuration,
+          switchInCurve: _navCurve,
+          switchOutCurve: _navCurve,
+          transitionBuilder: (child, anim) {
+            final isIncoming = child.key == ValueKey(_bottomNavIndex);
+            final dir = _bottomNavIndex >= _prevNavIndex ? 1.0 : -1.0;
+            return SlideTransition(
               position: Tween<Offset>(
-                begin: Offset(isIncoming ? 0.07 * dir : -0.07 * dir, 0),
+                begin: Offset(isIncoming ? dir : -dir, 0),
                 end: Offset.zero,
               ).animate(anim),
               child: child,
-            ),
-          );
-        },
-        child: KeyedSubtree(
-          key: ValueKey(_bottomNavIndex),
-          child: screens[_bottomNavIndex],
+            );
+          },
+          child: KeyedSubtree(
+            key: ValueKey(_bottomNavIndex),
+            child: screens[_bottomNavIndex],
+          ),
         ),
       ),
       bottomNavigationBar: _buildBottomNav(),
@@ -163,7 +254,8 @@ class _DashboardScreenState extends State<DashboardScreen>
   }
 
   Widget _buildHeader() {
-    final name = context.watch<AppProvider>().profile?.name ?? '';
+    final profile = context.watch<AppProvider>().profile;
+    final name = profile?.name ?? '';
     return Container(
       decoration: const BoxDecoration(
         gradient: LinearGradient(
@@ -240,21 +332,16 @@ class _DashboardScreenState extends State<DashboardScreen>
 
               Row(
                 children: [
-                  Container(
-                    width: 50,
-                    height: 50,
-                    decoration: BoxDecoration(
-                      color: Colors.white.withValues(alpha: 0.2),
-                      shape: BoxShape.circle,
-                      border: Border.all(
-                        color: Colors.white.withValues(alpha: 0.4),
-                        width: 2,
-                      ),
-                    ),
-                    child: PhosphorIcon(
-                      PhosphorIcons.user(),
-                      color: Colors.white,
-                      size: 26,
+                  // The patient's profile picture; tap to open the Profile tab.
+                  GestureDetector(
+                    onTap: () => setState(() {
+                      _prevNavIndex = _bottomNavIndex;
+                      _bottomNavIndex = 3;
+                    }),
+                    child: ProfileAvatar(
+                      photo: profile?.photo,
+                      size: 50,
+                      onHeader: true,
                     ),
                   ),
                   const SizedBox(width: 14),
@@ -300,8 +387,8 @@ class _DashboardScreenState extends State<DashboardScreen>
                           size: 13,
                         ),
                         const SizedBox(width: 5),
-                        const Text(
-                          'Sun, 17 May',
+                        Text(
+                          DateFormat('EEE, d MMM').format(DateTime.now()),
                           style: TextStyle(
                             fontSize: 11,
                             color: Colors.white,
@@ -378,10 +465,7 @@ class _DashboardScreenState extends State<DashboardScreen>
           PhosphorIcons.chartLineUp(),
           'Progress',
           const Color(0xFF4A90D9),
-          onTap: () => setState(() {
-            _prevNavIndex = _bottomNavIndex;
-            _bottomNavIndex = 1;
-          }),
+          onTap: _openReport,
         ),
         const SizedBox(width: 10),
         _chip(
@@ -597,18 +681,49 @@ class _DashboardScreenState extends State<DashboardScreen>
 
           const SizedBox(height: 20),
 
-          // Tab selector
+          // Tab selector: one pill slides under the chosen window.
           Container(
             padding: const EdgeInsets.all(4),
             decoration: BoxDecoration(
               color: Colors.grey.shade100,
               borderRadius: BorderRadius.circular(14),
             ),
-            child: Row(
+            child: Stack(
               children: [
-                _buildDayTab('7 Day', 0),
-                _buildDayTab('30 Day', 1),
-                _buildDayTab('90 Day', 2),
+                Positioned.fill(
+                  child: AnimatedAlign(
+                    duration: const Duration(milliseconds: 320),
+                    curve: Curves.easeInOutCubic,
+                    // -1, 0, 1 = left, middle, right third.
+                    alignment: Alignment(_selectedTab - 1.0, 0),
+                    child: FractionallySizedBox(
+                      widthFactor: 1 / _tabDays.length,
+                      heightFactor: 1,
+                      child: DecoratedBox(
+                        decoration: BoxDecoration(
+                          gradient: const LinearGradient(
+                            colors: [primaryTeal, darkTeal],
+                          ),
+                          borderRadius: BorderRadius.circular(10),
+                          boxShadow: [
+                            BoxShadow(
+                              color: primaryTeal.withValues(alpha: 0.3),
+                              blurRadius: 8,
+                              offset: const Offset(0, 3),
+                            ),
+                          ],
+                        ),
+                      ),
+                    ),
+                  ),
+                ),
+                Row(
+                  children: [
+                    _buildDayTab('7 Day', 0),
+                    _buildDayTab('30 Day', 1),
+                    _buildDayTab('90 Day', 2),
+                  ],
+                ),
               ],
             ),
           ),
@@ -621,35 +736,25 @@ class _DashboardScreenState extends State<DashboardScreen>
     final isSelected = _selectedTab == index;
     return Expanded(
       child: GestureDetector(
-        onTap: () => setState(() => _selectedTab = index),
-        child: AnimatedContainer(
-          duration: const Duration(milliseconds: 250),
-          curve: Curves.easeInOut,
+        behavior: HitTestBehavior.opaque,
+        onTap: () {
+          if (index == _selectedTab) return;
+          setState(() {
+            _prevSelectedTab = _selectedTab;
+            _selectedTab = index;
+          });
+        },
+        child: Padding(
           padding: const EdgeInsets.symmetric(vertical: 10),
-          decoration: BoxDecoration(
-            gradient: isSelected
-                ? const LinearGradient(colors: [primaryTeal, darkTeal])
-                : null,
-            color: isSelected ? null : Colors.transparent,
-            borderRadius: BorderRadius.circular(10),
-            boxShadow: isSelected
-                ? [
-                    BoxShadow(
-                      color: primaryTeal.withValues(alpha: 0.3),
-                      blurRadius: 8,
-                      offset: const Offset(0, 3),
-                    ),
-                  ]
-                : null,
-          ),
-          child: Text(
-            title,
-            textAlign: TextAlign.center,
+          child: AnimatedDefaultTextStyle(
+            duration: const Duration(milliseconds: 320),
+            curve: Curves.easeInOutCubic,
             style: TextStyle(
               fontSize: 13,
               fontWeight: FontWeight.w600,
               color: isSelected ? Colors.white : Colors.black45,
             ),
+            child: Text(title, textAlign: TextAlign.center),
           ),
         ),
       ),
@@ -657,7 +762,38 @@ class _DashboardScreenState extends State<DashboardScreen>
   }
 
   // ── STATS ROW ────────────────────────────────────────────────────────────────
+  /// The stat cards for the chosen window. Switching 7/30/90 days slides the
+  /// new numbers in from the side of the tab that was tapped.
   Widget _buildStatsRow() {
+    final forward = _selectedTab >= _prevSelectedTab;
+    return ClipRect(
+      child: AnimatedSwitcher(
+        duration: const Duration(milliseconds: 320),
+        switchInCurve: Curves.easeOutCubic,
+        switchOutCurve: Curves.easeInCubic,
+        transitionBuilder: (child, anim) {
+          final isIncoming = child.key == ValueKey(_selectedTab);
+          final dir = forward ? 1.0 : -1.0;
+          return FadeTransition(
+            opacity: anim,
+            child: SlideTransition(
+              position: Tween<Offset>(
+                begin: Offset(isIncoming ? 0.35 * dir : -0.35 * dir, 0),
+                end: Offset.zero,
+              ).animate(anim),
+              child: child,
+            ),
+          );
+        },
+        child: KeyedSubtree(
+          key: ValueKey(_selectedTab),
+          child: _buildStatCards(),
+        ),
+      ),
+    );
+  }
+
+  Widget _buildStatCards() {
     final sessions = context.watch<AppProvider>().sessionHistory;
     final now = DateTime.now();
     final days = _tabDays[_selectedTab];
@@ -1006,6 +1142,14 @@ class _DashboardScreenState extends State<DashboardScreen>
   }
 
   // ── BOTTOM NAV ───────────────────────────────────────────────────────────────
+  /// Bottom nav with one highlight pill that slides (and resizes) to the
+  /// selected tab, in step with the page slide.
+  ///
+  /// Each item gets an explicit width (icon, plus the label when selected), and
+  /// the Row spaces them with spaceAround. Item x positions are then a linear
+  /// function of the widths, so animating the widths and the pill's
+  /// left/width with the same duration and curve keeps the pill exactly under
+  /// its item for the whole animation.
   Widget _buildBottomNav() {
     final List<(PhosphorIconData, String)> items = [
       (PhosphorIcons.squaresFour(), 'Home'),
@@ -1013,6 +1157,32 @@ class _DashboardScreenState extends State<DashboardScreen>
       (PhosphorIcons.chatCircle(), 'Messages'),
       (PhosphorIcons.userCircle(), 'Profile'),
     ];
+
+    const iconSize = 22.0;
+    const labelGap = 6.0;
+    const hPad = 16.0;
+    const itemHeight = 38.0;
+    const labelStyle = TextStyle(
+      fontSize: 12,
+      fontWeight: FontWeight.w600,
+      color: Colors.white,
+    );
+    final textScaler = MediaQuery.textScalerOf(context);
+
+    double labelWidth(String label) {
+      final painter = TextPainter(
+        text: TextSpan(text: label, style: labelStyle),
+        textDirection: TextDirection.ltr,
+        textScaler: textScaler,
+        maxLines: 1,
+      )..layout();
+      return painter.width.ceilToDouble();
+    }
+
+    double itemWidth(int i) =>
+        hPad * 2 +
+        iconSize +
+        (i == _bottomNavIndex ? labelGap + labelWidth(items[i].$2) : 0);
 
     return Container(
       decoration: BoxDecoration(
@@ -1030,51 +1200,114 @@ class _DashboardScreenState extends State<DashboardScreen>
         top: false,
         child: Padding(
           padding: const EdgeInsets.symmetric(vertical: 10, horizontal: 8),
-          child: Row(
-            mainAxisAlignment: MainAxisAlignment.spaceAround,
-            children: List.generate(items.length, (i) {
-              final selected = _bottomNavIndex == i;
-              return GestureDetector(
-                onTap: () => setState(() {
-                  _prevNavIndex = _bottomNavIndex;
-                  _bottomNavIndex = i;
-                }),
-                child: AnimatedContainer(
-                  duration: const Duration(milliseconds: 300),
-                  curve: Curves.easeOutCubic,
-                  padding: const EdgeInsets.symmetric(
-                    horizontal: 16,
-                    vertical: 8,
-                  ),
-                  decoration: BoxDecoration(
-                    gradient: selected
-                        ? const LinearGradient(colors: [primaryTeal, darkTeal])
-                        : null,
-                    borderRadius: BorderRadius.circular(16),
-                  ),
-                  child: Row(
-                    children: [
-                      PhosphorIcon(
-                        items[i].$1,
-                        size: 22,
-                        color: selected ? Colors.white : Colors.grey.shade400,
-                      ),
-                      if (selected) ...[
-                        const SizedBox(width: 6),
-                        Text(
-                          items[i].$2,
-                          style: const TextStyle(
-                            fontSize: 12,
-                            fontWeight: FontWeight.w600,
-                            color: Colors.white,
+          child: LayoutBuilder(
+            builder: (context, constraints) {
+              final widths = List.generate(items.length, itemWidth);
+              // Where spaceAround puts the selected item once settled.
+              final spacing =
+                  (constraints.maxWidth - widths.reduce((a, b) => a + b)) /
+                  items.length;
+              var pillLeft = spacing / 2 + spacing * _bottomNavIndex;
+              for (var i = 0; i < _bottomNavIndex; i++) {
+                pillLeft += widths[i];
+              }
+
+              return SizedBox(
+                height: itemHeight,
+                child: Stack(
+                  children: [
+                    AnimatedPositioned(
+                      duration: _navDuration,
+                      curve: _navCurve,
+                      left: pillLeft,
+                      width: widths[_bottomNavIndex],
+                      top: 0,
+                      bottom: 0,
+                      child: DecoratedBox(
+                        decoration: BoxDecoration(
+                          gradient: const LinearGradient(
+                            colors: [primaryTeal, darkTeal],
                           ),
+                          borderRadius: BorderRadius.circular(16),
+                          boxShadow: [
+                            BoxShadow(
+                              color: primaryTeal.withValues(alpha: 0.3),
+                              blurRadius: 10,
+                              offset: const Offset(0, 4),
+                            ),
+                          ],
                         ),
-                      ],
-                    ],
-                  ),
+                      ),
+                    ),
+                    Row(
+                      mainAxisAlignment: MainAxisAlignment.spaceAround,
+                      children: List.generate(items.length, (i) {
+                        final selected = _bottomNavIndex == i;
+                        return GestureDetector(
+                          behavior: HitTestBehavior.opaque,
+                          onTap: () {
+                            if (i == _bottomNavIndex) return;
+                            setState(() {
+                              _prevNavIndex = _bottomNavIndex;
+                              _bottomNavIndex = i;
+                            });
+                          },
+                          child: AnimatedContainer(
+                            duration: _navDuration,
+                            curve: _navCurve,
+                            width: widths[i],
+                            height: itemHeight,
+                            // The label is clipped while the item shrinks.
+                            child: ClipRect(
+                              child: OverflowBox(
+                                alignment: Alignment.centerLeft,
+                                minWidth: 0,
+                                maxWidth: double.infinity,
+                                child: Padding(
+                                  padding: const EdgeInsets.only(left: hPad),
+                                  child: Row(
+                                    mainAxisSize: MainAxisSize.min,
+                                    children: [
+                                      TweenAnimationBuilder<Color?>(
+                                        tween: ColorTween(
+                                          end: selected
+                                              ? Colors.white
+                                              : Colors.grey.shade400,
+                                        ),
+                                        duration: _navDuration,
+                                        curve: _navCurve,
+                                        builder: (context, color, _) =>
+                                            PhosphorIcon(
+                                              items[i].$1,
+                                              size: iconSize,
+                                              color: color,
+                                            ),
+                                      ),
+                                      const SizedBox(width: labelGap),
+                                      AnimatedOpacity(
+                                        opacity: selected ? 1 : 0,
+                                        duration: _navDuration,
+                                        curve: _navCurve,
+                                        child: Text(
+                                          items[i].$2,
+                                          style: labelStyle,
+                                          maxLines: 1,
+                                          softWrap: false,
+                                        ),
+                                      ),
+                                    ],
+                                  ),
+                                ),
+                              ),
+                            ),
+                          ),
+                        );
+                      }),
+                    ),
+                  ],
                 ),
               );
-            }),
+            },
           ),
         ),
       ),

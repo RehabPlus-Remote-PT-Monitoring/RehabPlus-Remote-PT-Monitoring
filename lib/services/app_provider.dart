@@ -7,7 +7,9 @@ import '../screens/edit_profile_screen.dart' show ProfileData;
 import '../services/auth_service.dart';
 import '../services/notification_service.dart';
 import '../services/profile_service.dart';
+import '../services/app_settings.dart';
 import '../services/push_service.dart';
+import '../services/reminder_service.dart';
 import '../services/session_storage.dart';
 
 /// App-wide state for the signed-in patient: profile and session history.
@@ -67,6 +69,10 @@ class AppProvider extends ChangeNotifier {
   Future<void> signOut() async {
     // Before auth sign-out: removing the device token needs the user's auth.
     await PushService.I.unregister();
+    if (AppSettings.I.reminderEnabled) {
+      await ReminderService.I.cancel();
+      await AppSettings.I.setReminderEnabled(false);
+    }
     await AuthService.I.signOut();
     _sessionHistory = [];
     _profile = null;

@@ -1,0 +1,201 @@
+import 'package:flutter/material.dart';
+import 'package:provider/provider.dart';
+
+import '../services/app_provider.dart';
+import '../widgets/profile_avatar.dart';
+import 'edit_profile_screen.dart';
+
+/// Privacy & Legal > Account Info: the patient's personal information, with a
+/// button to update it (name, phone and date of birth; the email is the login
+/// and is changed by the clinic).
+class AccountInfoScreen extends StatelessWidget {
+  const AccountInfoScreen({super.key});
+
+  static const Color primaryTeal = Color(0xFF23A8AA);
+  static const Color darkTeal = Color(0xFF0D6E71);
+
+  Future<void> _update(BuildContext context, ProfileData current) async {
+    final result = await Navigator.push<ProfileData>(
+      context,
+      MaterialPageRoute(builder: (_) => EditProfileScreen(initial: current)),
+    );
+    if (result == null || !context.mounted) return;
+    context.read<AppProvider>().updateProfile(result);
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(
+        content: const Row(
+          children: [
+            Icon(Icons.check_circle_outline, color: Colors.white, size: 18),
+            SizedBox(width: 8),
+            Text('Account information updated'),
+          ],
+        ),
+        backgroundColor: primaryTeal,
+        behavior: SnackBarBehavior.floating,
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+        margin: const EdgeInsets.all(16),
+      ),
+    );
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final profile =
+        context.watch<AppProvider>().profile ??
+        const ProfileData(name: '', email: '', phone: '', dob: '', condition: '');
+    return Scaffold(
+      backgroundColor: const Color(0xFFF0F4F4),
+      body: Column(
+        children: [
+          _header(context),
+          Expanded(
+            child: ListView(
+              padding: const EdgeInsets.fromLTRB(16, 20, 16, 24),
+              children: [
+                Center(child: ProfileAvatar(photo: profile.photo, size: 88)),
+                const SizedBox(height: 20),
+                Container(
+                  padding: const EdgeInsets.symmetric(
+                    horizontal: 16,
+                    vertical: 6,
+                  ),
+                  decoration: BoxDecoration(
+                    color: Colors.white,
+                    borderRadius: BorderRadius.circular(20),
+                    boxShadow: [
+                      BoxShadow(
+                        color: Colors.black.withValues(alpha: 0.05),
+                        blurRadius: 12,
+                        offset: const Offset(0, 3),
+                      ),
+                    ],
+                  ),
+                  child: Column(
+                    children: [
+                      _row(Icons.person_outline, 'Full Name', profile.name),
+                      _divider(),
+                      _row(Icons.email_outlined, 'Email', profile.email),
+                      _divider(),
+                      _row(Icons.phone_outlined, 'Phone', profile.phone),
+                      _divider(),
+                      _row(Icons.cake_outlined, 'Date of Birth', profile.dob),
+                    ],
+                  ),
+                ),
+                const SizedBox(height: 10),
+                const Padding(
+                  padding: EdgeInsets.symmetric(horizontal: 4),
+                  child: Text(
+                    'Your email is your login. To change it, contact the clinic '
+                    'through Help & Support.',
+                    style: TextStyle(fontSize: 12, color: Colors.black45),
+                  ),
+                ),
+                const SizedBox(height: 20),
+                SizedBox(
+                  height: 52,
+                  child: FilledButton.icon(
+                    onPressed: () => _update(context, profile),
+                    icon: const Icon(Icons.edit_outlined, size: 20),
+                    label: const Text(
+                      'Update account information',
+                      style: TextStyle(
+                        fontSize: 15,
+                        fontWeight: FontWeight.bold,
+                      ),
+                    ),
+                    style: FilledButton.styleFrom(
+                      backgroundColor: primaryTeal,
+                      shape: RoundedRectangleBorder(
+                        borderRadius: BorderRadius.circular(16),
+                      ),
+                    ),
+                  ),
+                ),
+              ],
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _header(BuildContext context) {
+    return Container(
+      decoration: const BoxDecoration(
+        gradient: LinearGradient(
+          colors: [darkTeal, Color(0xFF1A8587), primaryTeal],
+          begin: Alignment.topLeft,
+          end: Alignment.bottomRight,
+        ),
+        borderRadius: BorderRadius.vertical(bottom: Radius.circular(32)),
+      ),
+      child: SafeArea(
+        bottom: false,
+        child: Padding(
+          padding: const EdgeInsets.fromLTRB(8, 8, 20, 24),
+          child: Row(
+            children: [
+              IconButton(
+                icon: const Icon(
+                  Icons.arrow_back_ios,
+                  color: Colors.white,
+                  size: 20,
+                ),
+                onPressed: () => Navigator.pop(context),
+              ),
+              const SizedBox(width: 4),
+              const Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(
+                    'Account Info',
+                    style: TextStyle(
+                      fontSize: 20,
+                      fontWeight: FontWeight.bold,
+                      color: Colors.white,
+                    ),
+                  ),
+                  Text(
+                    'Your personal information',
+                    style: TextStyle(fontSize: 12, color: Colors.white60),
+                  ),
+                ],
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+
+  Widget _row(IconData icon, String label, String value) {
+    return Padding(
+      padding: const EdgeInsets.symmetric(vertical: 12),
+      child: Row(
+        children: [
+          Icon(icon, size: 18, color: primaryTeal),
+          const SizedBox(width: 12),
+          Text(
+            label,
+            style: const TextStyle(fontSize: 13, color: Colors.black45),
+          ),
+          const SizedBox(width: 12),
+          Expanded(
+            child: Text(
+              value.isEmpty ? '—' : value,
+              textAlign: TextAlign.right,
+              style: const TextStyle(
+                fontSize: 14,
+                fontWeight: FontWeight.w600,
+                color: Colors.black87,
+              ),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _divider() => const Divider(height: 1, color: Color(0xFFF0F0F0));
+}

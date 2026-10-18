@@ -54,7 +54,7 @@ Written by: Laravel only.
 
 | Field | Type | Notes |
 | --- | --- | --- |
-| `name` | string | |
+| `name` | string | **Patient-editable** in the app (1–100 chars). The app doesn't update `users/{uid}.name`; show this one |
 | `condition` | string | e.g. "MCL sprain, post-acute" |
 | `therapistId` | string \| null | `uid` of the assigned therapist |
 | `therapistName` | string | Copy of the therapist's name. The app shows it, because patients can't read other users' docs. Update it if the therapist changes. |
@@ -68,7 +68,7 @@ Written by: Laravel only.
 | `createdAt` | timestamp | |
 | `updatedAt` | timestamp | Last dashboard edit |
 
-Written by: Laravel (all fields); the app (only `phone`, `dob`).
+Written by: Laravel (all fields); the app (only `name`, `phone`, `dob`).
 
 ### `patients/{uid}/prescriptions/{id}`: assigned exercises
 
@@ -217,6 +217,58 @@ registration token.
 
 Written by: the app (added at sign-in, removed at sign-out). Read by Laravel
 to send notifications.
+
+### `patients/{uid}/preferences/notifications`: which pushes the patient wants
+
+| Field | Type | Notes |
+| --- | --- | --- |
+| `messages` | bool | `false` = no push for new messages (`data.type: chat`) |
+| `exercises` | bool | `false` = no push for new exercises (`data.type: exercise_assigned`) |
+| `updatedAt` | timestamp | Server time |
+
+Written by: the app (Settings > Notifications). No doc means both are on.
+Laravel's `PatientNotifier::push()` checks it and skips the push (returns
+`null`) when that kind is off; the Notifications-page entry is still written.
+Other types are always pushed. The daily exercise reminder is scheduled on the
+phone and never involves Firestore.
+
+### `patients/{uid}/avatar/photo`: profile picture
+
+| Field | Type | Notes |
+| --- | --- | --- |
+| `image` | bytes | JPEG, resized by the app to fit 512 × 512 px; at most 500 KB (rule) |
+| `updatedAt` | timestamp | Server time |
+
+Written by: the app (the patient sets, replaces or deletes it). No doc means no
+picture (show a default icon). Kept out of `patients/{uid}` so patient lists
+don't download images. Dashboard: read it with the service account and show it
+as a `data:image/jpeg;base64,...` image.
+
+### `patients/{uid}/consents/{version}`: Terms and Privacy Policy acceptance
+
+One doc per version the patient accepted. The doc id is the version
+(`LegalInfo.version` in `lib/legal/legal_info.dart`, e.g. `2026-10-18`). The
+documents themselves are `assets/legal/terms_and_conditions.md` and
+`assets/legal/privacy_policy.md`.
+
+| Field | Type | Notes |
+| --- | --- | --- |
+| `version` | string | Same as the doc id |
+| `acceptedTerms` | bool | Always `true` |
+| `acceptedPrivacyPolicy` | bool | Always `true` |
+| `healthDataConsent` | bool | Always `true`: consent to process health information (Data Privacy Act, sensitive personal information) |
+| `cameraConsent` | bool | Always `true`: on-device camera tracking |
+| `acceptedAt` | timestamp | Server time |
+
+Written by: the app, once, when the patient taps **Accept and continue**. The
+rules make it append-only (no edits or deletes), so it serves as the audit
+record of consent. The app won't open the dashboard until a doc exists for the
+current version; bumping the version makes every patient accept again.
+
+Dashboard: show "Accepted terms vX on <date>" on the patient profile, or
+"Not yet accepted" (the patient hasn't signed in to the app yet). If a patient
+withdraws consent (they message the clinic), archive the patient; don't delete
+the consent record.
 
 ---
 

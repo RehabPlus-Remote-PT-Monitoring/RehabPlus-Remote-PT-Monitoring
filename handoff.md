@@ -137,6 +137,15 @@ Neither branch is merged into `main`.
    - New clinic-only collections: `patients/{uid}/assessments`, `/goals` and `/notes` (schema in API_CONTRACT.md).
    - Nothing is deleted: patients are archived and staff are disabled, because sessions, notes and messages refer to their uid.
    - Removed: the SQL `User`/`Patient`/`ExerciseRecord` models, manual exercise records and the web patient portal (patients use the app).
+10. **Terms and Conditions + Privacy Policy (app)**
+   - The documents are `assets/legal/terms_and_conditions.md` and `assets/legal/privacy_policy.md`, written for the Philippine Data Privacy Act (RA 10173) and the E-Commerce Act (RA 8792). Clinic details are `{{TOKENS}}` filled from `lib/legal/legal_info.dart`.
+   - After sign-in, `ConsentScreen` blocks the app until the patient ticks three boxes (terms, health-data consent, camera) and taps **Accept and continue**. Declining signs them out.
+   - Acceptance is an append-only record at `patients/{uid}/consents/{version}` (schema in API_CONTRACT.md). Bumping `LegalInfo.version` makes everyone accept again.
+   - Profile > **Privacy & Legal** opens a page with three choices: **Account Info** (name, email, phone, date of birth, with an "Update account information" button), **Terms and Conditions** and **Privacy Policy**.
+   - **Progress report** (app): Home has a "How you're doing" card under Weekly Progress (follows the 7/30/90 selector), and "See full report" / the Progress chip open `ProgressReportScreen`: a verdict (Doing great / On track / Needs attention), plain-language findings, key numbers, sessions / form score / pain charts (fl_chart) and a per-exercise breakdown. The logic is pure and unit-tested in `lib/services/progress_report.dart`; plan adherence uses the active prescriptions' `frequencyPerWeek` from their `createdAt`. High or rising pain always gives "Needs attention" and tells the patient to contact their therapist.
+   - Profile > **Settings** (`lib/screens/settings_screen.dart`): rep sound, vibration, spoken cues (flutter_tts), start countdown, default camera, show/flip skeleton, daily reminder (flutter_local_notifications, scheduled on the phone), push preferences (`patients/{uid}/preferences/notifications`, honoured by the dashboard's `PatientNotifier`), text size, change password, camera access, Help & Support, call the clinic, report a problem (sent to the clinic chat with recent errors) and app version. Phone-only settings are in `lib/services/app_settings.dart` (SharedPreferences).
+   - Patients can now edit their own name as well as phone and date of birth (`patients/{uid}.name`, rules allow 1–100 chars). The email stays clinic-managed because it is the login. `users/{uid}.name` is not updated by the app.
+   - The rule was checked against the Firestore emulator (11 cases: only the patient can create it, all three consents required, server time only, no edits or deletes).
 
 ## 5. What was tried and failed (and the fix)
 
@@ -187,7 +196,12 @@ Neither branch is merged into `main`.
    - Move appointments, billing, inventory and the staff schedule to Firestore too (the user chose "later").
    - The patient profile takes about 2 s to load (6 sequential Firestore reads). Batch or parallelise them if it matters.
    - Optionally let patients see their goals in the app: add a read rule for `goals` and an app screen.
-6. **Smaller items:**
+6. **Dark mode:** the Settings page has no theme option yet, because the screens hard-code light colours (about 600 places). The app is locked to light mode (`themeMode: ThemeMode.light` in `lib/main.dart`) until every screen is restyled.
+7. **Before patients use the app (legal):**
+   - Fill in the placeholders in `lib/legal/legal_info.dart`: clinic address, Data Protection Officer name and email, city for disputes, record-retention period.
+   - Have a lawyer or the clinic's DPO review both documents. Register with the National Privacy Commission if the clinic's processing requires it.
+   - Show the consent status on the dashboard's patient profile (see API_CONTRACT.md).
+8. **Smaller items:**
    - Remove the unused `uuid` dependency (app).
    - Add exercise reminders (`reminder` type). These would need a scheduler on the Laravel side, since there are no Cloud Functions.
    - Seed `settings/clinic.phone` with the real clinic number (set the `CLINIC_PHONE` environment variable). The dashboard has no settings page for it yet.

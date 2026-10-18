@@ -1,9 +1,10 @@
-# App icon config. To change the icon:
-#   1. Replace assets/icon/app_icon.png (1024x1024, square, NO transparency)
-#   2. Replace assets/icon/app_icon_foreground.png (1024x1024, transparent PNG
-#      of just the logo mark; Android insets it 16% and crops to circle/squircle)
-#   3. Update adaptive_icon_background below if the brand color changes
-#   4. Run: dart run flutter_launcher_icons
+# App icon config. The icon (white R with a blue shield badge on teal) is drawn by
+# tool/make_icon.py. To change it:
+#   1. Edit and run: python3 tool/make_icon.py  (writes assets/icon/app_icon.png,
+#      opaque 1024x1024, and app_icon_foreground.png, transparent mark for
+#      Android adaptive icons; Android insets it 16% and crops to circle/squircle)
+#   2. Update adaptive_icon_background below if the background color changes
+#   3. Run: dart run flutter_launcher_icons
 #   5. git checkout ios/Runner.xcodeproj/project.pbxproj  (v0.14.4 bug wrongly
 #      sets ASSETCATALOG_COMPILER_GENERATE_SWIFT_ASSET_SYMBOL_EXTENSIONS = AppIcon)
 flutter_launcher_icons:
@@ -11,7 +12,7 @@ flutter_launcher_icons:
 
   android: "ic_launcher"
   min_sdk_android: 21
-  adaptive_icon_background: "#00ACC1"
+  adaptive_icon_background: "#1E8E92"
   adaptive_icon_foreground: "assets/icon/app_icon_foreground.png"
 
   ios: true
@@ -20,7 +21,7 @@ flutter_launcher_icons:
   web:
     generate: true
     image_path: "assets/icon/app_icon.png"
-    background_color: "#00BCD4"
+    background_color: "#1E8E92"
     theme_color: "#00BCD4"
 
   windows:

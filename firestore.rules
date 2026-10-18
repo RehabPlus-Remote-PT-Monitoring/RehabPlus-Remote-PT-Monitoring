@@ -7,9 +7,11 @@ rules_version = '2';
 // the public Firebase config:
 //   - patients can read only their own profile, prescriptions and sessions,
 //     can only add new sessions (never edit or delete them), and can only
-//     change their own phone number and date of birth;
+//     change their own name, phone number, date of birth and profile picture;
 //   - patients can message their therapist and the clinic, but never edit or
 //     delete a message or post as staff;
+//   - patients record their acceptance of the Terms and Privacy Policy, which
+//     can't be changed or deleted afterwards;
 //   - therapists/admins signed in with Firebase can read and manage the
 //     patients assigned to them (admins: all patients).
 service cloud.firestore {
@@ -92,6 +94,38 @@ service cloud.firestore {
         allow delete: if isSelf(patientId);
       }
 
+      // Which push notifications the patient wants (Settings > Notifications).
+      // The dashboard checks it before sending a push.
+      match /preferences/{docId} {
+        allow read: if isSelf(patientId) || caresFor(patientId);
+        allow create, update: if isSelf(patientId) && docId == 'notifications'
+          && request.resource.data.keys().hasOnly(['messages', 'exercises', 'updatedAt'])
+          && request.resource.data.messages is bool
+          && request.resource.data.exercises is bool
+          && request.resource.data.updatedAt == request.time;
+        allow delete: if false;
+      }
+
+      // Profile picture: JPEG bytes in one doc (no Cloud Storage). The
+      // patient sets or removes their own; their care team can see it.
+      match /avatar/{docId} {
+        allow read: if isSelf(patientId) || caresFor(patientId);
+        allow create, update: if isSelf(patientId) && docId == 'photo'
+          && request.resource.data.keys().hasOnly(['image', 'updatedAt'])
+          && request.resource.data.image is bytes
+          && request.resource.data.image.size() <= 500 * 1024
+          && request.resource.data.updatedAt == request.time;
+        allow delete: if isSelf(patientId);
+      }
+
+      // Acceptance of the Terms and Conditions + Privacy Policy, one doc per
+      // version (doc id = version). Append-only: an audit record of consent.
+      match /consents/{version} {
+        allow read: if isSelf(patientId) || caresFor(patientId);
+        allow create: if isSelf(patientId) && validConsent(request.resource.data, version);
+        allow update, delete: if false;
+      }
+
       // threadId is 'therapist' or 'clinic'.
       match /threads/{threadId} {
         allow read: if isSelf(patientId) || caresFor(patientId);
@@ -143,9 +177,21 @@ service cloud.firestore {
         && d.createdAt == request.time;
     }
 
+    function validConsent(d, version) {
+      return d.keys().hasOnly(['version', 'acceptedTerms', 'acceptedPrivacyPolicy',
+                               'healthDataConsent', 'cameraConsent', 'acceptedAt'])
+        && d.version == version && version.size() <= 40
+        && d.acceptedTerms == true
+        && d.acceptedPrivacyPolicy == true
+        && d.healthDataConsent == true
+        && d.cameraConsent == true
+        && d.acceptedAt == request.time;
+    }
+
     function validContactEdit() {
       let d = request.resource.data;
-      return d.diff(resource.data).affectedKeys().hasOnly(['phone', 'dob'])
+      return d.diff(resource.data).affectedKeys().hasOnly(['name', 'phone', 'dob'])
+        && (!('name' in d) || (d.name is string && d.name.size() > 0 && d.name.size() <= 100))
         && (!('phone' in d) || (d.phone is string && d.phone.size() <= 30))
         && (!('dob' in d) || (d.dob is string && d.dob.size() <= 30));
     }

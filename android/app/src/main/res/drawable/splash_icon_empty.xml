@@ -1,0 +1,8 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- Empty icon for the Android 12+ system splash, so it shows plain black and
+     the animated Flutter splash (lib/screens/splash_screen.dart) takes over
+     without the launcher icon flashing first. -->
+<shape xmlns:android="http://schemas.android.com/apk/res/android" android:shape="rectangle">
+    <solid android:color="@android:color/transparent" />
+    <size android:width="1dp" android:height="1dp" />
+</shape>

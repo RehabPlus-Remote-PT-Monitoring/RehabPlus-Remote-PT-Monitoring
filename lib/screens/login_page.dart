@@ -3,8 +3,7 @@ import 'package:phosphor_flutter/phosphor_flutter.dart';
 import 'package:provider/provider.dart';
 import '../services/app_provider.dart';
 import '../services/auth_service.dart';
-import '../services/push_service.dart';
-import 'dashboard_screen.dart';
+import 'consent_screen.dart';
 import 'forgot_password_screen.dart';
 
 class LoginPage extends StatefulWidget {
@@ -73,13 +72,14 @@ class _LoginPageState extends State<LoginPage> with TickerProviderStateMixin {
 
     if (!mounted) return;
     await context.read<AppProvider>().loadUserData();
-    PushService.I.registerForCurrentUser(); // not awaited: may show a prompt
+    // The dashboard, or the Terms & Privacy screen if not accepted yet.
+    final next = await ConsentScreen.gate();
     if (!mounted) return;
     Navigator.pushReplacement(
       context,
       PageRouteBuilder(
         transitionDuration: const Duration(milliseconds: 600),
-        pageBuilder: (_, _, _) => const DashboardScreen(),
+        pageBuilder: (_, _, _) => next,
         transitionsBuilder: (_, anim, _, child) => FadeTransition(
           opacity: anim,
           child: SlideTransition(

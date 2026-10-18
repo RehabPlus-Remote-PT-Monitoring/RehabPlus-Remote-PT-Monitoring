@@ -3,6 +3,8 @@
 // A therapist-assigned exercise, stored at
 // patients/{patientUid}/prescriptions/{id} in Firestore.
 
+import 'package:cloud_firestore/cloud_firestore.dart' show Timestamp;
+
 /// When the patient is allowed to do an exercise unassisted.
 class PrescriptionSchedule {
   /// Allowed weekdays, using [DateTime.weekday] numbering (1 = Mon … 7 = Sun).
@@ -48,6 +50,9 @@ class Prescription {
   final PrescriptionSchedule? schedule;
   final String? notes;
 
+  /// When the therapist assigned it (prescriptions/{id}.createdAt).
+  final DateTime? assignedAt;
+
   const Prescription({
     required this.id,
     required this.exerciseType,
@@ -56,6 +61,7 @@ class Prescription {
     this.holdSeconds,
     this.schedule,
     this.notes,
+    this.assignedAt,
   });
 
   bool isWithinSchedule(DateTime t) => schedule?.allows(t) ?? true;
@@ -79,5 +85,9 @@ class Prescription {
               )
             : null,
         notes: m['notes'] as String?,
+        assignedAt: switch (m['createdAt']) {
+          Timestamp t => t.toDate(),
+          _ => null,
+        },
       );
 }
