@@ -6,8 +6,6 @@ export default defineConfig({
     plugins: [
         laravel({
             input: [
-                'resources/css/app.css',
-                'resources/js/app.js',
                 'resources/css/rehabplus-login.css',
                 'resources/js/rehabplus-login.js',
                 'resources/css/rehabplus-dashboard.css',
