@@ -11,6 +11,8 @@ use Illuminate\View\View;
 
 class StaffScheduleController extends Controller
 {
+    private const NOT_SCHEDULABLE = 'Only active therapists and front desk staff can be put on the schedule.';
+
     public function __construct(
         private StaffScheduleService $schedule,
         private ShiftConflictService $shifts,
@@ -26,6 +28,10 @@ class StaffScheduleController extends Controller
     {
         $shift = StaffScheduleValidation::shift($request);
 
+        if (! $this->schedule->isSchedulable($shift['staff'])) {
+            return redirect()->route('schedule')->withInput()->with('error', self::NOT_SCHEDULABLE);
+        }
+
         if ($this->shifts->hasConflict($shift)) {
             return redirect()->route('schedule')->withInput()->with('error', 'Schedule conflict detected: this staff member already has a shift at that time, or the room is already assigned to another staff member.');
         }
@@ -37,7 +43,13 @@ class StaffScheduleController extends Controller
 
     public function storeTimeOff(Request $request): RedirectResponse
     {
-        $this->schedule->addTimeOff(StaffScheduleValidation::timeOff($request));
+        $timeOff = StaffScheduleValidation::timeOff($request);
+
+        if (! $this->schedule->isSchedulable($timeOff['staff'])) {
+            return redirect()->route('schedule')->withInput()->with('error', self::NOT_SCHEDULABLE);
+        }
+
+        $this->schedule->addTimeOff($timeOff);
 
         return redirect()->route('schedule')->with('success', 'Time off entry added successfully.');
     }

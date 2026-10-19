@@ -23,7 +23,7 @@ class ShiftConflictService
 
         return $this->store->all(ClinicStore::SHIFTS)->where('day', $candidate['day'])->contains(function (ClinicRecord $existing) use ($candidate, $range) {
             $existingRange = $this->shiftRange((string) $existing->shift);
-            $sameStaff = $this->normalize($existing->staff) === $this->normalize($candidate['staff']);
+            $sameStaff = (string) $existing->staff === $candidate['staff'];
             $sameRoom = $this->normalize($existing->room) === $this->normalize($candidate['room']);
 
             return $existingRange && ($sameStaff || $sameRoom) && $this->overlaps($range, $existingRange);
