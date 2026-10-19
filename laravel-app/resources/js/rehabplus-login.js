@@ -17,6 +17,29 @@ const togglePassword = function () {
     }
 };
 
+// Forgot password: count the resend cooldown down, then enable the button.
+const resendButton = document.getElementById('resendButton');
+
+if (resendButton) {
+    let secondsLeft = Number(resendButton.dataset.resendIn) || 0;
+
+    const tick = () => {
+        if (secondsLeft <= 0) {
+            resendButton.disabled = false;
+            resendButton.textContent = 'Resend code';
+
+            return;
+        }
+
+        resendButton.disabled = true;
+        resendButton.textContent = `Resend in ${secondsLeft}s`;
+        secondsLeft -= 1;
+        setTimeout(tick, 1000);
+    };
+
+    tick();
+}
+
 const passwordToggle = document.getElementById('passwordToggle');
 
 if (passwordToggle) {

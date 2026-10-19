@@ -119,6 +119,12 @@ class PasswordResetTest extends TestCase
         $this->staff('admin', 'adUid', 'Admin', 'admin@clinic.com');
         $this->post('/forgot-password', ['email' => 'admin@clinic.com']);
 
+        // The button starts disabled with the seconds left, for the page's countdown.
+        $this->get('/forgot-password/verify')
+            ->assertSee('id="resendButton"', false)
+            ->assertSee('data-resend-in="'.PasswordResetService::RESEND_SECONDS.'"', false)
+            ->assertSee('disabled', false);
+
         $this->post('/forgot-password/resend')->assertSessionHas('error', fn ($m) => str_contains($m, 'Wait'));
         Mail::assertSentCount(1);
 

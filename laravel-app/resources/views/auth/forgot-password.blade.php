@@ -170,13 +170,15 @@
 
                         <span class="small text-muted">Didn't get it? Check your spam folder.</span>
 
-                        @if ($resendIn > 0)
-                            <span class="small text-muted">Resend in {{ $resendIn }}s</span>
-                        @else
-                            <button type="submit" class="btn btn-link p-0 fw-semibold text-decoration-none" style="color: #14b8a6;">
-                                Resend code
-                            </button>
-                        @endif
+                        {{-- Counts down in rehabplus-login.js, then enables itself. --}}
+                        <button type="submit"
+                                id="resendButton"
+                                class="btn btn-link p-0 fw-semibold text-decoration-none"
+                                style="color: #14b8a6;"
+                                data-resend-in="{{ $resendIn }}"
+                                @disabled($resendIn > 0)>
+                            {{ $resendIn > 0 ? "Resend in {$resendIn}s" : 'Resend code' }}
+                        </button>
                     </form>
                 @else
                     <form action="{{ route('password.update') }}" method="post">
