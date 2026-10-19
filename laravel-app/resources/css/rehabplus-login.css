@@ -212,12 +212,12 @@ body {
     border: 2px solid #67e8f9;
     background: white;
     margin-bottom: 26px;
-    transition: 0.25s;
+    transition: border-color 150ms ease, box-shadow 200ms ease;
 }
 
 .input-group:focus-within {
-    transform: translateY(-2px);
-    box-shadow: 0 14px 34px rgba(34, 211, 238, 0.18);
+    border-color: #14b8a6;
+    box-shadow: 0 0 0 4px rgba(20, 184, 166, 0.16), 0 14px 34px rgba(34, 211, 238, 0.14);
 }
 
 .input-group-text {
@@ -268,13 +268,34 @@ body {
     color: white;
     font-size: 1.18rem;
     font-weight: 800;
-    transition: 0.25s;
+    letter-spacing: -0.01em;
+    transition: transform 120ms cubic-bezier(0.23, 1, 0.32, 1), box-shadow 200ms ease, filter 150ms ease;
     box-shadow: 0 16px 38px rgba(20, 184, 166, 0.22);
+    touch-action: manipulation;
+    -webkit-tap-highlight-color: transparent;
 }
 
-.btn-login:hover {
-    transform: translateY(-3px);
-    box-shadow: 0 22px 48px rgba(20, 184, 166, 0.32);
+/* Press feedback on pointer-down; hover only for real pointers. */
+.btn-login:active {
+    transform: scale(0.98);
+}
+
+@media (hover: hover) and (pointer: fine) {
+    .btn-login:hover {
+        filter: brightness(1.05);
+        box-shadow: 0 20px 44px rgba(20, 184, 166, 0.3);
+    }
+}
+
+.btn-login:focus-visible {
+    outline: 3px solid #5eead4;
+    outline-offset: 3px;
+}
+
+@media (prefers-reduced-motion: reduce) {
+    .btn-login:active {
+        transform: none;
+    }
 }
 
 .footer-line {

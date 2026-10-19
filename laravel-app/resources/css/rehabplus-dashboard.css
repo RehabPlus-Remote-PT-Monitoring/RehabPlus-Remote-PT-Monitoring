@@ -5,6 +5,7 @@ html.dark-mode{
         :root{
 
             --primary:#14b8a6;
+            --primary-strong:#0d9488;  /* solid fill: white text stays legible on it */
             --primary-dark:#0f766e;
             --primary-light:#ccfbf1;
 
@@ -17,14 +18,37 @@ html.dark-mode{
 
             --border:#e2e8f0;
 
+            /* Two-layer shadow: a tight contact shadow plus a soft ambient one. */
             --shadow:
-                0 12px 35px rgba(15,23,42,.06);
+                0 1px 2px rgba(15,23,42,.04),
+                0 6px 20px rgba(15,23,42,.05);
 
-            --sidebar-w:260px;
+            --material:rgba(255,255,255,.72);  /* translucent top bar */
+
+            --radius:16px;
+            --radius-sm:10px;
+
+            --nav-h:64px;
+            --sidebar-w:272px;
+
+            /* Strong ease-out: starts fast so feedback feels immediate. */
+            --ease-out:cubic-bezier(.23,1,.32,1);
+
+            /* Bootstrap's primary is blue; point it at the RehabPlus teal so links,
+               outline buttons, progress bars and focus rings all match. */
+            --bs-primary:#0d9488;
+            --bs-primary-rgb:13,148,136;
+            --bs-link-color:#0f766e;
+            --bs-link-color-rgb:15,118,110;
+            --bs-link-hover-color:#115e59;
+            --bs-link-hover-color-rgb:17,94,89;
+            --bs-border-radius:.625rem;
+            --bs-border-radius-lg:.875rem;
+            --bs-focus-ring-color:rgba(20,184,166,.28);
         }
 
         *{
-            font-family:'Inter',sans-serif;
+            font-family:'Inter',system-ui,sans-serif;
         }
 
         body{
@@ -37,6 +61,10 @@ html.dark-mode{
 
             overflow-x:hidden;
             min-height:100vh;
+
+            -webkit-font-smoothing:antialiased;
+            -moz-osx-font-smoothing:grayscale;
+            font-feature-settings:'cv11';  /* Inter's single-storey a: calmer in dense tables */
         }
 
         html.dark-mode body{
@@ -46,7 +74,8 @@ html.dark-mode{
             --text:#e2e8f0;
             --muted:#94a3b8;
             --border:#334155;
-            --shadow:0 12px 35px rgba(0,0,0,.22);
+            --shadow:0 1px 2px rgba(0,0,0,.2), 0 8px 24px rgba(0,0,0,.18);
+            --material:rgba(17,24,39,.72);
             --bs-body-bg:#0f172a;
             --bs-body-color:#e2e8f0;
             --bs-secondary-color:#94a3b8; /* .form-text and other help text */
@@ -56,9 +85,12 @@ html.dark-mode{
             --bs-table-bg:transparent;
             --bs-table-color:#cbd5e1;
             --bs-border-color:#334155;
+            --bs-link-color:#5eead4;
+            --bs-link-color-rgb:94,234,212;
+            --bs-link-hover-color:#99f6e4;
+            --bs-link-hover-color-rgb:153,246,228;
         }
 
-        html.dark-mode body .navbar,
         html.dark-mode body .sidebar{
             background:var(--sidebar) !important;
         }
@@ -72,12 +104,7 @@ html.dark-mode{
         }
 
         html.dark-mode body .sidebar .nav-link{
-            color:#e2e8f0;
-        }
-
-        html.dark-mode body .sidebar .nav-link:hover{
-            background:#1f2937;
-            color:#5eead4;
+            color:#cbd5e1;
         }
 
         html.dark-mode body .nav-section{
@@ -134,7 +161,7 @@ html.dark-mode{
 
         html.dark-mode body .table thead th{
             background:#172235 !important;
-            color:#cbd5e1 !important;
+            color:#94a3b8 !important;
         }
 
         html.dark-mode body .input-group-text,
@@ -171,10 +198,6 @@ html.dark-mode{
             background-color:transparent !important;
         }
 
-        html.dark-mode body .table tbody tr:hover{
-            background:#273449;
-        }
-
         html.dark-mode body .table-responsive,
         html.dark-mode body .table-hover > tbody > tr:hover > *,
         html.dark-mode body .table-light > *,
@@ -182,32 +205,14 @@ html.dark-mode{
             background-color:transparent !important;
         }
 
-        html.dark-mode body .form-control,
-        html.dark-mode body .form-select,
-        html.dark-mode body .input-group-text,
-        html.dark-mode body textarea{
-            background:#0f172a !important;
-            color:#ffffff !important;
-            border-color:var(--border);
-        }
-
         html.dark-mode body .form-control::placeholder{
             color:#ffffff !important;
-            opacity:.75;
+            opacity:.6;
         }
 
         html.dark-mode body .form-select option{
             background:#0f172a;
             color:#ffffff;
-        }
-
-        html.dark-mode body .text-dark{
-            color:var(--text) !important;
-        }
-
-        html.dark-mode body .text-muted,
-        html.dark-mode body .text-secondary{
-            color:var(--muted) !important;
         }
 
         html.dark-mode body .btn-outline-secondary{
@@ -219,9 +224,60 @@ html.dark-mode{
             background:#1e293b;
         }
 
+        html.dark-mode body .alert{
+            border-color:var(--border);
+        }
+
+        /* PRESS FEEDBACK
+           Anything clickable answers on pointer-down, not on release. Only
+           transform and colours transition, never `all`. */
+
+        .btn,
+        .theme-toggle,
+        .sidebar .nav-link,
+        .page-link{
+            transition:
+                transform 120ms var(--ease-out),
+                background-color 150ms ease,
+                border-color 150ms ease,
+                color 150ms ease,
+                box-shadow 150ms ease;
+            -webkit-tap-highlight-color:transparent;
+        }
+
+        .btn:active,
+        .theme-toggle:active,
+        .page-link:active{
+            transform:scale(.97);
+        }
+
+        .sidebar .nav-link:active{
+            transform:scale(.985);  /* wide row: a smaller scale reads the same */
+        }
+
+        .btn:disabled,
+        .btn.disabled{
+            transform:none;
+        }
+
+        /* One focus ring everywhere, keyboard only. */
+        :focus-visible{
+            outline:2px solid var(--primary);
+            outline-offset:2px;
+        }
+
+        .btn:focus-visible,
+        .form-control:focus,
+        .form-select:focus,
+        .form-check-input:focus{
+            outline:none;
+            border-color:var(--primary);
+            box-shadow:0 0 0 3px var(--bs-focus-ring-color);
+        }
+
         .theme-toggle{
-            width:40px;
-            height:40px;
+            width:38px;
+            height:38px;
             border:1px solid var(--border);
             border-radius:50%;
             background:var(--card);
@@ -231,29 +287,30 @@ html.dark-mode{
             justify-content:center;
         }
 
-        /* NAVBAR */
+        /* NAVBAR: a translucent material layer; page content scrolls under it. */
 
         .navbar{
 
-            height:74px;
+            height:var(--nav-h);
 
-            background:white;
+            background:var(--material);
+            -webkit-backdrop-filter:blur(20px) saturate(180%);
+            backdrop-filter:blur(20px) saturate(180%);
 
             border-bottom:1px solid var(--border);
 
-            padding:0 28px;
+            padding:0 24px;
 
             position:sticky;
             top:0;
-            z-index:999;
+            z-index:1000;
 
-            box-shadow:
-                0 4px 18px rgba(15,23,42,.04);
+            view-transition-name:topbar;
         }
 
         .navbar-brand{
 
-            font-size:1.3rem;
+            font-size:1.2rem;
             font-weight:800;
             line-height:1.2;
             letter-spacing:-.02em;
@@ -274,8 +331,8 @@ html.dark-mode{
         .top-date{
 
             color:var(--muted);
-
-            font-weight:600;
+            font-size:.9rem;
+            font-weight:500;
         }
 
         /* USER CHIP */
@@ -288,26 +345,28 @@ html.dark-mode{
 
             border-radius:50px;
 
-            padding:.45rem .9rem .45rem .45rem;
+            padding:.3rem .85rem .3rem .3rem;
 
             display:flex;
             align-items:center;
-            gap:.7rem;
+            gap:.6rem;
+
+            line-height:1.2;
+            font-size:.9rem;
+        }
+
+        .user-chip small{
+            font-size:.78rem;
         }
 
         .user-avatar{
 
-            width:40px;
-            height:40px;
+            width:32px;
+            height:32px;
 
             border-radius:50%;
 
-            background:
-                linear-gradient(
-                    135deg,
-                    #14b8a6,
-                    #2dd4bf
-                );
+            background:var(--primary-strong);
 
             display:flex;
             align-items:center;
@@ -315,79 +374,124 @@ html.dark-mode{
 
             color:white;
 
+            font-size:.85rem;
             font-weight:700;
         }
 
-        /* SIDEBAR */
+        /* SIDEBAR: sits below the top bar and scrolls on its own if the
+           menu is taller than the window. */
 
         .sidebar{
 
-            width:290px;
-            height:100vh;
-            background:white;
+            width:var(--sidebar-w);
+            height:calc(100vh - var(--nav-h));
+            background:var(--sidebar);
             border-right:1px solid var(--border);
-            padding:20px 18px 14px;
+            padding:8px 14px 20px;
             position:fixed;
             left:0;
-            top:0;
-            overflow:hidden;
+            top:var(--nav-h);
+            overflow-y:auto;
+            overscroll-behavior:contain;
+            scrollbar-width:thin;
+
+            view-transition-name:sidebar;
         }
 
         .nav-section{
 
             color:#64748b;
 
-            font-size:12px;
-            font-weight:800;
+            font-size:11px;
+            font-weight:700;
             letter-spacing:.08em;
             text-transform:uppercase;
-            margin:18px 8px 12px;
-            padding:4px 0;
+            margin:18px 12px 8px;
+            padding:0;
             display:block;
             line-height:1.3;
             white-space:nowrap;
-            width:100%;
+        }
+
+        .sidebar .nav-section.mt-4{
+            margin-top:24px !important;
         }
 
         .sidebar .nav-link{
 
             color:#334155;
 
-            border-radius:14px;
+            border-radius:var(--radius-sm);
 
-            padding:12px 14px;
+            padding:9px 12px;
 
             display:flex;
             align-items:center;
             gap:12px;
 
-            margin-bottom:6px;
+            margin-bottom:2px;
 
-            transition:.2s ease;
-
-            font-weight:600;
-            font-size:0.92rem;
-            line-height:1.2;
+            font-weight:500;
+            font-size:.9rem;
+            line-height:1.25;
         }
 
         .sidebar .nav-link i{
 
             font-size:1.05rem;
-        }
-
-        .sidebar .nav-link:hover{
-
-            background:#f0fdfa;
-
-            color:var(--primary-dark);
-
-            transform:translateX(2px);
+            color:var(--muted);
+            transition:color 150ms ease;
         }
 
         .sidebar .nav-link.active{
 
             background:#dff7f2;
-            color:#0f766e;
+            color:var(--primary-dark);
+            font-weight:600;
+        }
+
+        .sidebar .nav-link.active i{
+            color:var(--primary-dark);
+        }
+
+        html.dark-mode body .sidebar .nav-link.active i{
+            color:#5eead4;
+        }
+
+        /* Hover only where a real pointer can hover (touch fires it on tap). */
+        @media (hover:hover) and (pointer:fine){
+
+            .sidebar .nav-link:hover{
+                background:#f1f5f9;
+                color:var(--text);
+            }
+
+            .sidebar .nav-link.active:hover{
+                background:#d2f3ec;
+                color:var(--primary-dark);
+            }
+
+            html.dark-mode body .sidebar .nav-link:hover{
+                background:#1f2937;
+                color:#f1f5f9;
+            }
+
+            html.dark-mode body .sidebar .nav-link.active:hover{
+                background:#155e57;
+                color:#a7f3d0;
+            }
+
+            .theme-toggle:hover{
+                border-color:#cbd5e1;
+            }
+
+            .table tbody tr:hover{
+                background:#f8fafc;
+            }
+
+            html.dark-mode body .table tbody tr:hover{
+                background:#273449;
+            }
         }
 
         /* MAIN */
@@ -396,19 +500,25 @@ html.dark-mode{
 
             flex:1;
 
-            margin-left:280px;
-            min-height:100vh;
-            padding:2rem;
-            overflow-y:auto;
+            margin-left:var(--sidebar-w);
+            min-width:0;
+            min-height:calc(100vh - var(--nav-h));
+            padding:2rem 2.25rem;
+
+            view-transition-name:page;
         }
 
-        /* PAGE TITLE */
+        /* PAGE TITLE: tight leading and negative tracking for large text. */
 
         .page-title{
 
-            font-size:2rem;
+            font-size:1.75rem;
 
-            font-weight:800;
+            font-weight:700;
+
+            line-height:1.15;
+
+            letter-spacing:-.022em;
 
             margin-bottom:.25rem;
         }
@@ -417,35 +527,54 @@ html.dark-mode{
 
             color:var(--muted);
 
-            font-size:1rem;
+            font-size:.95rem;
         }
 
-        /* BUTTON */
+        h1, h2, h3, .h1, .h2, .h3{
+            letter-spacing:-.02em;
+        }
+
+        h4, h5, .h4, .h5{
+            letter-spacing:-.01em;
+        }
+
+        /* BUTTONS: solid teal instead of a gradient; same colour family. */
+
+        .btn{
+            font-weight:600;
+            touch-action:manipulation;  /* no double-tap-zoom delay */
+        }
 
         .btn-primary{
-
-            background:
-                linear-gradient(
-                    135deg,
-                    #14b8a6,
-                    #2dd4bf
-                );
-
-            border:none;
-
-            border-radius:16px;
-
-            padding:.9rem 1.3rem;
-
-            font-weight:700;
-
-            box-shadow:
-                0 12px 24px rgba(20,184,166,.18);
+            --bs-btn-bg:var(--primary-strong);
+            --bs-btn-border-color:var(--primary-strong);
+            --bs-btn-hover-bg:var(--primary-dark);
+            --bs-btn-hover-border-color:var(--primary-dark);
+            --bs-btn-active-bg:#115e59;
+            --bs-btn-active-border-color:#115e59;
+            --bs-btn-disabled-bg:var(--primary-strong);
+            --bs-btn-disabled-border-color:var(--primary-strong);
+            box-shadow:0 1px 2px rgba(15,118,110,.25), 0 4px 12px rgba(20,184,166,.18);
         }
 
-        .btn-primary:hover{
+        .btn-outline-primary{
+            --bs-btn-color:var(--primary-dark);
+            --bs-btn-border-color:var(--primary);
+            --bs-btn-hover-color:#fff;
+            --bs-btn-hover-bg:var(--primary-strong);
+            --bs-btn-hover-border-color:var(--primary-strong);
+            --bs-btn-active-color:#fff;
+            --bs-btn-active-bg:var(--primary-dark);
+            --bs-btn-active-border-color:var(--primary-dark);
+        }
 
-            opacity:.92;
+        html.dark-mode body .btn-outline-primary{
+            --bs-btn-color:#5eead4;
+        }
+
+        /* Primary actions in page headers (not small table buttons) get a bit more room. */
+        .btn-primary:not(.btn-sm){
+            padding:.6rem 1.1rem;
         }
 
         /* CARDS */
@@ -456,7 +585,7 @@ html.dark-mode{
 
             border:1px solid var(--border);
 
-            border-radius:28px;
+            border-radius:var(--radius);
 
             box-shadow:var(--shadow);
 
@@ -465,60 +594,73 @@ html.dark-mode{
 
         .card-header{
 
-            background:white !important;
+            background:transparent !important;
 
             border-bottom:1px solid var(--border);
 
-            padding:1.2rem 1.5rem;
+            padding:1rem 1.25rem;
 
-            font-size:1.1rem;
+            font-size:1rem;
 
-            font-weight:700;
+            font-weight:600;
+
+            letter-spacing:-.01em;
 
             color:var(--text);
         }
 
-        /* STATS */
+        /* STATS: numbers line up (tabular figures) and sit tight. */
 
         .stat-card{
 
-            padding:1.8rem;
+            padding:1.5rem;
 
             position:relative;
-
-            min-height:160px;
         }
 
         .stat-label{
 
             color:var(--muted);
 
-            font-size:1rem;
+            font-size:.9rem;
 
-            font-weight:600;
+            font-weight:500;
+        }
+
+        .stat-value,
+        .display-5{
+
+            font-weight:700;
+
+            line-height:1.05;
+
+            letter-spacing:-.03em;
+
+            font-variant-numeric:tabular-nums;
         }
 
         .stat-value{
-
-            font-size:3.2rem;
-
-            font-weight:800;
-
+            font-size:2.6rem;
             margin-top:.5rem;
         }
 
         .stat-icon{
 
-            position:absolute;
+            width:52px;
+            height:52px;
 
-            right:24px;
-            top:50%;
+            border-radius:14px;
 
-            transform:translateY(-50%);
+            display:inline-flex;
+            align-items:center;
+            justify-content:center;
 
-            font-size:2rem;
+            font-size:1.5rem;
 
-            opacity:.9;
+            flex-shrink:0;
+
+            /* Tinted from the icon's own colour, so it works in light and dark. */
+            background:color-mix(in srgb, currentColor 12%, transparent);
         }
 
         /* TABLE */
@@ -528,19 +670,25 @@ html.dark-mode{
             color:#334155;
 
             margin-bottom:0;
+
+            font-variant-numeric:tabular-nums;
         }
 
         .table thead th{
 
             color:#64748b;
 
-            font-size:.82rem;
+            font-size:.72rem;
+
+            font-weight:600;
 
             text-transform:uppercase;
 
             border-color:var(--border);
 
             letter-spacing:.06em;
+
+            white-space:nowrap;
         }
 
         .table td{
@@ -550,20 +698,49 @@ html.dark-mode{
             vertical-align:middle;
         }
 
-        .table tbody tr:hover{
+        .table > :not(caption) > * > *{
+            padding:.8rem 1rem;
+        }
 
-            background:#f8fafc;
+        .table tbody tr{
+            transition:background-color 120ms ease;
+        }
+
+        .badge{
+            font-weight:600;
+            letter-spacing:.01em;
+        }
+
+        .progress{
+            border-radius:999px;
+            background-color:#e2e8f0;
+        }
+
+        html.dark-mode body .progress{
+            background-color:#334155;
+        }
+
+        /* ALERTS: fade in when they appear (flash messages). */
+
+        .alert{
+            border-radius:12px;
+            transition:opacity 220ms var(--ease-out), transform 220ms var(--ease-out);
+
+            @starting-style{
+                opacity:0;
+                transform:translateY(-4px);
+            }
         }
 
         /* SEARCH */
 
         .search-box{
 
-            background:white;
+            background:var(--card);
 
             border:1px solid var(--border);
 
-            border-radius:16px;
+            border-radius:var(--radius-sm);
 
             overflow:hidden;
         }
@@ -582,15 +759,16 @@ html.dark-mode{
             max-height:360px !important;
         }
 
-        /* MOBILE */
+        /* MOBILE (the sidebar is hidden below Bootstrap's md breakpoint) */
 
-        @media(max-width:768px){
+        @media(max-width:767.98px){
 
             .sidebar{
                 display:none !important;
             }
 
             .main-content{
+                margin-left:0;
                 padding:1rem;
             }
 
@@ -599,7 +777,7 @@ html.dark-mode{
             }
 
             .page-title{
-                font-size:1.5rem;
+                font-size:1.4rem;
             }
 
         }
@@ -609,7 +787,7 @@ html.dark-mode{
         .panel{
             background:var(--card);
             border:1px solid var(--border);
-            border-radius:28px;
+            border-radius:var(--radius);
             box-shadow:var(--shadow);
             overflow:hidden;
             padding:1.5rem;
@@ -624,13 +802,14 @@ html.dark-mode{
         }
 
         .stat{
-            padding:1.8rem;
+            padding:1.5rem;
             position:relative;
-            min-height:160px;
+            min-height:140px;
             background:var(--card);
             border:1px solid var(--border);
-            border-radius:28px;
+            border-radius:var(--radius);
             box-shadow:var(--shadow);
+            font-variant-numeric:tabular-nums;
         }
 
         .table-wrap{
@@ -659,7 +838,8 @@ html.dark-mode{
         .panel table th,
         .table-wrap th{
             color:var(--muted);
-            font-size:.82rem;
+            font-size:.72rem;
+            font-weight:600;
             text-transform:uppercase;
             letter-spacing:.06em;
         }
@@ -678,11 +858,20 @@ html.dark-mode{
         .panel textarea:not(.form-control){
             width:100%;
             padding:10px 12px;
-            border-radius:16px;
+            border-radius:var(--radius-sm);
             border:1px solid var(--border);
             background:var(--card);
             color:var(--text);
             box-sizing:border-box;
+            transition:border-color 150ms ease, box-shadow 150ms ease;
+        }
+
+        .panel input:not([type="checkbox"]):not([type="radio"]):not([type="file"]):not(.form-control):not(.form-select):focus,
+        .panel select:not(.form-select):focus,
+        .panel textarea:not(.form-control):focus{
+            outline:none;
+            border-color:var(--primary);
+            box-shadow:0 0 0 3px var(--bs-focus-ring-color);
         }
 
         .panel textarea:not(.form-control){
@@ -692,14 +881,25 @@ html.dark-mode{
 
         .panel button:not(.btn),
         .panel .btn:not([class*="btn-"]){
-            background:linear-gradient(135deg, #14b8a6, #2dd4bf);
+            background:var(--primary-strong);
             border:none;
-            border-radius:16px;
-            padding:.9rem 1.3rem;
-            font-weight:700;
+            border-radius:var(--radius-sm);
+            padding:.6rem 1.1rem;
+            font-weight:600;
             color:white;
-            box-shadow:0 12px 24px rgba(20,184,166,.18);
+            box-shadow:0 1px 2px rgba(15,118,110,.25), 0 4px 12px rgba(20,184,166,.18);
             cursor:pointer;
+            transition:transform 120ms var(--ease-out), background-color 150ms ease;
+        }
+
+        .panel button:not(.btn):active{
+            transform:scale(.97);
+        }
+
+        @media (hover:hover) and (pointer:fine){
+            .panel button:not(.btn):hover{
+                background:var(--primary-dark);
+            }
         }
 
         html.dark-mode .status{
@@ -717,20 +917,23 @@ html.dark-mode{
            text on a light bubble (Bootstrap's bg-body-secondary isn't themed). */
         .chat-bubble{
             max-width:70%;
-            padding:.5rem 1rem;
-            border-radius:1rem;
+            padding:.5rem .9rem;
+            border-radius:1.1rem;
             white-space:pre-wrap;
             overflow-wrap:anywhere;
+            line-height:1.4;
         }
 
         .chat-bubble-patient{
             background:#eef2f7;
             color:var(--text);
+            border-bottom-left-radius:.35rem;
         }
 
         .chat-bubble-staff{
-            background:var(--bs-primary);
+            background:var(--primary-strong);
             color:#fff;
+            border-bottom-right-radius:.35rem;
         }
 
         .chat-sender{
@@ -767,4 +970,67 @@ html.dark-mode{
         html.dark-mode body .chat-bubble-patient{
             background:#334155;
             color:#f1f5f9;
+        }
+
+        /* PAGE TRANSITIONS
+           Moving between pages cross-fades only the content area; the top bar
+           and sidebar stay put, so the shell feels like one app. Browsers
+           without cross-document view transitions just navigate normally. */
+
+        @view-transition{
+            navigation:auto;
+        }
+
+        ::view-transition-group(*){
+            animation-duration:160ms;
+            animation-timing-function:var(--ease-out);
+        }
+
+        /* The theme switch cross-fades the whole page instead of flashing. */
+        html.theme-switching::view-transition-group(*){
+            animation-duration:260ms;
+        }
+
+        /* ACCESSIBILITY PREFERENCES */
+
+        @media (prefers-reduced-motion:reduce){
+
+            @view-transition{
+                navigation:none;
+            }
+
+            .btn:active,
+            .theme-toggle:active,
+            .page-link:active,
+            .sidebar .nav-link:active,
+            .panel button:not(.btn):active{
+                transform:none;
+            }
+
+            .alert{
+                @starting-style{
+                    transform:none;
+                }
+            }
+        }
+
+        @media (prefers-reduced-transparency:reduce){
+            .navbar{
+                background:var(--card);
+                -webkit-backdrop-filter:none;
+                backdrop-filter:none;
+            }
+        }
+
+        @media (prefers-contrast:more){
+            :root{
+                --border:#94a3b8;
+                --muted:#475569;
+            }
+
+            .navbar{
+                background:var(--card);
+                -webkit-backdrop-filter:none;
+                backdrop-filter:none;
+            }
         }

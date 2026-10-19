@@ -12,6 +12,21 @@ if (searchInput) {
 }
 
 const chartData = window.rehabPlusDashboardData || {};
+const reduceMotion = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+
+// Charts use the dashboard's font and muted greys instead of Chart.js defaults,
+// and a shorter draw-in so the page settles quickly.
+if (window.Chart) {
+    const dark = document.documentElement.classList.contains('dark-mode');
+    Chart.defaults.font.family = "'Inter', system-ui, sans-serif";
+    Chart.defaults.color = dark ? '#94a3b8' : '#64748b';
+    Chart.defaults.borderColor = dark ? 'rgba(148,163,184,.15)' : 'rgba(15,23,42,.06)';
+    Chart.defaults.plugins.legend.labels.usePointStyle = true;
+    Chart.defaults.plugins.tooltip.cornerRadius = 8;
+    Chart.defaults.plugins.tooltip.padding = 10;
+    Chart.defaults.animation.duration = reduceMotion ? 0 : 500;
+}
+
 const recoveryChart = document.getElementById('recoveryChart');
 
 if (recoveryChart && chartData.recoveryLabels && chartData.recoveryValues) {
@@ -23,7 +38,10 @@ if (recoveryChart && chartData.recoveryLabels && chartData.recoveryValues) {
                 label: 'Recovery Progress',
                 data: chartData.recoveryValues,
                 borderColor: '#14b8a6',
-                backgroundColor: 'rgba(20,184,166,.15)',
+                backgroundColor: 'rgba(20,184,166,.12)',
+                borderWidth: 2,
+                pointRadius: 3,
+                pointHoverRadius: 5,
                 fill: true,
                 tension: .4,
             }],
@@ -41,8 +59,11 @@ if (conditionChart && chartData.conditionLabels && chartData.conditionValues) {
             datasets: [{
                 data: chartData.conditionValues,
                 backgroundColor: ['#14b8a6', '#0ea5e9', '#8b5cf6', '#f59e0b'],
+                borderWidth: 0,
+                spacing: 2,
             }],
         },
+        options: { cutout: '68%' },
     });
 }
 
@@ -60,7 +81,15 @@ if (themeToggle) {
     themeToggle.addEventListener('click', () => {
         const dark = !document.body.classList.contains('dark-mode');
         localStorage.setItem('rehabplus-theme', dark ? 'dark' : 'light');
-        applyTheme(dark);
+
+        // Cross-fade between light and dark instead of an abrupt brightness jump.
+        if (!document.startViewTransition || reduceMotion) {
+            applyTheme(dark);
+            return;
+        }
+        document.documentElement.classList.add('theme-switching');
+        document.startViewTransition(() => applyTheme(dark)).finished
+            .finally(() => document.documentElement.classList.remove('theme-switching'));
     });
 }
 
