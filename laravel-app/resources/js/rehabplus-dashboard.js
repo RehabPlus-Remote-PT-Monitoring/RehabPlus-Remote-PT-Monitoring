@@ -68,9 +68,14 @@ if (conditionChart && chartData.conditionLabels && chartData.conditionValues) {
 }
 
 const themeToggle = document.getElementById('themeToggle');
+const themeColor = document.getElementById('themeColor');
 const applyTheme = (dark) => {
     document.documentElement.classList.toggle('dark-mode', dark);
     document.body.classList.toggle('dark-mode', dark);
+    // Phone status bar / browser chrome matches the top bar.
+    if (themeColor) {
+        themeColor.content = dark ? '#10172a' : '#f6f8fb';
+    }
     themeToggle.innerHTML = dark
         ? '<i class="bi bi-sun-fill"></i>'
         : '<i class="bi bi-moon-fill"></i>';
@@ -91,6 +96,135 @@ if (themeToggle) {
         document.startViewTransition(() => applyTheme(dark)).finished
             .finally(() => document.documentElement.classList.remove('theme-switching'));
     });
+}
+
+/*
+ * Phone menu: the sidebar slides in as a drawer. Opens from the menu button;
+ * closes on the scrim, the close button, Escape, or a swipe to the left.
+ * The swipe tracks the finger 1:1, and a quick flick closes it even if it
+ * hasn't been dragged far.
+ */
+const sidebar = document.getElementById('sidebar');
+const navToggle = document.getElementById('navToggle');
+const navClose = document.getElementById('navClose');
+const scrim = document.getElementById('sidebarScrim');
+const phoneLayout = window.matchMedia('(max-width: 767.98px)');
+
+if (sidebar && navToggle) {
+    const behind = [document.getElementById('topbar'), document.getElementById('mainContent')];
+
+    const setOpen = (open) => {
+        document.documentElement.classList.toggle('nav-open', open);
+        navToggle.setAttribute('aria-expanded', String(open));
+        // Keep keyboard and screen readers inside the open drawer.
+        behind.forEach((el) => el?.toggleAttribute('inert', open));
+        if (open) {
+            sidebar.focus({ preventScroll: true }); // the next Tab lands on the first link
+        } else if (sidebar.contains(document.activeElement)) {
+            navToggle.focus({ preventScroll: true });
+        }
+    };
+    const isOpen = () => document.documentElement.classList.contains('nav-open');
+
+    navToggle.addEventListener('click', () => setOpen(true));
+    navClose?.addEventListener('click', () => setOpen(false));
+    scrim?.addEventListener('click', () => setOpen(false));
+    document.addEventListener('keydown', (event) => {
+        if (event.key === 'Escape' && isOpen()) {
+            setOpen(false);
+        }
+    });
+    // Rotating or resizing up to the desktop layout drops the drawer state.
+    phoneLayout.addEventListener('change', (event) => {
+        if (!event.matches && isOpen()) {
+            setOpen(false);
+        }
+    });
+    // Leaving the page from the drawer: close it so Back doesn't return to an open menu.
+    window.addEventListener('pagehide', () => setOpen(false));
+
+    // Swipe left to close.
+    let drag = null;
+
+    sidebar.addEventListener('pointerdown', (event) => {
+        if (!isOpen() || event.pointerType === 'mouse' || drag?.active) {
+            return; // one finger only; ignore extra touches mid-drag
+        }
+        drag = { id: event.pointerId, x: event.clientX, y: event.clientY, dx: 0, t: performance.now(), active: false };
+    });
+
+    sidebar.addEventListener('pointermove', (event) => {
+        if (!drag || event.pointerId !== drag.id) {
+            return;
+        }
+        const dx = event.clientX - drag.x;
+        const dy = event.clientY - drag.y;
+
+        if (!drag.active) {
+            // ~10px before committing, and only to a mostly-horizontal swipe,
+            // so scrolling the menu still works.
+            if (Math.abs(dx) < 10 && Math.abs(dy) < 10) {
+                return;
+            }
+            if (Math.abs(dy) > Math.abs(dx) || dx > 0) {
+                drag = null;
+                return;
+            }
+            drag.active = true;
+            drag.x = event.clientX; // start tracking from here: no jump
+            drag.t = performance.now();
+            sidebar.setPointerCapture(event.pointerId);
+            sidebar.classList.add('is-dragging');
+        }
+
+        const width = sidebar.offsetWidth;
+        let offset = event.clientX - drag.x;
+        // Past the open edge it resists instead of hard-stopping.
+        offset = offset > 0 ? offset * 0.2 : Math.max(offset, -width);
+        drag.dx = offset;
+        sidebar.style.transform = `translateX(${offset}px)`;
+        if (scrim) {
+            scrim.style.transition = 'none';
+            scrim.style.opacity = String(1 + Math.min(offset, 0) / width);
+        }
+    });
+
+    const endDrag = (event) => {
+        if (!drag || event.pointerId !== drag.id) {
+            return;
+        }
+        const { active, dx, t } = drag;
+        drag = null;
+        if (!active) {
+            return;
+        }
+        sidebar.dataset.justDragged = '1';
+        setTimeout(() => delete sidebar.dataset.justDragged, 0);
+        const velocity = Math.abs(dx) / (performance.now() - t); // px per ms
+        const close = dx < -sidebar.offsetWidth / 3 || (dx < 0 && velocity > 0.11);
+
+        // Hand back to the CSS transition, which picks up from where the finger left it.
+        sidebar.classList.remove('is-dragging');
+        sidebar.style.transform = '';
+        if (scrim) {
+            scrim.style.transition = '';
+            scrim.style.opacity = '';
+        }
+        if (close) {
+            setOpen(false);
+        }
+    };
+
+    // On window, so a finger lifted over the scrim still ends the drag.
+    window.addEventListener('pointerup', endDrag);
+    window.addEventListener('pointercancel', endDrag);
+
+    // A link tapped right after a swipe shouldn't navigate.
+    sidebar.addEventListener('click', (event) => {
+        if (sidebar.dataset.justDragged) {
+            event.preventDefault();
+        }
+    }, true);
 }
 
 /*

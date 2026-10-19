@@ -51,13 +51,14 @@
     <div class="card">
         <div class="card-header d-flex justify-content-between align-items-center flex-wrap gap-2">
             <span>Patient Recovery Overview</span>
-            <div class="input-group" style="width:250px;">
+            <div class="input-group table-search">
                 <span class="input-group-text"><i class="bi bi-search"></i></span>
                 <input type="text" id="patientSearch" class="form-control" placeholder="Search patient...">
             </div>
         </div>
 
         <div class="card-body p-0">
+            <div class="table-responsive">
             <table class="table table-hover align-middle mb-0" id="patientsTable">
                 <thead>
                     <tr>
@@ -98,6 +99,7 @@
                     @endforeach
                 </tbody>
             </table>
+            </div>
         </div>
     </div>
 

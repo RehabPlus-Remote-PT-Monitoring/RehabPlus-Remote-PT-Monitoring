@@ -2,13 +2,15 @@
 <html lang="en">
 <head>
     <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover, interactive-widget=resizes-content">
+    <meta name="theme-color" content="#f6f8fb" id="themeColor">
     <title>@yield('title', 'RehabPlus Dashboard')</title>
 
     {{-- Apply the saved theme before the page paints, so dark mode doesn't flash white. --}}
     <script nonce="{{ Vite::cspNonce() }}">
         if (localStorage.getItem('rehabplus-theme') === 'dark') {
             document.documentElement.classList.add('dark-mode');
+            document.getElementById('themeColor').content = '#10172a';
         }
     </script>
 
@@ -19,22 +21,28 @@
     @vite(['resources/css/rehabplus-dashboard.css', 'resources/js/rehabplus-dashboard.js'])
 </head>
 <body>
-    <nav class="navbar d-flex justify-content-between align-items-center">
-        <a class="navbar-brand d-flex align-items-center gap-2" href="{{ route('dashboard') }}">
-            <i class="bi bi-heart-pulse-fill"></i>
-            RehabPlus
-        </a>
+    <nav class="navbar d-flex justify-content-between align-items-center flex-nowrap" id="topbar">
+        <div class="d-flex align-items-center gap-2 min-w-0">
+            {{-- Phones: opens the sidebar as a slide-out drawer. --}}
+            <button type="button" class="nav-toggle d-md-none" id="navToggle" aria-label="Open menu" aria-controls="sidebar" aria-expanded="false">
+                <i class="bi bi-list"></i>
+            </button>
+            <a class="navbar-brand d-flex align-items-center gap-2" href="{{ route('dashboard') }}">
+                <i class="bi bi-heart-pulse-fill"></i>
+                RehabPlus
+            </a>
+        </div>
 
-        <div class="d-flex align-items-center gap-3">
+        <div class="d-flex align-items-center gap-2 gap-md-3">
             <span class="top-date d-none d-md-inline">{{ now()->format('F j, Y') }}</span>
 
             <button type="button" class="theme-toggle" id="themeToggle" title="Toggle dark mode" aria-label="Toggle dark mode">
                 <i class="bi bi-moon-fill"></i>
             </button>
 
-            <div class="user-chip">
+            <div class="user-chip" title="{{ auth()->user()->name ?? '' }}">
                 <div class="user-avatar">{{ strtoupper(substr(auth()->user()->name ?? 'U', 0, 1)) }}</div>
-                <div>
+                <div class="user-chip-text">
                     <div class="fw-bold">{{ auth()->user()->name ?? '' }}</div>
                     <small class="text-muted">{{ auth()->user()?->roleLabel() }}</small>
                 </div>
@@ -42,16 +50,28 @@
 
             <form method="POST" action="{{ route('logout') }}">
                 @csrf
-                <button type="submit" class="btn btn-outline-secondary rounded-pill px-3">
-                    <i class="bi bi-box-arrow-right me-1"></i>
-                    Logout
+                <button type="submit" class="btn btn-outline-secondary rounded-pill px-3 logout-btn" aria-label="Logout">
+                    <i class="bi bi-box-arrow-right"></i>
+                    <span class="logout-label">Logout</span>
                 </button>
             </form>
         </div>
     </nav>
 
+    <div class="sidebar-scrim" id="sidebarScrim" aria-hidden="true"></div>
+
     <div class="d-flex">
-        <nav class="sidebar d-none d-md-flex flex-column">
+        <nav class="sidebar d-flex flex-column" id="sidebar" aria-label="Main menu" tabindex="-1">
+            <div class="sidebar-head">
+                <span class="navbar-brand d-flex align-items-center gap-2">
+                    <i class="bi bi-heart-pulse-fill"></i>
+                    RehabPlus
+                </span>
+                <button type="button" class="nav-toggle" id="navClose" aria-label="Close menu">
+                    <i class="bi bi-x-lg"></i>
+                </button>
+            </div>
+
             <div class="nav-section">Overview</div>
             <ul class="nav flex-column">
                 <li class="nav-item">
@@ -135,7 +155,7 @@
             @endif
         </nav>
 
-        <main class="main-content">
+        <main class="main-content" id="mainContent">
             @yield('content')
         </main>
     </div>

@@ -33,6 +33,13 @@ html.dark-mode{
 
             /* Strong ease-out: starts fast so feedback feels immediate. */
             --ease-out:cubic-bezier(.23,1,.32,1);
+            /* iOS-style sheet/drawer curve. */
+            --ease-drawer:cubic-bezier(.32,.72,0,1);
+
+            --safe-top:env(safe-area-inset-top, 0px);
+            --safe-bottom:env(safe-area-inset-bottom, 0px);
+            --safe-left:env(safe-area-inset-left, 0px);
+            --safe-right:env(safe-area-inset-right, 0px);
 
             /* Bootstrap's primary is blue; point it at the RehabPlus teal so links,
                outline buttons, progress bars and focus rings all match. */
@@ -49,6 +56,30 @@ html.dark-mode{
 
         *{
             font-family:'Inter',system-ui,sans-serif;
+        }
+
+        html{
+            -webkit-tap-highlight-color:transparent;  /* no grey flash on tap */
+            -webkit-text-size-adjust:100%;            /* no font inflation in landscape */
+        }
+
+        /* Controls shouldn't select their label on long-press, and tap
+           without the double-tap-zoom wait. Content text stays selectable. */
+        a, button, .btn, .nav-link, [role="button"]{
+            touch-action:manipulation;
+        }
+
+        .btn, .nav-link, .nav-toggle, .theme-toggle, .user-chip{
+            -webkit-user-select:none;
+            user-select:none;
+        }
+
+        .min-w-0{
+            min-width:0;
+        }
+
+        html.nav-open{
+            overflow:hidden;  /* page behind the open drawer doesn't scroll */
         }
 
         body{
@@ -234,6 +265,7 @@ html.dark-mode{
 
         .btn,
         .theme-toggle,
+        .nav-toggle,
         .sidebar .nav-link,
         .page-link{
             transition:
@@ -247,6 +279,7 @@ html.dark-mode{
 
         .btn:active,
         .theme-toggle:active,
+        .nav-toggle:active,
         .page-link:active{
             transform:scale(.97);
         }
@@ -291,7 +324,9 @@ html.dark-mode{
 
         .navbar{
 
-            height:var(--nav-h);
+            height:calc(var(--nav-h) + var(--safe-top));
+            padding-top:var(--safe-top) !important;
+            padding-bottom:0 !important;
 
             background:var(--material);
             -webkit-backdrop-filter:blur(20px) saturate(180%);
@@ -299,7 +334,8 @@ html.dark-mode{
 
             border-bottom:1px solid var(--border);
 
-            padding:0 24px;
+            padding-right:calc(24px + var(--safe-right));
+            padding-left:calc(24px + var(--safe-left));
 
             position:sticky;
             top:0;
@@ -384,13 +420,13 @@ html.dark-mode{
         .sidebar{
 
             width:var(--sidebar-w);
-            height:calc(100vh - var(--nav-h));
+            height:calc(100vh - var(--nav-h) - var(--safe-top));
             background:var(--sidebar);
             border-right:1px solid var(--border);
             padding:8px 14px 20px;
             position:fixed;
             left:0;
-            top:var(--nav-h);
+            top:calc(var(--nav-h) + var(--safe-top));
             overflow-y:auto;
             overscroll-behavior:contain;
             scrollbar-width:thin;
@@ -759,27 +795,221 @@ html.dark-mode{
             max-height:360px !important;
         }
 
-        /* MOBILE (the sidebar is hidden below Bootstrap's md breakpoint) */
+        /* MENU BUTTON (phones) and the drawer's own header */
+
+        .nav-toggle{
+            width:40px;
+            height:40px;
+            margin-left:-6px;
+            border:0;
+            border-radius:var(--radius-sm);
+            background:transparent;
+            color:var(--text);
+            display:inline-flex;
+            align-items:center;
+            justify-content:center;
+            font-size:1.5rem;
+            flex-shrink:0;
+        }
+
+        .nav-toggle:active{
+            background:rgba(100,116,139,.12);
+        }
+
+        .sidebar-head,
+        .sidebar-scrim{
+            display:none;
+        }
+
+        .sidebar:focus{
+            outline:none;  /* focused only as the drawer's starting point */
+        }
+
+        /* PHONES: below Bootstrap's md breakpoint the sidebar becomes a
+           drawer that slides in from the left, over a dimmed page. It enters
+           and leaves along the same path; closing is a little quicker than
+           opening. */
 
         @media(max-width:767.98px){
 
+            :root{
+                --nav-h:56px;
+            }
+
+            .navbar{
+                padding-right:calc(12px + var(--safe-right));
+                padding-left:calc(12px + var(--safe-left));
+            }
+
+            .navbar-brand{
+                font-size:1.1rem;
+            }
+
+            .theme-toggle{
+                width:36px;
+                height:36px;
+            }
+
+            /* Top bar: the user chip shrinks to its avatar, Logout to its icon. */
+            .user-chip{
+                padding:0;
+                border:0;
+                background:transparent !important;
+            }
+
+            .user-chip-text,
+            .logout-label{
+                display:none;
+            }
+
+            .logout-btn{
+                width:36px;
+                height:36px;
+                padding:0 !important;
+                display:inline-flex;
+                align-items:center;
+                justify-content:center;
+            }
+
             .sidebar{
-                display:none !important;
+                top:0;
+                z-index:1060;
+                width:min(300px, 86vw);
+                height:100dvh;
+                padding:calc(var(--safe-top) + 6px) 14px calc(var(--safe-bottom) + 20px) calc(var(--safe-left) + 14px);
+                border-right:0;
+                transform:translateX(-100%);
+                visibility:hidden;
+                transition:
+                    transform 240ms var(--ease-drawer),
+                    box-shadow 240ms ease,
+                    visibility 0s linear 240ms;
+                view-transition-name:none;
+                touch-action:pan-y;  /* vertical scrolls the menu; horizontal is the swipe-to-close */
+            }
+
+            html.nav-open .sidebar{
+                transform:none;
+                visibility:visible;
+                box-shadow:0 0 48px rgba(15,23,42,.28);
+                transition:
+                    transform 320ms var(--ease-drawer),
+                    box-shadow 320ms ease,
+                    visibility 0s;
+            }
+
+            /* While a finger is dragging it, the drawer follows 1:1. */
+            .sidebar.is-dragging{
+                transition:none !important;
+            }
+
+            .sidebar-head{
+                display:flex;
+                align-items:center;
+                justify-content:space-between;
+                height:var(--nav-h);
+                padding:0 0 0 12px;
+                margin-bottom:4px;
+            }
+
+            .sidebar-head .nav-toggle{
+                margin:0 -4px 0 0;
+                font-size:1.15rem;
+                color:var(--muted);
+            }
+
+            .sidebar .nav-link{
+                padding:12px;  /* bigger touch targets */
+                font-size:.95rem;
+            }
+
+            .sidebar-scrim{
+                display:block;
+                position:fixed;
+                inset:0;
+                z-index:1055;
+                background:rgba(15,23,42,.42);
+                opacity:0;
+                pointer-events:none;
+                transition:opacity 240ms ease;
+            }
+
+            html.nav-open .sidebar-scrim{
+                opacity:1;
+                pointer-events:auto;
+                transition-duration:320ms;
             }
 
             .main-content{
                 margin-left:0;
-                padding:1rem;
-            }
-
-            .navbar{
-                padding:0 14px;
+                padding:1rem calc(1rem + var(--safe-right)) calc(1.5rem + var(--safe-bottom)) calc(1rem + var(--safe-left));
             }
 
             .page-title{
                 font-size:1.4rem;
             }
 
+            /* Page headers (title + action button) wrap instead of squeezing. */
+            .main-content > .d-flex.justify-content-between{
+                flex-wrap:wrap;
+                gap:.75rem;
+            }
+
+            .card-header{
+                padding:.85rem 1rem;
+            }
+
+            .table-search{
+                width:100% !important;
+            }
+
+            /* Wide tables scroll sideways inside their card instead of
+               crushing every column. */
+            .table-responsive{
+                -webkit-overflow-scrolling:touch;
+                overscroll-behavior-x:contain;
+            }
+
+            .table-responsive > .table{
+                min-width:620px;
+            }
+
+            .table-responsive > .table th{
+                white-space:nowrap;
+            }
+
+            .panel{
+                padding:1rem;
+                overflow-x:auto;
+            }
+
+            .chat-bubble{
+                max-width:85%;
+            }
+
+        }
+
+        .table-search{
+            width:250px;
+        }
+
+        .logout-btn{
+            display:inline-flex;
+            align-items:center;
+            gap:.35rem;
+        }
+
+        /* iOS zooms into any input under 16px and doesn't zoom back out. */
+        @media (pointer:coarse){
+            input,
+            select,
+            textarea,
+            .form-control,
+            .form-control-sm,
+            .form-select,
+            .form-select-sm{
+                font-size:16px !important;
+            }
         }
 
         /* Detail and form pages (patient profile, forms, statistics) */
@@ -1011,6 +1241,12 @@ html.dark-mode{
                 @starting-style{
                     transform:none;
                 }
+            }
+
+            /* Drawer appears in place; only the dimming fades. */
+            .sidebar,
+            html.nav-open .sidebar{
+                transition:none !important;
             }
         }
 
