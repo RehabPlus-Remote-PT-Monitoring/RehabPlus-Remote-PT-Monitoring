@@ -23,9 +23,6 @@
         <x-admin.stat-card label="Avg Pain Level" :value="$avgPain" icon="bi-heart-pulse-fill" tone="danger" />
     </div>
 
-    {{-- TEMPORARY: deploy check for the Vercel URL. Remove after testing. --}}
-    <div class="text-center fw-bold my-5" style="font-size: 8rem; line-height: 1; color: #dc3545;">TEST</div>
-
     <div class="row g-4 mb-4">
         <div class="col-lg-8">
             <div class="card">
