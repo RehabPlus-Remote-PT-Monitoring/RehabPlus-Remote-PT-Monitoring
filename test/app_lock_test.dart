@@ -44,12 +44,13 @@ void main() {
   late FakeBiometrics bio;
   late DateTime now;
   late bool signedIn;
+  late String uid;
 
   AppLockService newService() => AppLockService(
     store: store,
     biometrics: bio,
     clock: () => now,
-    isSignedIn: () => signedIn,
+    currentUid: () => signedIn ? uid : null,
   );
 
   setUp(() {
@@ -57,6 +58,7 @@ void main() {
     bio = FakeBiometrics();
     now = DateTime(2026, 10, 18, 9);
     signedIn = true;
+    uid = 'patientA';
   });
 
   group('PinHasher', () {
@@ -232,16 +234,64 @@ void main() {
       expect(lock.isLocked, isTrue);
     });
 
-    test('disable (sign-out) forgets everything', () async {
+    test('disable (forgot PIN) deletes everything', () async {
       final lock = newService();
       await lock.setPin('2580');
       await lock.setBiometricsEnabled(true);
       await lock.verifyPin('1111');
-      await lock.disable(reason: 'sign-out');
+      await lock.disable(reason: 'forgot-pin');
       expect(store.values, isEmpty);
       expect(lock.isEnabled, isFalse);
       expect(lock.biometricsEnabled, isFalse);
       expect(lock.lockIfEnabled('startup'), isFalse);
+    });
+
+    test('disable with a uid works after signing out', () async {
+      final lock = newService();
+      await lock.setPin('2580');
+      signedIn = false;
+      lock.forget();
+      await lock.disable(reason: 'forgot-pin', uid: 'patientA');
+      expect(store.values, isEmpty);
+    });
+
+    test('sign-out keeps the PIN for the same patient only', () async {
+      final lock = newService();
+      await lock.load();
+      await lock.setPin('2580');
+      await lock.setBiometricsEnabled(true);
+
+      // Sign out, then restart the app signed out.
+      lock.forget();
+      signedIn = false;
+      expect(lock.isEnabled, isFalse);
+      final restarted = newService();
+      await restarted.load();
+      expect(restarted.isEnabled, isFalse);
+
+      // Another patient signs in: no lock for them.
+      signedIn = true;
+      uid = 'patientB';
+      await restarted.load();
+      expect(restarted.isEnabled, isFalse);
+      restarted.forget();
+
+      // The first patient signs in again: same PIN and fingerprint.
+      uid = 'patientA';
+      await restarted.load();
+      expect(restarted.isEnabled, isTrue);
+      expect(restarted.biometricsEnabled, isTrue);
+      expect(await restarted.verifyPin('2580'), PinCheck.correct);
+    });
+
+    test('a PIN saved by an older version moves to the patient', () async {
+      store.values['lock_pin'] = PinHasher.create('2580');
+      store.values['lock_biometrics'] = 'true';
+      final lock = newService();
+      await lock.load();
+      expect(lock.isEnabled, isTrue);
+      expect(lock.biometricsEnabled, isTrue);
+      expect(store.values.keys, everyElement(endsWith('_patientA')));
     });
 
     test('setup is offered after sign-in until set up or dismissed', () async {
@@ -253,8 +303,8 @@ void main() {
       // Another patient on the same phone still gets the offer.
       expect(await lock.shouldOfferSetup('patientB'), isTrue);
 
-      // "Not now" survives sign-out (which only clears the PIN).
-      await lock.disable(reason: 'sign-out');
+      // "Not now" survives deleting the PIN.
+      await lock.disable(reason: 'forgot-pin');
       expect(await lock.shouldOfferSetup('patientA'), isFalse);
 
       await lock.setPin('2580');
@@ -262,7 +312,7 @@ void main() {
     });
 
     test('an unreadable stored record turns the lock off', () async {
-      store.values['lock_pin'] = 'garbage';
+      store.values['lock_pin_patientA'] = 'garbage';
       final lock = newService();
       await lock.load();
       expect(lock.isEnabled, isFalse);

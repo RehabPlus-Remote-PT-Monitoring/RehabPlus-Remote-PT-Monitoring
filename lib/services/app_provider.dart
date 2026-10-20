@@ -251,9 +251,9 @@ class AppProvider extends ChangeNotifier {
         'step': 'reminder',
       }, e, st);
     }
-    // The PIN belongs to this patient: the next person to sign in on this
-    // phone must not inherit it. Never throws.
-    await AppLockService.I.disable(reason: 'sign-out');
+    // The PIN stays saved for this patient (it comes back when they sign in
+    // again) but is dropped from memory so the next person doesn't get it.
+    AppLockService.I.forget();
     await AuthService.I.signOut();
   }
 

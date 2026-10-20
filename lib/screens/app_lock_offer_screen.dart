@@ -37,6 +37,8 @@ class AppLockOfferScreen extends StatefulWidget {
   static Future<Widget> orDashboard() async {
     final uid = FirebaseAuth.instance.currentUser?.uid;
     if (uid == null) return const DashboardScreen();
+    // Brings back this patient's saved PIN after a sign-in.
+    await AppLockService.I.load();
     final offer = await AppLockService.I.shouldOfferSetup(uid);
     DiagnosticLogger.I.info('AppLock', 'Setup offer check', {'offer': offer});
     return offer ? AppLockOfferScreen(uid: uid) : const DashboardScreen();

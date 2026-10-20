@@ -48,12 +48,6 @@ Future<bool> runStartUp(AppProvider provider) async {
     'Load phone settings',
     AppSettings.I.load,
   );
-  // The optional PIN lock (phone-only, no Firebase needed).
-  final appLockLoaded = logger.timed(
-    'Startup',
-    'Load app lock',
-    AppLockService.I.load,
-  );
   AppLockRouter.attach();
   await logger.timed(
     'Startup',
@@ -63,6 +57,13 @@ Future<bool> runStartUp(AppProvider provider) async {
     ),
   );
   PushService.I.listen();
+  // The optional PIN lock is saved per patient, so it needs the signed-in
+  // uid from Firebase.
+  final appLockLoaded = logger.timed(
+    'Startup',
+    'Load app lock',
+    AppLockService.I.load,
+  );
 
   final signedIn = FirebaseAuth.instance.currentUser != null;
   await Future.wait([

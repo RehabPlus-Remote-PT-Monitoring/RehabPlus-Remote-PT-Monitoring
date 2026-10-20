@@ -1,6 +1,7 @@
 import 'dart:async';
 import 'dart:math' as math;
 
+import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:provider/provider.dart';
@@ -206,14 +207,17 @@ class _AppLockScreenState extends State<AppLockScreen> {
     );
   }
 
-  /// "Forgot PIN?" and too many wrong PINs: sign out (which also removes
-  /// the lock) and go to the login page.
+  /// "Forgot PIN?" and too many wrong PINs: delete the PIN (a normal
+  /// sign-out keeps it), sign out and go to the login page.
   Future<void> _signOutToLogin(String message) async {
     if (_leaving) return;
     _leaving = true;
     _logger.info(_tag, 'Signing out from the lock screen');
+    final uid = FirebaseAuth.instance.currentUser?.uid;
     try {
       await context.read<AppProvider>().signOut();
+      // Only once signed out: until then the lock must keep working.
+      await _lock.disable(reason: 'forgot-pin', uid: uid); // never throws
     } catch (e, st) {
       _logger.error(_tag, 'Sign-out from lock screen failed', null, e, st);
       _leaving = false;

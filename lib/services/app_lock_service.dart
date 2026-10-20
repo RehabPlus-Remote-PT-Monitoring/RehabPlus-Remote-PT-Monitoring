@@ -25,8 +25,12 @@ import '../core/diagnostic_logger.dart';
 ///   out, which also removes the lock. The same happens automatically after
 ///   [maxAttempts] wrong PINs in a row (the count survives restarts, so
 ///   killing the app doesn't reset it).
-/// - Signing out removes the PIN (see AppProvider), so the next patient who
-///   signs in on this phone doesn't inherit someone else's lock.
+/// - The PIN is kept per patient (storage keys end in the Firebase uid) and
+///   survives signing out: when the same patient signs in again on this
+///   phone, their PIN and fingerprint choice come back. Another patient who
+///   signs in on the phone never sees or inherits it. Sign-out only forgets
+///   it in memory ([forget]); "Forgot PIN" and too many wrong PINs delete
+///   it ([disable]) before signing out, so the patient can choose a new one.
 /// - If the secure storage can't be read, the lock is treated as off and
 ///   the failure is logged (error). flutter_secure_storage already wipes
 ///   unreadable data on its own, so this matches what it would do anyway,
@@ -45,11 +49,11 @@ class AppLockService extends ChangeNotifier with WidgetsBindingObserver {
     AppLockStore? store,
     BiometricAuth? biometrics,
     DateTime Function()? clock,
-    bool Function()? isSignedIn,
+    String? Function()? currentUid,
   }) : _store = store ?? SecureAppLockStore(),
        _biometrics = biometrics ?? LocalBiometricAuth(),
        _clock = clock ?? DateTime.now,
-       _isSignedIn = isSignedIn ?? _firebaseSignedIn;
+       _currentUid = currentUid ?? _firebaseUid;
 
   /// The app-wide instance.
   static final AppLockService I = AppLockService();
@@ -65,18 +69,28 @@ class AppLockService extends ChangeNotifier with WidgetsBindingObserver {
   /// Time in the background after which the PIN is asked again.
   static const Duration relockAfter = Duration(minutes: 1);
 
-  // Keys in secure storage.
+  // Keys in secure storage; the patient's uid is appended (see [_key]).
   static const String _kPin = 'lock_pin';
   static const String _kBiometrics = 'lock_biometrics';
   static const String _kFailed = 'lock_failed_attempts';
+  static const List<String> _allKeys = [_kPin, _kBiometrics, _kFailed];
 
   final AppLockStore _store;
   final BiometricAuth _biometrics;
   final DateTime Function() _clock;
-  final bool Function() _isSignedIn;
+  final String? Function() _currentUid;
   final DiagnosticLogger _logger = DiagnosticLogger.I;
 
-  static bool _firebaseSignedIn() => FirebaseAuth.instance.currentUser != null;
+  static String? _firebaseUid() => FirebaseAuth.instance.currentUser?.uid;
+
+  bool _isSignedIn() => _currentUid() != null;
+
+  /// The storage key for [base] for the signed-in patient, or null when
+  /// nobody is signed in.
+  String? _key(String base) {
+    final uid = _currentUid();
+    return uid == null ? null : '${base}_$uid';
+  }
 
   /// The stored PIN hash record (see [PinHasher]); null = lock is off.
   String? _pinRecord;
@@ -111,12 +125,23 @@ class AppLockService extends ChangeNotifier with WidgetsBindingObserver {
   /// splash's hand-over (seen on the phone).
   bool get needsLockScreen => _armed && _locked && _lockViewsShowing == 0;
 
-  /// Reads the saved lock from the phone. Never throws.
+  /// Reads the signed-in patient's saved lock from the phone (lock off when
+  /// nobody is signed in). Call at startup once Firebase is ready and again
+  /// after each sign-in. Never throws.
   Future<void> load() async {
+    _locked = false;
     try {
-      _pinRecord = await _store.read(_kPin);
-      _biometricsEnabled = await _store.read(_kBiometrics) == 'true';
-      _failedAttempts = int.tryParse(await _store.read(_kFailed) ?? '') ?? 0;
+      if (!_isSignedIn()) {
+        _pinRecord = null;
+        _biometricsEnabled = false;
+        _failedAttempts = 0;
+      } else {
+        await _migrateLegacyKeys();
+        _pinRecord = await _store.read(_key(_kPin)!);
+        _biometricsEnabled = await _store.read(_key(_kBiometrics)!) == 'true';
+        _failedAttempts =
+            int.tryParse(await _store.read(_key(_kFailed)!) ?? '') ?? 0;
+      }
       if (_pinRecord != null && !PinHasher.isValidRecord(_pinRecord!)) {
         // Unreadable record (e.g. a future format): turn the lock off
         // rather than lock the patient out with a PIN nothing can check.
@@ -135,6 +160,34 @@ class AppLockService extends ChangeNotifier with WidgetsBindingObserver {
       'biometrics': biometricsEnabled,
       'failedAttempts': _failedAttempts,
     });
+    notifyListeners();
+  }
+
+  /// Older versions kept one PIN for the phone under the bare keys; it
+  /// belongs to whoever is signed in now, so move it under their uid.
+  Future<void> _migrateLegacyKeys() async {
+    final legacyPin = await _store.read(_kPin);
+    if (legacyPin == null) return;
+    if (await _store.read(_key(_kPin)!) == null) {
+      for (final base in _allKeys) {
+        final value = await _store.read(base);
+        if (value != null) await _store.write(_key(base)!, value);
+      }
+      _logger.info(_tag, 'Moved PIN to per-patient storage');
+    }
+    for (final base in _allKeys) {
+      await _store.delete(base);
+    }
+  }
+
+  /// Forgets the lock in memory only, keeping it saved on the phone so it
+  /// comes back when the same patient signs in again. Used by sign-out.
+  void forget() {
+    _pinRecord = null;
+    _biometricsEnabled = false;
+    _failedAttempts = 0;
+    _locked = false;
+    _logger.info(_tag, 'Forgotten until next sign-in');
     notifyListeners();
   }
 
@@ -188,30 +241,37 @@ class AppLockService extends ChangeNotifier with WidgetsBindingObserver {
   static String _offerDismissedKey(String uid) => 'lock_offer_dismissed_$uid';
 
   /// Turns the lock on, or changes the PIN. Throws [ArgumentError] for a
-  /// malformed PIN, and rethrows a storage failure so the caller can tell
-  /// the patient it wasn't saved.
+  /// malformed PIN, [StateError] when nobody is signed in, and rethrows a
+  /// storage failure so the caller can tell the patient it wasn't saved.
   Future<void> setPin(String pin) async {
     if (!isValidPin(pin)) {
       throw ArgumentError('The PIN must be $pinLength digits');
     }
+    if (!_isSignedIn()) throw StateError('No patient signed in');
     final record = PinHasher.create(pin);
-    await _write(_kPin, record);
-    await _write(_kFailed, '0');
+    await _write(_key(_kPin), record);
+    await _write(_key(_kFailed), '0');
     _pinRecord = record;
     _failedAttempts = 0;
     _logger.info(_tag, 'PIN set');
     notifyListeners();
   }
 
-  /// Turns the lock off and forgets the PIN and fingerprint choice. Used by
-  /// Settings and by sign-out. Never throws: a failed delete is logged.
-  Future<void> disable({String reason = 'settings'}) async {
+  /// Turns the lock off and deletes the signed-in patient's PIN and
+  /// fingerprint choice from the phone. Used by Settings and by "Forgot
+  /// PIN" (not by a normal sign-out, see [forget]). Never throws: a failed
+  /// delete is logged. [uid] deletes that patient's lock instead, for
+  /// right after they were signed out.
+  Future<void> disable({String reason = 'settings', String? uid}) async {
+    uid ??= _currentUid();
     final wasEnabled = isEnabled;
     _pinRecord = null;
     _biometricsEnabled = false;
     _failedAttempts = 0;
     _locked = false;
-    for (final key in [_kPin, _kBiometrics, _kFailed]) {
+    for (final base in _allKeys) {
+      if (uid == null) break;
+      final key = '${base}_$uid';
       try {
         await _store.delete(key);
       } catch (e, st) {
@@ -237,7 +297,7 @@ class AppLockService extends ChangeNotifier with WidgetsBindingObserver {
     }
 
     _failedAttempts++;
-    await _writeQuietly(_kFailed, '$_failedAttempts');
+    await _writeQuietly(_key(_kFailed), '$_failedAttempts');
     _logger.warn(_tag, 'Wrong PIN', {'failedAttempts': _failedAttempts});
     notifyListeners();
     if (_failedAttempts >= maxAttempts) {
@@ -281,7 +341,7 @@ class AppLockService extends ChangeNotifier with WidgetsBindingObserver {
   /// Turns the fingerprint shortcut on or off (Settings checks the finger
   /// first). Rethrows a storage failure.
   Future<void> setBiometricsEnabled(bool on) async {
-    await _write(_kBiometrics, on ? 'true' : 'false');
+    await _write(_key(_kBiometrics), on ? 'true' : 'false');
     _biometricsEnabled = on;
     _logger.info(_tag, 'Biometrics ${on ? 'enabled' : 'disabled'}');
     notifyListeners();
@@ -356,10 +416,11 @@ class AppLockService extends ChangeNotifier with WidgetsBindingObserver {
   Future<void> _resetFailedAttempts() async {
     if (_failedAttempts == 0) return;
     _failedAttempts = 0;
-    await _writeQuietly(_kFailed, '0');
+    await _writeQuietly(_key(_kFailed), '0');
   }
 
-  Future<void> _write(String key, String value) async {
+  Future<void> _write(String? key, String value) async {
+    if (key == null) throw StateError('No patient signed in');
     try {
       await _store.write(key, value);
     } catch (e, st) {
@@ -369,7 +430,8 @@ class AppLockService extends ChangeNotifier with WidgetsBindingObserver {
   }
 
   /// For values whose loss is harmless for this run (the attempt counter).
-  Future<void> _writeQuietly(String key, String value) async {
+  Future<void> _writeQuietly(String? key, String value) async {
+    if (key == null) return;
     try {
       await _store.write(key, value);
     } catch (e, st) {
