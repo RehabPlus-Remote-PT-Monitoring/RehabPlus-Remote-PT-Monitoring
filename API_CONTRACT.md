@@ -20,12 +20,21 @@ Patients cannot sign up in the app. A therapist or admin creates every account
 from the dashboard:
 
 1. Create the Firebase Auth user (email + temporary password) with the Admin SDK
-   (`createUser`). Its `uid` is the key for everything below.
+   (`createUser`). Its `uid` is the key for everything below. Also pass the
+   patient's mobile number as `phoneNumber` in E.164 form (`+639171234567`):
+   the app's "Forgot password" texts a code to that number, so a patient
+   without it can't reset their password. When staff change a patient's
+   number, update it with `updateUser` too.
 2. Write `users/{uid}` with the role.
 3. For patients, write `patients/{uid}`.
 
 The app rejects any login whose `users/{uid}.role` isn't `patient`.
-Patients reset their password from the app (Firebase emails them a link).
+Patients reset their password from the app by text message: Firebase Phone
+Auth sends a 6-digit code to the Auth user's `phoneNumber`, the code signs
+them in, and the app sets the new password and signs out. A number that
+isn't on any patient login is refused (the empty user Firebase creates for
+it is deleted). The `phone` field in `patients/{uid}` is only for display and
+is not used for this.
 
 Dashboard staff sign in with Firebase Auth too (there is no SQL users table).
 The dashboard only lets in `admin`, `therapist` and `staff` roles. The first

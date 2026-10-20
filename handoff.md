@@ -32,7 +32,7 @@ Neither branch is merged into `main`.
 | Area | Status |
 |---|---|
 | Android package `com.rehabplus.app`, minSdk 28, Kotlin 2.3.0 | ✅ Builds |
-| Firebase sign-in (patients only, checked with `users/{uid}.role == 'patient'`) and forgot password (reset email) | ✅ Working |
+| Firebase sign-in (patients only, checked with `users/{uid}.role == 'patient'`) and forgot password (SMS code to the Auth `phoneNumber`, then a new password in the app; needs Blaze plan, Phone sign-in enabled, SHA fingerprints in Firebase, and the dashboard setting `phoneNumber`. **Not yet tested on the phone**) | ✅ Working |
 | Prescriptions loaded from `patients/{uid}/prescriptions` (active only) into the exercise list | ✅ Working |
 | Sessions saved to Firestore: full sessions after the pain dialog, partial ones (`endedEarly`) when the patient backs out | ✅ Working |
 | Profile: real data; phone and date of birth editable; Sign Out unregisters the push token | ✅ Working |

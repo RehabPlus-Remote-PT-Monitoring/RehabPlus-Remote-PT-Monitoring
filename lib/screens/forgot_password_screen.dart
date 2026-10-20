@@ -1,15 +1,25 @@
-import 'package:firebase_auth/firebase_auth.dart';
+import 'dart:async';
+
+import 'package:firebase_auth/firebase_auth.dart' show PhoneAuthCredential;
 import 'package:flutter/material.dart';
-import 'package:flutter/services.dart' show LengthLimitingTextInputFormatter;
+import 'package:flutter/services.dart'
+    show
+        FilteringTextInputFormatter,
+        LengthLimitingTextInputFormatter,
+        TextInputFormatter;
 import 'package:phosphor_flutter/phosphor_flutter.dart';
 
 import '../core/diagnostic_logger.dart';
 import '../services/auth_service.dart';
-import 'login_page.dart' show looksLikeEmail, maxEmailLength;
 
-// Firebase emails the user a reset link; the new password is chosen on
-// Firebase's page, so the app only needs to collect the email.
-enum _ForgotStage { enterEmail, success }
+// Reset by text message (see AuthService): the patient types their mobile
+// number, then the 6-digit code Firebase texts them, then a new password.
+// The code briefly signs them in; leaving before the end signs them out
+// again, and finishing signs them out so they log in with the new password.
+enum _ForgotStage { enterPhone, enterCode, newPassword, success }
+
+/// Digits in the SMS code.
+const int resetCodeLength = 6;
 
 class ForgotPasswordScreen extends StatefulWidget {
   const ForgotPasswordScreen({super.key});
@@ -22,12 +32,30 @@ class _ForgotPasswordScreenState extends State<ForgotPasswordScreen>
     with TickerProviderStateMixin {
   static const Color primaryTeal = Color(0xFF23A8AA);
   static const String _tag = 'ForgotPassword';
+  static const Duration _resendWait = Duration(seconds: 30);
   final DiagnosticLogger _logger = DiagnosticLogger.I;
 
-  _ForgotStage _stage = _ForgotStage.enterEmail;
+  _ForgotStage _stage = _ForgotStage.enterPhone;
 
-  final _emailCtrl = TextEditingController();
+  final _phoneCtrl = TextEditingController();
+  final _codeCtrl = TextEditingController();
+  final _passwordCtrl = TextEditingController();
+  final _confirmCtrl = TextEditingController();
   bool _isLoading = false;
+  bool _showPassword = false;
+
+  /// The number the code went to, in +63... form.
+  String? _phoneE164;
+  String? _verificationId;
+  int? _resendToken;
+
+  /// True once the code signed the patient in and until the password is
+  /// changed: leaving the screen in between must sign them out again.
+  bool _signedInForReset = false;
+
+  /// Seconds before "Resend code" can be tapped again.
+  int _resendIn = 0;
+  Timer? _resendTimer;
 
   // Stage transition animation
   late final AnimationController _stageCtrl;
@@ -74,7 +102,15 @@ class _ForgotPasswordScreenState extends State<ForgotPasswordScreen>
 
   @override
   void dispose() {
-    _emailCtrl.dispose();
+    if (_signedInForReset) {
+      // Left half-way: don't stay signed in without a known password.
+      unawaited(AuthService.I.cancelPasswordReset());
+    }
+    _resendTimer?.cancel();
+    _phoneCtrl.dispose();
+    _codeCtrl.dispose();
+    _passwordCtrl.dispose();
+    _confirmCtrl.dispose();
     _stageCtrl.dispose();
     _logoCtrl.dispose();
     _successCtrl.dispose();
@@ -96,51 +132,121 @@ class _ForgotPasswordScreenState extends State<ForgotPasswordScreen>
     // The keyboard's "done" key can call this while a request is running.
     if (_isLoading) return;
     switch (_stage) {
-      case _ForgotStage.enterEmail:
-        final email = _emailCtrl.text.trim();
-        if (!looksLikeEmail(email)) {
-          _showSnack('Enter a valid email address.', isError: true);
+      case _ForgotStage.enterPhone:
+        final phone = toE164(_phoneCtrl.text);
+        if (phone == null) {
+          _showSnack('Enter a valid mobile number, e.g. 0917 123 4567.',
+              isError: true);
           return;
         }
-        FocusScope.of(context).unfocus();
-        setState(() => _isLoading = true);
-        // The address itself is never logged.
-        _logger.info(_tag, 'Password reset requested');
-        try {
-          await AuthService.I.sendPasswordReset(email);
-        } on FirebaseAuthException catch (e) {
-          // Unknown emails are not reported (Firebase hides which accounts
-          // exist), so only input and network problems land here.
-          _logger.warn(_tag, 'Password reset failed', {'code': e.code});
-          if (!mounted) return;
-          setState(() => _isLoading = false);
-          _showSnack(
-            switch (e.code) {
-              'invalid-email' => 'Enter a valid email address.',
-              'network-request-failed' => 'No internet connection.',
-              'too-many-requests' => 'Too many attempts. Try again later.',
-              _ => 'Could not send the reset email. Please try again.',
-            },
-            isError: true,
-          );
-          return;
-        } catch (e, st) {
-          // Not a Firebase error (e.g. plugin missing): don't spin forever.
-          _logger.error(_tag, 'Password reset crashed', null, e, st);
-          if (!mounted) return;
-          setState(() => _isLoading = false);
-          _showSnack(
-            'Could not send the reset email. Please try again.',
-            isError: true,
-          );
+        _phoneE164 = phone;
+        await _sendCode();
+      case _ForgotStage.enterCode:
+        final code = _codeCtrl.text.trim();
+        final id = _verificationId;
+        if (code.length != resetCodeLength || id == null) {
+          _showSnack('Enter the $resetCodeLength-digit code from the text message.',
+              isError: true);
           return;
         }
-        _logger.info(_tag, 'Password reset email sent');
-        if (!mounted) return;
-        _transitionTo(_ForgotStage.success);
+        await _checkCode(AuthService.I.credentialFor(id, code));
+      case _ForgotStage.newPassword:
+        await _savePassword();
       case _ForgotStage.success:
         Navigator.pop(context);
     }
+  }
+
+  /// Texts the code to [_phoneE164] (again, when [_resendToken] is set).
+  Future<void> _sendCode() async {
+    FocusScope.of(context).unfocus();
+    setState(() => _isLoading = true);
+    // The number itself is never logged.
+    _logger.info(_tag, 'Reset code requested', {'resend': _resendToken != null});
+    final ResetCodeRequest request;
+    try {
+      request = await AuthService.I.sendResetCode(
+        _phoneE164!,
+        resendToken: _resendToken,
+        // Android read the SMS by itself: no need to type the code.
+        onAutoVerified: (credential) {
+          if (mounted && _stage == _ForgotStage.enterCode && !_isLoading) {
+            _checkCode(credential);
+          }
+        },
+      );
+    } on AuthFailure catch (e) {
+      if (!mounted) return;
+      setState(() => _isLoading = false);
+      _showSnack(e.message, isError: true);
+      return;
+    }
+    if (!mounted) return;
+    final credential = request.credential;
+    if (credential != null) {
+      // Number verified instantly by Android.
+      await _checkCode(credential);
+      return;
+    }
+    _verificationId = request.verificationId;
+    _resendToken = request.resendToken ?? _resendToken;
+    _startResendCountdown();
+    if (_stage == _ForgotStage.enterCode) {
+      setState(() => _isLoading = false);
+      _showSnack('A new code is on its way.');
+    } else {
+      _transitionTo(_ForgotStage.enterCode);
+    }
+  }
+
+  void _startResendCountdown() {
+    _resendTimer?.cancel();
+    setState(() => _resendIn = _resendWait.inSeconds);
+    _resendTimer = Timer.periodic(const Duration(seconds: 1), (t) {
+      if (!mounted) return t.cancel();
+      setState(() => _resendIn--);
+      if (_resendIn <= 0) t.cancel();
+    });
+  }
+
+  Future<void> _checkCode(PhoneAuthCredential credential) async {
+    FocusScope.of(context).unfocus();
+    setState(() => _isLoading = true);
+    try {
+      await AuthService.I.verifyResetCode(credential);
+    } on AuthFailure catch (e) {
+      if (!mounted) return;
+      setState(() => _isLoading = false);
+      _showSnack(e.message, isError: true);
+      return;
+    }
+    _signedInForReset = true;
+    if (!mounted) return;
+    _logger.info(_tag, 'Code accepted');
+    _transitionTo(_ForgotStage.newPassword);
+  }
+
+  Future<void> _savePassword() async {
+    final password = _passwordCtrl.text;
+    final problem = newPasswordProblem(password, _confirmCtrl.text);
+    if (problem != null) {
+      _showSnack(problem, isError: true);
+      return;
+    }
+    FocusScope.of(context).unfocus();
+    setState(() => _isLoading = true);
+    try {
+      await AuthService.I.setNewPassword(password);
+    } on AuthFailure catch (e) {
+      if (!mounted) return;
+      setState(() => _isLoading = false);
+      _showSnack(e.message, isError: true);
+      return;
+    }
+    _signedInForReset = false; // setNewPassword signed out
+    _logger.info(_tag, 'Password reset finished');
+    if (!mounted) return;
+    _transitionTo(_ForgotStage.success);
   }
 
   void _showSnack(String msg, {bool isError = false}) {
@@ -156,18 +262,25 @@ class _ForgotPasswordScreenState extends State<ForgotPasswordScreen>
 
   // ── Stage metadata ────────────────────────────────────────────────────────
   String get _stageTitle => switch (_stage) {
-        _ForgotStage.enterEmail => 'Forgot Password?',
-        _ForgotStage.success => 'Check Your Email',
+        _ForgotStage.enterPhone => 'Forgot Password?',
+        _ForgotStage.enterCode => 'Enter the Code',
+        _ForgotStage.newPassword => 'New Password',
+        _ForgotStage.success => 'Password Changed',
       };
 
   String get _stageSubtitle => switch (_stage) {
-        _ForgotStage.enterEmail => 'Enter your email and we\'ll send you a link to reset your password.',
-        _ForgotStage.success =>
-          'If an account exists for ${_emailCtrl.text.trim()}, a reset link is on its way.',
+        _ForgotStage.enterPhone =>
+          'Enter the mobile number on your account and we\'ll text you a code to reset your password.',
+        _ForgotStage.enterCode =>
+          'We sent a $resetCodeLength-digit code to ${_phoneCtrl.text.trim()}.',
+        _ForgotStage.newPassword => 'Choose a new password for your account.',
+        _ForgotStage.success => 'You can now sign in with your new password.',
       };
 
   String get _buttonLabel => switch (_stage) {
-        _ForgotStage.enterEmail => 'Send Reset Link',
+        _ForgotStage.enterPhone => 'Send Code',
+        _ForgotStage.enterCode => 'Verify Code',
+        _ForgotStage.newPassword => 'Save Password',
         _ForgotStage.success => 'Back to Login',
       };
 
@@ -361,17 +474,100 @@ class _ForgotPasswordScreenState extends State<ForgotPasswordScreen>
   // ── Stage content ─────────────────────────────────────────────────────────
   Widget _buildStageContent() {
     return switch (_stage) {
-      _ForgotStage.enterEmail => _buildEnterEmail(),
+      _ForgotStage.enterPhone => _buildEnterPhone(),
+      _ForgotStage.enterCode => _buildEnterCode(),
+      _ForgotStage.newPassword => _buildNewPassword(),
       _ForgotStage.success => _buildSuccess(),
     };
   }
 
-  Widget _buildEnterEmail() {
+  Widget _buildEnterPhone() {
     return _inputField(
-      controller: _emailCtrl,
-      hint: 'Email address',
-      icon: PhosphorIcons.envelopeSimple(),
-      keyboardType: TextInputType.emailAddress,
+      controller: _phoneCtrl,
+      hint: 'Mobile number (e.g. 0917 123 4567)',
+      icon: PhosphorIcons.phone(),
+      keyboardType: TextInputType.phone,
+      autofillHints: const [AutofillHints.telephoneNumber],
+      inputFormatters: [
+        FilteringTextInputFormatter.allow(RegExp(r'[0-9+\s\-()]')),
+        LengthLimitingTextInputFormatter(20),
+      ],
+    );
+  }
+
+  Widget _buildEnterCode() {
+    return Column(
+      children: [
+        _inputField(
+          controller: _codeCtrl,
+          hint: '$resetCodeLength-digit code',
+          icon: PhosphorIcons.chatCircleText(),
+          keyboardType: TextInputType.number,
+          autofillHints: const [AutofillHints.oneTimeCode],
+          inputFormatters: [
+            FilteringTextInputFormatter.digitsOnly,
+            LengthLimitingTextInputFormatter(resetCodeLength),
+          ],
+        ),
+        const SizedBox(height: 8),
+        Row(
+          mainAxisAlignment: MainAxisAlignment.spaceBetween,
+          children: [
+            TextButton(
+              onPressed: _isLoading
+                  ? null
+                  : () {
+                      _codeCtrl.clear();
+                      _resendTimer?.cancel();
+                      setState(() {
+                        _resendIn = 0;
+                        _verificationId = null;
+                        _resendToken = null;
+                      });
+                      _transitionTo(_ForgotStage.enterPhone);
+                    },
+              child: const Text('Change number'),
+            ),
+            TextButton(
+              onPressed: _isLoading || _resendIn > 0 ? null : _sendCode,
+              child: Text(_resendIn > 0 ? 'Resend in ${_resendIn}s' : 'Resend code'),
+            ),
+          ],
+        ),
+      ],
+    );
+  }
+
+  Widget _buildNewPassword() {
+    final toggle = IconButton(
+      tooltip: _showPassword ? 'Hide password' : 'Show password',
+      icon: Icon(
+        _showPassword ? Icons.visibility_off_outlined : Icons.visibility_outlined,
+        size: 20,
+        color: Colors.grey.shade500,
+      ),
+      onPressed: () => setState(() => _showPassword = !_showPassword),
+    );
+    return Column(
+      children: [
+        _inputField(
+          controller: _passwordCtrl,
+          hint: 'New password',
+          icon: PhosphorIcons.lockSimple(),
+          obscureText: !_showPassword,
+          suffix: toggle,
+          autofillHints: const [AutofillHints.newPassword],
+          textInputAction: TextInputAction.next,
+        ),
+        const SizedBox(height: 12),
+        _inputField(
+          controller: _confirmCtrl,
+          hint: 'Confirm new password',
+          icon: PhosphorIcons.lockSimple(),
+          obscureText: !_showPassword,
+          autofillHints: const [AutofillHints.newPassword],
+        ),
+      ],
     );
   }
 
@@ -395,12 +591,12 @@ class _ForgotPasswordScreenState extends State<ForgotPasswordScreen>
           ),
           const SizedBox(height: 16),
           const Text(
-            'Reset Link Sent!',
+            'All Set!',
             style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold, color: Colors.black87),
           ),
           const SizedBox(height: 8),
           Text(
-            'Open the link in your email to choose a new password, then sign in here.\nCheck your spam folder if you don\'t see it.',
+            'Your password was changed. Sign in with your email and new password.',
             textAlign: TextAlign.center,
             style: TextStyle(fontSize: 13, color: Colors.grey.shade500, height: 1.4),
           ),
@@ -416,21 +612,23 @@ class _ForgotPasswordScreenState extends State<ForgotPasswordScreen>
     bool obscureText = false,
     Widget? suffix,
     TextInputType? keyboardType,
+    Iterable<String>? autofillHints,
+    List<TextInputFormatter>? inputFormatters,
+    TextInputAction textInputAction = TextInputAction.done,
   }) {
-    final isEmail = keyboardType == TextInputType.emailAddress;
     return TextField(
       controller: controller,
       obscureText: obscureText,
       keyboardType: keyboardType,
-      // E-mail addresses (and passwords) must not be "corrected".
-      autocorrect: !(isEmail || obscureText),
-      enableSuggestions: !(isEmail || obscureText),
-      autofillHints: isEmail ? const [AutofillHints.email] : null,
-      textInputAction: TextInputAction.done,
-      onSubmitted: (_) => _onContinue(),
-      inputFormatters: [
-        if (isEmail) LengthLimitingTextInputFormatter(maxEmailLength),
-      ],
+      // Numbers, codes and passwords must not be "corrected".
+      autocorrect: false,
+      enableSuggestions: false,
+      autofillHints: autofillHints,
+      textInputAction: textInputAction,
+      onSubmitted: textInputAction == TextInputAction.done
+          ? (_) => _onContinue()
+          : null,
+      inputFormatters: inputFormatters,
       style: const TextStyle(fontSize: 14, color: Color(0xFF1A1A1A)),
       decoration: InputDecoration(
         hintText: hint,
@@ -451,3 +649,14 @@ class _ForgotPasswordScreenState extends State<ForgotPasswordScreen>
       ),
     );
   }}
+
+/// Why [password] (typed twice, the second time as [confirm]) can't be the
+/// new password, or null when it's fine.
+String? newPasswordProblem(String password, String confirm) {
+  if (password.length < minPasswordLength) {
+    return 'Use at least $minPasswordLength characters.';
+  }
+  if (password.trim().isEmpty) return 'The password can\'t be only spaces.';
+  if (password != confirm) return 'The passwords don\'t match.';
+  return null;
+}

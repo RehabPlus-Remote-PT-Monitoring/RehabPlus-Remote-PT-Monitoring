@@ -1,8 +1,11 @@
-// Pure helpers used by the UI screens: the e-mail pre-check on the login and
-// forgot-password pages, and the Settings > Report a problem payload.
+// Pure helpers used by the UI screens: the e-mail pre-check on the login
+// page, the phone number and new-password checks on the forgot-password page,
+// and the Settings > Report a problem payload.
 
 import 'package:flutter_test/flutter_test.dart';
 import 'package:rehabplus/core/diagnostic_logger.dart';
+import 'package:rehabplus/services/auth_service.dart';
+import 'package:rehabplus/screens/forgot_password_screen.dart';
 import 'package:rehabplus/screens/login_page.dart';
 import 'package:rehabplus/screens/settings_screen.dart';
 
@@ -22,6 +25,36 @@ DiagnosticEvent _event(
 );
 
 void main() {
+  group('toE164', () {
+    test('Philippine numbers get +63', () {
+      expect(toE164('09171234567'), '+639171234567');
+      expect(toE164('0917 123 4567'), '+639171234567');
+      expect(toE164('0917-123-4567'), '+639171234567');
+      expect(toE164('639171234567'), '+639171234567');
+      expect(toE164('9171234567'), '+639171234567');
+    });
+
+    test('numbers with a country code are kept', () {
+      expect(toE164('+63 917 123 4567'), '+639171234567');
+      expect(toE164('+1 (650) 555-1234'), '+16505551234');
+    });
+
+    test('rejects what cannot be a mobile number', () {
+      for (final bad in ['', '12345', '0917123456', 'abc', '+12', '091712345678']) {
+        expect(toE164(bad), isNull, reason: bad);
+      }
+    });
+  });
+
+  group('newPasswordProblem', () {
+    test('needs 6+ characters, not only spaces, typed the same twice', () {
+      expect(newPasswordProblem('abc12', 'abc12'), isNotNull);
+      expect(newPasswordProblem('      ', '      '), isNotNull);
+      expect(newPasswordProblem('abc123', 'abc124'), isNotNull);
+      expect(newPasswordProblem('abc123', 'abc123'), isNull);
+    });
+  });
+
   group('looksLikeEmail', () {
     test('accepts ordinary addresses', () {
       expect(looksLikeEmail('rob@rehabplus.com'), isTrue);
