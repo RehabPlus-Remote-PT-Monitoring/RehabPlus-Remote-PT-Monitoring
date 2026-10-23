@@ -174,11 +174,10 @@ for `unreadForStaff > 0`. The first time, Firestore returns an error with a
 link to create the collection-group index this needs. Open it once. Appointment and home-visit requests arrive as
 messages in the `clinic` thread.
 
-### Clinic-only records (the app can't read these)
+### Clinical records: assessments and notes (clinic-only), goals (patient can read)
 
-The security rules don't list these subcollections, so the app is denied.
-Only the dashboard (service account) reads and writes them. Each record also
-stores `therapistId`, `therapistName` (who wrote it) and `createdAt`.
+Only the dashboard (service account) writes these. Each record also stores
+`therapistId`, `therapistName` (who wrote it) and `createdAt`.
 
 | Path | Fields |
 | --- | --- |
@@ -186,8 +185,10 @@ stores `therapistId`, `therapistName` (who wrote it) and `createdAt`.
 | `patients/{uid}/goals/{id}` | `title` string (≤ 150), `details` string, `targetDate` timestamp \| null, `status` `active` \| `achieved` \| `discontinued`, `progress` int 0–100 (100 when achieved), `achievedAt` timestamp \| null, `updatedAt` timestamp |
 | `patients/{uid}/notes/{id}` | `topic` string (≤ 100), `text` string (≤ 2000), `noteDate` timestamp (start of the day) |
 
-If patients should see their goals in the app later, add a read rule for
-`goals` (and an app screen); nothing else needs to change.
+Assessments and notes have no security rule, so the app is denied. Goals are
+readable by the patient and their care team (never writable from the app)
+and are shown read-only under Profile > My Goals (`lib/screens/goals_screen.dart`).
+The app skips a goal with no title and treats an unknown `status` as `active`.
 
 ### `settings/clinic`: clinic contact details
 
@@ -233,13 +234,31 @@ to send notifications.
 | --- | --- | --- |
 | `messages` | bool | `false` = no push for new messages (`data.type: chat`) |
 | `exercises` | bool | `false` = no push for new exercises (`data.type: exercise_assigned`) |
+| `reminders` | bool | `false` = no push for the clinic's evening reminder (`data.type: reminder`). Optional: older app versions don't write it |
 | `updatedAt` | timestamp | Server time |
 
-Written by: the app (Settings > Notifications). No doc means both are on.
+Written by: the app (Settings > Notifications). No doc or a missing field
+means that kind is on.
 Laravel's `PatientNotifier::push()` checks it and skips the push (returns
 `null`) when that kind is off; the Notifications-page entry is still written.
-Other types are always pushed. The daily exercise reminder is scheduled on the
-phone and never involves Firestore.
+Other types are always pushed. The patient's own daily reminder (Settings >
+Reminders) is scheduled on the phone and never involves Firestore.
+
+### Evening exercise reminder (`type: reminder`)
+
+Every day at 6:05 PM Manila time a GitHub Actions schedule (org repo, `main`,
+`.github/workflows/exercise-reminders.yml`) calls the dashboard's
+`POST /cron/exercise-reminders` with `Authorization: Bearer <CRON_SECRET>`.
+Laravel's `ExerciseReminderService` then, for each non-archived patient:
+
+- takes the active prescriptions that are due today (Manila time): today is
+  one of `schedule.days`, or, with no days set, fewer completed sessions since
+  Monday than `frequencyPerWeek`;
+- drops those with a session today that wasn't `endedEarly`;
+- if any are left, writes `patients/{uid}/notifications/reminder-YYYY-MM-DD`
+  (`type: reminder`, title "Exercise reminder", body naming the exercises),
+  created with a must-not-exist precondition so a patient gets at most one a
+  day, and pushes `data: {type: 'reminder'}` unless `reminders` is `false`.
 
 ### `patients/{uid}/avatar/photo`: profile picture
 

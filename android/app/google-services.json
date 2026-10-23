@@ -1,0 +1,30 @@
+{
+  "project_info": {
+    "project_number": "756139475263",
+    "firebase_url": "https://rehabplus-80675-default-rtdb.asia-southeast1.firebasedatabase.app",
+    "project_id": "rehabplus-80675",
+    "storage_bucket": "rehabplus-80675.firebasestorage.app"
+  },
+  "client": [
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:756139475263:android:d51d9457f258e35ecfd38a",
+        "android_client_info": {
+          "package_name": "com.rehabplus.app"
+        }
+      },
+      "oauth_client": [],
+      "api_key": [
+        {
+          "current_key": "AIzaSyD8L2yrFU9Esb1lt8w4MYqmAOloHeWP0_g"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": []
+        }
+      }
+    }
+  ],
+  "configuration_version": "1"
+}

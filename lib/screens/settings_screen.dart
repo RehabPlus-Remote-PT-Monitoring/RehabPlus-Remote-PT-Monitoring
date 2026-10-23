@@ -243,6 +243,7 @@ class _SettingsScreenState extends State<SettingsScreen>
       'key': 'pushPreferences',
       'messages': next.messages,
       'exercises': next.exercises,
+      'reminders': next.reminders,
     });
     setState(() {
       _notif = next;
@@ -498,12 +499,7 @@ class _SettingsScreenState extends State<SettingsScreen>
                       notif.messages,
                       _savingNotif
                           ? null
-                          : (v) => _setNotif(
-                              NotificationPrefs(
-                                messages: v,
-                                exercises: notif.exercises,
-                              ),
-                            ),
+                          : (v) => _setNotif(notif.copyWith(messages: v)),
                     ),
                     _switch(
                       Icons.assignment_outlined,
@@ -511,12 +507,16 @@ class _SettingsScreenState extends State<SettingsScreen>
                       notif.exercises,
                       _savingNotif
                           ? null
-                          : (v) => _setNotif(
-                              NotificationPrefs(
-                                messages: notif.messages,
-                                exercises: v,
-                              ),
-                            ),
+                          : (v) => _setNotif(notif.copyWith(exercises: v)),
+                    ),
+                    _switch(
+                      Icons.alarm_rounded,
+                      'Clinic reminders',
+                      notif.reminders,
+                      _savingNotif
+                          ? null
+                          : (v) => _setNotif(notif.copyWith(reminders: v)),
+                      subtitle: "6 PM, if today's exercises aren't done yet",
                     ),
                     const Padding(
                       padding: EdgeInsets.fromLTRB(16, 0, 16, 12),

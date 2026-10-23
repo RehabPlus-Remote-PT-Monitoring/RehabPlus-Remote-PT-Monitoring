@@ -8,13 +8,29 @@ import 'firestore_diagnostics.dart';
 /// patients/{uid}/preferences/notifications so the dashboard can check it
 /// before sending a push. In-app Notifications-page entries are always kept.
 class NotificationPrefs {
-  const NotificationPrefs({this.messages = true, this.exercises = true});
+  const NotificationPrefs({
+    this.messages = true,
+    this.exercises = true,
+    this.reminders = true,
+  });
 
   /// Pushes for new messages from the therapist or clinic (type `chat`).
   final bool messages;
 
   /// Pushes for newly assigned exercises (type `exercise_assigned`).
   final bool exercises;
+
+  /// Pushes for the clinic's evening reminder when today's exercises aren't
+  /// done yet (type `reminder`). Separate from the phone's own daily
+  /// reminder in Settings > Reminders, which never involves the server.
+  final bool reminders;
+
+  NotificationPrefs copyWith({bool? messages, bool? exercises, bool? reminders}) =>
+      NotificationPrefs(
+        messages: messages ?? this.messages,
+        exercises: exercises ?? this.exercises,
+        reminders: reminders ?? this.reminders,
+      );
 
   /// Reads the stored document. A missing document or a non-bool value
   /// means "on" (the API_CONTRACT default), never "off": silently muting a
@@ -25,12 +41,16 @@ class NotificationPrefs {
         exercises: data?['exercises'] is bool
             ? data!['exercises'] as bool
             : true,
+        reminders: data?['reminders'] is bool
+            ? data!['reminders'] as bool
+            : true,
       );
 
   /// The document body the rules accept (plus the server timestamp).
   Map<String, Object> toFirestore() => {
     'messages': messages,
     'exercises': exercises,
+    'reminders': reminders,
     'updatedAt': FieldValue.serverTimestamp(),
   };
 }
@@ -64,6 +84,7 @@ class NotificationPrefsService {
       _logger.info('NotificationPrefs', 'Loaded', {
         'messages': prefs.messages,
         'exercises': prefs.exercises,
+        'reminders': prefs.reminders,
         'exists': snap.exists,
         'fromCache': snap.metadata.isFromCache,
       });
@@ -75,7 +96,7 @@ class NotificationPrefsService {
     }
   }
 
-  /// Saves both choices. Throws if it can't be saved within 15 seconds.
+  /// Saves the choices. Throws if it can't be saved within 15 seconds.
   ///
   /// This one IS awaited (unlike most writes in the app): Settings shows
   /// whether the change reached the clinic, because the dashboard reads it
@@ -87,7 +108,11 @@ class NotificationPrefsService {
       'NotificationPrefs',
       'Save',
       () => doc.set(prefs.toFirestore()).timeout(const Duration(seconds: 15)),
-      data: {'messages': prefs.messages, 'exercises': prefs.exercises},
+      data: {
+        'messages': prefs.messages,
+        'exercises': prefs.exercises,
+        'reminders': prefs.reminders,
+      },
     );
   }
 }

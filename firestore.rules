@@ -125,9 +125,10 @@ service cloud.firestore {
       match /preferences/{docId} {
         allow read: if isSelf(patientId) || caresFor(patientId);
         allow create, update: if isPatient(patientId) && docId == 'notifications'
-          && request.resource.data.keys().hasOnly(['messages', 'exercises', 'updatedAt'])
+          && request.resource.data.keys().hasOnly(['messages', 'exercises', 'reminders', 'updatedAt'])
           && request.resource.data.messages is bool
           && request.resource.data.exercises is bool
+          && (!('reminders' in request.resource.data) || request.resource.data.reminders is bool)
           && request.resource.data.updatedAt == request.time;
         allow delete: if false;
       }
@@ -150,6 +151,14 @@ service cloud.firestore {
         allow read: if isSelf(patientId) || caresFor(patientId);
         allow create: if isPatient(patientId) && validConsent(request.resource.data, version);
         allow update, delete: if false;
+      }
+
+      // Rehab goals: set by the therapist on the dashboard (service account),
+      // shown read-only in the app under Profile > My Goals. Assessments and
+      // notes stay clinic-only (no rule, so the app can't read them).
+      match /goals/{goalId} {
+        allow read: if isSelf(patientId) || caresFor(patientId);
+        allow write: if false;
       }
 
       // threadId is 'therapist' or 'clinic'.

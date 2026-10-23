@@ -389,6 +389,17 @@ void main() {
       });
       expect(bad.messages, isTrue);
       expect(bad.exercises, isFalse);
+      expect(bad.reminders, isTrue, reason: 'older app versions never saved it');
+    });
+
+    test('reminders round-trips and copyWith changes one switch only', () {
+      final off = NotificationPrefs.fromMap({'reminders': false});
+      expect(off.reminders, isFalse);
+      expect(off.toFirestore()['reminders'], isFalse);
+      final changed = off.copyWith(messages: false);
+      expect(changed.messages, isFalse);
+      expect(changed.exercises, isTrue);
+      expect(changed.reminders, isFalse);
     });
   });
 

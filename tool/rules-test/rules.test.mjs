@@ -249,3 +249,54 @@ describe('4. patients can only add one to the staff unread count', () => {
     await assertFails(setDoc(doc(db, 'patients/p1/threads/therapist/messages/m'), message('p1', 'staff')));
   });
 });
+
+describe('5. goals: patients read their own, nobody writes through the app', () => {
+  beforeEach(async () => {
+    await env.withSecurityRulesDisabled(async (ctx) => {
+      await setDoc(doc(ctx.firestore(), 'patients/p1/goals/g1'), {
+        title: 'Walk 1 km', status: 'active', progress: 40,
+      });
+    });
+  });
+
+  test('the patient and their therapist can read p1\'s goals', async () => {
+    await assertSucceeds(getDoc(doc(as('p1'), 'patients/p1/goals/g1')));
+    await assertSucceeds(getDoc(doc(as('thA'), 'patients/p1/goals/g1')));
+    await assertSucceeds(getDoc(doc(as('adm'), 'patients/p1/goals/g1')));
+  });
+
+  test('other patients, other therapists, front desk and strangers cannot', async () => {
+    for (const uid of ['p2', 'thB', 'desk', 'stranger']) {
+      await assertFails(getDoc(doc(as(uid), 'patients/p1/goals/g1')));
+    }
+  });
+
+  test('nobody can create, edit or delete a goal from the app', async () => {
+    for (const uid of ['p1', 'thA', 'adm']) {
+      await assertFails(setDoc(doc(as(uid), 'patients/p1/goals/g2'), { title: 'x' }));
+      await assertFails(updateDoc(doc(as(uid), 'patients/p1/goals/g1'), { progress: 100 }));
+      await assertFails(deleteDoc(doc(as(uid), 'patients/p1/goals/g1')));
+    }
+  });
+
+  test('assessments and notes stay clinic-only', async () => {
+    await assertFails(getDoc(doc(as('p1'), 'patients/p1/assessments/a1')));
+    await assertFails(getDoc(doc(as('p1'), 'patients/p1/notes/n1')));
+  });
+});
+
+describe('6. push preferences: the clinic-reminder switch', () => {
+  const prefs = (extra) => ({ messages: true, exercises: true, updatedAt: serverTimestamp(), ...extra });
+
+  test('the app can save reminders on/off, and older app versions without it still work', async () => {
+    const db = as('p1');
+    await assertSucceeds(setDoc(doc(db, 'patients/p1/preferences/notifications'), prefs({ reminders: false })));
+    await assertSucceeds(setDoc(doc(db, 'patients/p1/preferences/notifications'), prefs({})));
+  });
+
+  test('reminders must be a bool, and no other new fields are accepted', async () => {
+    const db = as('p1');
+    await assertFails(setDoc(doc(db, 'patients/p1/preferences/notifications'), prefs({ reminders: 'no' })));
+    await assertFails(setDoc(doc(db, 'patients/p1/preferences/notifications'), prefs({ marketing: true })));
+  });
+});

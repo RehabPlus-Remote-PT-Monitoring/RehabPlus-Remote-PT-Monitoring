@@ -8,6 +8,7 @@ import '../services/app_provider.dart';
 import '../models/session.dart';
 import 'login_page.dart';
 import 'edit_profile_screen.dart';
+import 'goals_screen.dart';
 import 'privacy_legal_screen.dart';
 import 'settings_screen.dart';
 import '../widgets/profile_avatar.dart';
@@ -126,6 +127,8 @@ class _ProfileScreenState extends State<ProfileScreen> {
                 ),
                 const SizedBox(height: 14),
                 _buildExerciseBreakdownCard(sessions),
+                const SizedBox(height: 14),
+                _buildGoalsCard(),
                 const SizedBox(height: 14),
                 _buildSettingsCard(),
                 const SizedBox(height: 14),
@@ -379,6 +382,32 @@ class _ProfileScreenState extends State<ProfileScreen> {
             style: const TextStyle(fontWeight: FontWeight.w500, fontSize: 12, color: Colors.black54),
           ),
         ],
+      ),
+    );
+  }
+
+  /// Opens My Goals: the rehab goals the therapist set on the dashboard.
+  Widget _buildGoalsCard() {
+    return Padding(
+      padding: const EdgeInsets.symmetric(horizontal: 16),
+      child: Container(
+        decoration: BoxDecoration(
+          color: Colors.white,
+          borderRadius: BorderRadius.circular(20),
+          boxShadow: [BoxShadow(color: Colors.black.withValues(alpha: 0.05), blurRadius: 12, offset: const Offset(0, 3))],
+        ),
+        child: ListTile(
+          onTap: () => Navigator.push(context, MaterialPageRoute(builder: (_) => const GoalsScreen())),
+          contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 6),
+          leading: Container(
+            padding: const EdgeInsets.all(7),
+            decoration: BoxDecoration(color: primaryTeal.withValues(alpha: 0.1), borderRadius: BorderRadius.circular(9)),
+            child: const Icon(Icons.flag_outlined, size: 16, color: primaryTeal),
+          ),
+          title: const Text('My Goals', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 14, color: Colors.black87)),
+          subtitle: const Text('The recovery goals your therapist set for you', style: TextStyle(fontSize: 12, color: Colors.black45)),
+          trailing: const Icon(Icons.chevron_right_rounded, color: Colors.black26, size: 20),
+        ),
       ),
     );
   }

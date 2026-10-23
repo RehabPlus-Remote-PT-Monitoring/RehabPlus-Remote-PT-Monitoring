@@ -49,8 +49,11 @@ coverage/
 /linux/flutter/ephemeral/
 /windows/flutter/ephemeral/
 
-# Firebase (contains API keys)
-firebase_options.dart
+# Firebase client config (lib/firebase_options.dart and
+# android/app/google-services.json) IS committed: teammates need it to build,
+# and it holds no secrets. Its API key only identifies the project; access is
+# controlled by firestore.rules. Never commit a service-account key: those
+# patterns are blocked below.
 
 # Kilo
 .kilo/
@@ -82,9 +85,6 @@ Desktop.ini
 tool/seed/node_modules/
 firebase-debug.log
 
-
-# Firebase Android config (contains API keys)
-android/app/google-services.json
 
 # Node
 node_modules/
