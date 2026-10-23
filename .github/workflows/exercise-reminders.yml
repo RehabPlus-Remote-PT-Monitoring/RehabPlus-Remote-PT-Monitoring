@@ -1,0 +1,72 @@
+# Evening exercise reminders for RehabPlus patients.
+#
+# Every day at 6:05 PM Manila time (10:05 UTC) this calls the clinic
+# dashboard, which sends a reminder (Notifications-page entry + push) to each
+# patient who still has exercises due today and hasn't done them. The rules
+# live in laravel-app/app/Services/Patient/ExerciseReminderService.php on the
+# web/messaging branch.
+#
+# It lives on main because GitHub only runs scheduled workflows from the
+# default branch. The dashboard itself is deployed from web/messaging.
+#
+# Needs the repository secret CRON_SECRET (Settings -> Secrets and variables
+# -> Actions). The deploy workflow on web/messaging passes the same secret to
+# the dashboard, so redeploy the dashboard after changing it.
+#
+# Run it by hand from the Actions tab ("Run workflow"); tick "dry run" to see
+# how many patients are due without sending anything. The dashboard refuses
+# calls before 6 PM Manila time (HTTP 409) and sends at most one reminder per
+# patient per day, so a retry or a second run is harmless.
+
+name: Exercise reminders
+
+on:
+  schedule:
+    - cron: '5 10 * * *'
+  workflow_dispatch:
+    inputs:
+      dry_run:
+        description: 'Dry run: count who is due, send nothing'
+        type: boolean
+        default: false
+
+permissions: {}
+
+concurrency:
+  group: exercise-reminders
+  cancel-in-progress: false
+
+jobs:
+  remind:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    env:
+      DASHBOARD_URL: https://rehab-plus-remote-pt-monitoring.vercel.app
+      CRON_SECRET: ${{ secrets.CRON_SECRET }}
+      DRY_RUN: ${{ inputs.dry_run && '1' || '0' }}
+    steps:
+      - name: Send reminders
+        run: |
+          if [ -z "$CRON_SECRET" ]; then
+            echo "::error::The CRON_SECRET repository secret is not set."
+            exit 1
+          fi
+          # Retries cover a cold start or a brief network error; the
+          # dashboard never sends a patient two reminders on one day.
+          status=$(curl --silent --show-error --max-time 60 \
+            --retry 3 --retry-delay 20 --retry-all-errors \
+            --output response.json --write-out '%{http_code}' \
+            --request POST \
+            --header "Authorization: Bearer $CRON_SECRET" \
+            --header 'Accept: application/json' \
+            "$DASHBOARD_URL/cron/exercise-reminders?dry_run=$DRY_RUN")
+          echo "HTTP $status"
+          cat response.json; echo
+          if [ "$status" != "200" ]; then
+            echo "::error::The dashboard answered HTTP $status."
+            exit 1
+          fi
+          echo "### Exercise reminders" >> "$GITHUB_STEP_SUMMARY"
+          echo '```json' >> "$GITHUB_STEP_SUMMARY"
+          cat response.json >> "$GITHUB_STEP_SUMMARY"
+          echo '```' >> "$GITHUB_STEP_SUMMARY"
