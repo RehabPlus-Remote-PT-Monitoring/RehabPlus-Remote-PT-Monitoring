@@ -1221,6 +1221,84 @@ html.dark-mode{
             animation-duration:260ms;
         }
 
+        /* "DO YOU WANT TO PROCEED?" POP-UP (resources/js/confirm.js) */
+
+        .confirm-dialog{
+            width:min(30rem, calc(100vw - 2rem));
+            padding:1.5rem;
+            border:1px solid var(--border);
+            border-radius:var(--radius);
+            background:var(--card);
+            color:var(--text);
+            box-shadow:0 24px 48px rgba(15,23,42,.22);
+        }
+
+        .confirm-dialog[open]{
+            animation:confirm-in 180ms var(--ease-out);
+        }
+
+        .confirm-dialog::backdrop{
+            background:rgba(15,23,42,.45);
+        }
+
+        @keyframes confirm-in{
+            from{ opacity:0; transform:scale(.96) translateY(6px); }
+        }
+
+        .confirm-title{
+            margin:0 0 .5rem;
+            font-size:1.125rem;
+            font-weight:600;
+        }
+
+        .confirm-message{
+            margin:0 0 1rem;
+            color:var(--muted);
+        }
+
+        .confirm-changes{
+            margin:0 0 1rem;
+            padding:.75rem;
+            list-style:none;
+            border-radius:var(--radius-sm);
+            background:var(--bg);
+            font-size:.875rem;
+            max-height:40vh;
+            overflow:auto;
+        }
+
+        .confirm-changes li{
+            display:flex;
+            flex-wrap:wrap;
+            gap:.25rem .5rem;
+            align-items:baseline;
+            overflow-wrap:anywhere;
+        }
+
+        .confirm-changes li + li{
+            margin-top:.5rem;
+        }
+
+        .confirm-field{
+            flex-basis:100%;
+            font-weight:600;
+        }
+
+        .confirm-from{
+            color:var(--muted);
+            text-decoration:line-through;
+        }
+
+        .confirm-arrow{
+            color:var(--muted);
+        }
+
+        .confirm-buttons{
+            display:flex;
+            justify-content:flex-end;
+            gap:.5rem;
+        }
+
         /* ACCESSIBILITY PREFERENCES */
 
         @media (prefers-reduced-motion:reduce){
@@ -1241,6 +1319,11 @@ html.dark-mode{
                 @starting-style{
                     transform:none;
                 }
+            }
+
+            /* Pop-up appears in place, no zoom. */
+            .confirm-dialog[open]{
+                animation:none;
             }
 
             /* Drawer appears in place; only the dimming fades. */

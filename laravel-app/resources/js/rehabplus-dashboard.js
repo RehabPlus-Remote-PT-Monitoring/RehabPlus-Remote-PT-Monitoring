@@ -1,3 +1,4 @@
+import { confirmSubmit, needsConfirmation } from './confirm.js';
 import { dragOffset, swipeCloses, swipeGesture } from './swipe.js';
 
 const searchInput = document.getElementById('patientSearch');
@@ -237,15 +238,26 @@ if (sidebar && navToggle) {
  * Page actions declared with data- attributes. The Content-Security-Policy
  * blocks inline handlers (onclick="..."), so views use these instead:
  *
- *   <form data-confirm="Delete this?">      asks before submitting
+ *   <form data-confirm="Delete this?">      asks "Do you want to proceed?" first
+ *   <form data-confirm-changes>              same, listing the changed fields (confirm.js)
  *   <select data-autosubmit>                 submits its form when changed
  *   <button data-print>                      opens the print dialog
  *   <button data-show="id" data-hide="id">   shows / hides elements by id
  */
-document.addEventListener('submit', (event) => {
-    const message = event.target.dataset?.confirm;
-    if (message && !window.confirm(message)) {
-        event.preventDefault();
+document.addEventListener('submit', async (event) => {
+    const form = event.target;
+    if (!needsConfirmation(form)) {
+        return;
+    }
+    if (form.dataset.confirmed) {
+        delete form.dataset.confirmed; // the user already said yes: let it through once
+        return;
+    }
+    event.preventDefault();
+    const submitter = event.submitter;
+    if (await confirmSubmit(form)) {
+        form.dataset.confirmed = '1';
+        form.requestSubmit(submitter);
     }
 });
 

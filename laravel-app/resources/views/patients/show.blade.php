@@ -41,11 +41,11 @@
             @if ($canManage)
                 <a href="{{ route('patients.edit', $patient['uid']) }}" class="btn btn-outline-secondary"><i class="bi bi-pencil me-1"></i>Edit</a>
                 @if ($patient['archived'])
-                    <form method="POST" action="{{ route('patients.restore', $patient['uid']) }}">@csrf
+                    <form method="POST" action="{{ route('patients.restore', $patient['uid']) }}" data-confirm="Restore {{ $patient['name'] }}? Their app login is enabled again and they show up in the patient list.">@csrf
                         <button class="btn btn-outline-success"><i class="bi bi-arrow-counterclockwise me-1"></i>Restore</button>
                     </form>
                 @else
-                    <form method="POST" action="{{ route('patients.archive', $patient['uid']) }}" data-confirm="Archive this patient? Their app login is disabled; their records are kept and you can restore them later.">@csrf
+                    <form method="POST" action="{{ route('patients.archive', $patient['uid']) }}" data-confirm="Archive {{ $patient['name'] }}? Their app login is disabled; their records are kept and you can restore them later." data-confirm-danger>@csrf
                         <button class="btn btn-outline-danger"><i class="bi bi-archive me-1"></i>Archive</button>
                     </form>
                 @endif
@@ -58,7 +58,7 @@
     @if ($canManage)
         <details class="mb-4" @if ($errors->has('password')) open @endif>
             <summary class="small text-muted mb-2" style="cursor:pointer;"><i class="bi bi-key me-1"></i>Set a new temporary app password</summary>
-            <form method="POST" action="{{ route('patients.password', $patient['uid']) }}" class="card card-body shadow-sm border-0">
+            <form method="POST" action="{{ route('patients.password', $patient['uid']) }}" class="card card-body shadow-sm border-0" data-confirm="Set a new app password for {{ $patient['name'] }}? Their current password stops working straight away.">
                 @csrf
                 <p class="text-muted small">Use this if the patient can't receive the "Forgot password" email. Give them the new password; they can change it in the app.</p>
                 <div class="row g-2 align-items-end">

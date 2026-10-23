@@ -2,11 +2,13 @@
 // (jsdom). The script wires itself to the page when imported, so the page is
 // built once and the script imported once; beforeEach resets the state.
 import { afterEach, beforeAll, beforeEach, describe, expect, test, vi } from 'vitest';
+import { answer, installDialogPolyfill, openDialog } from './dialog.js';
 
 const WIDTH = 280;
 let phoneLayoutListener;
 
 beforeAll(async () => {
+    installDialogPolyfill();
     document.head.innerHTML = '<meta name="theme-color" id="themeColor" content="">';
     document.body.innerHTML = `
         <header id="topbar"><button id="navToggle" aria-expanded="false">Menu</button>
@@ -183,17 +185,37 @@ describe('phone menu', () => {
 });
 
 describe('page actions', () => {
-    test('data-confirm asks before submitting', () => {
-        window.confirm = vi.fn(() => false);
-        const blocked = new Event('submit', { bubbles: true, cancelable: true });
-        $('confirmForm').dispatchEvent(blocked);
-        expect(window.confirm).toHaveBeenCalledWith('Delete this?');
-        expect(blocked.defaultPrevented).toBe(true);
+    test('data-confirm asks "Do you want to proceed?" and only submits on Proceed', async () => {
+        const form = $('confirmForm');
+        const resubmit = vi.spyOn(form, 'requestSubmit').mockImplementation(() => {});
 
-        window.confirm = vi.fn(() => true);
-        const allowed = new Event('submit', { bubbles: true, cancelable: true });
-        $('confirmForm').dispatchEvent(allowed);
-        expect(allowed.defaultPrevented).toBe(false);
+        const first = new Event('submit', { bubbles: true, cancelable: true });
+        form.dispatchEvent(first);
+        expect(first.defaultPrevented).toBe(true); // held until answered
+        expect(openDialog().querySelector('p').textContent).toBe('Delete this?');
+        answer('cancel');
+        await vi.waitFor(() => expect(openDialog()).toBeNull());
+        expect(resubmit).not.toHaveBeenCalled();
+
+        form.dispatchEvent(new Event('submit', { bubbles: true, cancelable: true }));
+        answer('proceed');
+        await vi.waitFor(() => expect(resubmit).toHaveBeenCalled());
+
+        // The re-submission goes through once, then the next one asks again.
+        const confirmed = new Event('submit', { bubbles: true, cancelable: true });
+        form.dispatchEvent(confirmed);
+        expect(confirmed.defaultPrevented).toBe(false);
+        const again = new Event('submit', { bubbles: true, cancelable: true });
+        form.dispatchEvent(again);
+        expect(again.defaultPrevented).toBe(true);
+        answer('cancel');
+    });
+
+    test('forms without data-confirm submit straight away', () => {
+        const plain = new Event('submit', { bubbles: true, cancelable: true });
+        $('autoForm').dispatchEvent(plain);
+        expect(plain.defaultPrevented).toBe(false);
+        expect(openDialog()).toBeNull();
     });
 
     test('data-autosubmit submits its form when changed', () => {

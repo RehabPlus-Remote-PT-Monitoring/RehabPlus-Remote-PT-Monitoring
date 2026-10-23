@@ -214,4 +214,29 @@ class PatientTest extends TestCase
             ->assertSee('Climb stairs')
             ->assertSee('50% achieved');
     }
+
+    public function test_changing_a_patient_asks_do_you_want_to_proceed_first(): void
+    {
+        $therapist = $this->staff('therapist', 'thA', 'Dr. Ana');
+
+        // Edit form: lists the changed fields against the saved values.
+        $this->actingAs($therapist)->get('/patients/pOne/edit')->assertOk()
+            ->assertSee("data-confirm-changes=\"Save these changes to Olive One's profile?\"", false)
+            ->assertSee('data-initial="Olive One"', false)
+            ->assertSee('data-initial="ACL"', false);
+
+        // Archive (red Proceed) and new password on the profile page.
+        $this->actingAs($therapist)->get('/patients/pOne')->assertOk()
+            ->assertSee('data-confirm="Archive Olive One?', false)
+            ->assertSee('data-confirm-danger', false)
+            ->assertSee('data-confirm="Set a new app password for Olive One?', false);
+
+        // Restore on an archived patient.
+        $this->actingAs($therapist)->get('/patients/pOld')->assertOk()
+            ->assertSee('data-confirm="Restore Otto Archived?', false);
+
+        // Creating a patient isn't a change to confirm.
+        $this->actingAs($therapist)->get('/patients/create')->assertOk()
+            ->assertDontSee('data-confirm', false);
+    }
 }

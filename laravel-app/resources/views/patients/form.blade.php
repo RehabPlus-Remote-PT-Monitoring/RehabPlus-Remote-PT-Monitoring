@@ -20,7 +20,8 @@
 
     @include('partials.flash')
 
-    <form method="POST" action="{{ $patient ? route('patients.update', $patient['uid']) : route('patients.store') }}" class="card shadow-sm border-0" style="max-width: 900px;">
+    <form method="POST" action="{{ $patient ? route('patients.update', $patient['uid']) : route('patients.store') }}" class="card shadow-sm border-0" style="max-width: 900px;"
+        @if ($patient) data-confirm-changes="Save these changes to {{ $patient['name'] }}'s profile?" @endif>
         @csrf
         @if ($patient)
             @method('PUT')
@@ -30,11 +31,11 @@
             <div class="row g-3">
                 <div class="col-md-6">
                     <label for="name" class="form-label small fw-semibold">Full name</label>
-                    <input id="name" type="text" name="name" class="form-control" value="{{ old('name', $patient['name'] ?? '') }}" required maxlength="100">
+                    <input id="name" type="text" name="name" class="form-control" @if ($patient) data-initial="{{ $patient['name'] ?? '' }}" @endif value="{{ old('name', $patient['name'] ?? '') }}" required maxlength="100">
                 </div>
                 <div class="col-md-6">
                     <label for="condition" class="form-label small fw-semibold">Condition</label>
-                    <input id="condition" type="text" name="condition" class="form-control" value="{{ old('condition', $patient['condition'] ?? '') }}" required maxlength="150" placeholder="e.g. MCL sprain, post-acute">
+                    <input id="condition" type="text" name="condition" class="form-control" @if ($patient) data-initial="{{ $patient['condition'] ?? '' }}" @endif value="{{ old('condition', $patient['condition'] ?? '') }}" required maxlength="150" placeholder="e.g. MCL sprain, post-acute">
                 </div>
 
                 @if (! $patient)
@@ -62,17 +63,17 @@
 
                 <div class="col-md-3">
                     <label for="phone" class="form-label small fw-semibold">Phone</label>
-                    <input id="phone" type="text" name="phone" class="form-control" value="{{ old('phone', $patient['phone'] ?? '') }}" maxlength="30">
+                    <input id="phone" type="text" name="phone" class="form-control" @if ($patient) data-initial="{{ $patient['phone'] ?? '' }}" @endif value="{{ old('phone', $patient['phone'] ?? '') }}" maxlength="30">
                 </div>
                 <div class="col-md-3">
                     <label for="dob" class="form-label small fw-semibold">Date of birth</label>
-                    <input id="dob" type="text" name="dob" class="form-control" value="{{ old('dob', $patient['dob'] ?? '') }}" maxlength="30" placeholder="e.g. 1990-05-14">
+                    <input id="dob" type="text" name="dob" class="form-control" @if ($patient) data-initial="{{ $patient['dob'] ?? '' }}" @endif value="{{ old('dob', $patient['dob'] ?? '') }}" maxlength="30" placeholder="e.g. 1990-05-14">
                 </div>
 
                 @if ($me->isAdmin())
                     <div class="col-md-6">
                         <label for="therapist_id" class="form-label small fw-semibold">Assigned therapist</label>
-                        <select id="therapist_id" name="therapist_id" class="form-select">
+                        <select id="therapist_id" name="therapist_id" class="form-select" @if ($patient) data-initial="{{ $patient['therapistId'] ?? '' }}" @endif>
                             <option value="">Unassigned</option>
                             @foreach ($therapists as $t)
                                 <option value="{{ $t['uid'] }}" @selected(old('therapist_id', $patient['therapistId'] ?? '') === $t['uid'])>{{ $t['name'] }}</option>
@@ -91,11 +92,11 @@
 
                 <div class="col-12">
                     <label for="medical_summary" class="form-label small fw-semibold">Medical summary</label>
-                    <textarea id="medical_summary" name="medical_summary" class="form-control" rows="3" maxlength="2000">{{ old('medical_summary', $patient['medicalSummary'] ?? '') }}</textarea>
+                    <textarea id="medical_summary" name="medical_summary" class="form-control" @if ($patient) data-initial="{{ $patient['medicalSummary'] ?? '' }}" @endif rows="3" maxlength="2000">{{ old('medical_summary', $patient['medicalSummary'] ?? '') }}</textarea>
                 </div>
                 <div class="col-12">
                     <label for="therapy_plan" class="form-label small fw-semibold">Therapy plan</label>
-                    <textarea id="therapy_plan" name="therapy_plan" class="form-control" rows="3" maxlength="2000">{{ old('therapy_plan', $patient['therapyPlan'] ?? '') }}</textarea>
+                    <textarea id="therapy_plan" name="therapy_plan" class="form-control" @if ($patient) data-initial="{{ $patient['therapyPlan'] ?? '' }}" @endif rows="3" maxlength="2000">{{ old('therapy_plan', $patient['therapyPlan'] ?? '') }}</textarea>
                 </div>
             </div>
         </div>
