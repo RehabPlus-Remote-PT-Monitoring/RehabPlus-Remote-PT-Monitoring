@@ -300,3 +300,78 @@ describe('6. push preferences: the clinic-reminder switch', () => {
     await assertFails(setDoc(doc(db, 'patients/p1/preferences/notifications'), prefs({ marketing: true })));
   });
 });
+
+describe('7. sessions: every field the dashboard shows is type- and size-checked', () => {
+  // The exact shape ExerciseSession.toFirestore() writes after a camera session.
+  const appSession = (extra = {}) => ({
+    exerciseId: 'kneeExtension', exerciseName: 'Knee Extension', prescriptionId: 'rx1',
+    startTime: Timestamp.now(), endTime: Timestamp.now(), completedReps: 9, completedSets: 1,
+    targetReps: 10, targetSets: 1, repComplianceScores: [1, 1, 0, 1], overallCompliance: 0.75,
+    notes: '1 rep(s) rejected for poor form or range', rejectedReps: 1, painLevel: 3,
+    painNote: null, outsideSchedule: false, endedEarly: true, createdAt: serverTimestamp(), ...extra,
+  });
+  const add = (extra) => setDoc(doc(as('p1'), `patients/p1/sessions/n${Math.random()}`), appSession(extra));
+
+  test('what the app writes is accepted, including unassigned practice and an empty session', async () => {
+    await assertSucceeds(add({}));
+    await assertSucceeds(add({ prescriptionId: null, notes: null, endTime: null, repComplianceScores: [], overallCompliance: 0 }));
+    await assertSucceeds(add({ overallCompliance: 1 })); // whole number, still a valid score
+    await assertSucceeds(setDoc(doc(as('p1'), 'patients/p1/sessions/min'), session())); // older, minimal shape
+  });
+
+  test('a map or list where text is expected is refused (it broke the dashboard page)', async () => {
+    await assertFails(add({ exerciseName: { a: 'b' } }));
+    await assertFails(add({ prescriptionId: ['x'] }));
+    await assertFails(add({ notes: { a: 1 } }));
+    await assertFails(add({ exerciseId: '' }));
+  });
+
+  test('oversized text is refused', async () => {
+    await assertFails(add({ exerciseName: 'x'.repeat(101) }));
+    await assertFails(add({ notes: 'x'.repeat(2001) }));
+    await assertFails(add({ exerciseId: 'x'.repeat(101) }));
+  });
+
+  test('counts must be whole numbers from 0 to 10000', async () => {
+    await assertFails(add({ completedReps: 2000000000 }));
+    await assertFails(add({ targetReps: -1 }));
+    await assertFails(add({ rejectedReps: { x: 1 } }));
+    await assertFails(add({ completedSets: 1.5 }));
+    await assertSucceeds(add({ completedReps: 10000 }));
+  });
+
+  test('scores, flags and times must have the right type and range', async () => {
+    await assertFails(add({ overallCompliance: 5 }));
+    await assertFails(add({ overallCompliance: 'high' }));
+    await assertFails(add({ repComplianceScores: 'all good' }));
+    await assertFails(add({ endedEarly: 'yes' }));
+    await assertFails(add({ outsideSchedule: 1 }));
+    await assertFails(add({ endTime: 'later' }));
+  });
+
+  test('a start time more than an hour in the future is refused; past ones (offline) are fine', async () => {
+    const at = (ms) => Timestamp.fromMillis(Date.now() + ms);
+    await assertFails(add({ startTime: Timestamp.fromDate(new Date('2099-01-01')) }));
+    await assertSucceeds(add({ startTime: at(30 * 60 * 1000) }));       // phone clock 30 min fast
+    await assertSucceeds(add({ startTime: at(-3 * 24 * 3600 * 1000) })); // queued offline for days
+  });
+});
+
+describe('8. chat times from the phone cannot be far in the future', () => {
+  const future = Timestamp.fromDate(new Date('2099-01-01'));
+
+  test('a message dated 2099 is refused', async () => {
+    await assertFails(setDoc(doc(as('p1'), 'patients/p1/threads/therapist/messages/late'),
+      { ...message('p1', 'patient'), sentAt: future }));
+  });
+
+  test('pinning the thread to the top with a 2099 lastMessageAt is refused', async () => {
+    await assertFails(updateDoc(doc(as('p1'), 'patients/p1/threads/therapist'), { lastMessageAt: future }));
+  });
+
+  test('the normal send batch and a slightly fast phone clock still work', async () => {
+    await assertSucceeds(patientSend(as('p1'), 'p1', 'therapist'));
+    await assertSucceeds(setDoc(doc(as('p1'), 'patients/p1/threads/therapist/messages/fast'),
+      { ...message('p1', 'patient'), sentAt: Timestamp.fromMillis(Date.now() + 10 * 60 * 1000) }));
+  });
+});

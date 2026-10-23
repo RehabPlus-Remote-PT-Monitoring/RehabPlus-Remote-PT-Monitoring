@@ -204,7 +204,7 @@ service cloud.firestore {
         && (!('unreadForPatient' in changed) || d.unreadForPatient == 0)
         && (!('lastSenderRole' in changed) || d.lastSenderRole == 'patient')
         && (!('lastMessage' in changed) || (d.lastMessage is string && d.lastMessage.size() <= 1000))
-        && (!('lastMessageAt' in changed) || d.lastMessageAt is timestamp)
+        && (!('lastMessageAt' in changed) || (d.lastMessageAt is timestamp && notInFuture(d.lastMessageAt)))
         && (!('unreadForStaff' in changed) || d.unreadForStaff == staffUnreadBefore + 1);
     }
 
@@ -214,7 +214,7 @@ service cloud.firestore {
         && d.text is string && d.text.size() > 0 && d.text.size() <= 1000
         && d.senderId == request.auth.uid
         && d.senderRole == role
-        && d.sentAt is timestamp
+        && d.sentAt is timestamp && notInFuture(d.sentAt)
         && d.createdAt == request.time;
     }
 
@@ -245,12 +245,47 @@ service cloud.firestore {
           'rejectedReps', 'repComplianceScores', 'overallCompliance',
           'painLevel', 'painNote', 'notes', 'outsideSchedule', 'endedEarly'])
         && d.keys().hasAll(['exerciseId', 'startTime', 'completedReps', 'painLevel'])
-        && d.exerciseId is string
-        && d.startTime is timestamp
-        && d.completedReps is int && d.completedReps >= 0
+        // Every field is type- and size-checked: the dashboard shows these to
+        // staff, and a wrong type (e.g. a map as the exercise name) used to
+        // break the patient's page for everyone.
+        && d.exerciseId is string && d.exerciseId.size() > 0 && d.exerciseId.size() <= 100
+        && optionalText(d, 'exerciseName', 100)
+        && optionalText(d, 'prescriptionId', 128)
+        && optionalText(d, 'notes', 2000)
+        && d.startTime is timestamp && notInFuture(d.startTime)
+        && (!('endTime' in d) || d.endTime == null || d.endTime is timestamp)
+        && validCount(d.completedReps)
+        && (!('completedSets' in d) || validCount(d.completedSets))
+        && (!('targetReps' in d) || validCount(d.targetReps))
+        && (!('targetSets' in d) || validCount(d.targetSets))
+        && (!('rejectedReps' in d) || validCount(d.rejectedReps))
+        && (!('repComplianceScores' in d)
+            || (d.repComplianceScores is list && d.repComplianceScores.size() <= 10000))
+        && (!('overallCompliance' in d) || d.overallCompliance == null
+            || (d.overallCompliance is number && d.overallCompliance >= 0 && d.overallCompliance <= 1))
         && d.painLevel is int && d.painLevel >= 0 && d.painLevel <= 10
         && (d.painNote == null || (d.painNote is string && d.painNote.size() <= 300))
+        && (!('outsideSchedule' in d) || d.outsideSchedule is bool)
+        && (!('endedEarly' in d) || d.endedEarly is bool)
         && d.createdAt == request.time;
+    }
+
+    // Rep/set counts: same cap as ExerciseSession.maxCount in the app.
+    function validCount(n) {
+      return n is int && n >= 0 && n <= 10000;
+    }
+
+    // Absent, null, or a string of at most max characters.
+    function optionalText(d, field, max) {
+      return !(field in d) || d[field] == null || (d[field] is string && d[field].size() <= max);
+    }
+
+    // Times taken from the phone's clock (it may be offline, so the past is
+    // fine) may run at most an hour ahead of the server. Without this a
+    // patient could date a message 2099 and pin it to the top for good. The
+    // dashboard ignores times past the same limit (CLOCK_SKEW_MINUTES).
+    function notInFuture(t) {
+      return t <= request.time + duration.value(1, 'h');
     }
   }
 }

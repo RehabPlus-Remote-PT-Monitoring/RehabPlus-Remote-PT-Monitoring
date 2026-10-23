@@ -179,6 +179,65 @@ void main() {
       expect(session(pain: 11).firestoreProblems(), ['painLevel']);
     });
 
+    test('counts and ids outside the rules\' limits are reported', () {
+      ExerciseSession withCounts({int reps = 10, int rejected = 0}) =>
+          ExerciseSession(
+            id: 's1',
+            exerciseId: 'kneeExtension',
+            exerciseName: 'Knee Extension',
+            startTime: _start,
+            targetReps: 10,
+            targetSets: 1,
+            completedReps: reps,
+            rejectedReps: rejected,
+            painLevel: 2,
+          );
+      expect(
+        withCounts(reps: ExerciseSession.maxCount).firestoreProblems(),
+        isEmpty,
+      );
+      expect(
+        withCounts(reps: ExerciseSession.maxCount + 1).firestoreProblems(),
+        ['completedReps'],
+      );
+      expect(withCounts(rejected: -1).firestoreProblems(), ['rejectedReps']);
+      final longId = ExerciseSession(
+        id: 's1',
+        exerciseId: 'x' * 101,
+        exerciseName: 'X',
+        startTime: _start,
+        targetReps: 1,
+        targetSets: 1,
+        painLevel: 0,
+      );
+      expect(longId.firestoreProblems(), ['exerciseId']);
+    });
+
+    test(
+      'toFirestore clips the exercise name and notes to the rules\' limits',
+      () {
+        final data = ExerciseSession(
+          id: 's1',
+          exerciseId: 'kneeExtension',
+          exerciseName: 'N' * 150,
+          startTime: _start,
+          targetReps: 10,
+          targetSets: 1,
+          notes: 'z' * 2500,
+          painLevel: 1,
+        ).toFirestore();
+        expect(
+          (data['exerciseName'] as String).length,
+          lessThanOrEqualTo(ExerciseSession.maxNameLength),
+        );
+        expect(
+          (data['notes'] as String).length,
+          lessThanOrEqualTo(ExerciseSession.maxNotesLength),
+        );
+        expect(session().toFirestore()['notes'], isNull);
+      },
+    );
+
     test('toFirestore clips the pain note and uses Timestamps', () {
       final data = session(note: 'n' * 400).toFirestore();
       expect(
@@ -312,8 +371,14 @@ void main() {
     });
 
     test('thread summary reads the staff unread count', () {
-      expect(ChatThreadSummary.fromMap({'unreadForStaff': 2}).unreadForStaff, 2);
-      expect(ChatThreadSummary.fromMap({'unreadForStaff': -1}).unreadForStaff, 0);
+      expect(
+        ChatThreadSummary.fromMap({'unreadForStaff': 2}).unreadForStaff,
+        2,
+      );
+      expect(
+        ChatThreadSummary.fromMap({'unreadForStaff': -1}).unreadForStaff,
+        0,
+      );
       expect(ChatThreadSummary.fromMap(null).unreadForStaff, 0);
     });
 
@@ -341,10 +406,13 @@ void main() {
         expect(seenByStaff(msgs, 0), {'p3', 'p2', 'p1'});
       });
 
-      test('nothing is seen before the summary loads or when all are unread', () {
-        expect(seenByStaff(msgs, null), isEmpty);
-        expect(seenByStaff(msgs, 5), isEmpty);
-      });
+      test(
+        'nothing is seen before the summary loads or when all are unread',
+        () {
+          expect(seenByStaff(msgs, null), isEmpty);
+          expect(seenByStaff(msgs, 5), isEmpty);
+        },
+      );
     });
 
     test('thread names parse safely', () {
@@ -389,7 +457,11 @@ void main() {
       });
       expect(bad.messages, isTrue);
       expect(bad.exercises, isFalse);
-      expect(bad.reminders, isTrue, reason: 'older app versions never saved it');
+      expect(
+        bad.reminders,
+        isTrue,
+        reason: 'older app versions never saved it',
+      );
     });
 
     test('reminders round-trips and copyWith changes one switch only', () {

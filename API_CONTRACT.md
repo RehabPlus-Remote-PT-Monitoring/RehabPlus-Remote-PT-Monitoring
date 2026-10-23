@@ -114,13 +114,13 @@ pain check-in. **Never updated or deleted.**
 
 | Field | Type | Notes |
 | --- | --- | --- |
-| `exerciseId` | string | Exercise type code, e.g. `kneeExtension` |
-| `exerciseName` | string | e.g. "Knee Extension" |
+| `exerciseId` | string | Exercise type code, e.g. `kneeExtension` (1–100 chars) |
+| `exerciseName` | string | e.g. "Knee Extension" (≤ 100 chars) |
 | `prescriptionId` | string \| null | Prescription doc id it was done for |
-| `startTime` | timestamp | |
-| `endTime` | timestamp | |
+| `startTime` | timestamp | Phone clock; at most 1 hour ahead of the server |
+| `endTime` | timestamp \| null | |
 | `createdAt` | timestamp | Server time when received |
-| `completedReps` | int | Reps that passed form checks |
+| `completedReps` | int | Reps that passed form checks. All counts are ints 0–10000 |
 | `rejectedReps` | int | Attempts rejected (bad form, short range, too fast) |
 | `targetReps` | int | |
 | `completedSets` | int | 1 if finished, 0 if ended early |
@@ -129,12 +129,17 @@ pain check-in. **Never updated or deleted.**
 | `overallCompliance` | double | Mean of the above, 0–1 ("accuracy") |
 | `painLevel` | int | 0 (none) – 10 (worst), reported after the session |
 | `painNote` | string \| null | Optional note to the therapist (≤ 300 chars) |
-| `notes` | string \| null | App-generated summary |
+| `notes` | string \| null | App-generated summary (≤ 2000 chars) |
 | `outsideSchedule` | bool | Done outside the prescription's `schedule` |
 | `endedEarly` | bool | Patient stopped before `targetReps` |
 
 Sessions done offline are uploaded when the phone reconnects, so `createdAt`
 can be much later than `startTime`. Use `startTime` for reports.
+
+The patient's phone writes these, so treat every field as untrusted when
+displaying it: firestore.rules (`validSession`) checks types and limits, and
+the dashboard also coerces each field (`PatientProgress::presentSession`) so
+an older or hand-made document can't break a page.
 
 ### `patients/{uid}/threads/{threadId}`: conversation summary
 
@@ -145,7 +150,7 @@ requests, app problems). The doc is created on the first message.
 | Field | Type | Notes |
 | --- | --- | --- |
 | `lastMessage` | string | Preview text of the newest message |
-| `lastMessageAt` | timestamp | |
+| `lastMessageAt` | timestamp | Phone clock for patient messages; at most 1 hour ahead of the server |
 | `lastSenderRole` | string | `patient` or `staff` |
 | `unreadForPatient` | int | The app shows this as a badge and resets it to 0 when opened |
 | `unreadForStaff` | int | The app adds 1 per patient message; **the dashboard resets it to 0** when staff read the thread |
@@ -157,7 +162,7 @@ requests, app problems). The doc is created on the first message.
 | `text` | string | 1–1000 chars |
 | `senderId` | string | Sender's `uid` |
 | `senderRole` | string | `patient` or `staff` |
-| `sentAt` | timestamp | Sender's clock; **order by this** |
+| `sentAt` | timestamp | Sender's clock (at most 1 hour ahead of the server); **order by this** |
 | `createdAt` | timestamp | Server time |
 
 Messages are never edited or deleted.

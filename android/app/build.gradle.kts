@@ -1,3 +1,5 @@
+import java.util.Properties
+
 plugins {
     id("com.android.application")
     // START: FlutterFire Configuration
@@ -12,6 +14,12 @@ kotlin {
     compilerOptions {
         jvmTarget.set(org.jetbrains.kotlin.gradle.dsl.JvmTarget.JVM_17)
     }
+}
+
+// Release signing secrets, if present (see signingConfigs below).
+val keystoreProperties = Properties().apply {
+    val file = rootProject.file("key.properties")
+    if (file.exists()) file.inputStream().use { load(it) }
 }
 
 android {
@@ -37,11 +45,36 @@ android {
         versionName = flutter.versionName
     }
 
+    // Upload keystore for release builds. android/key.properties (never
+    // committed; android/.gitignore ignores it and *.jks) holds:
+    //   storeFile=/absolute/path/to/upload-keystore.jks
+    //   storePassword=...   keyAlias=upload   keyPassword=...
+    // Create the keystore with:
+    //   keytool -genkey -v -keystore ~/keys/upload-keystore.jks -keyalg RSA \
+    //     -keysize 2048 -validity 10000 -alias upload
+    signingConfigs {
+        if (!keystoreProperties.isEmpty) {
+            create("release") {
+                storeFile = file(keystoreProperties.getProperty("storeFile"))
+                storePassword = keystoreProperties.getProperty("storePassword")
+                keyAlias = keystoreProperties.getProperty("keyAlias")
+                keyPassword = keystoreProperties.getProperty("keyPassword")
+            }
+        }
+    }
+
     buildTypes {
         release {
-            // TODO: Add your own signing config for the release build.
-            // Signing with the debug keys for now, so `flutter run --release` works.
-            signingConfig = signingConfigs.getByName("debug")
+            // Signed with the upload key from android/key.properties when it
+            // exists (git-ignored, see below). Without it the build falls back
+            // to the debug key so `flutter run --release` still works, but
+            // such an APK must never be published.
+            signingConfig = if (keystoreProperties.isEmpty) {
+                logger.warn("android/key.properties not found: release build is signed with the DEBUG key")
+                signingConfigs.getByName("debug")
+            } else {
+                signingConfigs.getByName("release")
+            }
         }
     }
 }

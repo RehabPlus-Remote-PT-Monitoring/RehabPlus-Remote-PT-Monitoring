@@ -16,12 +16,15 @@ class ExerciseSession {
   /// Longest pain note the rules accept (painNote.size() <= 300).
   static const int maxPainNoteLength = 300;
 
-  /// Upper bound for the app-generated summary. The rules don't limit it,
-  /// but nothing the app writes comes close; this keeps a corrupt document
-  /// from holding megabytes of text in memory.
+  /// Upper bound for the app-generated summary; the rules refuse longer
+  /// notes (notes.size() <= 2000), so [toFirestore] clips to it.
   static const int maxNotesLength = 2000;
 
-  /// Rep and set counts above this are treated as corrupt and clamped.
+  /// Longest exercise id / name the rules accept (size() <= 100).
+  static const int maxNameLength = 100;
+
+  /// Rep and set counts above this are treated as corrupt and clamped when
+  /// read, and refused by the rules (validCount) when written.
   /// No prescription comes anywhere near it.
   static const int maxCount = 10000;
 
@@ -118,6 +121,10 @@ class ExerciseSession {
   /// is the last line of defence).
   Map<String, dynamic> toFirestore() => {
     ...toJson()..remove('id'),
+    // Clipped to the rules' limits (validSession) so a long title or note can
+    // never get the whole session rejected.
+    'exerciseName': clipText(exerciseName, maxNameLength),
+    'notes': notes == null ? null : clipText(notes!, maxNotesLength),
     'startTime': Timestamp.fromDate(startTime),
     'endTime': endTime == null ? null : Timestamp.fromDate(endTime!),
     'painNote': painNote == null
@@ -225,8 +232,17 @@ class ExerciseSession {
   /// writing so a bad session fails loudly here instead of being silently
   /// rolled back by the server later.
   List<String> firestoreProblems() => [
-    if (exerciseId.trim().isEmpty) 'exerciseId',
-    if (completedReps < 0) 'completedReps',
+    if (exerciseId.trim().isEmpty || exerciseId.length > maxNameLength)
+      'exerciseId',
+    for (final (name, value) in [
+      ('completedReps', completedReps),
+      ('completedSets', completedSets),
+      ('targetReps', targetReps),
+      ('targetSets', targetSets),
+      ('rejectedReps', rejectedReps),
+    ])
+      if (value < 0 || value > maxCount) name,
+    if (repComplianceScores.length > maxCount) 'repComplianceScores',
     if (painLevel == null ||
         painLevel! < minPainLevel ||
         painLevel! > maxPainLevel)
