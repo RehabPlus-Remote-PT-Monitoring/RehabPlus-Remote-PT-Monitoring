@@ -13,7 +13,10 @@ rules_version = '2';
 //   - patients record their acceptance of the Terms and Privacy Policy, which
 //     can't be changed or deleted afterwards;
 //   - therapists/admins signed in with Firebase can read and manage the
-//     patients assigned to them (admins: all patients).
+//     patients assigned to them (admins: all patients). Only admins change who
+//     a patient is assigned to, archive them, or use the "clinic" chat thread;
+//   - every patient write needs an existing patients/{uid} profile, so a
+//     self-made Firebase login with no profile can't store anything.
 service cloud.firestore {
   match /databases/{database}/documents {
 
@@ -41,7 +44,28 @@ service cloud.firestore {
       return signedIn() && request.auth.uid == uid;
     }
 
-    // Account profile with role: 'patient' | 'therapist' | 'admin'.
+    // A real patient writing their own data: signed in as uid AND the clinic
+    // created their profile. Reads only need isSelf (nothing to leak there).
+    function isPatient(uid) {
+      return isSelf(uid) && exists(/databases/$(database)/documents/patients/$(uid));
+    }
+
+    // Staff may write to a chat thread: admins to both, the patient's
+    // therapist only to the "therapist" thread (the dashboard does the same).
+    function staffForThread(patientId, threadId) {
+      return isAdmin() || (threadId == 'therapist' && caresFor(patientId));
+    }
+
+    // Profile fields that only the server or an admin may change: who the
+    // patient is assigned to, archiving (which also disables the login on the
+    // server), and the account's identity.
+    function changesOnlyClinicalFields() {
+      return !request.resource.data.diff(resource.data).affectedKeys().hasAny(
+        ['therapistId', 'therapistName', 'archived', 'email', 'createdBy', 'createdAt']);
+    }
+
+    // Account profile with role: 'patient' | 'therapist' | 'admin' | 'staff'
+    // (front desk; dashboard only, so these rules give it nothing).
     // Only the server (service account) creates or changes roles.
     match /users/{uid} {
       allow read: if isSelf(uid) || isAdmin();
@@ -50,7 +74,9 @@ service cloud.firestore {
 
     match /patients/{patientId} {
       allow read: if isSelf(patientId) || caresFor(patientId);
-      allow update: if caresFor(patientId) || (isSelf(patientId) && validContactEdit());
+      allow update: if isAdmin()
+        || (caresFor(patientId) && changesOnlyClinicalFields())
+        || (isSelf(patientId) && validContactEdit());
       allow create, delete: if isAdmin();
 
       match /prescriptions/{prescriptionId} {
@@ -60,7 +86,7 @@ service cloud.firestore {
 
       match /sessions/{sessionId} {
         allow read: if isSelf(patientId) || caresFor(patientId);
-        allow create: if isSelf(patientId) && validSession(request.resource.data);
+        allow create: if isPatient(patientId) && validSession(request.resource.data);
         allow update, delete: if false;
       }
 
@@ -69,7 +95,7 @@ service cloud.firestore {
       // mark entries read.
       match /notifications/{notificationId} {
         allow read: if isSelf(patientId) || caresFor(patientId);
-        allow create: if isSelf(patientId)
+        allow create: if isPatient(patientId)
           && request.resource.data.keys().hasOnly(['type', 'title', 'body', 'createdAt', 'read'])
           && request.resource.data.type == 'session_completed'
           && request.resource.data.title is string && request.resource.data.title.size() <= 100
@@ -86,7 +112,7 @@ service cloud.firestore {
       // Staff read them via the service account to send notifications.
       match /devices/{token} {
         allow read: if isSelf(patientId);
-        allow create, update: if isSelf(patientId)
+        allow create, update: if isPatient(patientId)
           && request.resource.data.keys().hasOnly(['token', 'platform', 'updatedAt'])
           && request.resource.data.token == token
           && token.size() < 1024
@@ -98,7 +124,7 @@ service cloud.firestore {
       // The dashboard checks it before sending a push.
       match /preferences/{docId} {
         allow read: if isSelf(patientId) || caresFor(patientId);
-        allow create, update: if isSelf(patientId) && docId == 'notifications'
+        allow create, update: if isPatient(patientId) && docId == 'notifications'
           && request.resource.data.keys().hasOnly(['messages', 'exercises', 'updatedAt'])
           && request.resource.data.messages is bool
           && request.resource.data.exercises is bool
@@ -110,7 +136,7 @@ service cloud.firestore {
       // patient sets or removes their own; their care team can see it.
       match /avatar/{docId} {
         allow read: if isSelf(patientId) || caresFor(patientId);
-        allow create, update: if isSelf(patientId) && docId == 'photo'
+        allow create, update: if isPatient(patientId) && docId == 'photo'
           && request.resource.data.keys().hasOnly(['image', 'updatedAt'])
           && request.resource.data.image is bytes
           && request.resource.data.image.size() <= 500 * 1024
@@ -122,25 +148,28 @@ service cloud.firestore {
       // version (doc id = version). Append-only: an audit record of consent.
       match /consents/{version} {
         allow read: if isSelf(patientId) || caresFor(patientId);
-        allow create: if isSelf(patientId) && validConsent(request.resource.data, version);
+        allow create: if isPatient(patientId) && validConsent(request.resource.data, version);
         allow update, delete: if false;
       }
 
       // threadId is 'therapist' or 'clinic'.
       match /threads/{threadId} {
         allow read: if isSelf(patientId) || caresFor(patientId);
-        allow create: if isSelf(patientId) && validThreadId(threadId)
-          && patientThreadFields(request.resource.data, request.resource.data.keys());
-        allow update: if isSelf(patientId)
+        allow create: if isPatient(patientId) && validThreadId(threadId)
+          && patientThreadFields(request.resource.data, request.resource.data.keys(), 0);
+        allow update: if isPatient(patientId)
           && patientThreadFields(request.resource.data,
-               request.resource.data.diff(resource.data).affectedKeys());
-        allow write: if caresFor(patientId);
+               request.resource.data.diff(resource.data).affectedKeys(),
+               resource.data.get('unreadForStaff', 0));
+        allow create, update: if validThreadId(threadId) && staffForThread(patientId, threadId);
+        // Deleting a thread would orphan its messages; nobody does that.
+        allow delete: if isAdmin();
 
         match /messages/{messageId} {
           allow read: if isSelf(patientId) || caresFor(patientId);
           allow create: if validThreadId(threadId) && (
-            (isSelf(patientId) && validMessage(request.resource.data, 'patient'))
-            || (caresFor(patientId) && validMessage(request.resource.data, 'staff')));
+            (isPatient(patientId) && validMessage(request.resource.data, 'patient'))
+            || (staffForThread(patientId, threadId) && validMessage(request.resource.data, 'staff')));
           allow update, delete: if false;
         }
       }
@@ -157,14 +186,17 @@ service cloud.firestore {
     }
 
     // What a patient may change on their thread doc: the last-message preview
-    // (as themselves), bump the staff unread count, and clear their own.
-    function patientThreadFields(d, changed) {
+    // (as themselves), add one to the staff unread count per message they
+    // send, and clear their own. lastMessageAt is the phone's clock (messages
+    // can be queued offline), so it's only type-checked.
+    function patientThreadFields(d, changed, staffUnreadBefore) {
       return changed.hasOnly(['lastMessage', 'lastMessageAt', 'lastSenderRole',
                               'unreadForStaff', 'unreadForPatient'])
         && (!('unreadForPatient' in changed) || d.unreadForPatient == 0)
         && (!('lastSenderRole' in changed) || d.lastSenderRole == 'patient')
         && (!('lastMessage' in changed) || (d.lastMessage is string && d.lastMessage.size() <= 1000))
-        && (!('unreadForStaff' in changed) || d.unreadForStaff is int);
+        && (!('lastMessageAt' in changed) || d.lastMessageAt is timestamp)
+        && (!('unreadForStaff' in changed) || d.unreadForStaff == staffUnreadBefore + 1);
     }
 
     function validMessage(d, role) {
