@@ -1,0 +1,1355 @@
+html.dark-mode{
+            color-scheme:dark;
+        }
+
+        :root{
+
+            --primary:#14b8a6;
+            --primary-strong:#0d9488;  /* solid fill: white text stays legible on it */
+            --primary-dark:#0f766e;
+            --primary-light:#ccfbf1;
+
+            --bg:#f4f7fb;
+            --sidebar:#ffffff;
+            --card:#ffffff;
+
+            --text:#0f172a;
+            --muted:#64748b;
+
+            --border:#e2e8f0;
+
+            /* Two-layer shadow: a tight contact shadow plus a soft ambient one. */
+            --shadow:
+                0 1px 2px rgba(15,23,42,.04),
+                0 6px 20px rgba(15,23,42,.05);
+
+            --material:rgba(255,255,255,.72);  /* translucent top bar */
+
+            --radius:16px;
+            --radius-sm:10px;
+
+            --nav-h:64px;
+            --sidebar-w:272px;
+
+            /* Strong ease-out: starts fast so feedback feels immediate. */
+            --ease-out:cubic-bezier(.23,1,.32,1);
+            /* iOS-style sheet/drawer curve. */
+            --ease-drawer:cubic-bezier(.32,.72,0,1);
+
+            --safe-top:env(safe-area-inset-top, 0px);
+            --safe-bottom:env(safe-area-inset-bottom, 0px);
+            --safe-left:env(safe-area-inset-left, 0px);
+            --safe-right:env(safe-area-inset-right, 0px);
+
+            /* Bootstrap's primary is blue; point it at the RehabPlus teal so links,
+               outline buttons, progress bars and focus rings all match. */
+            --bs-primary:#0d9488;
+            --bs-primary-rgb:13,148,136;
+            --bs-link-color:#0f766e;
+            --bs-link-color-rgb:15,118,110;
+            --bs-link-hover-color:#115e59;
+            --bs-link-hover-color-rgb:17,94,89;
+            --bs-border-radius:.625rem;
+            --bs-border-radius-lg:.875rem;
+            --bs-focus-ring-color:rgba(20,184,166,.28);
+        }
+
+        *{
+            font-family:'Inter',system-ui,sans-serif;
+        }
+
+        html{
+            -webkit-tap-highlight-color:transparent;  /* no grey flash on tap */
+            -webkit-text-size-adjust:100%;            /* no font inflation in landscape */
+        }
+
+        /* Controls shouldn't select their label on long-press, and tap
+           without the double-tap-zoom wait. Content text stays selectable. */
+        a, button, .btn, .nav-link, [role="button"]{
+            touch-action:manipulation;
+        }
+
+        .btn, .nav-link, .nav-toggle, .theme-toggle, .user-chip{
+            -webkit-user-select:none;
+            user-select:none;
+        }
+
+        .min-w-0{
+            min-width:0;
+        }
+
+        html.nav-open{
+            overflow:hidden;  /* page behind the open drawer doesn't scroll */
+        }
+
+        body{
+
+            margin:0;
+
+            background:var(--bg);
+
+            color:var(--text);
+
+            overflow-x:hidden;
+            min-height:100vh;
+
+            -webkit-font-smoothing:antialiased;
+            -moz-osx-font-smoothing:grayscale;
+            font-feature-settings:'cv11';  /* Inter's single-storey a: calmer in dense tables */
+        }
+
+        html.dark-mode body{
+            --bg:#0f172a;
+            --sidebar:#111827;
+            --card:#1e293b;
+            --text:#e2e8f0;
+            --muted:#94a3b8;
+            --border:#334155;
+            --shadow:0 1px 2px rgba(0,0,0,.2), 0 8px 24px rgba(0,0,0,.18);
+            --material:rgba(17,24,39,.72);
+            --bs-body-bg:#0f172a;
+            --bs-body-color:#e2e8f0;
+            --bs-secondary-color:#94a3b8; /* .form-text and other help text */
+            --bs-card-bg:#1e293b;
+            --bs-tertiary-bg:#1e293b;
+            --bs-secondary-bg:#1e293b;
+            --bs-table-bg:transparent;
+            --bs-table-color:#cbd5e1;
+            --bs-border-color:#334155;
+            --bs-link-color:#5eead4;
+            --bs-link-color-rgb:94,234,212;
+            --bs-link-hover-color:#99f6e4;
+            --bs-link-hover-color-rgb:153,246,228;
+        }
+
+        html.dark-mode body .sidebar{
+            background:var(--sidebar) !important;
+        }
+
+        html.dark-mode body .card,
+        html.dark-mode body .card-header,
+        html.dark-mode body .table-light,
+        html.dark-mode body .bg-white{
+            background-color:var(--card) !important;
+            color:var(--text) !important;
+        }
+
+        html.dark-mode body .sidebar .nav-link{
+            color:#cbd5e1;
+        }
+
+        html.dark-mode body .nav-section{
+            color:#94a3b8 !important;
+            opacity:1;
+        }
+
+        html.dark-mode body .sidebar .nav-link.active{
+            background:#134e4a;
+            color:#a7f3d0;
+        }
+
+        html.dark-mode body .page-title,
+        html.dark-mode body h1,
+        html.dark-mode body h2,
+        html.dark-mode body h3,
+        html.dark-mode body h4,
+        html.dark-mode body h5,
+        html.dark-mode body h6,
+        html.dark-mode body .fw-bold,
+        html.dark-mode body .fw-semibold,
+        html.dark-mode body .text-dark{
+            color:var(--text) !important;
+        }
+
+        html.dark-mode body .table,
+        html.dark-mode body .table td,
+        html.dark-mode body .table th,
+        html.dark-mode body .table thead th,
+        html.dark-mode body .table thead,
+        html.dark-mode body .table tbody,
+        html.dark-mode body .table-responsive{
+            color:#cbd5e1 !important;
+            border-color:var(--border) !important;
+            background-color:transparent !important;
+        }
+
+        html.dark-mode body #staff-roles,
+        html.dark-mode body #patient-accounts,
+        html.dark-mode body #staff-roles .table,
+        html.dark-mode body #patient-accounts .table,
+        html.dark-mode body #staff-roles .input-group-text,
+        html.dark-mode body #patient-accounts .input-group-text,
+        html.dark-mode body #staff-roles .form-control,
+        html.dark-mode body #patient-accounts .form-control,
+        html.dark-mode body #staff-roles .form-select,
+        html.dark-mode body #patient-accounts .form-select,
+        html.dark-mode body .card,
+        html.dark-mode body .card-header{
+            background-color:var(--card) !important;
+            color:var(--text) !important;
+            border-color:var(--border) !important;
+        }
+
+        html.dark-mode body .table thead th{
+            background:#172235 !important;
+            color:#94a3b8 !important;
+        }
+
+        html.dark-mode body .input-group-text,
+        html.dark-mode body .form-control,
+        html.dark-mode body .form-select,
+        html.dark-mode body textarea{
+            background:#0f172a !important;
+            color:#ffffff !important;
+            border-color:var(--border) !important;
+        }
+
+        html.dark-mode body .text-muted,
+        html.dark-mode body .text-secondary,
+        html.dark-mode body .small,
+        html.dark-mode body small{
+            color:var(--muted) !important;
+        }
+
+        html.dark-mode body .badge,
+        html.dark-mode body .btn-outline-secondary,
+        html.dark-mode body .btn-outline-primary,
+        html.dark-mode body .btn-outline-success,
+        html.dark-mode body .btn-outline-danger{
+            background-color:transparent !important;
+        }
+
+        html.dark-mode body .card-body,
+        html.dark-mode body #patientsTable,
+        html.dark-mode body #patientsTable thead,
+        html.dark-mode body #patientsTable tbody,
+        html.dark-mode body #patientsTable tr,
+        html.dark-mode body #patientsTable td,
+        html.dark-mode body #patientsTable th{
+            background-color:transparent !important;
+        }
+
+        html.dark-mode body .table-responsive,
+        html.dark-mode body .table-hover > tbody > tr:hover > *,
+        html.dark-mode body .table-light > *,
+        html.dark-mode body .table > :not(caption) > * > *{
+            background-color:transparent !important;
+        }
+
+        html.dark-mode body .form-control::placeholder{
+            color:#ffffff !important;
+            opacity:.6;
+        }
+
+        html.dark-mode body .form-select option{
+            background:#0f172a;
+            color:#ffffff;
+        }
+
+        html.dark-mode body .btn-outline-secondary{
+            color:#cbd5e1;
+            border-color:#64748b;
+        }
+
+        html.dark-mode body .user-chip{
+            background:#1e293b;
+        }
+
+        html.dark-mode body .alert{
+            border-color:var(--border);
+        }
+
+        /* PRESS FEEDBACK
+           Anything clickable answers on pointer-down, not on release. Only
+           transform and colours transition, never `all`. */
+
+        .btn,
+        .theme-toggle,
+        .nav-toggle,
+        .sidebar .nav-link,
+        .page-link{
+            transition:
+                transform 120ms var(--ease-out),
+                background-color 150ms ease,
+                border-color 150ms ease,
+                color 150ms ease,
+                box-shadow 150ms ease;
+            -webkit-tap-highlight-color:transparent;
+        }
+
+        .btn:active,
+        .theme-toggle:active,
+        .nav-toggle:active,
+        .page-link:active{
+            transform:scale(.97);
+        }
+
+        .sidebar .nav-link:active{
+            transform:scale(.985);  /* wide row: a smaller scale reads the same */
+        }
+
+        .btn:disabled,
+        .btn.disabled{
+            transform:none;
+        }
+
+        /* One focus ring everywhere, keyboard only. */
+        :focus-visible{
+            outline:2px solid var(--primary);
+            outline-offset:2px;
+        }
+
+        .btn:focus-visible,
+        .form-control:focus,
+        .form-select:focus,
+        .form-check-input:focus{
+            outline:none;
+            border-color:var(--primary);
+            box-shadow:0 0 0 3px var(--bs-focus-ring-color);
+        }
+
+        .theme-toggle{
+            width:38px;
+            height:38px;
+            border:1px solid var(--border);
+            border-radius:50%;
+            background:var(--card);
+            color:var(--text);
+            display:inline-flex;
+            align-items:center;
+            justify-content:center;
+        }
+
+        /* NAVBAR: a translucent material layer; page content scrolls under it. */
+
+        .navbar{
+
+            height:calc(var(--nav-h) + var(--safe-top));
+            padding-top:var(--safe-top) !important;
+            padding-bottom:0 !important;
+
+            background:var(--material);
+            -webkit-backdrop-filter:blur(20px) saturate(180%);
+            backdrop-filter:blur(20px) saturate(180%);
+
+            border-bottom:1px solid var(--border);
+
+            padding-right:calc(24px + var(--safe-right));
+            padding-left:calc(24px + var(--safe-left));
+
+            position:sticky;
+            top:0;
+            z-index:1000;
+
+            view-transition-name:topbar;
+        }
+
+        .navbar-brand{
+
+            font-size:1.2rem;
+            font-weight:800;
+            line-height:1.2;
+            letter-spacing:-.02em;
+            color:var(--text) !important;
+            white-space:nowrap;
+            display:inline-flex;
+            align-items:center;
+            gap:.45rem;
+            margin-right:auto;
+        }
+
+        .navbar-brand i{
+
+            color:var(--primary);
+            font-size:1.2rem;
+        }
+
+        .top-date{
+
+            color:var(--muted);
+            font-size:.9rem;
+            font-weight:500;
+        }
+
+        /* USER CHIP */
+
+        .user-chip{
+
+            background:#f8fafc;
+
+            border:1px solid var(--border);
+
+            border-radius:50px;
+
+            padding:.3rem .85rem .3rem .3rem;
+
+            display:flex;
+            align-items:center;
+            gap:.6rem;
+
+            line-height:1.2;
+            font-size:.9rem;
+        }
+
+        .user-chip small{
+            font-size:.78rem;
+        }
+
+        .user-avatar{
+
+            width:32px;
+            height:32px;
+
+            border-radius:50%;
+
+            background:var(--primary-strong);
+
+            display:flex;
+            align-items:center;
+            justify-content:center;
+
+            color:white;
+
+            font-size:.85rem;
+            font-weight:700;
+        }
+
+        /* SIDEBAR: sits below the top bar and scrolls on its own if the
+           menu is taller than the window. */
+
+        .sidebar{
+
+            width:var(--sidebar-w);
+            height:calc(100vh - var(--nav-h) - var(--safe-top));
+            background:var(--sidebar);
+            border-right:1px solid var(--border);
+            padding:8px 14px 20px;
+            position:fixed;
+            left:0;
+            top:calc(var(--nav-h) + var(--safe-top));
+            overflow-y:auto;
+            overscroll-behavior:contain;
+            scrollbar-width:thin;
+
+            view-transition-name:sidebar;
+        }
+
+        .nav-section{
+
+            color:#64748b;
+
+            font-size:11px;
+            font-weight:700;
+            letter-spacing:.08em;
+            text-transform:uppercase;
+            margin:18px 12px 8px;
+            padding:0;
+            display:block;
+            line-height:1.3;
+            white-space:nowrap;
+        }
+
+        .sidebar .nav-section.mt-4{
+            margin-top:24px !important;
+        }
+
+        .sidebar .nav-link{
+
+            color:#334155;
+
+            border-radius:var(--radius-sm);
+
+            padding:9px 12px;
+
+            display:flex;
+            align-items:center;
+            gap:12px;
+
+            margin-bottom:2px;
+
+            font-weight:500;
+            font-size:.9rem;
+            line-height:1.25;
+        }
+
+        .sidebar .nav-link i{
+
+            font-size:1.05rem;
+            color:var(--muted);
+            transition:color 150ms ease;
+        }
+
+        .sidebar .nav-link.active{
+
+            background:#dff7f2;
+            color:var(--primary-dark);
+            font-weight:600;
+        }
+
+        .sidebar .nav-link.active i{
+            color:var(--primary-dark);
+        }
+
+        html.dark-mode body .sidebar .nav-link.active i{
+            color:#5eead4;
+        }
+
+        /* Hover only where a real pointer can hover (touch fires it on tap). */
+        @media (hover:hover) and (pointer:fine){
+
+            .sidebar .nav-link:hover{
+                background:#f1f5f9;
+                color:var(--text);
+            }
+
+            .sidebar .nav-link.active:hover{
+                background:#d2f3ec;
+                color:var(--primary-dark);
+            }
+
+            html.dark-mode body .sidebar .nav-link:hover{
+                background:#1f2937;
+                color:#f1f5f9;
+            }
+
+            html.dark-mode body .sidebar .nav-link.active:hover{
+                background:#155e57;
+                color:#a7f3d0;
+            }
+
+            .theme-toggle:hover{
+                border-color:#cbd5e1;
+            }
+
+            .table tbody tr:hover{
+                background:#f8fafc;
+            }
+
+            html.dark-mode body .table tbody tr:hover{
+                background:#273449;
+            }
+        }
+
+        /* MAIN */
+
+        .main-content{
+
+            flex:1;
+
+            margin-left:var(--sidebar-w);
+            min-width:0;
+            min-height:calc(100vh - var(--nav-h));
+            padding:2rem 2.25rem;
+
+            view-transition-name:page;
+        }
+
+        /* PAGE TITLE: tight leading and negative tracking for large text. */
+
+        .page-title{
+
+            font-size:1.75rem;
+
+            font-weight:700;
+
+            line-height:1.15;
+
+            letter-spacing:-.022em;
+
+            margin-bottom:.25rem;
+        }
+
+        .page-subtitle{
+
+            color:var(--muted);
+
+            font-size:.95rem;
+        }
+
+        h1, h2, h3, .h1, .h2, .h3{
+            letter-spacing:-.02em;
+        }
+
+        h4, h5, .h4, .h5{
+            letter-spacing:-.01em;
+        }
+
+        /* BUTTONS: solid teal instead of a gradient; same colour family. */
+
+        .btn{
+            font-weight:600;
+            touch-action:manipulation;  /* no double-tap-zoom delay */
+        }
+
+        .btn-primary{
+            --bs-btn-bg:var(--primary-strong);
+            --bs-btn-border-color:var(--primary-strong);
+            --bs-btn-hover-bg:var(--primary-dark);
+            --bs-btn-hover-border-color:var(--primary-dark);
+            --bs-btn-active-bg:#115e59;
+            --bs-btn-active-border-color:#115e59;
+            --bs-btn-disabled-bg:var(--primary-strong);
+            --bs-btn-disabled-border-color:var(--primary-strong);
+            box-shadow:0 1px 2px rgba(15,118,110,.25), 0 4px 12px rgba(20,184,166,.18);
+        }
+
+        .btn-outline-primary{
+            --bs-btn-color:var(--primary-dark);
+            --bs-btn-border-color:var(--primary);
+            --bs-btn-hover-color:#fff;
+            --bs-btn-hover-bg:var(--primary-strong);
+            --bs-btn-hover-border-color:var(--primary-strong);
+            --bs-btn-active-color:#fff;
+            --bs-btn-active-bg:var(--primary-dark);
+            --bs-btn-active-border-color:var(--primary-dark);
+        }
+
+        html.dark-mode body .btn-outline-primary{
+            --bs-btn-color:#5eead4;
+        }
+
+        /* Primary actions in page headers (not small table buttons) get a bit more room. */
+        .btn-primary:not(.btn-sm){
+            padding:.6rem 1.1rem;
+        }
+
+        /* CARDS */
+
+        .card{
+
+            background:var(--card);
+
+            border:1px solid var(--border);
+
+            border-radius:var(--radius);
+
+            box-shadow:var(--shadow);
+
+            overflow:hidden;
+        }
+
+        .card-header{
+
+            background:transparent !important;
+
+            border-bottom:1px solid var(--border);
+
+            padding:1rem 1.25rem;
+
+            font-size:1rem;
+
+            font-weight:600;
+
+            letter-spacing:-.01em;
+
+            color:var(--text);
+        }
+
+        /* STATS: numbers line up (tabular figures) and sit tight. */
+
+        .stat-card{
+
+            padding:1.5rem;
+
+            position:relative;
+        }
+
+        .stat-label{
+
+            color:var(--muted);
+
+            font-size:.9rem;
+
+            font-weight:500;
+        }
+
+        .stat-value,
+        .display-5{
+
+            font-weight:700;
+
+            line-height:1.05;
+
+            letter-spacing:-.03em;
+
+            font-variant-numeric:tabular-nums;
+        }
+
+        .stat-value{
+            font-size:2.6rem;
+            margin-top:.5rem;
+        }
+
+        .stat-icon{
+
+            width:52px;
+            height:52px;
+
+            border-radius:14px;
+
+            display:inline-flex;
+            align-items:center;
+            justify-content:center;
+
+            font-size:1.5rem;
+
+            flex-shrink:0;
+
+            /* Tinted from the icon's own colour, so it works in light and dark. */
+            background:color-mix(in srgb, currentColor 12%, transparent);
+        }
+
+        /* TABLE */
+
+        .table{
+
+            color:#334155;
+
+            margin-bottom:0;
+
+            font-variant-numeric:tabular-nums;
+        }
+
+        .table thead th{
+
+            color:#64748b;
+
+            font-size:.72rem;
+
+            font-weight:600;
+
+            text-transform:uppercase;
+
+            border-color:var(--border);
+
+            letter-spacing:.06em;
+
+            white-space:nowrap;
+        }
+
+        .table td{
+
+            border-color:var(--border);
+
+            vertical-align:middle;
+        }
+
+        .table > :not(caption) > * > *{
+            padding:.8rem 1rem;
+        }
+
+        .table tbody tr{
+            transition:background-color 120ms ease;
+        }
+
+        .badge{
+            font-weight:600;
+            letter-spacing:.01em;
+        }
+
+        .progress{
+            border-radius:999px;
+            background-color:#e2e8f0;
+        }
+
+        html.dark-mode body .progress{
+            background-color:#334155;
+        }
+
+        /* ALERTS: fade in when they appear (flash messages). */
+
+        .alert{
+            border-radius:12px;
+            transition:opacity 220ms var(--ease-out), transform 220ms var(--ease-out);
+
+            @starting-style{
+                opacity:0;
+                transform:translateY(-4px);
+            }
+        }
+
+        /* SEARCH */
+
+        .search-box{
+
+            background:var(--card);
+
+            border:1px solid var(--border);
+
+            border-radius:var(--radius-sm);
+
+            overflow:hidden;
+        }
+
+        .search-box .form-control{
+
+            border:none;
+
+            box-shadow:none;
+        }
+
+        /* CHART CANVAS */
+
+        canvas{
+
+            max-height:360px !important;
+        }
+
+        /* MENU BUTTON (phones) and the drawer's own header */
+
+        .nav-toggle{
+            width:40px;
+            height:40px;
+            margin-left:-6px;
+            border:0;
+            border-radius:var(--radius-sm);
+            background:transparent;
+            color:var(--text);
+            display:inline-flex;
+            align-items:center;
+            justify-content:center;
+            font-size:1.5rem;
+            flex-shrink:0;
+        }
+
+        .nav-toggle:active{
+            background:rgba(100,116,139,.12);
+        }
+
+        .sidebar-head,
+        .sidebar-scrim{
+            display:none;
+        }
+
+        .sidebar:focus{
+            outline:none;  /* focused only as the drawer's starting point */
+        }
+
+        /* PHONES: below Bootstrap's md breakpoint the sidebar becomes a
+           drawer that slides in from the left, over a dimmed page. It enters
+           and leaves along the same path; closing is a little quicker than
+           opening. */
+
+        @media(max-width:767.98px){
+
+            :root{
+                --nav-h:56px;
+            }
+
+            .navbar{
+                padding-right:calc(12px + var(--safe-right));
+                padding-left:calc(12px + var(--safe-left));
+            }
+
+            .navbar-brand{
+                font-size:1.1rem;
+            }
+
+            .theme-toggle{
+                width:36px;
+                height:36px;
+            }
+
+            /* Top bar: the user chip shrinks to its avatar, Logout to its icon. */
+            .user-chip{
+                padding:0;
+                border:0;
+                background:transparent !important;
+            }
+
+            .user-chip-text,
+            .logout-label{
+                display:none;
+            }
+
+            .logout-btn{
+                width:36px;
+                height:36px;
+                padding:0 !important;
+                display:inline-flex;
+                align-items:center;
+                justify-content:center;
+            }
+
+            .sidebar{
+                top:0;
+                z-index:1060;
+                width:min(300px, 86vw);
+                height:100dvh;
+                padding:calc(var(--safe-top) + 6px) 14px calc(var(--safe-bottom) + 20px) calc(var(--safe-left) + 14px);
+                border-right:0;
+                transform:translateX(-100%);
+                visibility:hidden;
+                transition:
+                    transform 240ms var(--ease-drawer),
+                    box-shadow 240ms ease,
+                    visibility 0s linear 240ms;
+                view-transition-name:none;
+                touch-action:pan-y;  /* vertical scrolls the menu; horizontal is the swipe-to-close */
+            }
+
+            html.nav-open .sidebar{
+                transform:none;
+                visibility:visible;
+                box-shadow:0 0 48px rgba(15,23,42,.28);
+                transition:
+                    transform 320ms var(--ease-drawer),
+                    box-shadow 320ms ease,
+                    visibility 0s;
+            }
+
+            /* While a finger is dragging it, the drawer follows 1:1. */
+            .sidebar.is-dragging{
+                transition:none !important;
+            }
+
+            .sidebar-head{
+                display:flex;
+                align-items:center;
+                justify-content:space-between;
+                height:var(--nav-h);
+                padding:0 0 0 12px;
+                margin-bottom:4px;
+            }
+
+            .sidebar-head .nav-toggle{
+                margin:0 -4px 0 0;
+                font-size:1.15rem;
+                color:var(--muted);
+            }
+
+            .sidebar .nav-link{
+                padding:12px;  /* bigger touch targets */
+                font-size:.95rem;
+            }
+
+            .sidebar-scrim{
+                display:block;
+                position:fixed;
+                inset:0;
+                z-index:1055;
+                background:rgba(15,23,42,.42);
+                opacity:0;
+                pointer-events:none;
+                transition:opacity 240ms ease;
+            }
+
+            html.nav-open .sidebar-scrim{
+                opacity:1;
+                pointer-events:auto;
+                transition-duration:320ms;
+            }
+
+            .main-content{
+                margin-left:0;
+                padding:1rem calc(1rem + var(--safe-right)) calc(1.5rem + var(--safe-bottom)) calc(1rem + var(--safe-left));
+            }
+
+            .page-title{
+                font-size:1.4rem;
+            }
+
+            /* Page headers (title + action button) wrap instead of squeezing. */
+            .main-content > .d-flex.justify-content-between{
+                flex-wrap:wrap;
+                gap:.75rem;
+            }
+
+            .card-header{
+                padding:.85rem 1rem;
+            }
+
+            .table-search{
+                width:100% !important;
+            }
+
+            /* Wide tables scroll sideways inside their card instead of
+               crushing every column. */
+            .table-responsive{
+                -webkit-overflow-scrolling:touch;
+                overscroll-behavior-x:contain;
+            }
+
+            .table-responsive > .table{
+                min-width:620px;
+            }
+
+            .table-responsive > .table th{
+                white-space:nowrap;
+            }
+
+            .panel{
+                padding:1rem;
+                overflow-x:auto;
+            }
+
+            .chat-bubble{
+                max-width:85%;
+            }
+
+        }
+
+        .table-search{
+            width:250px;
+        }
+
+        .logout-btn{
+            display:inline-flex;
+            align-items:center;
+            gap:.35rem;
+        }
+
+        /* iOS zooms into any input under 16px and doesn't zoom back out. */
+        @media (pointer:coarse){
+            input,
+            select,
+            textarea,
+            .form-control,
+            .form-control-sm,
+            .form-select,
+            .form-select-sm{
+                font-size:16px !important;
+            }
+        }
+
+        /* Detail and form pages (patient profile, forms, statistics) */
+
+        .panel{
+            background:var(--card);
+            border:1px solid var(--border);
+            border-radius:var(--radius);
+            box-shadow:var(--shadow);
+            overflow:hidden;
+            padding:1.5rem;
+            margin-bottom:1.5rem;
+        }
+
+        .stats{
+            display:grid;
+            grid-template-columns:repeat(4, minmax(0, 1fr));
+            gap:16px;
+            margin-bottom:24px;
+        }
+
+        .stat{
+            padding:1.5rem;
+            position:relative;
+            min-height:140px;
+            background:var(--card);
+            border:1px solid var(--border);
+            border-radius:var(--radius);
+            box-shadow:var(--shadow);
+            font-variant-numeric:tabular-nums;
+        }
+
+        .table-wrap{
+            overflow:hidden;
+            border-radius:12px;
+            border:1px solid var(--border);
+            background:var(--card);
+        }
+
+        .panel table,
+        .table-wrap table{
+            width:100%;
+            border-collapse:collapse;
+        }
+
+        .panel table th,
+        .panel table td,
+        .table-wrap th,
+        .table-wrap td{
+            padding:12px 14px;
+            border-bottom:1px solid var(--border);
+            text-align:left;
+            color:var(--text);
+        }
+
+        .panel table th,
+        .table-wrap th{
+            color:var(--muted);
+            font-size:.72rem;
+            font-weight:600;
+            text-transform:uppercase;
+            letter-spacing:.06em;
+        }
+
+        .status{
+            background:#dcfce7;
+            color:#166534;
+            border-radius:999px;
+            padding:4px 8px;
+            font-size:12px;
+            font-weight:700;
+        }
+
+        .panel input:not([type="checkbox"]):not([type="radio"]):not([type="file"]):not(.form-control):not(.form-select),
+        .panel select:not(.form-select),
+        .panel textarea:not(.form-control){
+            width:100%;
+            padding:10px 12px;
+            border-radius:var(--radius-sm);
+            border:1px solid var(--border);
+            background:var(--card);
+            color:var(--text);
+            box-sizing:border-box;
+            transition:border-color 150ms ease, box-shadow 150ms ease;
+        }
+
+        .panel input:not([type="checkbox"]):not([type="radio"]):not([type="file"]):not(.form-control):not(.form-select):focus,
+        .panel select:not(.form-select):focus,
+        .panel textarea:not(.form-control):focus{
+            outline:none;
+            border-color:var(--primary);
+            box-shadow:0 0 0 3px var(--bs-focus-ring-color);
+        }
+
+        .panel textarea:not(.form-control){
+            min-height:110px;
+            resize:vertical;
+        }
+
+        .panel button:not(.btn),
+        .panel .btn:not([class*="btn-"]){
+            background:var(--primary-strong);
+            border:none;
+            border-radius:var(--radius-sm);
+            padding:.6rem 1.1rem;
+            font-weight:600;
+            color:white;
+            box-shadow:0 1px 2px rgba(15,118,110,.25), 0 4px 12px rgba(20,184,166,.18);
+            cursor:pointer;
+            transition:transform 120ms var(--ease-out), background-color 150ms ease;
+        }
+
+        .panel button:not(.btn):active{
+            transform:scale(.97);
+        }
+
+        @media (hover:hover) and (pointer:fine){
+            .panel button:not(.btn):hover{
+                background:var(--primary-dark);
+            }
+        }
+
+        html.dark-mode .status{
+            background:#134e4a;
+            color:#a7f3d0;
+        }
+
+        @media (max-width: 800px){
+            .stats{
+                grid-template-columns:1fr;
+            }
+        }
+
+        /* Messages: chat bubbles. Own classes so dark mode can't leave light
+           text on a light bubble (Bootstrap's bg-body-secondary isn't themed). */
+        .chat-bubble{
+            max-width:70%;
+            padding:.5rem .9rem;
+            border-radius:1.1rem;
+            white-space:pre-wrap;
+            overflow-wrap:anywhere;
+            line-height:1.4;
+        }
+
+        .chat-bubble-patient{
+            background:#eef2f7;
+            color:var(--text);
+            border-bottom-left-radius:.35rem;
+        }
+
+        .chat-bubble-staff{
+            background:var(--primary-strong);
+            color:#fff;
+            border-bottom-right-radius:.35rem;
+        }
+
+        .chat-sender{
+            margin:0 .5rem .125rem;
+            font-size:.8rem;
+            font-weight:600;
+            color:var(--muted);
+        }
+
+        .chat-time{
+            margin-top:.25rem;
+            font-size:.875em;
+        }
+
+        .chat-bubble-patient .chat-time{
+            color:var(--muted);
+        }
+
+        .chat-bubble-staff .chat-time{
+            color:rgba(255,255,255,.75);
+        }
+
+        /* Read receipts on staff replies: one tick sent, two ticks seen. */
+        .chat-tick{
+            margin-left:.35rem;
+            font-size:1.05em;
+            vertical-align:-.1em;
+        }
+
+        .chat-bubble-staff .chat-tick-seen{
+            color:#fff;
+        }
+
+        html.dark-mode body .chat-bubble-patient{
+            background:#334155;
+            color:#f1f5f9;
+        }
+
+        /* PAGE TRANSITIONS
+           Moving between pages cross-fades only the content area; the top bar
+           and sidebar stay put, so the shell feels like one app. Browsers
+           without cross-document view transitions just navigate normally. */
+
+        @view-transition{
+            navigation:auto;
+        }
+
+        ::view-transition-group(*){
+            animation-duration:160ms;
+            animation-timing-function:var(--ease-out);
+        }
+
+        /* The theme switch cross-fades the whole page instead of flashing. */
+        html.theme-switching::view-transition-group(*){
+            animation-duration:260ms;
+        }
+
+        /* "DO YOU WANT TO PROCEED?" POP-UP (resources/js/confirm.js) */
+
+        .confirm-dialog{
+            width:min(30rem, calc(100vw - 2rem));
+            padding:1.5rem;
+            border:1px solid var(--border);
+            border-radius:var(--radius);
+            background:var(--card);
+            color:var(--text);
+            box-shadow:0 24px 48px rgba(15,23,42,.22);
+        }
+
+        .confirm-dialog[open]{
+            animation:confirm-in 180ms var(--ease-out);
+        }
+
+        .confirm-dialog::backdrop{
+            background:rgba(15,23,42,.45);
+        }
+
+        @keyframes confirm-in{
+            from{ opacity:0; transform:scale(.96) translateY(6px); }
+        }
+
+        .confirm-title{
+            margin:0 0 .5rem;
+            font-size:1.125rem;
+            font-weight:600;
+        }
+
+        .confirm-message{
+            margin:0 0 1rem;
+            color:var(--muted);
+        }
+
+        .confirm-changes{
+            margin:0 0 1rem;
+            padding:.75rem;
+            list-style:none;
+            border-radius:var(--radius-sm);
+            background:var(--bg);
+            font-size:.875rem;
+            max-height:40vh;
+            overflow:auto;
+        }
+
+        .confirm-changes li{
+            display:flex;
+            flex-wrap:wrap;
+            gap:.25rem .5rem;
+            align-items:baseline;
+            overflow-wrap:anywhere;
+        }
+
+        .confirm-changes li + li{
+            margin-top:.5rem;
+        }
+
+        .confirm-field{
+            flex-basis:100%;
+            font-weight:600;
+        }
+
+        .confirm-from{
+            color:var(--muted);
+            text-decoration:line-through;
+        }
+
+        .confirm-arrow{
+            color:var(--muted);
+        }
+
+        .confirm-buttons{
+            display:flex;
+            justify-content:flex-end;
+            gap:.5rem;
+        }
+
+        /* ACCESSIBILITY PREFERENCES */
+
+        @media (prefers-reduced-motion:reduce){
+
+            @view-transition{
+                navigation:none;
+            }
+
+            .btn:active,
+            .theme-toggle:active,
+            .page-link:active,
+            .sidebar .nav-link:active,
+            .panel button:not(.btn):active{
+                transform:none;
+            }
+
+            .alert{
+                @starting-style{
+                    transform:none;
+                }
+            }
+
+            /* Pop-up appears in place, no zoom. */
+            .confirm-dialog[open]{
+                animation:none;
+            }
+
+            /* Drawer appears in place; only the dimming fades. */
+            .sidebar,
+            html.nav-open .sidebar{
+                transition:none !important;
+            }
+        }
+
+        @media (prefers-reduced-transparency:reduce){
+            .navbar{
+                background:var(--card);
+                -webkit-backdrop-filter:none;
+                backdrop-filter:none;
+            }
+        }
+
+        @media (prefers-contrast:more){
+            :root{
+                --border:#94a3b8;
+                --muted:#475569;
+            }
+
+            .navbar{
+                background:var(--card);
+                -webkit-backdrop-filter:none;
+                backdrop-filter:none;
+            }
+        }
