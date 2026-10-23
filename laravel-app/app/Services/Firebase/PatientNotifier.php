@@ -19,6 +19,7 @@ class PatientNotifier
     private const PREFERENCE_FOR_TYPE = [
         'chat' => 'messages',
         'exercise_assigned' => 'exercises',
+        'reminder' => 'reminders',
     ];
 
     public function __construct(

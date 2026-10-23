@@ -6,6 +6,9 @@
 #   VERCEL_TOKEN       a Vercel access token (vercel.com/account/tokens)
 #   VERCEL_ORG_ID      the Vercel team/account ID that owns the project
 #   VERCEL_PROJECT_ID  the Vercel project ID (Project -> Settings -> General)
+#   CRON_SECRET        shared with the daily exercise-reminders workflow (on
+#                      main); passed to the deployment as a runtime env var so
+#                      POST /cron/exercise-reminders accepts that workflow only
 #
 # The project's Root Directory (laravel-app) and env vars (APP_KEY,
 # FIREBASE_*) live in Vercel, so this runs from the repo root and the build
@@ -38,6 +41,7 @@ jobs:
       VERCEL_ORG_ID: ${{ secrets.VERCEL_ORG_ID }}
       VERCEL_PROJECT_ID: ${{ secrets.VERCEL_PROJECT_ID }}
       VERCEL_TOKEN: ${{ secrets.VERCEL_TOKEN }}
+      CRON_SECRET: ${{ secrets.CRON_SECRET }}
     steps:
       - name: Check out
         uses: actions/checkout@v4
@@ -54,4 +58,7 @@ jobs:
       # newest PHP build for the vercel-php runtime (security fixes such as
       # PHP2Shell, CVE-2026-109618/109619, arrive that way).
       - name: Deploy to production
-        run: vercel deploy --prod --yes --force --token="$VERCEL_TOKEN"
+        #
+        # --env CRON_SECRET: the secret is kept only in GitHub (no copy in the
+        # Vercel dashboard); each deploy hands it to the running app.
+        run: vercel deploy --prod --yes --force --env CRON_SECRET="$CRON_SECRET" --token="$VERCEL_TOKEN"

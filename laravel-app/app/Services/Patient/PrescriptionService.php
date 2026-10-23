@@ -113,7 +113,8 @@ class PrescriptionService
         return ExerciseCatalog::name($f['exerciseType']).": {$what}, {$f['frequencyPerWeek']}x per week.";
     }
 
-    private function present(array $doc): array
+    /** Firestore doc -> the shape views and ExerciseReminderService use. */
+    public static function present(array $doc): array
     {
         $schedule = is_array($doc['schedule'] ?? null) ? $doc['schedule'] : [];
 

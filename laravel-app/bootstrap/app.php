@@ -24,8 +24,9 @@ return Application::configure(basePath: dirname(__DIR__))
         $middleware->append(SecurityHeaders::class);
         $middleware->append(ContentSecurityPolicy::class);
 
-        // Browsers send CSP reports without a CSRF token.
-        $middleware->validateCsrfTokens(except: ['csp-report']);
+        // Browsers send CSP reports without a CSRF token, and the scheduled
+        // jobs authenticate with a bearer secret instead (CronController).
+        $middleware->validateCsrfTokens(except: ['csp-report', 'cron/*']);
 
         // On Vercel every request arrives through Vercel's proxy, which sets
         // X-Forwarded-For to the real client. Without trusting it, the login

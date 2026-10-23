@@ -50,6 +50,16 @@ return [
         'slow_ms' => (int) env('FIREBASE_SLOW_MS', 1500),               // log a warning above this
     ],
 
+    // Evening exercise reminders (App\Services\Patient\ExerciseReminderService).
+    // A GitHub Actions schedule calls POST /cron/exercise-reminders at 6 PM
+    // with "Authorization: Bearer <CRON_SECRET>". Without a secret the route
+    // refuses every call. Reminders only go out from send_after_hour on.
+    'reminders' => [
+        'cron_secret' => env('CRON_SECRET'),
+        'timezone' => env('REMINDER_TIMEZONE', 'Asia/Manila'),
+        'send_after_hour' => (int) env('REMINDER_SEND_AFTER_HOUR', 18),
+    ],
+
     'slack' => [
         'notifications' => [
             'bot_user_oauth_token' => env('SLACK_BOT_USER_OAUTH_TOKEN'),

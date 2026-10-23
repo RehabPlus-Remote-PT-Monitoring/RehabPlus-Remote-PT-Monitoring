@@ -3,6 +3,7 @@
 use App\Http\Controllers\AppointmentController;
 use App\Http\Controllers\AuthController;
 use App\Http\Controllers\ClinicalRecordController;
+use App\Http\Controllers\CronController;
 use App\Http\Controllers\CspReportController;
 use App\Http\Controllers\DashboardController;
 use App\Http\Controllers\InventoryController;
@@ -44,6 +45,9 @@ Route::post('/reset-password', [PasswordResetController::class, 'reset'])->middl
 
 // Content-Security-Policy violation reports from browsers (logged, see ContentSecurityPolicy).
 Route::post('/csp-report', CspReportController::class)->middleware('throttle:60,1')->name('csp.report');
+
+// Scheduled jobs: called by the GitHub Actions schedule with a bearer secret, no login.
+Route::post('/cron/exercise-reminders', [CronController::class, 'exerciseReminders'])->middleware('throttle:10,1,cron')->name('cron.reminders');
 
 // Signed-in staff: admin, therapist or front-desk staff (see App\Auth\StaffUser).
 Route::middleware(['auth.rehab'])->group(function () {
