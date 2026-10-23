@@ -120,6 +120,13 @@ describe('1. a login with no patient profile can store nothing', () => {
     }));
     await assertSucceeds(updateDoc(doc(db, 'patients/p1'), { phone: '0917' }));
   });
+
+  test('device platform must be android or ios', async () => {
+    const db = as('p1');
+    await assertSucceeds(setDoc(doc(db, 'patients/p1/devices/t2'), { token: 't2', platform: 'ios', updatedAt: serverTimestamp() }));
+    await assertFails(setDoc(doc(db, 'patients/p1/devices/t3'), { token: 't3', platform: { a: 'x' }, updatedAt: serverTimestamp() }));
+    await assertFails(setDoc(doc(db, 'patients/p1/devices/t4'), { token: 't4', updatedAt: serverTimestamp() }));
+  });
 });
 
 describe('patients only reach their own data', () => {
@@ -187,6 +194,19 @@ describe('2. only admins change assignment, archiving and identity', () => {
   test('admin can reassign', async () => {
     await assertSucceeds(updateDoc(doc(as('adm'), 'patients/p1'), { therapistId: 'thB', therapistName: 'Dr B' }));
   });
+
+  test('thA edits only the dashboard form fields, with its limits', async () => {
+    const db = as('thA');
+    await assertSucceeds(updateDoc(doc(db, 'patients/p1'), {
+      name: 'Pat L', condition: 'ACL', medicalSummary: 'ok', therapyPlan: 'plan', phone: '0917', dob: '1990-01-01',
+      updatedAt: serverTimestamp(),
+    }));
+    await assertFails(updateDoc(doc(db, 'patients/p1'), { role: 'admin' }));
+    await assertFails(updateDoc(doc(db, 'patients/p1'), { junk: 'x' }));
+    await assertFails(updateDoc(doc(db, 'patients/p1'), { medicalSummary: 'x'.repeat(2001) }));
+    await assertFails(updateDoc(doc(db, 'patients/p1'), { condition: { a: 1 } }));
+    await assertFails(updateDoc(doc(db, 'patients/p1'), { name: '' }));
+  });
 });
 
 describe('3. therapists stay out of the clinic thread', () => {
@@ -211,6 +231,16 @@ describe('3. therapists stay out of the clinic thread', () => {
 
   test('threads other than therapist/clinic are refused', async () => {
     await assertFails(setDoc(doc(as('adm'), 'patients/p1/threads/other'), { unreadForPatient: 0 }));
+  });
+
+  test('therapist cannot read the clinic thread or its messages; patient and admin can', async () => {
+    await env.withSecurityRulesDisabled((ctx) => setDoc(
+      doc(ctx.firestore(), 'patients/p1/threads/clinic/messages/c1'), message('p1', 'patient')));
+    await assertFails(getDoc(doc(as('thA'), 'patients/p1/threads/clinic')));
+    await assertFails(getDoc(doc(as('thA'), 'patients/p1/threads/clinic/messages/c1')));
+    await assertSucceeds(getDoc(doc(as('thA'), 'patients/p1/threads/therapist')));
+    await assertSucceeds(getDoc(doc(as('p1'), 'patients/p1/threads/clinic/messages/c1')));
+    await assertSucceeds(getDoc(doc(as('adm'), 'patients/p1/threads/clinic/messages/c1')));
   });
 });
 
@@ -352,8 +382,14 @@ describe('7. sessions: every field the dashboard shows is type- and size-checked
   test('a start time more than an hour in the future is refused; past ones (offline) are fine', async () => {
     const at = (ms) => Timestamp.fromMillis(Date.now() + ms);
     await assertFails(add({ startTime: Timestamp.fromDate(new Date('2099-01-01')) }));
-    await assertSucceeds(add({ startTime: at(30 * 60 * 1000) }));       // phone clock 30 min fast
+    await assertSucceeds(add({ startTime: at(30 * 60 * 1000), endTime: at(40 * 60 * 1000) })); // phone clock 30 min fast
     await assertSucceeds(add({ startTime: at(-3 * 24 * 3600 * 1000) })); // queued offline for days
+  });
+
+  test('an end time far in the future or before the start is refused', async () => {
+    const at = (ms) => Timestamp.fromMillis(Date.now() + ms);
+    await assertFails(add({ endTime: Timestamp.fromDate(new Date('2099-01-01')) }));
+    await assertFails(add({ startTime: at(-60 * 1000), endTime: at(-10 * 60 * 1000) }));
   });
 });
 

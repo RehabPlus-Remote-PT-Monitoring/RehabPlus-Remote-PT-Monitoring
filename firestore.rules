@@ -14,7 +14,8 @@ rules_version = '2';
 //     can't be changed or deleted afterwards;
 //   - therapists/admins signed in with Firebase can read and manage the
 //     patients assigned to them (admins: all patients). Only admins change who
-//     a patient is assigned to, archive them, or use the "clinic" chat thread;
+//     a patient is assigned to, archive them, or read or use the "clinic" chat
+//     thread;
 //   - every patient write needs an existing patients/{uid} profile, so a
 //     self-made Firebase login with no profile can't store anything.
 service cloud.firestore {
@@ -56,12 +57,22 @@ service cloud.firestore {
       return isAdmin() || (threadId == 'therapist' && caresFor(patientId));
     }
 
-    // Profile fields that only the server or an admin may change: who the
-    // patient is assigned to, archiving (which also disables the login on the
-    // server), and the account's identity.
-    function changesOnlyClinicalFields() {
-      return !request.resource.data.diff(resource.data).affectedKeys().hasAny(
-        ['therapistId', 'therapistName', 'archived', 'email', 'createdBy', 'createdAt']);
+    // What the patient's therapist may change on the profile: only the fields
+    // the dashboard's edit form has, with its limits (PatientValidation).
+    // Assignment, archiving (which also disables the login on the server) and
+    // the account's identity stay with the server or an admin, and no new
+    // fields (e.g. a stray "role") can be added.
+    function validClinicalEdit() {
+      let d = request.resource.data;
+      return d.diff(resource.data).affectedKeys().hasOnly(
+          ['name', 'condition', 'medicalSummary', 'therapyPlan', 'phone', 'dob', 'updatedAt'])
+        && (!('name' in d) || (d.name is string && d.name.size() > 0 && d.name.size() <= 100))
+        && (!('condition' in d) || (d.condition is string && d.condition.size() <= 150))
+        && (!('medicalSummary' in d) || (d.medicalSummary is string && d.medicalSummary.size() <= 2000))
+        && (!('therapyPlan' in d) || (d.therapyPlan is string && d.therapyPlan.size() <= 2000))
+        && (!('phone' in d) || (d.phone is string && d.phone.size() <= 30))
+        && (!('dob' in d) || (d.dob is string && d.dob.size() <= 30))
+        && (!('updatedAt' in d) || d.updatedAt is timestamp);
     }
 
     // Account profile with role: 'patient' | 'therapist' | 'admin' | 'staff'
@@ -75,7 +86,7 @@ service cloud.firestore {
     match /patients/{patientId} {
       allow read: if isSelf(patientId) || caresFor(patientId);
       allow update: if isAdmin()
-        || (caresFor(patientId) && changesOnlyClinicalFields())
+        || (caresFor(patientId) && validClinicalEdit())
         || (isSelf(patientId) && validContactEdit());
       allow create, delete: if isAdmin();
 
@@ -116,6 +127,7 @@ service cloud.firestore {
           && request.resource.data.keys().hasOnly(['token', 'platform', 'updatedAt'])
           && request.resource.data.token == token
           && token.size() < 1024
+          && request.resource.data.platform in ['android', 'ios']
           && request.resource.data.updatedAt == request.time;
         allow delete: if isSelf(patientId);
       }
@@ -161,9 +173,11 @@ service cloud.firestore {
         allow write: if false;
       }
 
-      // threadId is 'therapist' or 'clinic'.
+      // threadId is 'therapist' or 'clinic'. Staff read only the threads they
+      // can write to: the therapist never sees the clinic thread (a patient
+      // may be messaging the clinic about them).
       match /threads/{threadId} {
-        allow read: if isSelf(patientId) || caresFor(patientId);
+        allow read: if isSelf(patientId) || staffForThread(patientId, threadId);
         allow create: if isPatient(patientId) && validThreadId(threadId)
           && patientThreadFields(request.resource.data, request.resource.data.keys(), 0);
         allow update: if isPatient(patientId)
@@ -175,7 +189,7 @@ service cloud.firestore {
         allow delete: if isAdmin();
 
         match /messages/{messageId} {
-          allow read: if isSelf(patientId) || caresFor(patientId);
+          allow read: if isSelf(patientId) || staffForThread(patientId, threadId);
           allow create: if validThreadId(threadId) && (
             (isPatient(patientId) && validMessage(request.resource.data, 'patient'))
             || (staffForThread(patientId, threadId) && validMessage(request.resource.data, 'staff')));
@@ -253,12 +267,15 @@ service cloud.firestore {
         && optionalText(d, 'prescriptionId', 128)
         && optionalText(d, 'notes', 2000)
         && d.startTime is timestamp && notInFuture(d.startTime)
-        && (!('endTime' in d) || d.endTime == null || d.endTime is timestamp)
+        && (!('endTime' in d) || d.endTime == null
+            || (d.endTime is timestamp && notInFuture(d.endTime) && d.endTime >= d.startTime))
         && validCount(d.completedReps)
         && (!('completedSets' in d) || validCount(d.completedSets))
         && (!('targetReps' in d) || validCount(d.targetReps))
         && (!('targetSets' in d) || validCount(d.targetSets))
         && (!('rejectedReps' in d) || validCount(d.rejectedReps))
+        // Rules can't check the type of each entry, only the length; readers
+        // (the app's history chart) must treat the entries as untrusted.
         && (!('repComplianceScores' in d)
             || (d.repComplianceScores is list && d.repComplianceScores.size() <= 10000))
         && (!('overallCompliance' in d) || d.overallCompliance == null
