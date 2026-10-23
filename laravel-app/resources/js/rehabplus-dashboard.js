@@ -1,3 +1,5 @@
+import { dragOffset, swipeCloses, swipeGesture } from './swipe.js';
+
 const searchInput = document.getElementById('patientSearch');
 const rows = document.querySelectorAll('#patientsTable tbody tr');
 
@@ -146,51 +148,63 @@ if (sidebar && navToggle) {
     // Swipe left to close.
     let drag = null;
 
+    // One finger only: mouse drags and extra touches mid-drag are ignored.
+    const canStartDrag = (event) => isOpen() && event.pointerType !== 'mouse' && !drag?.active;
+    const ownsPointer = (event) => drag !== null && event.pointerId === drag.id;
+
     sidebar.addEventListener('pointerdown', (event) => {
-        if (!isOpen() || event.pointerType === 'mouse' || drag?.active) {
-            return; // one finger only; ignore extra touches mid-drag
+        if (canStartDrag(event)) {
+            drag = { id: event.pointerId, x: event.clientX, y: event.clientY, dx: 0, t: performance.now(), active: false };
         }
-        drag = { id: event.pointerId, x: event.clientX, y: event.clientY, dx: 0, t: performance.now(), active: false };
     });
 
     sidebar.addEventListener('pointermove', (event) => {
-        if (!drag || event.pointerId !== drag.id) {
+        if (!ownsPointer(event)) {
             return;
         }
-        const dx = event.clientX - drag.x;
-        const dy = event.clientY - drag.y;
-
         if (!drag.active) {
-            // ~10px before committing, and only to a mostly-horizontal swipe,
-            // so scrolling the menu still works.
-            if (Math.abs(dx) < 10 && Math.abs(dy) < 10) {
-                return;
-            }
-            if (Math.abs(dy) > Math.abs(dx) || dx > 0) {
+            const gesture = swipeGesture(event.clientX - drag.x, event.clientY - drag.y);
+            if (gesture === 'scroll') {
                 drag = null;
+            }
+            if (gesture !== 'swipe') {
                 return;
             }
-            drag.active = true;
-            drag.x = event.clientX; // start tracking from here: no jump
-            drag.t = performance.now();
-            sidebar.setPointerCapture(event.pointerId);
-            sidebar.classList.add('is-dragging');
+            startSwipe(event);
         }
-
-        const width = sidebar.offsetWidth;
-        let offset = event.clientX - drag.x;
-        // Past the open edge it resists instead of hard-stopping.
-        offset = offset > 0 ? offset * 0.2 : Math.max(offset, -width);
-        drag.dx = offset;
-        sidebar.style.transform = `translateX(${offset}px)`;
-        if (scrim) {
-            scrim.style.transition = 'none';
-            scrim.style.opacity = String(1 + Math.min(offset, 0) / width);
-        }
+        followFinger(event.clientX);
     });
 
+    const startSwipe = (event) => {
+        drag.active = true;
+        drag.x = event.clientX; // start tracking from here: no jump
+        drag.t = performance.now();
+        sidebar.setPointerCapture(event.pointerId);
+        sidebar.classList.add('is-dragging');
+    };
+
+    const followFinger = (clientX) => {
+        const width = sidebar.offsetWidth;
+        drag.dx = dragOffset(clientX - drag.x, width);
+        sidebar.style.transform = `translateX(${drag.dx}px)`;
+        if (scrim) {
+            scrim.style.transition = 'none';
+            scrim.style.opacity = String(1 + Math.min(drag.dx, 0) / width);
+        }
+    };
+
+    // Hand back to the CSS transition, which picks up from where the finger left it.
+    const releaseSidebar = () => {
+        sidebar.classList.remove('is-dragging');
+        sidebar.style.transform = '';
+        if (scrim) {
+            scrim.style.transition = '';
+            scrim.style.opacity = '';
+        }
+    };
+
     const endDrag = (event) => {
-        if (!drag || event.pointerId !== drag.id) {
+        if (!ownsPointer(event)) {
             return;
         }
         const { active, dx, t } = drag;
@@ -200,16 +214,8 @@ if (sidebar && navToggle) {
         }
         sidebar.dataset.justDragged = '1';
         setTimeout(() => delete sidebar.dataset.justDragged, 0);
-        const velocity = Math.abs(dx) / (performance.now() - t); // px per ms
-        const close = dx < -sidebar.offsetWidth / 3 || (dx < 0 && velocity > 0.11);
-
-        // Hand back to the CSS transition, which picks up from where the finger left it.
-        sidebar.classList.remove('is-dragging');
-        sidebar.style.transform = '';
-        if (scrim) {
-            scrim.style.transition = '';
-            scrim.style.opacity = '';
-        }
+        const close = swipeCloses(dx, performance.now() - t, sidebar.offsetWidth);
+        releaseSidebar();
         if (close) {
             setOpen(false);
         }
@@ -258,10 +264,13 @@ document.addEventListener('click', (event) => {
     if (button.hasAttribute('data-print')) {
         window.print();
     }
-    for (const id of (button.dataset.hide || '').split(' ').filter(Boolean)) {
-        document.getElementById(id)?.setAttribute('hidden', '');
-    }
-    for (const id of (button.dataset.show || '').split(' ').filter(Boolean)) {
-        document.getElementById(id)?.removeAttribute('hidden');
-    }
+    setHidden(button.dataset.hide, true);
+    setHidden(button.dataset.show, false);
 });
+
+// Hides or shows the elements whose ids are listed (space-separated) in ids.
+function setHidden(ids, hidden) {
+    for (const id of (ids ?? '').split(' ').filter(Boolean)) {
+        document.getElementById(id)?.toggleAttribute('hidden', hidden);
+    }
+}
