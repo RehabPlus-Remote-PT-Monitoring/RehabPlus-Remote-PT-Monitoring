@@ -50,5 +50,8 @@ jobs:
       - name: Install Vercel CLI
         run: npm install --global vercel@latest
 
+      # --force skips Vercel's build cache, so every deploy downloads the
+      # newest PHP build for the vercel-php runtime (security fixes such as
+      # PHP2Shell, CVE-2026-109618/109619, arrive that way).
       - name: Deploy to production
-        run: vercel deploy --prod --yes --token="$VERCEL_TOKEN"
+        run: vercel deploy --prod --yes --force --token="$VERCEL_TOKEN"

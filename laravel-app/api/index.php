@@ -48,6 +48,10 @@ if (! is_dir('/tmp/laravel')) {
 // Vercel terminates TLS in front of PHP; make URLs and secure cookies https.
 $_SERVER['HTTPS'] = 'on';
 
+// The runtime sends "X-Powered-By: PHP/x.y.z", which tells scanners exactly
+// which PHP bugs to try. expose_php can't be changed here, so drop the header.
+header_remove('X-Powered-By');
+
 require __DIR__.'/../vendor/autoload.php';
 
 /** @var Application $app */
