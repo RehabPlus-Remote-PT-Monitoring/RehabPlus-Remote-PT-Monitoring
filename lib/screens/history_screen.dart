@@ -302,25 +302,6 @@ class _HistoryScreenState extends State<HistoryScreen>
                       ),
                     ],
                   ),
-                  Container(
-                    padding: const EdgeInsets.all(10),
-                    decoration: BoxDecoration(
-                      color: Colors.white.withValues(alpha: 0.15),
-                      borderRadius: BorderRadius.circular(14),
-                    ),
-                    child: GestureDetector(
-                      onTap: () => ScaffoldMessenger.of(context).showSnackBar(
-                        SnackBar(
-                          content: const Text('Add custom exercise coming soon!'),
-                          backgroundColor: const Color(0xFF23A8AA),
-                          behavior: SnackBarBehavior.floating,
-                          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
-                          margin: const EdgeInsets.all(16),
-                        ),
-                      ),
-                      child: PhosphorIcon(PhosphorIcons.plus(), color: Colors.white, size: 22),
-                    ),
-                  ),
                 ],
               ),
               const SizedBox(height: 18),

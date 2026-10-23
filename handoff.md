@@ -204,6 +204,5 @@ Neither branch is merged into `main`.
    - Have a lawyer or the clinic's DPO review both documents. Register with the National Privacy Commission if the clinic's processing requires it.
    - Show the consent status on the dashboard's patient profile (see API_CONTRACT.md).
 8. **Smaller items:**
-   - Remove the unused `uuid` dependency (app).
    - Add exercise reminders (`reminder` type). These would need a scheduler on the Laravel side, since there are no Cloud Functions.
    - Seed `settings/clinic.phone` with the real clinic number (set the `CLINIC_PHONE` environment variable). The dashboard has no settings page for it yet.

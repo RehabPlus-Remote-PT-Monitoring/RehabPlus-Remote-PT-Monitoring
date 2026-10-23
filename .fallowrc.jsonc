@@ -1,0 +1,13 @@
+// fallow (https://fallow.tools) settings for this repo. Run from the repo root:
+//   npx fallow
+// The app itself is Dart; fallow only sees the Node helper scripts under tool/.
+{
+    // Standalone scripts run by hand (`node seed.mjs ...`) or by `npm test`
+    // in tool/rules-test; nothing imports them.
+    "entry": [
+        "tool/seed/*.mjs",
+        "tool/rules-test/*.test.mjs"
+    ],
+    // `flutter build web` generates web/flutter_bootstrap.js; it isn't in the repo.
+    "ignoreUnresolvedImports": ["./flutter_bootstrap.js"]
+}
