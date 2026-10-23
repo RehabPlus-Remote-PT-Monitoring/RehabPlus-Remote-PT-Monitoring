@@ -59,13 +59,27 @@ class FirestoreClient
     /** One document, or null if it doesn't exist. */
     public function get(string $path): ?array
     {
+        return $this->getVersioned($path)[0];
+    }
+
+    /**
+     * Read a document plus its updateTime, for a read-modify-write that must
+     * not lose a concurrent update: pass the version to mergeWrite(ifUpdateTime:),
+     * and the commit fails with FirestoreConflict if anyone wrote in between.
+     *
+     * @return array{0: ?array, 1: ?string} fields (null if missing) and updateTime
+     */
+    public function getVersioned(string $path): array
+    {
         $response = $this->send(FirebaseRequest::GET, $this->url($path), null, 'firestore.get', $path, idempotent: true);
 
         if ($response->status() === 404) {
-            return null;
+            return [null, null];
         }
 
-        return $this->decodeDocument($this->ok($response, 'read')->json());
+        $json = $this->ok($response, 'read')->json();
+
+        return [$this->decodeDocument($json), $json['updateTime'] ?? null];
     }
 
     /**
@@ -210,8 +224,12 @@ class FirestoreClient
      * Set only the given fields (merge), creating the document if needed.
      *
      * @param  array<string, int>  $increments  field => amount
+     * @param  ?string  $ifUpdateTime  only apply if the document is still at
+     *                                 this version (from getVersioned()); a
+     *                                 concurrent write makes the commit throw
+     *                                 FirestoreConflict
      */
-    public function mergeWrite(string $path, array $fields, array $increments = [], array $serverTimestamps = []): array
+    public function mergeWrite(string $path, array $fields, array $increments = [], array $serverTimestamps = [], ?string $ifUpdateTime = null): array
     {
         $transforms = $this->timestampTransforms($serverTimestamps);
         foreach ($increments as $field => $by) {
@@ -222,6 +240,7 @@ class FirestoreClient
             'update' => ['name' => $this->name($path), 'fields' => $this->encodeFields($fields)],
             'updateMask' => ['fieldPaths' => array_keys($fields)],
             'updateTransforms' => $transforms,
+            'currentDocument' => $ifUpdateTime === null ? null : ['updateTime' => $ifUpdateTime],
         ]);
     }
 
@@ -304,6 +323,12 @@ class FirestoreClient
     {
         if ($response->failed()) {
             $status = $response->json('error.status') ?? $response->json('0.error.status');
+
+            // On a commit this means an updateTime/exists precondition failed:
+            // someone else wrote the document first.
+            if ($status === 'FAILED_PRECONDITION' && $action === 'save') {
+                throw new FirestoreConflict('Someone else changed this record at the same moment. Try again.');
+            }
 
             throw new FirebaseException(match ($status) {
                 'ALREADY_EXISTS' => 'That record already exists.',

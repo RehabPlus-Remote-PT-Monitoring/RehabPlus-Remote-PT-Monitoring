@@ -2,6 +2,7 @@
 
 namespace Tests\Feature;
 
+use App\Services\Patient\PatientProgress;
 use Carbon\CarbonImmutable;
 use Tests\Support\FakeFirebase;
 use Tests\TestCase;
@@ -213,6 +214,42 @@ class PatientTest extends TestCase
             ->assertSee('Sore after')
             ->assertSee('Climb stairs')
             ->assertSee('50% achieved');
+    }
+
+    public function test_sessions_with_wrong_field_types_do_not_break_the_profile(): void
+    {
+        // Sessions come from the patient's phone; a patient talking to Firestore
+        // directly could store any type here (this used to make the page 500).
+        $now = CarbonImmutable::now();
+        $this->docs['patients/pOne/sessions/bad'] = [
+            'exerciseId' => 'kneeExtension', 'exerciseName' => ['evil' => 'map'], 'prescriptionId' => ['x'],
+            'startTime' => $now->subHour(), 'completedReps' => 2000000000, 'targetReps' => 'ten',
+            'rejectedReps' => ['x' => 1], 'overallCompliance' => 5, 'painLevel' => 99,
+            'painNote' => ['not' => 'text'], 'endedEarly' => 'yes', 'outsideSchedule' => 1,
+        ];
+
+        $this->actingAs($this->staff('therapist', 'thA', 'Dr. Ana'))->get('/patients/pOne')
+            ->assertOk()
+            ->assertSee('Knee Extension')                     // name falls back to the catalog
+            ->assertSee(PatientProgress::MAX_COUNT.'/0')      // reps clamped, bad target -> 0
+            ->assertSee('100%')                               // accuracy clamped to 0..1
+            ->assertSee('10/10')                              // pain clamped to 0..10
+            ->assertDontSee('Ended early')
+            ->assertDontSee('Outside schedule');
+    }
+
+    public function test_session_text_and_numbers_are_kept_when_valid(): void
+    {
+        $s = PatientProgress::presentSession([
+            '_id' => 's', '_path' => 'patients/pOne/sessions/s', 'exerciseId' => 'wallSit', 'exerciseName' => 'Wall Sit',
+            'startTime' => CarbonImmutable::now(), 'completedReps' => 3, 'targetReps' => 5, 'overallCompliance' => 0.75,
+            'painLevel' => 2, 'painNote' => str_repeat('a', 400), 'endedEarly' => true,
+        ]);
+
+        $this->assertSame('Wall Sit', $s['exerciseName']);
+        $this->assertSame([3, 5, 75.0, 2, true], [$s['completedReps'], $s['targetReps'], $s['accuracy'], $s['painLevel'], $s['endedEarly']]);
+        $this->assertSame(300, mb_strlen($s['painNote']));
+        $this->assertNull(PatientProgress::presentSession(['_id' => 's', '_path' => 'p/x/sessions/s', 'startTime' => 'yesterday'])['startTime']);
     }
 
     public function test_changing_a_patient_asks_do_you_want_to_proceed_first(): void

@@ -33,6 +33,12 @@ class MessagingService
 
     public const MAX_LENGTH = 1000;
 
+    /**
+     * How far ahead of the server a phone's clock may be. Same limit as
+     * firestore.rules (sentAt / lastMessageAt <= request.time + 1 hour).
+     */
+    public const CLOCK_SKEW_MINUTES = 60;
+
     public function __construct(private FirestoreClient $db, private PatientNotifier $notifier)
     {
     }
@@ -67,17 +73,23 @@ class MessagingService
             $patients,
         ));
 
-        $conversations = array_map(function ($p) use ($thread, $summaries) {
+        $now = CarbonImmutable::now();
+        $conversations = array_map(function ($p) use ($thread, $summaries, $now) {
             $s = $summaries["patients/{$p['_id']}/threads/{$thread}"] ?? [];
+            // The patient's phone sets lastMessageAt (messages can be queued
+            // offline). A time in the future is ignored: otherwise a patient
+            // could pin their conversation to the top of the inbox for good.
+            $at = $s['lastMessageAt'] ?? null;
+            $at = $at instanceof CarbonImmutable && $at->lessThanOrEqualTo($now->addMinutes(self::CLOCK_SKEW_MINUTES)) ? $at : null;
 
             return [
                 'patientUid' => $p['_id'],
                 'patientName' => $p['name'] ?? 'Unnamed patient',
                 'condition' => $p['condition'] ?? null,
-                'lastMessage' => $s['lastMessage'] ?? null,
-                'lastMessageAt' => $s['lastMessageAt'] ?? null,
+                'lastMessage' => is_string($s['lastMessage'] ?? null) ? $s['lastMessage'] : null,
+                'lastMessageAt' => $at,
                 'lastSenderRole' => $s['lastSenderRole'] ?? null,
-                'unread' => (int) ($s['unreadForStaff'] ?? 0),
+                'unread' => max(0, (int) ($s['unreadForStaff'] ?? 0)),
             ];
         }, $patients);
 

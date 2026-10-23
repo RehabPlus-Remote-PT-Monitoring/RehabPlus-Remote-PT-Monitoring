@@ -103,6 +103,55 @@ class PasswordResetTest extends TestCase
         $this->assertSame('secret-pass', $this->authUsers['admin@clinic.com']['password']);
     }
 
+    public function test_parallel_wrong_guesses_cannot_share_one_attempt_count(): void
+    {
+        $this->staff('admin', 'adUid', 'Admin', 'admin@clinic.com');
+        $this->post('/forgot-password', ['email' => 'admin@clinic.com']);
+        $code = $this->sentCode('admin@clinic.com');
+        $wrong = $code === '000000' ? '111111' : '000000';
+        $path = 'passwordResets/'.hash('sha256', 'admin@clinic.com');
+
+        // Another guess (in a parallel request) is saved after this one read the
+        // doc: this one must not overwrite that count with its stale "1".
+        $this->beforeNextCommit = function () use ($path) {
+            $this->docs[$path]['attempts'] = 4;
+        };
+        $this->post('/forgot-password/verify', ['code' => $wrong])->assertSessionHas('error');
+        $this->assertSame(4, $this->resetDoc('admin@clinic.com')['attempts']);
+
+        // The next guess is the 5th and last: the code is dropped.
+        $this->post('/forgot-password/verify', ['code' => $wrong])->assertSessionHas('error');
+        $this->assertNull($this->resetDoc('admin@clinic.com')['codeHash']);
+        $this->post('/forgot-password/verify', ['code' => $code])->assertSessionHas('error');
+        $this->get('/reset-password')->assertRedirect('/forgot-password');
+    }
+
+    public function test_a_right_code_loses_to_a_parallel_lockout(): void
+    {
+        $this->staff('admin', 'adUid', 'Admin', 'admin@clinic.com');
+        $this->post('/forgot-password', ['email' => 'admin@clinic.com']);
+        $code = $this->sentCode('admin@clinic.com');
+        $path = 'passwordResets/'.hash('sha256', 'admin@clinic.com');
+
+        // A parallel wrong guess used up the last try between this request's read and write.
+        $this->beforeNextCommit = function () use ($path) {
+            $this->docs[$path] = ['codeHash' => null, 'codeExpiresAt' => null, 'attempts' => 5] + $this->docs[$path];
+        };
+        $this->post('/forgot-password/verify', ['code' => $code])->assertSessionHas('error');
+        $this->get('/reset-password')->assertRedirect('/forgot-password');
+        $this->assertNull($this->resetDoc('admin@clinic.com')['tokenHash'] ?? null);
+    }
+
+    public function test_code_checks_are_conditional_writes(): void
+    {
+        $this->staff('admin', 'adUid', 'Admin', 'admin@clinic.com');
+        $this->post('/forgot-password', ['email' => 'admin@clinic.com']);
+        $this->post('/forgot-password/verify', ['code' => $this->sentCode('admin@clinic.com')]);
+
+        $write = end($this->commits)[0];
+        $this->assertArrayHasKey('updateTime', $write['currentDocument']);
+    }
+
     public function test_codes_expire(): void
     {
         $this->staff('admin', 'adUid', 'Admin', 'admin@clinic.com');

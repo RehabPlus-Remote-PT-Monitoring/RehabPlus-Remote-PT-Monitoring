@@ -2,6 +2,7 @@
 
 namespace Tests\Feature;
 
+use App\Services\Messaging\MessagingService;
 use Carbon\CarbonImmutable;
 use Illuminate\Http\Client\Factory;
 use Illuminate\Http\Client\Request;
@@ -60,6 +61,28 @@ class MessagingTest extends TestCase
             ->assertSee('Can I book Tuesday?')
             ->assertSee('Anna Cruz') // no clinic messages yet, still listed
             ->assertDontSee('My knee hurts'); // therapist thread is private
+    }
+
+    public function test_a_future_last_message_time_does_not_pin_a_conversation(): void
+    {
+        CarbonImmutable::setTestNow('2026-10-18 12:00:00');
+        $this->docs += [
+            'patients/pCara' => ['name' => 'Cara Diaz', 'therapistId' => 'therapistUid1'],
+            'patients/pDan' => ['name' => 'Dan Uy', 'therapistId' => 'therapistUid1'],
+            // Both read; Cara's phone claimed a message from 2099.
+            'patients/pCara/threads/therapist' => ['lastMessage' => 'pinned', 'lastMessageAt' => CarbonImmutable::parse('2099-01-01'), 'unreadForStaff' => 0],
+            'patients/pDan/threads/therapist' => ['lastMessage' => ['not' => 'text'], 'lastMessageAt' => CarbonImmutable::parse('2026-10-18 11:00'), 'unreadForStaff' => 0],
+        ];
+
+        $conversations = app(MessagingService::class)->inbox($this->therapist())['conversations'];
+        $names = array_column($conversations, 'patientName');
+
+        // Anna (unread) first, then Dan (real time), then Cara (time ignored).
+        $this->assertSame(['Anna Cruz', 'Dan Uy', 'Cara Diaz'], $names);
+        $this->assertNull($conversations[2]['lastMessageAt']);
+        $this->assertNull($conversations[1]['lastMessage']);
+        $this->actingAs($this->therapist())->get('/messages')->assertOk();
+        CarbonImmutable::setTestNow();
     }
 
     public function test_opening_a_conversation_shows_messages_and_marks_it_read(): void

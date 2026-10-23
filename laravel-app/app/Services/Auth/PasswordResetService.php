@@ -6,6 +6,7 @@ use App\Auth\StaffUser;
 use App\Mail\PasswordResetCode;
 use App\Services\Firebase\FirebaseAdmin;
 use App\Services\Firebase\FirestoreClient;
+use App\Services\Firebase\FirestoreConflict;
 use Carbon\CarbonImmutable;
 use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Facades\Mail;
@@ -75,15 +76,22 @@ class PasswordResetService
         return true;
     }
 
-    /** Check a code; on success returns a one-time token for resetPassword(). */
+    /**
+     * Check a code; on success returns a one-time token for resetPassword().
+     *
+     * Every check, right or wrong, is one write that only applies if the reset
+     * doc is unchanged since it was read (updateTime precondition). Guesses
+     * sent in parallel therefore can't all read the same attempt count: all
+     * but one fail, so a code never gets more than MAX_ATTEMPTS checks.
+     */
     public function verifyCode(string $email, string $code): ?string
     {
         $email = self::normalize($email);
         $path = self::path($email);
-        $doc = $this->db->get($path);
+        [$doc, $version] = $this->db->getVersioned($path);
         $now = CarbonImmutable::now();
 
-        if (! $doc || empty($doc['codeHash']) || ! $doc['codeExpiresAt'] || $now->greaterThan($doc['codeExpiresAt'])) {
+        if (! $doc || ! $version || empty($doc['codeHash']) || ! $doc['codeExpiresAt'] || $now->greaterThan($doc['codeExpiresAt'])) {
             $this->audit('code_invalid', $email);
 
             return null;
@@ -93,25 +101,43 @@ class PasswordResetService
             $attempts = (int) ($doc['attempts'] ?? 0) + 1;
 
             // Out of tries: drop the code so even the right one no longer works.
-            $this->db->commit([$this->db->mergeWrite($path, $attempts >= self::MAX_ATTEMPTS
+            $saved = $this->commitIfUnchanged($path, $version, $attempts >= self::MAX_ATTEMPTS
                 ? ['codeHash' => null, 'codeExpiresAt' => null, 'attempts' => $attempts]
-                : ['attempts' => $attempts])]);
-            $this->audit($attempts >= self::MAX_ATTEMPTS ? 'code_locked' : 'code_wrong', $email);
+                : ['attempts' => $attempts]);
+            $this->audit(! $saved ? 'code_race' : ($attempts >= self::MAX_ATTEMPTS ? 'code_locked' : 'code_wrong'), $email);
 
             return null;
         }
 
         $token = Str::random(48);
-        $this->db->commit([$this->db->mergeWrite($path, [
+        $saved = $this->commitIfUnchanged($path, $version, [
             'codeHash' => null,
             'codeExpiresAt' => null,
             'attempts' => 0,
             'tokenHash' => $this->hmac('token', $email, $token),
             'tokenExpiresAt' => $now->addMinutes(self::TOKEN_MINUTES),
-        ])]);
+        ]);
+        if (! $saved) {
+            // Another check (maybe the one that used up the last try) got there first.
+            $this->audit('code_race', $email);
+
+            return null;
+        }
         $this->audit('code_verified', $email);
 
         return $token;
+    }
+
+    /** Merge $fields into $path only if it is still at $version; false if it changed. */
+    private function commitIfUnchanged(string $path, string $version, array $fields): bool
+    {
+        try {
+            $this->db->commit([$this->db->mergeWrite($path, $fields, ifUpdateTime: $version)]);
+        } catch (FirestoreConflict) {
+            return false;
+        }
+
+        return true;
     }
 
     /** Set the new password if the token from verifyCode() is still valid. */

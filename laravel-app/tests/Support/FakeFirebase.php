@@ -40,6 +40,12 @@ trait FakeFirebase
     protected bool $failCommits = false;
 
     /**
+     * Runs once just before the next commit is applied, to simulate another
+     * request writing in between a read and a write (e.g. a race on a counter).
+     */
+    protected ?\Closure $beforeNextCommit = null;
+
+    /**
      * Failures to return before answering normally, per URL fragment, e.g.
      * [':runQuery' => [503, 503]] or ['/users/a' => ['connection']]. Each
      * matching request takes the next entry.
@@ -232,10 +238,19 @@ trait FakeFirebase
         }
 
         $db = app(FirestoreClient::class);
+
+        if ($hook = $this->beforeNextCommit) {
+            $this->beforeNextCommit = null;
+            $hook();
+        }
+
         foreach ($writes as $w) {
             $path = Str::after($w['update']['name'], self::ROOT.'/');
             if (($w['currentDocument']['exists'] ?? null) === false && isset($this->docs[$path])) {
                 return Http::response(['error' => ['message' => 'ALREADY_EXISTS: '.$path]], 409);
+            }
+            if (isset($w['currentDocument']['updateTime']) && $w['currentDocument']['updateTime'] !== $this->updateTime($path)) {
+                return Http::response(['error' => ['code' => 400, 'status' => 'FAILED_PRECONDITION', 'message' => 'the stored version does not match the required base version']], 400);
             }
         }
 
@@ -305,6 +320,16 @@ trait FakeFirebase
         return [
             'name' => self::ROOT.'/'.$path,
             'fields' => app(FirestoreClient::class)->encodeFields($this->docs[$path]),
+            'updateTime' => $this->updateTime($path),
         ];
+    }
+
+    /**
+     * A stand-in for Firestore's updateTime: derived from the content, so it
+     * changes whenever a commit or a test's direct $docs edit changes the doc.
+     */
+    private function updateTime(string $path): ?string
+    {
+        return isset($this->docs[$path]) ? 'v-'.md5(serialize($this->docs[$path])) : null;
     }
 }

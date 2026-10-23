@@ -12,6 +12,9 @@ use Carbon\CarbonImmutable;
  */
 class PatientProgress
 {
+    /** Rep counts above this are treated as corrupt (the app clamps at the same value). */
+    public const MAX_COUNT = 10000;
+
     public function __construct(private FirestoreClient $db)
     {
     }
@@ -59,26 +62,56 @@ class PatientProgress
         return $grouped;
     }
 
+    /**
+     * Dashboard shape of one session document.
+     *
+     * Sessions are written by the patient's own phone, so every field is
+     * treated as untrusted: each one is coerced to the type the views expect
+     * (a map where text is expected would otherwise crash the page for every
+     * staff member) and counts/scores are clamped to sane ranges.
+     */
     public static function presentSession(array $doc): array
     {
-        $compliance = $doc['overallCompliance'] ?? null;
+        $compliance = self::number($doc['overallCompliance'] ?? null);
+        $exerciseId = self::text($doc['exerciseId'] ?? null, 100);
+        $startTime = ($doc['startTime'] ?? null) instanceof CarbonImmutable ? $doc['startTime']
+            : (($doc['createdAt'] ?? null) instanceof CarbonImmutable ? $doc['createdAt'] : null);
+        $pain = self::number($doc['painLevel'] ?? null);
 
         return [
             'id' => $doc['_id'],
             'patientUid' => explode('/', $doc['_path'])[1] ?? null,
-            'exerciseId' => $doc['exerciseId'] ?? null,
-            'exerciseName' => $doc['exerciseName'] ?? ExerciseCatalog::name($doc['exerciseId'] ?? null),
-            'prescriptionId' => $doc['prescriptionId'] ?? null,
-            'startTime' => $doc['startTime'] ?? $doc['createdAt'] ?? null,
-            'completedReps' => (int) ($doc['completedReps'] ?? 0),
-            'rejectedReps' => (int) ($doc['rejectedReps'] ?? 0),
-            'targetReps' => (int) ($doc['targetReps'] ?? 0),
-            'accuracy' => $compliance === null ? null : round((float) $compliance * 100, 1),
-            'painLevel' => isset($doc['painLevel']) ? (int) $doc['painLevel'] : null,
-            'painNote' => $doc['painNote'] ?? null,
-            'endedEarly' => (bool) ($doc['endedEarly'] ?? false),
-            'outsideSchedule' => (bool) ($doc['outsideSchedule'] ?? false),
+            'exerciseId' => $exerciseId,
+            'exerciseName' => self::text($doc['exerciseName'] ?? null, 100) ?? ExerciseCatalog::name($exerciseId),
+            'prescriptionId' => self::text($doc['prescriptionId'] ?? null, 128),
+            'startTime' => $startTime,
+            'completedReps' => self::count($doc['completedReps'] ?? null),
+            'rejectedReps' => self::count($doc['rejectedReps'] ?? null),
+            'targetReps' => self::count($doc['targetReps'] ?? null),
+            'accuracy' => $compliance === null ? null : round(max(0.0, min(1.0, $compliance)) * 100, 1),
+            'painLevel' => $pain === null ? null : (int) max(0, min(10, $pain)),
+            'painNote' => self::text($doc['painNote'] ?? null, 300),
+            'endedEarly' => ($doc['endedEarly'] ?? false) === true,
+            'outsideSchedule' => ($doc['outsideSchedule'] ?? false) === true,
         ];
+    }
+
+    private static function number(mixed $v): ?float
+    {
+        return is_int($v) || (is_float($v) && is_finite($v)) ? (float) $v : null;
+    }
+
+    private static function count(mixed $v): int
+    {
+        $n = self::number($v);
+
+        return $n === null ? 0 : (int) max(0, min(self::MAX_COUNT, $n));
+    }
+
+    /** Non-empty text, cut to $max characters; anything else is null. */
+    private static function text(mixed $v, int $max): ?string
+    {
+        return is_string($v) && $v !== '' ? mb_substr($v, 0, $max) : null;
     }
 
     /**
