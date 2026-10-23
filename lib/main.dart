@@ -4,6 +4,7 @@ import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import 'core/app_diagnostics.dart';
 import 'core/app_keys.dart';
+import 'core/app_palette.dart';
 import 'core/diagnostic_logger.dart';
 import 'firebase_options.dart';
 import 'services/app_lock_service.dart';
@@ -79,7 +80,7 @@ Future<bool> runStartUp(AppProvider provider) async {
   return signedIn;
 }
 
-class RehabPlusApp extends StatelessWidget {
+class RehabPlusApp extends StatefulWidget {
   const RehabPlusApp({super.key, this.signedIn = false, this.startUp});
 
   /// Used when [startUp] is null (tests): no loading, go by this flag.
@@ -119,14 +120,32 @@ class RehabPlusApp extends StatelessWidget {
   }
 
   @override
+  State<RehabPlusApp> createState() => _RehabPlusAppState();
+}
+
+class _RehabPlusAppState extends State<RehabPlusApp> {
+  /// Created once: the app rebuilds when a setting such as the theme
+  /// changes, and that must not start a second startup.
+  late final Future<Widget> _firstScreen = widget._firstScreen();
+
+  @override
   Widget build(BuildContext context) {
+    // Rebuilds on Settings > Appearance changes (theme, text size).
+    return ListenableBuilder(
+      listenable: AppSettings.I,
+      builder: (context, _) => _app(),
+    );
+  }
+
+  Widget _app() {
     return MaterialApp(
       title: 'RehabPlus',
       navigatorKey: navigatorKey,
       scaffoldMessengerKey: messengerKey,
       debugShowCheckedModeBanner: false,
-      // Screens are styled for light mode only; dark mode is a separate job.
-      themeMode: ThemeMode.light,
+      // Settings > Appearance > Theme: light, dark or the phone's setting.
+      // Screens take their neutral colours from AppPalette (context.palette).
+      themeMode: AppSettings.I.themeMode,
       // Settings > Text size, on top of the phone's own text size.
       builder: (context, child) => ListenableBuilder(
         listenable: AppSettings.I,
@@ -149,6 +168,8 @@ class RehabPlusApp extends StatelessWidget {
           secondary: const Color(0xFF0097A7),
         ),
         useMaterial3: true,
+        extensions: const [AppPalette.light],
+        scaffoldBackgroundColor: AppPalette.light.background,
         appBarTheme: const AppBarTheme(
           backgroundColor: Color(0xFF00BCD4),
           foregroundColor: Colors.white,
@@ -184,8 +205,42 @@ class RehabPlusApp extends StatelessWidget {
         colorScheme: ColorScheme.fromSeed(
           seedColor: const Color(0xFF00BCD4),
           brightness: Brightness.dark,
+          primary: AppPalette.teal,
+          secondary: const Color(0xFF4DD0E1),
+          surface: AppPalette.dark.surface,
         ),
         useMaterial3: true,
+        extensions: const [AppPalette.dark],
+        scaffoldBackgroundColor: AppPalette.dark.background,
+        dialogTheme: DialogThemeData(backgroundColor: AppPalette.dark.surface),
+        bottomSheetTheme: BottomSheetThemeData(
+          backgroundColor: AppPalette.dark.surface,
+          modalBackgroundColor: AppPalette.dark.surface,
+        ),
+        dividerTheme: DividerThemeData(color: AppPalette.dark.divider),
+        snackBarTheme: const SnackBarThemeData(
+          backgroundColor: Color(0xFF2C3A3A),
+          contentTextStyle: TextStyle(color: Colors.white),
+        ),
+        navigationBarTheme: NavigationBarThemeData(
+          backgroundColor: AppPalette.dark.surface,
+          indicatorColor: AppPalette.teal.withValues(alpha: 0.25),
+          iconTheme: WidgetStateProperty.resolveWith((states) {
+            if (states.contains(WidgetState.selected)) {
+              return const IconThemeData(color: Color(0xFF4DD0E1));
+            }
+            return IconThemeData(color: AppPalette.dark.textMuted);
+          }),
+        ),
+        filledButtonTheme: FilledButtonThemeData(
+          style: FilledButton.styleFrom(
+            backgroundColor: const Color(0xFF00BCD4),
+            foregroundColor: Colors.white,
+            shape: RoundedRectangleBorder(
+              borderRadius: BorderRadius.all(Radius.circular(12)),
+            ),
+          ),
+        ),
         appBarTheme: const AppBarTheme(
           backgroundColor: Color(0xFF006064),
           foregroundColor: Colors.white,
@@ -201,7 +256,7 @@ class RehabPlusApp extends StatelessWidget {
       ),
       // Animated startup screen, then the dashboard or the login page.
       home: SplashScreen(
-        next: _firstScreen(),
+        next: _firstScreen,
         onFinished: () {
           // From now on, coming back after a minute away asks for the PIN.
           AppLockService.I.arm();

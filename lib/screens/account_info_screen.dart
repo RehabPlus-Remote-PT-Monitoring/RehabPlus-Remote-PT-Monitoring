@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 
+import '../core/app_palette.dart';
 import '../core/diagnostic_logger.dart';
 import '../services/app_provider.dart';
 import '../widgets/profile_avatar.dart';
@@ -74,8 +75,9 @@ class _AccountInfoScreenState extends State<AccountInfoScreen> {
     final profile =
         context.watch<AppProvider>().profile ??
         const ProfileData(name: '', email: '', phone: '', dob: '', condition: '');
+    final palette = context.palette;
     return Scaffold(
-      backgroundColor: const Color(0xFFF0F4F4),
+      backgroundColor: palette.background,
       body: Column(
         children: [
           _header(context),
@@ -91,11 +93,11 @@ class _AccountInfoScreenState extends State<AccountInfoScreen> {
                     vertical: 6,
                   ),
                   decoration: BoxDecoration(
-                    color: Colors.white,
+                    color: palette.surface,
                     borderRadius: BorderRadius.circular(20),
                     boxShadow: [
                       BoxShadow(
-                        color: Colors.black.withValues(alpha: 0.05),
+                        color: palette.shadow.withValues(alpha: 0.05),
                         blurRadius: 12,
                         offset: const Offset(0, 3),
                       ),
@@ -114,12 +116,12 @@ class _AccountInfoScreenState extends State<AccountInfoScreen> {
                   ),
                 ),
                 const SizedBox(height: 10),
-                const Padding(
-                  padding: EdgeInsets.symmetric(horizontal: 4),
+                Padding(
+                  padding: const EdgeInsets.symmetric(horizontal: 4),
                   child: Text(
                     'Your email is your login. To change it, contact the clinic '
                     'through Help & Support.',
-                    style: TextStyle(fontSize: 12, color: Colors.black45),
+                    style: TextStyle(fontSize: 12, color: palette.textMuted),
                   ),
                 ),
                 const SizedBox(height: 20),
@@ -201,6 +203,7 @@ class _AccountInfoScreenState extends State<AccountInfoScreen> {
   }
 
   Widget _row(IconData icon, String label, String value) {
+    final palette = context.palette;
     return Padding(
       padding: const EdgeInsets.symmetric(vertical: 12),
       child: Row(
@@ -209,17 +212,17 @@ class _AccountInfoScreenState extends State<AccountInfoScreen> {
           const SizedBox(width: 12),
           Text(
             label,
-            style: const TextStyle(fontSize: 13, color: Colors.black45),
+            style: TextStyle(fontSize: 13, color: palette.textMuted),
           ),
           const SizedBox(width: 12),
           Expanded(
             child: Text(
               value.isEmpty ? '—' : value,
               textAlign: TextAlign.right,
-              style: const TextStyle(
+              style: TextStyle(
                 fontSize: 14,
                 fontWeight: FontWeight.w600,
-                color: Colors.black87,
+                color: palette.textPrimary,
               ),
             ),
           ),
@@ -228,5 +231,5 @@ class _AccountInfoScreenState extends State<AccountInfoScreen> {
     );
   }
 
-  Widget _divider() => const Divider(height: 1, color: Color(0xFFF0F0F0));
+  Widget _divider() => Divider(height: 1, color: context.palette.divider);
 }

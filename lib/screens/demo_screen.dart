@@ -3,6 +3,7 @@ import 'package:phosphor_flutter/phosphor_flutter.dart';
 import 'package:video_player/video_player.dart';
 import 'package:chewie/chewie.dart';
 
+import '../core/app_palette.dart';
 import '../core/diagnostic_logger.dart';
 
 const String _tag = 'Demo';
@@ -154,7 +155,7 @@ class _DemoScreenState extends State<DemoScreen> with TickerProviderStateMixin {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      backgroundColor: const Color(0xFFF0F4F4),
+      backgroundColor: context.palette.background,
       body: Column(
         children: [
           SlideTransition(
@@ -304,12 +305,12 @@ class _DemoScreenState extends State<DemoScreen> with TickerProviderStateMixin {
               color: primaryTeal,
             ),
             const SizedBox(width: 8),
-            const Text(
+            Text(
               'Key Features',
               style: TextStyle(
                 fontSize: 16,
                 fontWeight: FontWeight.bold,
-                color: Colors.black87,
+                color: context.palette.textPrimary,
               ),
             ),
           ],
@@ -336,7 +337,9 @@ class _DemoScreenState extends State<DemoScreen> with TickerProviderStateMixin {
               width: _currentPage == i ? 20 : 7,
               height: 7,
               decoration: BoxDecoration(
-                color: _currentPage == i ? primaryTeal : Colors.grey.shade300,
+                color: _currentPage == i
+                    ? primaryTeal
+                    : context.palette.divider,
                 borderRadius: BorderRadius.circular(4),
               ),
             ),
@@ -359,12 +362,12 @@ class _DemoScreenState extends State<DemoScreen> with TickerProviderStateMixin {
               color: primaryTeal,
             ),
             const SizedBox(width: 8),
-            const Text(
+            Text(
               'Exercise Videos',
               style: TextStyle(
                 fontSize: 16,
                 fontWeight: FontWeight.bold,
-                color: Colors.black87,
+                color: context.palette.textPrimary,
               ),
             ),
           ],
@@ -391,11 +394,12 @@ class _DemoScreenState extends State<DemoScreen> with TickerProviderStateMixin {
 
   // ── EXERCISE DEMO ─────────────────────────────────────────────────────────────
   Widget _buildExerciseDemo() {
+    final palette = context.palette;
     final step = _steps[_activeStep];
     return Container(
       padding: const EdgeInsets.all(20),
       decoration: BoxDecoration(
-        color: Colors.white,
+        color: palette.surface,
         borderRadius: BorderRadius.circular(22),
         boxShadow: [
           BoxShadow(
@@ -416,13 +420,13 @@ class _DemoScreenState extends State<DemoScreen> with TickerProviderStateMixin {
                 color: primaryTeal,
               ),
               const SizedBox(width: 8),
-              const Expanded(
+              Expanded(
                 child: Text(
                   'Exercise Demo',
                   style: TextStyle(
                     fontSize: 16,
                     fontWeight: FontWeight.bold,
-                    color: Colors.black87,
+                    color: palette.textPrimary,
                   ),
                 ),
               ),
@@ -463,7 +467,7 @@ class _DemoScreenState extends State<DemoScreen> with TickerProviderStateMixin {
                     decoration: BoxDecoration(
                       color: i <= _activeStep
                           ? primaryTeal
-                          : Colors.grey.shade200,
+                          : palette.surfaceMuted,
                       borderRadius: BorderRadius.circular(3),
                     ),
                   ),
@@ -474,7 +478,7 @@ class _DemoScreenState extends State<DemoScreen> with TickerProviderStateMixin {
           const SizedBox(height: 6),
           Text(
             'Step ${_activeStep + 1} of ${_steps.length}',
-            style: const TextStyle(fontSize: 11, color: Colors.black38),
+            style: TextStyle(fontSize: 11, color: palette.textMuted),
           ),
           const SizedBox(height: 16),
 
@@ -497,7 +501,9 @@ class _DemoScreenState extends State<DemoScreen> with TickerProviderStateMixin {
               key: ValueKey(_activeStep),
               padding: const EdgeInsets.all(16),
               decoration: BoxDecoration(
-                color: const Color(0xFFE0F5F5),
+                color: context.isDarkMode
+                    ? primaryTeal.withValues(alpha: 0.15)
+                    : const Color(0xFFE0F5F5),
                 borderRadius: BorderRadius.circular(16),
               ),
               child: Row(
@@ -529,18 +535,18 @@ class _DemoScreenState extends State<DemoScreen> with TickerProviderStateMixin {
                       children: [
                         Text(
                           step.title,
-                          style: const TextStyle(
+                          style: TextStyle(
                             fontSize: 14,
                             fontWeight: FontWeight.bold,
-                            color: Colors.black87,
+                            color: palette.textPrimary,
                           ),
                         ),
                         const SizedBox(height: 4),
                         Text(
                           step.description,
-                          style: const TextStyle(
+                          style: TextStyle(
                             fontSize: 12,
-                            color: Colors.black54,
+                            color: palette.textSecondary,
                             height: 1.4,
                           ),
                         ),
@@ -776,11 +782,12 @@ class _FeatureCard extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final palette = context.palette;
     return Container(
       margin: const EdgeInsets.symmetric(horizontal: 4),
       padding: const EdgeInsets.all(22),
       decoration: BoxDecoration(
-        color: Colors.white,
+        color: palette.surface,
         borderRadius: BorderRadius.circular(22),
         boxShadow: [
           BoxShadow(
@@ -804,18 +811,18 @@ class _FeatureCard extends StatelessWidget {
           const SizedBox(height: 16),
           Text(
             feature.title,
-            style: const TextStyle(
+            style: TextStyle(
               fontSize: 18,
               fontWeight: FontWeight.bold,
-              color: Colors.black87,
+              color: palette.textPrimary,
             ),
           ),
           const SizedBox(height: 8),
           Text(
             feature.subtitle,
-            style: const TextStyle(
+            style: TextStyle(
               fontSize: 13,
-              color: Colors.black54,
+              color: palette.textSecondary,
               height: 1.5,
             ),
           ),
@@ -973,9 +980,10 @@ class _VideoCardState extends State<_VideoCard> {
 
   @override
   Widget build(BuildContext context) {
+    final palette = context.palette;
     return Container(
       decoration: BoxDecoration(
-        color: Colors.white,
+        color: palette.surface,
         borderRadius: BorderRadius.circular(20),
         boxShadow: [
           BoxShadow(
@@ -1053,10 +1061,10 @@ class _VideoCardState extends State<_VideoCard> {
                               children: [
                                 Text(
                                   widget.title,
-                                  style: const TextStyle(
+                                  style: TextStyle(
                                     fontSize: 14,
                                     fontWeight: FontWeight.bold,
-                                    color: Colors.black87,
+                                    color: palette.textPrimary,
                                   ),
                                 ),
                                 const SizedBox(height: 3),
@@ -1065,14 +1073,14 @@ class _VideoCardState extends State<_VideoCard> {
                                     Icon(
                                       Icons.access_time_rounded,
                                       size: 12,
-                                      color: Colors.grey.shade400,
+                                      color: palette.textFaint,
                                     ),
                                     const SizedBox(width: 4),
                                     Text(
                                       widget.duration,
                                       style: TextStyle(
                                         fontSize: 11,
-                                        color: Colors.grey.shade500,
+                                        color: palette.textMuted,
                                       ),
                                     ),
                                     const SizedBox(width: 10),

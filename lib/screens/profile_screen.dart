@@ -3,6 +3,7 @@ import 'package:flutter/material.dart';
 // with Flutter's.
 import 'package:intl/intl.dart' show DateFormat;
 import 'package:provider/provider.dart';
+import '../core/app_palette.dart';
 import '../core/diagnostic_logger.dart';
 import '../services/app_provider.dart';
 import '../models/session.dart';
@@ -91,7 +92,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
         final totalReps = sessions.fold(0, (sum, s) => sum + s.completedReps);
 
         return Scaffold(
-          backgroundColor: const Color(0xFFF0F4F4),
+          backgroundColor: context.palette.background,
           body: SingleChildScrollView(
             child: Column(
               children: [
@@ -223,12 +224,13 @@ class _ProfileScreenState extends State<ProfileScreen> {
   }
 
   Widget _buildStatsRow(int sessions, int sets, int reps, double avg) {
+    final palette = context.palette;
     return Padding(
       padding: const EdgeInsets.symmetric(horizontal: 16),
       child: Container(
         padding: const EdgeInsets.symmetric(vertical: 16),
         decoration: BoxDecoration(
-          color: Colors.white,
+          color: palette.surface,
           borderRadius: BorderRadius.circular(20),
           boxShadow: [BoxShadow(color: primaryTeal.withValues(alpha: 0.08), blurRadius: 16, offset: const Offset(0, 4))],
         ),
@@ -248,29 +250,31 @@ class _ProfileScreenState extends State<ProfileScreen> {
   }
 
   Widget _statItem(String label, String value, IconData icon) {
+    final palette = context.palette;
     return Expanded(
       child: Column(
         children: [
           Icon(icon, color: primaryTeal, size: 20),
           const SizedBox(height: 6),
-          Text(value, style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 16, color: Colors.black87)),
+          Text(value, style: TextStyle(fontWeight: FontWeight.bold, fontSize: 16, color: palette.textPrimary)),
           const SizedBox(height: 2),
-          Text(label, style: const TextStyle(color: Colors.black38, fontSize: 10), textAlign: TextAlign.center),
+          Text(label, style: TextStyle(color: palette.textMuted, fontSize: 10), textAlign: TextAlign.center),
         ],
       ),
     );
   }
 
-  Widget _vDivider() => Container(width: 1, height: 36, color: Colors.grey.shade100);
+  Widget _vDivider() => Container(width: 1, height: 36, color: context.palette.divider);
 
   Widget _buildInfoCard({required String title, required IconData icon, required List<_InfoRow> items}) {
+    final palette = context.palette;
     return Padding(
       padding: const EdgeInsets.symmetric(horizontal: 16),
       child: Container(
         decoration: BoxDecoration(
-          color: Colors.white,
+          color: palette.surface,
           borderRadius: BorderRadius.circular(20),
-          boxShadow: [BoxShadow(color: Colors.black.withValues(alpha: 0.05), blurRadius: 12, offset: const Offset(0, 3))],
+          boxShadow: [BoxShadow(color: palette.shadow.withValues(alpha: 0.05), blurRadius: 12, offset: const Offset(0, 3))],
         ),
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
@@ -285,7 +289,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
                     child: Icon(icon, size: 16, color: primaryTeal),
                   ),
                   const SizedBox(width: 10),
-                  Text(title, style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 14, color: Colors.black87)),
+                  Text(title, style: TextStyle(fontWeight: FontWeight.bold, fontSize: 14, color: palette.textPrimary)),
                 ],
               ),
             ),
@@ -314,14 +318,15 @@ class _ProfileScreenState extends State<ProfileScreen> {
   Widget _buildExerciseBreakdownCard(List<ExerciseSession> sessions) {
     if (sessions.isEmpty) return const SizedBox.shrink();
     final grouped = _groupByExercise(sessions);
+    final palette = context.palette;
 
     return Padding(
       padding: const EdgeInsets.symmetric(horizontal: 16),
       child: Container(
         decoration: BoxDecoration(
-          color: Colors.white,
+          color: palette.surface,
           borderRadius: BorderRadius.circular(20),
-          boxShadow: [BoxShadow(color: Colors.black.withValues(alpha: 0.05), blurRadius: 12, offset: const Offset(0, 3))],
+          boxShadow: [BoxShadow(color: palette.shadow.withValues(alpha: 0.05), blurRadius: 12, offset: const Offset(0, 3))],
         ),
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
@@ -336,7 +341,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
                     child: const Icon(Icons.fitness_center_rounded, size: 16, color: primaryTeal),
                   ),
                   const SizedBox(width: 10),
-                  const Text('Exercise Breakdown', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 14, color: Colors.black87)),
+                  Text('Exercise Breakdown', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 14, color: palette.textPrimary)),
                 ],
               ),
             ),
@@ -364,22 +369,23 @@ class _ProfileScreenState extends State<ProfileScreen> {
     final repsLabel = repCounts.length == 1
         ? '${repCounts.first} reps each'
         : '${sessions.fold(0, (sum, s) => sum + s.completedReps)} reps total';
+    final palette = context.palette;
 
     return Padding(
       padding: const EdgeInsets.symmetric(vertical: 8),
       child: Row(
         children: [
-          Icon(Icons.check_circle_outline_rounded, size: 17, color: Colors.black38),
+          Icon(Icons.check_circle_outline_rounded, size: 17, color: palette.textMuted),
           const SizedBox(width: 12),
           Expanded(
             child: Text(
               exerciseName,
-              style: const TextStyle(color: Colors.black87, fontSize: 13, fontWeight: FontWeight.w600),
+              style: TextStyle(color: palette.textPrimary, fontSize: 13, fontWeight: FontWeight.w600),
             ),
           ),
           Text(
             '×$timesDone  ·  $repsLabel',
-            style: const TextStyle(fontWeight: FontWeight.w500, fontSize: 12, color: Colors.black54),
+            style: TextStyle(fontWeight: FontWeight.w500, fontSize: 12, color: palette.textSecondary),
           ),
         ],
       ),
@@ -388,13 +394,14 @@ class _ProfileScreenState extends State<ProfileScreen> {
 
   /// Opens My Goals: the rehab goals the therapist set on the dashboard.
   Widget _buildGoalsCard() {
+    final palette = context.palette;
     return Padding(
       padding: const EdgeInsets.symmetric(horizontal: 16),
       child: Container(
         decoration: BoxDecoration(
-          color: Colors.white,
+          color: palette.surface,
           borderRadius: BorderRadius.circular(20),
-          boxShadow: [BoxShadow(color: Colors.black.withValues(alpha: 0.05), blurRadius: 12, offset: const Offset(0, 3))],
+          boxShadow: [BoxShadow(color: palette.shadow.withValues(alpha: 0.05), blurRadius: 12, offset: const Offset(0, 3))],
         ),
         child: ListTile(
           onTap: () => Navigator.push(context, MaterialPageRoute(builder: (_) => const GoalsScreen())),
@@ -404,9 +411,9 @@ class _ProfileScreenState extends State<ProfileScreen> {
             decoration: BoxDecoration(color: primaryTeal.withValues(alpha: 0.1), borderRadius: BorderRadius.circular(9)),
             child: const Icon(Icons.flag_outlined, size: 16, color: primaryTeal),
           ),
-          title: const Text('My Goals', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 14, color: Colors.black87)),
-          subtitle: const Text('The recovery goals your therapist set for you', style: TextStyle(fontSize: 12, color: Colors.black45)),
-          trailing: const Icon(Icons.chevron_right_rounded, color: Colors.black26, size: 20),
+          title: Text('My Goals', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 14, color: palette.textPrimary)),
+          subtitle: Text('The recovery goals your therapist set for you', style: TextStyle(fontSize: 12, color: palette.textMuted)),
+          trailing: Icon(Icons.chevron_right_rounded, color: palette.textFaint, size: 20),
         ),
       ),
     );
@@ -415,13 +422,14 @@ class _ProfileScreenState extends State<ProfileScreen> {
   /// Opens Settings: exercise feedback, camera, reminders, notifications,
   /// text size, account and support.
   Widget _buildSettingsCard() {
+    final palette = context.palette;
     return Padding(
       padding: const EdgeInsets.symmetric(horizontal: 16),
       child: Container(
         decoration: BoxDecoration(
-          color: Colors.white,
+          color: palette.surface,
           borderRadius: BorderRadius.circular(20),
-          boxShadow: [BoxShadow(color: Colors.black.withValues(alpha: 0.05), blurRadius: 12, offset: const Offset(0, 3))],
+          boxShadow: [BoxShadow(color: palette.shadow.withValues(alpha: 0.05), blurRadius: 12, offset: const Offset(0, 3))],
         ),
         child: ListTile(
           onTap: () => Navigator.push(context, MaterialPageRoute(builder: (_) => const SettingsScreen())),
@@ -431,9 +439,9 @@ class _ProfileScreenState extends State<ProfileScreen> {
             decoration: BoxDecoration(color: primaryTeal.withValues(alpha: 0.1), borderRadius: BorderRadius.circular(9)),
             child: const Icon(Icons.settings_outlined, size: 16, color: primaryTeal),
           ),
-          title: const Text('Settings', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 14, color: Colors.black87)),
-          subtitle: const Text('Exercise, camera, reminders, notifications and more', style: TextStyle(fontSize: 12, color: Colors.black45)),
-          trailing: const Icon(Icons.chevron_right_rounded, color: Colors.black26, size: 20),
+          title: Text('Settings', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 14, color: palette.textPrimary)),
+          subtitle: Text('Exercise, camera, reminders, notifications and more', style: TextStyle(fontSize: 12, color: palette.textMuted)),
+          trailing: Icon(Icons.chevron_right_rounded, color: palette.textFaint, size: 20),
         ),
       ),
     );
@@ -441,13 +449,14 @@ class _ProfileScreenState extends State<ProfileScreen> {
 
   /// Opens Privacy & Legal: account info, Terms and Conditions, Privacy Policy.
   Widget _buildLegalCard() {
+    final palette = context.palette;
     return Padding(
       padding: const EdgeInsets.symmetric(horizontal: 16),
       child: Container(
         decoration: BoxDecoration(
-          color: Colors.white,
+          color: palette.surface,
           borderRadius: BorderRadius.circular(20),
-          boxShadow: [BoxShadow(color: Colors.black.withValues(alpha: 0.05), blurRadius: 12, offset: const Offset(0, 3))],
+          boxShadow: [BoxShadow(color: palette.shadow.withValues(alpha: 0.05), blurRadius: 12, offset: const Offset(0, 3))],
         ),
         child: ListTile(
           onTap: () => Navigator.push(context, MaterialPageRoute(builder: (_) => const PrivacyLegalScreen())),
@@ -457,9 +466,9 @@ class _ProfileScreenState extends State<ProfileScreen> {
             decoration: BoxDecoration(color: primaryTeal.withValues(alpha: 0.1), borderRadius: BorderRadius.circular(9)),
             child: const Icon(Icons.shield_outlined, size: 16, color: primaryTeal),
           ),
-          title: const Text('Privacy & Legal', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 14, color: Colors.black87)),
-          subtitle: const Text('Account info, terms and privacy policy', style: TextStyle(fontSize: 12, color: Colors.black45)),
-          trailing: const Icon(Icons.chevron_right_rounded, color: Colors.black26, size: 20),
+          title: Text('Privacy & Legal', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 14, color: palette.textPrimary)),
+          subtitle: Text('Account info, terms and privacy policy', style: TextStyle(fontSize: 12, color: palette.textMuted)),
+          trailing: Icon(Icons.chevron_right_rounded, color: palette.textFaint, size: 20),
         ),
       ),
     );
@@ -490,6 +499,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
   }
 
   Widget _buildSignOutButton() {
+    final palette = context.palette;
     return Padding(
       padding: const EdgeInsets.symmetric(horizontal: 16),
       child: GestureDetector(
@@ -498,7 +508,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
           width: double.infinity,
           padding: const EdgeInsets.symmetric(vertical: 15),
           decoration: BoxDecoration(
-            color: Colors.white,
+            color: palette.surface,
             borderRadius: BorderRadius.circular(18),
             border: Border.all(color: Colors.red.shade200),
             boxShadow: [BoxShadow(color: Colors.red.withValues(alpha: 0.06), blurRadius: 10, offset: const Offset(0, 3))],
@@ -524,15 +534,16 @@ class _InfoRow extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final palette = context.palette;
     return Padding(
       padding: const EdgeInsets.symmetric(vertical: 8),
       child: Row(
         children: [
-          Icon(icon, size: 17, color: Colors.black38),
+          Icon(icon, size: 17, color: palette.textMuted),
           const SizedBox(width: 12),
-          Text(label, style: const TextStyle(color: Colors.black45, fontSize: 13)),
+          Text(label, style: TextStyle(color: palette.textMuted, fontSize: 13)),
           const Spacer(),
-          Text(value.isEmpty ? '—' : value, style: const TextStyle(fontWeight: FontWeight.w600, fontSize: 13, color: Colors.black87)),
+          Text(value.isEmpty ? '—' : value, style: TextStyle(fontWeight: FontWeight.w600, fontSize: 13, color: palette.textPrimary)),
         ],
       ),
     );

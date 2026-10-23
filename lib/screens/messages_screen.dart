@@ -7,6 +7,7 @@ import 'package:intl/intl.dart' show DateFormat;
 import 'package:provider/provider.dart';
 import 'package:url_launcher/url_launcher.dart';
 
+import '../core/app_palette.dart';
 import '../core/diagnostic_logger.dart';
 import '../models/chat.dart';
 import '../services/app_provider.dart';
@@ -40,6 +41,12 @@ String _threadSubtitle(ChatThread thread) => switch (thread) {
   ChatThread.therapist => 'Questions about your exercises or progress',
   ChatThread.clinic => 'Appointments, home visits and app support',
 };
+
+/// Background of the grey contact avatars: grey 300 in light mode (white
+/// cards), the muted surface in dark mode so it doesn't glare.
+Color _avatarBg(BuildContext context) => context.isDarkMode
+    ? context.palette.surfaceMuted
+    : Colors.grey.shade300;
 
 IconData _threadIcon(ChatThread thread) =>
     thread == ChatThread.clinic ? Icons.groups : Icons.person_outline;
@@ -104,7 +111,7 @@ class _MessagesScreenState extends State<MessagesScreen> {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      backgroundColor: Colors.white,
+      backgroundColor: context.palette.surface,
       appBar: AppBar(
         backgroundColor: _primaryTeal,
         elevation: 0,
@@ -175,6 +182,7 @@ class _ThreadTileState extends State<_ThreadTile> {
   @override
   Widget build(BuildContext context) {
     final thread = widget.thread;
+    final palette = context.palette;
     return StreamBuilder<ChatThreadSummary>(
       stream: _summary,
       builder: (context, snap) {
@@ -197,16 +205,20 @@ class _ThreadTileState extends State<_ThreadTile> {
           },
           leading: CircleAvatar(
             radius: 26,
-            backgroundColor: Colors.grey.shade300,
+            backgroundColor: _avatarBg(context),
             child: Icon(
               _threadIcon(thread),
-              color: Colors.grey.shade600,
+              color: palette.textMuted,
               size: 30,
             ),
           ),
           title: Text(
             _threadTitle(context, thread),
-            style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 15),
+            style: TextStyle(
+              fontWeight: FontWeight.bold,
+              fontSize: 15,
+              color: palette.textPrimary,
+            ),
           ),
           subtitle: Text(
             s.lastMessage ?? _threadSubtitle(thread),
@@ -214,7 +226,7 @@ class _ThreadTileState extends State<_ThreadTile> {
             overflow: TextOverflow.ellipsis,
             style: TextStyle(
               fontSize: 13,
-              color: unread > 0 ? Colors.black87 : Colors.black54,
+              color: unread > 0 ? palette.textPrimary : palette.textSecondary,
               fontWeight: unread > 0 ? FontWeight.w600 : FontWeight.normal,
             ),
           ),
@@ -225,7 +237,7 @@ class _ThreadTileState extends State<_ThreadTile> {
               if (s.lastMessageAt != null)
                 Text(
                   _time(s.lastMessageAt!),
-                  style: const TextStyle(fontSize: 11, color: Colors.grey),
+                  style: TextStyle(fontSize: 11, color: palette.textMuted),
                 ),
               const SizedBox(height: 6),
               if (unread > 0)
@@ -377,22 +389,23 @@ class _ChatDetailScreenState extends State<ChatDetailScreen> {
   @override
   Widget build(BuildContext context) {
     final thread = widget.thread;
+    final palette = context.palette;
     return Scaffold(
       appBar: AppBar(
-        backgroundColor: Colors.white,
+        backgroundColor: palette.surface,
         elevation: 1,
         leading: IconButton(
-          icon: const Icon(Icons.arrow_back_ios, color: Colors.black),
+          icon: Icon(Icons.arrow_back_ios, color: palette.textPrimary),
           onPressed: () => Navigator.pop(context),
         ),
         title: Row(
           children: [
             CircleAvatar(
               radius: 18,
-              backgroundColor: Colors.grey.shade300,
+              backgroundColor: _avatarBg(context),
               child: Icon(
                 _threadIcon(thread),
-                color: Colors.grey.shade600,
+                color: palette.textMuted,
                 size: 22,
               ),
             ),
@@ -404,8 +417,8 @@ class _ChatDetailScreenState extends State<ChatDetailScreen> {
                   Text(
                     _threadTitle(context, thread),
                     overflow: TextOverflow.ellipsis,
-                    style: const TextStyle(
-                      color: Colors.black,
+                    style: TextStyle(
+                      color: palette.textPrimary,
                       fontSize: 16,
                       fontWeight: FontWeight.bold,
                     ),
@@ -413,7 +426,7 @@ class _ChatDetailScreenState extends State<ChatDetailScreen> {
                   Text(
                     _threadSubtitle(thread),
                     overflow: TextOverflow.ellipsis,
-                    style: const TextStyle(color: Colors.grey, fontSize: 11),
+                    style: TextStyle(color: palette.textMuted, fontSize: 11),
                   ),
                 ],
               ),
@@ -429,11 +442,15 @@ class _ChatDetailScreenState extends State<ChatDetailScreen> {
         ],
       ),
       body: Container(
-        decoration: const BoxDecoration(
+        decoration: BoxDecoration(
           gradient: LinearGradient(
             begin: Alignment.topCenter,
             end: Alignment.bottomCenter,
-            colors: [Color(0xFF3F7779), Color(0xFF8CE1E4)],
+            // Dark mode: a deep teal fade instead of the bright aqua, so the
+            // surface-coloured bubbles and white captions still stand out.
+            colors: context.isDarkMode
+                ? [palette.background, const Color(0xFF16393A)]
+                : const [Color(0xFF3F7779), Color(0xFF8CE1E4)],
           ),
         ),
         child: Column(
@@ -519,7 +536,7 @@ class _ChatDetailScreenState extends State<ChatDetailScreen> {
                           vertical: 6,
                         ),
                         decoration: BoxDecoration(
-                          color: Colors.white.withValues(alpha: 0.9),
+                          color: palette.surface.withValues(alpha: 0.9),
                           borderRadius: BorderRadius.circular(12),
                         ),
                         child: Row(
@@ -539,10 +556,10 @@ class _ChatDetailScreenState extends State<ChatDetailScreen> {
                             const SizedBox(width: 4),
                             Text(
                               e.key,
-                              style: const TextStyle(
+                              style: TextStyle(
                                 fontSize: 11,
                                 fontWeight: FontWeight.bold,
-                                color: Colors.black87,
+                                color: palette.textPrimary,
                               ),
                             ),
                           ],
@@ -556,7 +573,7 @@ class _ChatDetailScreenState extends State<ChatDetailScreen> {
             // Input bar
             Container(
               padding: const EdgeInsets.fromLTRB(12, 8, 8, 8),
-              color: Colors.grey.shade200,
+              color: palette.surfaceMuted,
               child: SafeArea(
                 top: false,
                 child: Row(
@@ -565,9 +582,9 @@ class _ChatDetailScreenState extends State<ChatDetailScreen> {
                       child: Container(
                         padding: const EdgeInsets.symmetric(horizontal: 12),
                         decoration: BoxDecoration(
-                          color: Colors.white,
+                          color: palette.surface,
                           borderRadius: BorderRadius.circular(20),
-                          border: Border.all(color: Colors.grey.shade300),
+                          border: Border.all(color: palette.divider),
                         ),
                         child: TextField(
                           controller: _textController,
@@ -575,16 +592,19 @@ class _ChatDetailScreenState extends State<ChatDetailScreen> {
                           maxLines: 4,
                           maxLength: 1000,
                           textCapitalization: TextCapitalization.sentences,
-                          decoration: const InputDecoration(
+                          style: TextStyle(color: palette.textPrimary),
+                          decoration: InputDecoration(
                             hintText: 'Message',
                             hintStyle: TextStyle(
                               fontSize: 13,
-                              color: Colors.grey,
+                              color: palette.textFaint,
                             ),
                             border: InputBorder.none,
                             counterText: '',
                             isDense: true,
-                            contentPadding: EdgeInsets.symmetric(vertical: 10),
+                            contentPadding: const EdgeInsets.symmetric(
+                              vertical: 10,
+                            ),
                           ),
                         ),
                       ),
@@ -622,7 +642,7 @@ class _Bubble extends StatelessWidget {
 
   /// Like other messaging apps: a clock while it's still uploading, one tick
   /// once it reached the server, two ticks once staff have seen it.
-  Widget _receipt() {
+  Widget _receipt(AppPalette palette) {
     final (IconData glyph, String label) = msg.pending
         ? (Icons.schedule, 'Sending')
         : seen
@@ -633,7 +653,7 @@ class _Bubble extends StatelessWidget {
       child: Icon(
         glyph,
         size: 14,
-        color: seen ? _primaryTeal : Colors.black45,
+        color: seen ? _primaryTeal : palette.textMuted,
       ),
     );
   }
@@ -641,6 +661,7 @@ class _Bubble extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final mine = msg.fromPatient;
+    final palette = context.palette;
     return Column(
       children: [
         if (showTime)
@@ -648,10 +669,10 @@ class _Bubble extends StatelessWidget {
             padding: const EdgeInsets.symmetric(vertical: 16),
             child: Text(
               DateFormat("EEE 'at' h:mm a").format(msg.sentAt).toUpperCase(),
-              style: const TextStyle(
+              style: TextStyle(
                 fontSize: 10,
                 fontWeight: FontWeight.bold,
-                color: Colors.black45,
+                color: palette.textMuted,
                 letterSpacing: 0.5,
               ),
             ),
@@ -667,8 +688,8 @@ class _Bubble extends StatelessWidget {
               if (!mine) ...[
                 CircleAvatar(
                   radius: 16,
-                  backgroundColor: Colors.grey.shade300,
-                  child: Icon(icon, color: Colors.grey.shade600, size: 18),
+                  backgroundColor: _avatarBg(context),
+                  child: Icon(icon, color: palette.textMuted, size: 18),
                 ),
                 const SizedBox(width: 8),
               ],
@@ -679,20 +700,20 @@ class _Bubble extends StatelessWidget {
                     vertical: 12,
                   ),
                   decoration: BoxDecoration(
-                    color: mine ? _primaryTeal : Colors.white,
+                    color: mine ? _primaryTeal : palette.surface,
                     borderRadius: BorderRadius.circular(20),
                   ),
                   child: Text(
                     msg.text,
                     style: TextStyle(
-                      color: mine ? Colors.white : Colors.black87,
+                      color: mine ? Colors.white : palette.textPrimary,
                       fontSize: 13,
                       fontWeight: FontWeight.w500,
                     ),
                   ),
                 ),
               ),
-              if (mine) ...[const SizedBox(width: 4), _receipt()],
+              if (mine) ...[const SizedBox(width: 4), _receipt(palette)],
             ],
           ),
         ),

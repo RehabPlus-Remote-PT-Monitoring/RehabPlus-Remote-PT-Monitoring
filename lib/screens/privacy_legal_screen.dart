@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 
+import '../core/app_palette.dart';
 import '../core/diagnostic_logger.dart';
 import '../legal/legal_info.dart';
 import 'account_info_screen.dart';
@@ -35,8 +36,9 @@ class _PrivacyLegalScreenState extends State<PrivacyLegalScreen> {
 
   @override
   Widget build(BuildContext context) {
+    final palette = context.palette;
     return Scaffold(
-      backgroundColor: const Color(0xFFF0F4F4),
+      backgroundColor: palette.background,
       body: Column(
         children: [
           _header(context),
@@ -46,11 +48,11 @@ class _PrivacyLegalScreenState extends State<PrivacyLegalScreen> {
               children: [
                 Container(
                   decoration: BoxDecoration(
-                    color: Colors.white,
+                    color: palette.surface,
                     borderRadius: BorderRadius.circular(20),
                     boxShadow: [
                       BoxShadow(
-                        color: Colors.black.withValues(alpha: 0.05),
+                        color: palette.shadow.withValues(alpha: 0.05),
                         blurRadius: 12,
                         offset: const Offset(0, 3),
                       ),
@@ -87,7 +89,7 @@ class _PrivacyLegalScreenState extends State<PrivacyLegalScreen> {
                 Text(
                   'Version ${LegalInfo.version} · effective ${LegalInfo.effectiveDate}',
                   textAlign: TextAlign.center,
-                  style: const TextStyle(fontSize: 11, color: Colors.black38),
+                  style: TextStyle(fontSize: 11, color: palette.textMuted),
                 ),
               ],
             ),
@@ -156,6 +158,7 @@ class _PrivacyLegalScreenState extends State<PrivacyLegalScreen> {
     required String subtitle,
     required VoidCallback onTap,
   }) {
+    final palette = context.palette;
     return ListTile(
       onTap: onTap,
       contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 6),
@@ -170,19 +173,19 @@ class _PrivacyLegalScreenState extends State<PrivacyLegalScreen> {
       ),
       title: Text(
         label,
-        style: const TextStyle(
+        style: TextStyle(
           fontSize: 14,
           fontWeight: FontWeight.w600,
-          color: Colors.black87,
+          color: palette.textPrimary,
         ),
       ),
       subtitle: Text(
         subtitle,
-        style: const TextStyle(fontSize: 12, color: Colors.black45),
+        style: TextStyle(fontSize: 12, color: palette.textMuted),
       ),
-      trailing: const Icon(
+      trailing: Icon(
         Icons.chevron_right_rounded,
-        color: Colors.black26,
+        color: palette.textFaint,
         size: 20,
       ),
     );

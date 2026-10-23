@@ -7,6 +7,7 @@ import 'package:flutter/services.dart';
 import 'package:provider/provider.dart';
 
 import '../core/app_keys.dart';
+import '../core/app_palette.dart';
 import '../core/diagnostic_logger.dart';
 import '../services/app_lock_service.dart';
 import '../services/app_provider.dart';
@@ -234,26 +235,23 @@ class _AppLockScreenState extends State<AppLockScreen> {
   Future<void> _forgotPin() async {
     final ok = await showDialog<bool>(
       context: context,
-      builder: (ctx) => Theme(
-        data: ThemeData.light(useMaterial3: true),
-        child: AlertDialog(
-          backgroundColor: Colors.white,
-          title: const Text('Forgot your PIN?'),
-          content: const Text(
-            'You\'ll be signed out. Sign in again with your email and '
-            'password, then you can set a new PIN in Settings.',
-          ),
-          actions: [
-            TextButton(
-              onPressed: () => Navigator.pop(ctx, false),
-              child: const Text('Cancel'),
-            ),
-            TextButton(
-              onPressed: () => Navigator.pop(ctx, true),
-              child: const Text('Sign out'),
-            ),
-          ],
+      builder: (ctx) => AlertDialog(
+        backgroundColor: ctx.palette.surface,
+        title: const Text('Forgot your PIN?'),
+        content: const Text(
+          'You\'ll be signed out. Sign in again with your email and '
+          'password, then you can set a new PIN in Settings.',
         ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(ctx, false),
+            child: const Text('Cancel'),
+          ),
+          TextButton(
+            onPressed: () => Navigator.pop(ctx, true),
+            child: const Text('Sign out'),
+          ),
+        ],
       ),
     );
     if (ok == true) {
@@ -381,7 +379,7 @@ class _PinSetupScreenState extends State<PinSetupScreen> {
   Widget build(BuildContext context) {
     final confirming = _first != null;
     return Scaffold(
-      backgroundColor: const Color(0xFFF4F7F8),
+      backgroundColor: context.palette.background,
       appBar: AppBar(
         title: Text(widget.changing ? 'Change PIN' : 'Set a PIN'),
         backgroundColor: _darkTeal,
@@ -459,7 +457,22 @@ class _PinEntryState extends State<PinEntry>
     super.dispose();
   }
 
-  Color get _fg => widget.onDark ? Colors.white : _darkTeal;
+  /// On a plain page in dark mode (not the teal lock screen): dark teal
+  /// would vanish, so the icon, title and dots use the brighter brand teal
+  /// and the keys become surface-coloured with light digits.
+  bool get _darkPage => !widget.onDark && context.isDarkMode;
+
+  Color get _fg => widget.onDark
+      ? Colors.white
+      : _darkPage
+      ? AppPalette.teal
+      : _darkTeal;
+
+  Color get _digitColor => _darkPage ? context.palette.textPrimary : _fg;
+
+  Color get _keyColor => _darkPage
+      ? context.palette.surface
+      : _fg.withValues(alpha: widget.onDark ? 0.12 : 0.08);
 
   void _press(String digit) {
     if (_busy || _digits.length >= AppLockService.pinLength) return;
@@ -501,7 +514,8 @@ class _PinEntryState extends State<PinEntry>
 
   @override
   Widget build(BuildContext context) {
-    final muted = widget.onDark ? Colors.white70 : Colors.black54;
+    final muted =
+        widget.onDark ? Colors.white70 : context.palette.textSecondary;
     final errorColor = widget.onDark ? const Color(0xFFFFE082) : Colors.red[700];
 
     return LayoutBuilder(
@@ -612,7 +626,7 @@ class _PinEntryState extends State<PinEntry>
           child: Material(
             color: onTap == null
                 ? Colors.transparent
-                : _fg.withValues(alpha: widget.onDark ? 0.12 : 0.08),
+                : _keyColor,
             shape: const CircleBorder(),
             child: InkWell(
               customBorder: const CircleBorder(),
@@ -637,7 +651,7 @@ class _PinEntryState extends State<PinEntry>
         style: TextStyle(
           fontSize: size * 0.38,
           fontWeight: FontWeight.w600,
-          color: _fg,
+          color: _digitColor,
         ),
       ),
     );
@@ -666,7 +680,7 @@ class _PinEntryState extends State<PinEntry>
                     child: Icon(
                       Icons.fingerprint_rounded,
                       size: size * 0.45,
-                      color: _fg,
+                      color: _digitColor,
                     ),
                   ),
             digit('0'),
@@ -676,7 +690,7 @@ class _PinEntryState extends State<PinEntry>
               child: Icon(
                 Icons.backspace_outlined,
                 size: size * 0.34,
-                color: _fg,
+                color: _digitColor,
               ),
             ),
           ],

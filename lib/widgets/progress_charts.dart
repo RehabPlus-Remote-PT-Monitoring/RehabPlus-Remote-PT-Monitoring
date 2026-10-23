@@ -2,6 +2,7 @@ import 'package:fl_chart/fl_chart.dart';
 import 'package:flutter/material.dart';
 import 'package:intl/intl.dart' show DateFormat;
 
+import '../core/app_palette.dart';
 import '../services/progress_report.dart';
 
 // Performance: both charts build their fl_chart data object (bars/spots,
@@ -12,7 +13,53 @@ import '../services/progress_report.dart';
 // fl_chart sees nothing new to lay out or animate.
 
 const _teal = Color(0xFF23A8AA);
-const _axisStyle = TextStyle(fontSize: 9, color: Colors.black45);
+
+/// The theme-dependent colours the charts bake into their cached data.
+/// Compared by value, so the data is rebuilt only when the theme really
+/// changes (light <-> dark), not on every inherited-widget notification.
+@immutable
+class _ChartColours {
+  const _ChartColours({
+    required this.axis,
+    required this.grid,
+    required this.track,
+    required this.tooltip,
+    required this.dotFill,
+  });
+
+  factory _ChartColours.of(BuildContext context) {
+    final palette = context.palette;
+    return _ChartColours(
+      axis: palette.textMuted,
+      grid: palette.divider,
+      track: palette.surfaceMuted,
+      // black87 vanishes on a dark card; use the dark snackbar grey there.
+      tooltip: context.isDarkMode ? const Color(0xFF2C3A3A) : Colors.black87,
+      // Dots look hollow: filled with the card colour.
+      dotFill: palette.surface,
+    );
+  }
+
+  final Color axis;
+  final Color grid;
+  final Color track;
+  final Color tooltip;
+  final Color dotFill;
+
+  TextStyle get axisStyle => TextStyle(fontSize: 9, color: axis);
+
+  @override
+  bool operator ==(Object other) =>
+      other is _ChartColours &&
+      other.axis == axis &&
+      other.grid == grid &&
+      other.track == track &&
+      other.tooltip == tooltip &&
+      other.dotFill == dotFill;
+
+  @override
+  int get hashCode => Object.hash(axis, grid, track, tooltip, dotFill);
+}
 
 /// Bottom-axis label for a chart point: weekday letter for daily points,
 /// otherwise the first day of the group ("12/10").
@@ -24,7 +71,8 @@ String _label(ProgressPoint p) => p.days == 1
 bool _showLabel(int i, int count) => count <= 8 || i.isEven || i == count - 1;
 
 FlTitlesData _titles(
-  List<ProgressPoint> points, {
+  List<ProgressPoint> points,
+  _ChartColours colours, {
   required double leftInterval,
   required String Function(double) left,
 }) {
@@ -36,7 +84,7 @@ FlTitlesData _titles(
         showTitles: true,
         reservedSize: 30,
         interval: leftInterval,
-        getTitlesWidget: (v, _) => Text(left(v), style: _axisStyle),
+        getTitlesWidget: (v, _) => Text(left(v), style: colours.axisStyle),
       ),
     ),
     bottomTitles: AxisTitles(
@@ -52,7 +100,7 @@ FlTitlesData _titles(
           if (!_showLabel(i, points.length)) return const SizedBox.shrink();
           return Padding(
             padding: const EdgeInsets.only(top: 6),
-            child: Text(_label(points[i]), style: _axisStyle),
+            child: Text(_label(points[i]), style: colours.axisStyle),
           );
         },
       ),
@@ -60,12 +108,12 @@ FlTitlesData _titles(
   );
 }
 
-FlGridData _grid(double interval) => FlGridData(
+FlGridData _grid(double interval, _ChartColours colours) => FlGridData(
   show: true,
   drawVerticalLine: false,
   horizontalInterval: interval,
   getDrawingHorizontalLine: (_) =>
-      FlLine(color: Colors.grey.shade200, strokeWidth: 1),
+      FlLine(color: colours.grid, strokeWidth: 1),
 );
 
 /// Sessions per day (or per group of days).
@@ -80,13 +128,25 @@ class SessionsBarChart extends StatefulWidget {
 }
 
 class _SessionsBarChartState extends State<SessionsBarChart> {
-  late BarChartData _data = _buildData(widget.points);
+  // Built in didChangeDependencies, which runs before the first build.
+  late BarChartData _data;
+  _ChartColours? _colours;
+
+  @override
+  void didChangeDependencies() {
+    super.didChangeDependencies();
+    final colours = _ChartColours.of(context);
+    if (colours != _colours) {
+      _colours = colours;
+      _data = _buildData(widget.points, colours);
+    }
+  }
 
   @override
   void didUpdateWidget(SessionsBarChart oldWidget) {
     super.didUpdateWidget(oldWidget);
     if (!identical(oldWidget.points, widget.points)) {
-      _data = _buildData(widget.points);
+      _data = _buildData(widget.points, _colours!);
     }
   }
 
@@ -95,7 +155,10 @@ class _SessionsBarChartState extends State<SessionsBarChart> {
     return SizedBox(height: widget.height, child: BarChart(_data));
   }
 
-  static BarChartData _buildData(List<ProgressPoint> points) {
+  static BarChartData _buildData(
+    List<ProgressPoint> points,
+    _ChartColours colours,
+  ) {
     final most = points.fold(0, (m, p) => p.sessions > m ? p.sessions : m);
     final maxY = (most < 3 ? 3 : most + 1).toDouble();
     final barWidth = points.length <= 7
@@ -117,7 +180,7 @@ class _SessionsBarChartState extends State<SessionsBarChart> {
                 backDrawRodData: BackgroundBarChartRodData(
                   show: true,
                   toY: maxY,
-                  color: Colors.grey.shade100,
+                  color: colours.track,
                 ),
               ),
             ],
@@ -125,14 +188,15 @@ class _SessionsBarChartState extends State<SessionsBarChart> {
       ],
       titlesData: _titles(
         points,
+        colours,
         leftInterval: maxY <= 4 ? 1 : (maxY / 4).ceilToDouble(),
         left: (v) => '${v.toInt()}',
       ),
-      gridData: _grid(maxY <= 4 ? 1 : (maxY / 4).ceilToDouble()),
+      gridData: _grid(maxY <= 4 ? 1 : (maxY / 4).ceilToDouble(), colours),
       borderData: FlBorderData(show: false),
       barTouchData: BarTouchData(
         touchTooltipData: BarTouchTooltipData(
-          getTooltipColor: (_) => Colors.black87,
+          getTooltipColor: (_) => colours.tooltip,
           getTooltipItem: (group, _, rod, _) => BarTooltipItem(
             '${rod.toY.toInt()} session${rod.toY == 1 ? '' : 's'}',
             const TextStyle(color: Colors.white, fontSize: 11),
@@ -197,7 +261,19 @@ class TrendLineChart extends StatefulWidget {
 
 class _TrendLineChartState extends State<TrendLineChart> {
   /// Null when no point has a value (the "no data" message is shown).
-  late LineChartData? _data = _buildData(widget);
+  /// Built in didChangeDependencies, which runs before the first build.
+  late LineChartData? _data;
+  _ChartColours? _colours;
+
+  @override
+  void didChangeDependencies() {
+    super.didChangeDependencies();
+    final colours = _ChartColours.of(context);
+    if (colours != _colours) {
+      _colours = colours;
+      _data = _buildData(widget, colours);
+    }
+  }
 
   @override
   void didUpdateWidget(TrendLineChart oldWidget) {
@@ -210,7 +286,7 @@ class _TrendLineChartState extends State<TrendLineChart> {
         oldWidget.color != widget.color ||
         oldWidget.format != widget.format ||
         oldWidget.interval != widget.interval) {
-      _data = _buildData(widget);
+      _data = _buildData(widget, _colours!);
     }
   }
 
@@ -220,10 +296,10 @@ class _TrendLineChartState extends State<TrendLineChart> {
     if (data == null) {
       return SizedBox(
         height: widget.height,
-        child: const Center(
+        child: Center(
           child: Text(
             'No data for this period yet',
-            style: TextStyle(fontSize: 12, color: Colors.black38),
+            style: TextStyle(fontSize: 12, color: context.palette.textMuted),
           ),
         ),
       );
@@ -231,7 +307,7 @@ class _TrendLineChartState extends State<TrendLineChart> {
     return SizedBox(height: widget.height, child: LineChart(data));
   }
 
-  static LineChartData? _buildData(TrendLineChart w) {
+  static LineChartData? _buildData(TrendLineChart w, _ChartColours colours) {
     final points = w.points;
     final maxY = w.maxY;
     final color = w.color;
@@ -260,7 +336,7 @@ class _TrendLineChartState extends State<TrendLineChart> {
             show: true,
             getDotPainter: (_, _, _, _) => FlDotCirclePainter(
               radius: 3.5,
-              color: Colors.white,
+              color: colours.dotFill,
               strokeWidth: 2.5,
               strokeColor: color,
             ),
@@ -278,12 +354,12 @@ class _TrendLineChartState extends State<TrendLineChart> {
           ),
         ),
       ],
-      titlesData: _titles(points, leftInterval: step, left: w.format),
-      gridData: _grid(step),
+      titlesData: _titles(points, colours, leftInterval: step, left: w.format),
+      gridData: _grid(step, colours),
       borderData: FlBorderData(show: false),
       lineTouchData: LineTouchData(
         touchTooltipData: LineTouchTooltipData(
-          getTooltipColor: (_) => Colors.black87,
+          getTooltipColor: (_) => colours.tooltip,
           getTooltipItems: (spots) => [
             for (final s in spots)
               LineTooltipItem(

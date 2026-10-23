@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart' show rootBundle;
 
+import '../core/app_palette.dart';
 import '../core/diagnostic_logger.dart';
 import '../legal/legal_info.dart';
 
@@ -80,7 +81,7 @@ class _LegalDocumentScreenState extends State<LegalDocumentScreen> {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      backgroundColor: const Color(0xFFF0F4F4),
+      backgroundColor: context.palette.background,
       body: Column(
         children: [
           _header(context),
@@ -164,14 +165,17 @@ class LegalText extends StatelessWidget {
   /// `*italic*` markers (the text is kept, the stars are dropped).
   static final RegExp _italic = RegExp(r'\*([^*]+)\*');
 
-  static const _body = TextStyle(
-    fontSize: 14,
-    height: 1.55,
-    color: Colors.black87,
-  );
-
   @override
   Widget build(BuildContext context) {
+    final palette = context.palette;
+    final body = TextStyle(
+      fontSize: 14,
+      height: 1.55,
+      color: palette.textPrimary,
+    );
+    // Dark teal headings are too dim on the dark page; use the brighter teal.
+    final headingColor =
+        context.isDarkMode ? AppPalette.teal : AppPalette.darkTeal;
     final children = <Widget>[];
     final paragraph = <String>[];
 
@@ -180,7 +184,7 @@ class LegalText extends StatelessWidget {
       children.add(
         Padding(
           padding: const EdgeInsets.only(bottom: 12),
-          child: Text.rich(_inline(paragraph.join(' '), _body)),
+          child: Text.rich(_inline(paragraph.join(' '), body)),
         ),
       );
       paragraph.clear();
@@ -195,10 +199,10 @@ class LegalText extends StatelessWidget {
             padding: const EdgeInsets.only(bottom: 6),
             child: Text(
               line.substring(2),
-              style: const TextStyle(
+              style: TextStyle(
                 fontSize: 22,
                 fontWeight: FontWeight.bold,
-                color: Colors.black87,
+                color: palette.textPrimary,
               ),
             ),
           ),
@@ -210,10 +214,10 @@ class LegalText extends StatelessWidget {
             padding: const EdgeInsets.only(top: 12, bottom: 8),
             child: Text(
               line.substring(3),
-              style: const TextStyle(
+              style: TextStyle(
                 fontSize: 16,
                 fontWeight: FontWeight.bold,
-                color: Color(0xFF0D6E71),
+                color: headingColor,
               ),
             ),
           ),
@@ -226,8 +230,8 @@ class LegalText extends StatelessWidget {
             child: Row(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                const Text('•  ', style: _body),
-                Expanded(child: Text.rich(_inline(line.substring(2), _body))),
+                Text('•  ', style: body),
+                Expanded(child: Text.rich(_inline(line.substring(2), body))),
               ],
             ),
           ),

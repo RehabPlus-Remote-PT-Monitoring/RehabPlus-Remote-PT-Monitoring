@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 
+import '../core/app_palette.dart';
 import '../core/diagnostic_logger.dart';
 import '../models/prescription.dart';
 import '../services/app_provider.dart';
@@ -9,41 +10,62 @@ import '../services/progress_report_loader.dart';
 import '../services/progress_stats.dart';
 import '../widgets/progress_charts.dart';
 
-const _primaryTeal = Color(0xFF23A8AA);
-const _darkTeal = Color(0xFF0D6E71);
+const _primaryTeal = AppPalette.teal;
+const _darkTeal = AppPalette.darkTeal;
 
-/// Colours and icon for each verdict.
-({Color fg, Color bg, IconData icon}) _statusStyle(ProgressStatus s) =>
-    switch (s) {
-      ProgressStatus.great => (
-        fg: const Color(0xFF2E7D32),
-        bg: const Color(0xFFE8F5E9),
-        icon: Icons.emoji_events_outlined,
-      ),
-      ProgressStatus.onTrack => (
-        fg: _darkTeal,
-        bg: const Color(0xFFE0F4F4),
-        icon: Icons.trending_up_rounded,
-      ),
-      ProgressStatus.needsAttention => (
-        fg: const Color(0xFFD84315),
-        bg: const Color(0xFFFFF3E0),
-        icon: Icons.error_outline_rounded,
-      ),
-      ProgressStatus.noData => (
-        fg: Colors.black54,
-        bg: const Color(0xFFF2F2F2),
-        icon: Icons.hourglass_empty_rounded,
-      ),
-    };
+/// Semantic colours (good / info / caution / warning). The light-mode
+/// shades are too dark to read on the dark page, so dark mode uses lighter
+/// tints of the same hues.
+Color _goodColor(BuildContext context) =>
+    context.isDarkMode ? const Color(0xFF81C784) : const Color(0xFF2E7D32);
+Color _infoColor(BuildContext context) =>
+    context.isDarkMode ? const Color(0xFF4DD0E1) : _darkTeal;
+Color _cautionColor(BuildContext context) =>
+    context.isDarkMode ? const Color(0xFFFFD54F) : const Color(0xFFF9A825);
+Color _warningColor(BuildContext context) =>
+    context.isDarkMode ? const Color(0xFFFF8A65) : const Color(0xFFD84315);
 
-Widget _findingRow(Finding f) {
+/// Colours and icon for each verdict. The pale pastel chip backgrounds
+/// glare on a dark page, so dark mode tints the foreground colour instead.
+({Color fg, Color bg, IconData icon}) _statusStyle(
+  BuildContext context,
+  ProgressStatus s,
+) {
+  final dark = context.isDarkMode;
+  final palette = context.palette;
+  Color tint(Color fg, Color lightBg) =>
+      dark ? fg.withValues(alpha: 0.16) : lightBg;
+  return switch (s) {
+    ProgressStatus.great => (
+      fg: _goodColor(context),
+      bg: tint(_goodColor(context), const Color(0xFFE8F5E9)),
+      icon: Icons.emoji_events_outlined,
+    ),
+    ProgressStatus.onTrack => (
+      fg: _infoColor(context),
+      bg: tint(_infoColor(context), const Color(0xFFE0F4F4)),
+      icon: Icons.trending_up_rounded,
+    ),
+    ProgressStatus.needsAttention => (
+      fg: _warningColor(context),
+      bg: tint(_warningColor(context), const Color(0xFFFFF3E0)),
+      icon: Icons.error_outline_rounded,
+    ),
+    ProgressStatus.noData => (
+      fg: palette.textSecondary,
+      bg: palette.surfaceMuted,
+      icon: Icons.hourglass_empty_rounded,
+    ),
+  };
+}
+
+Widget _findingRow(BuildContext context, Finding f) {
   final (icon, color) = switch (f.kind) {
-    FindingKind.good => (Icons.check_circle_rounded, const Color(0xFF2E7D32)),
-    FindingKind.info => (Icons.info_outline_rounded, _darkTeal),
+    FindingKind.good => (Icons.check_circle_rounded, _goodColor(context)),
+    FindingKind.info => (Icons.info_outline_rounded, _infoColor(context)),
     FindingKind.warning => (
       Icons.warning_amber_rounded,
-      const Color(0xFFD84315),
+      _warningColor(context),
     ),
   };
   return Padding(
@@ -56,10 +78,10 @@ Widget _findingRow(Finding f) {
         Expanded(
           child: Text(
             f.text,
-            style: const TextStyle(
+            style: TextStyle(
               fontSize: 13,
               height: 1.35,
-              color: Colors.black87,
+              color: context.palette.textPrimary,
             ),
           ),
         ),
@@ -68,12 +90,16 @@ Widget _findingRow(Finding f) {
   );
 }
 
-BoxDecoration _cardDecoration() => BoxDecoration(
-  color: Colors.white,
+BoxDecoration _cardDecoration(BuildContext context) => BoxDecoration(
+  color: context.palette.surface,
   borderRadius: BorderRadius.circular(22),
   boxShadow: [
     BoxShadow(
-      color: _primaryTeal.withValues(alpha: 0.08),
+      // A teal glow in light mode; on the dark page a plain black shadow
+      // (a coloured glow there just looks like a smudge).
+      color: context.isDarkMode
+          ? context.palette.shadow.withValues(alpha: 0.3)
+          : _primaryTeal.withValues(alpha: 0.08),
       blurRadius: 20,
       offset: const Offset(0, 6),
     ),
@@ -94,22 +120,23 @@ class ProgressSummaryCard extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final palette = context.palette;
     final hasForm = report.points.any((p) => p.formScore != null);
     return Container(
       padding: const EdgeInsets.all(20),
-      decoration: _cardDecoration(),
+      decoration: _cardDecoration(context),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           Row(
             children: [
-              const Expanded(
+              Expanded(
                 child: Text(
                   "How you're doing",
                   style: TextStyle(
                     fontSize: 16,
                     fontWeight: FontWeight.bold,
-                    color: Colors.black87,
+                    color: palette.textPrimary,
                   ),
                 ),
               ),
@@ -117,15 +144,15 @@ class ProgressSummaryCard extends StatelessWidget {
             ],
           ),
           const SizedBox(height: 14),
-          for (final f in report.findings.take(2)) _findingRow(f),
+          for (final f in report.findings.take(2)) _findingRow(context, f),
           if (report.status != ProgressStatus.noData) ...[
             const SizedBox(height: 6),
             Text(
               hasForm ? 'Form score' : 'Sessions',
-              style: const TextStyle(
+              style: TextStyle(
                 fontSize: 12,
                 fontWeight: FontWeight.w600,
-                color: Colors.black54,
+                color: palette.textSecondary,
               ),
             ),
             const SizedBox(height: 10),
@@ -139,8 +166,11 @@ class ProgressSummaryCard extends StatelessWidget {
             child: TextButton.icon(
               onPressed: onOpenReport,
               style: TextButton.styleFrom(
-                foregroundColor: _darkTeal,
-                backgroundColor: _primaryTeal.withValues(alpha: 0.08),
+                foregroundColor: _infoColor(context),
+                // Slightly stronger in dark mode so the button still shows.
+                backgroundColor: _primaryTeal.withValues(
+                  alpha: context.isDarkMode ? 0.16 : 0.08,
+                ),
                 padding: const EdgeInsets.symmetric(vertical: 12),
                 shape: RoundedRectangleBorder(
                   borderRadius: BorderRadius.circular(14),
@@ -169,7 +199,7 @@ class ProgressSummaryLoading extends StatelessWidget {
     return Container(
       height: 160,
       padding: const EdgeInsets.all(20),
-      decoration: _cardDecoration(),
+      decoration: _cardDecoration(context),
       child: const Center(
         child: SizedBox(
           width: 24,
@@ -190,7 +220,7 @@ class _StatusChip extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final style = _statusStyle(status);
+    final style = _statusStyle(context, status);
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 5),
       decoration: BoxDecoration(
@@ -290,7 +320,7 @@ class _ProgressReportScreenState extends State<ProgressReportScreen> {
     };
 
     return Scaffold(
-      backgroundColor: const Color(0xFFF0F4F4),
+      backgroundColor: context.palette.background,
       body: Column(
         children: [
           _header(),
@@ -309,7 +339,7 @@ class _ProgressReportScreenState extends State<ProgressReportScreen> {
                   style: SegmentedButton.styleFrom(
                     selectedBackgroundColor: _primaryTeal,
                     selectedForegroundColor: Colors.white,
-                    foregroundColor: _darkTeal,
+                    foregroundColor: _infoColor(context),
                   ),
                 ),
                 const SizedBox(height: 14),
@@ -324,12 +354,12 @@ class _ProgressReportScreenState extends State<ProgressReportScreen> {
                     child: _reportBody(report, grouping),
                   ),
                 const SizedBox(height: 8),
-                const Text(
+                Text(
                   'This report is worked out from your exercise sessions. Your '
                   'therapist sees the same results. It is not a medical '
                   'assessment; ask your therapist about anything that worries you.',
                   textAlign: TextAlign.center,
-                  style: TextStyle(fontSize: 11, color: Colors.black38),
+                  style: TextStyle(fontSize: 11, color: context.palette.textMuted),
                 ),
               ],
             ),
@@ -373,13 +403,13 @@ class _ProgressReportScreenState extends State<ProgressReportScreen> {
     return Container(
       height: 200,
       padding: const EdgeInsets.all(20),
-      decoration: _cardDecoration(),
+      decoration: _cardDecoration(context),
       child: Center(
         child: failed
-            ? const Text(
+            ? Text(
                 "Couldn't work out your report. Please try again later.",
                 textAlign: TextAlign.center,
-                style: TextStyle(fontSize: 13, color: Colors.black54),
+                style: TextStyle(fontSize: 13, color: context.palette.textSecondary),
               )
             : const SizedBox(
                 width: 28,
@@ -397,7 +427,7 @@ class _ProgressReportScreenState extends State<ProgressReportScreen> {
     return Container(
       decoration: const BoxDecoration(
         gradient: LinearGradient(
-          colors: [_darkTeal, Color(0xFF1A8587), _primaryTeal],
+          colors: AppPalette.headerGradient,
           begin: Alignment.topLeft,
           end: Alignment.bottomRight,
         ),
@@ -443,10 +473,10 @@ class _ProgressReportScreenState extends State<ProgressReportScreen> {
   }
 
   Widget _verdictCard(ProgressReport r) {
-    final style = _statusStyle(r.status);
+    final style = _statusStyle(context, r.status);
     return Container(
       padding: const EdgeInsets.all(18),
-      decoration: _cardDecoration(),
+      decoration: _cardDecoration(context),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
@@ -476,9 +506,9 @@ class _ProgressReportScreenState extends State<ProgressReportScreen> {
                     ),
                     Text(
                       'Last ${r.days} days',
-                      style: const TextStyle(
+                      style: TextStyle(
                         fontSize: 12,
-                        color: Colors.black45,
+                        color: context.palette.textMuted,
                       ),
                     ),
                   ],
@@ -487,13 +517,14 @@ class _ProgressReportScreenState extends State<ProgressReportScreen> {
             ],
           ),
           const SizedBox(height: 14),
-          for (final f in r.findings) _findingRow(f),
+          for (final f in r.findings) _findingRow(context, f),
         ],
       ),
     );
   }
 
   Widget _numbers(ProgressReport r) {
+    final palette = context.palette;
     String pct(double? v) => v == null ? '—' : '${(v * 100).round()}%';
     final tiles = <(String, String, IconData)>[
       ('Sessions', '${r.sessions}', Icons.fitness_center_rounded),
@@ -528,7 +559,7 @@ class _ProgressReportScreenState extends State<ProgressReportScreen> {
         for (final (label, value, icon) in tiles)
           Container(
             padding: const EdgeInsets.all(10),
-            decoration: _cardDecoration(),
+            decoration: _cardDecoration(context),
             child: Column(
               mainAxisAlignment: MainAxisAlignment.center,
               children: [
@@ -537,10 +568,10 @@ class _ProgressReportScreenState extends State<ProgressReportScreen> {
                 FittedBox(
                   child: Text(
                     value,
-                    style: const TextStyle(
+                    style: TextStyle(
                       fontSize: 18,
                       fontWeight: FontWeight.bold,
-                      color: Colors.black87,
+                      color: palette.textPrimary,
                     ),
                   ),
                 ),
@@ -548,7 +579,7 @@ class _ProgressReportScreenState extends State<ProgressReportScreen> {
                 FittedBox(
                   child: Text(
                     label,
-                    style: const TextStyle(fontSize: 11, color: Colors.black45),
+                    style: TextStyle(fontSize: 11, color: palette.textMuted),
                   ),
                 ),
               ],
@@ -559,25 +590,26 @@ class _ProgressReportScreenState extends State<ProgressReportScreen> {
   }
 
   Widget _chartCard(String title, String subtitle, Widget chart) {
+    final palette = context.palette;
     return Container(
       margin: const EdgeInsets.only(bottom: 14),
       padding: const EdgeInsets.fromLTRB(16, 16, 16, 12),
-      decoration: _cardDecoration(),
+      decoration: _cardDecoration(context),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           Text(
             title,
-            style: const TextStyle(
+            style: TextStyle(
               fontSize: 15,
               fontWeight: FontWeight.bold,
-              color: Colors.black87,
+              color: palette.textPrimary,
             ),
           ),
           const SizedBox(height: 2),
           Text(
             subtitle,
-            style: const TextStyle(fontSize: 12, color: Colors.black45),
+            style: TextStyle(fontSize: 12, color: palette.textMuted),
           ),
           const SizedBox(height: 14),
           chart,
@@ -587,28 +619,29 @@ class _ProgressReportScreenState extends State<ProgressReportScreen> {
   }
 
   Widget _exerciseCard(ProgressReport r) {
+    final palette = context.palette;
     return Container(
       margin: const EdgeInsets.only(bottom: 14),
       padding: const EdgeInsets.fromLTRB(16, 16, 16, 8),
-      decoration: _cardDecoration(),
+      decoration: _cardDecoration(context),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          const Text(
+          Text(
             'By exercise',
             style: TextStyle(
               fontSize: 15,
               fontWeight: FontWeight.bold,
-              color: Colors.black87,
+              color: palette.textPrimary,
             ),
           ),
           const SizedBox(height: 10),
           if (r.exercises.isEmpty)
-            const Padding(
-              padding: EdgeInsets.only(bottom: 10),
+            Padding(
+              padding: const EdgeInsets.only(bottom: 10),
               child: Text(
                 'No exercises done in this period.',
-                style: TextStyle(fontSize: 12, color: Colors.black38),
+                style: TextStyle(fontSize: 12, color: palette.textMuted),
               ),
             ),
           // Keyed by name: the order changes between periods.
@@ -620,14 +653,15 @@ class _ProgressReportScreenState extends State<ProgressReportScreen> {
   }
 
   Widget _exerciseRow(ExerciseSummary e) {
+    final palette = context.palette;
     final form = e.formScore;
     final formColor = form == null
-        ? Colors.black26
+        ? palette.textFaint
         : form >= 80
-        ? const Color(0xFF2E7D32)
+        ? _goodColor(context)
         : form >= 60
-        ? const Color(0xFFF9A825)
-        : const Color(0xFFD84315);
+        ? _cautionColor(context)
+        : _warningColor(context);
     return Padding(
       padding: const EdgeInsets.only(bottom: 12),
       child: Column(
@@ -638,17 +672,17 @@ class _ProgressReportScreenState extends State<ProgressReportScreen> {
               Expanded(
                 child: Text(
                   e.name,
-                  style: const TextStyle(
+                  style: TextStyle(
                     fontSize: 13,
                     fontWeight: FontWeight.w600,
-                    color: Colors.black87,
+                    color: palette.textPrimary,
                   ),
                 ),
               ),
               Text(
                 '${e.sessions}× · '
                 '${e.pain == null ? 'no pain logged' : 'pain ${e.pain!.toStringAsFixed(1)}/10'}',
-                style: const TextStyle(fontSize: 11, color: Colors.black45),
+                style: TextStyle(fontSize: 11, color: palette.textMuted),
               ),
             ],
           ),
@@ -661,7 +695,7 @@ class _ProgressReportScreenState extends State<ProgressReportScreen> {
                   child: LinearProgressIndicator(
                     value: (form ?? 0) / 100,
                     minHeight: 8,
-                    backgroundColor: Colors.grey.shade100,
+                    backgroundColor: palette.surfaceMuted,
                     valueColor: AlwaysStoppedAnimation(formColor),
                   ),
                 ),

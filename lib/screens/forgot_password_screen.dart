@@ -9,6 +9,7 @@ import 'package:flutter/services.dart'
         TextInputFormatter;
 import 'package:phosphor_flutter/phosphor_flutter.dart';
 
+import '../core/app_palette.dart';
 import '../core/diagnostic_logger.dart';
 import '../services/auth_service.dart';
 
@@ -372,6 +373,7 @@ class _ForgotPasswordScreenState extends State<ForgotPasswordScreen>
 
   // ── Card wrapper ──────────────────────────────────────────────────────────
   Widget _buildCard() {
+    final palette = context.palette;
     return SlideTransition(
       position: _stageSlide,
       child: FadeTransition(
@@ -379,11 +381,11 @@ class _ForgotPasswordScreenState extends State<ForgotPasswordScreen>
         child: Container(
           padding: const EdgeInsets.all(28),
           decoration: BoxDecoration(
-            color: Colors.white,
+            color: palette.surface,
             borderRadius: BorderRadius.circular(24),
             boxShadow: [
               BoxShadow(
-                color: Colors.black.withValues(alpha: 0.18),
+                color: palette.shadow.withValues(alpha: 0.18),
                 blurRadius: 40,
                 offset: const Offset(0, 16),
               ),
@@ -400,21 +402,21 @@ class _ForgotPasswordScreenState extends State<ForgotPasswordScreen>
                     width: 36, height: 36,
                     margin: const EdgeInsets.only(bottom: 16),
                     decoration: BoxDecoration(
-                      color: const Color(0xFFF5F5F5),
+                      color: palette.surfaceMuted,
                       borderRadius: BorderRadius.circular(10),
                     ),
-                    child: const Icon(Icons.arrow_back_ios_new_rounded, size: 16, color: Colors.black54),
+                    child: Icon(Icons.arrow_back_ios_new_rounded, size: 16, color: palette.textSecondary),
                   ),
                 ),
 
               Text(
                 _stageTitle,
-                style: const TextStyle(fontSize: 22, fontWeight: FontWeight.bold, color: Color(0xFF1A1A1A)),
+                style: TextStyle(fontSize: 22, fontWeight: FontWeight.bold, color: palette.textPrimary),
               ),
               const SizedBox(height: 6),
               Text(
                 _stageSubtitle,
-                style: TextStyle(fontSize: 13, color: Colors.grey.shade500, height: 1.4),
+                style: TextStyle(fontSize: 13, color: palette.textMuted, height: 1.4),
               ),
               const SizedBox(height: 28),
 
@@ -544,7 +546,7 @@ class _ForgotPasswordScreenState extends State<ForgotPasswordScreen>
       icon: Icon(
         _showPassword ? Icons.visibility_off_outlined : Icons.visibility_outlined,
         size: 20,
-        color: Colors.grey.shade500,
+        color: context.palette.textMuted,
       ),
       onPressed: () => setState(() => _showPassword = !_showPassword),
     );
@@ -572,6 +574,7 @@ class _ForgotPasswordScreenState extends State<ForgotPasswordScreen>
   }
 
   Widget _buildSuccess() {
+    final palette = context.palette;
     return Center(
       child: Column(
         children: [
@@ -590,15 +593,15 @@ class _ForgotPasswordScreenState extends State<ForgotPasswordScreen>
             ),
           ),
           const SizedBox(height: 16),
-          const Text(
+          Text(
             'All Set!',
-            style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold, color: Colors.black87),
+            style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold, color: palette.textPrimary),
           ),
           const SizedBox(height: 8),
           Text(
             'Your password was changed. Sign in with your email and new password.',
             textAlign: TextAlign.center,
-            style: TextStyle(fontSize: 13, color: Colors.grey.shade500, height: 1.4),
+            style: TextStyle(fontSize: 13, color: palette.textMuted, height: 1.4),
           ),
         ],
       ),
@@ -616,6 +619,7 @@ class _ForgotPasswordScreenState extends State<ForgotPasswordScreen>
     List<TextInputFormatter>? inputFormatters,
     TextInputAction textInputAction = TextInputAction.done,
   }) {
+    final palette = context.palette;
     return TextField(
       controller: controller,
       obscureText: obscureText,
@@ -629,18 +633,18 @@ class _ForgotPasswordScreenState extends State<ForgotPasswordScreen>
           ? (_) => _onContinue()
           : null,
       inputFormatters: inputFormatters,
-      style: const TextStyle(fontSize: 14, color: Color(0xFF1A1A1A)),
+      style: TextStyle(fontSize: 14, color: palette.textPrimary),
       decoration: InputDecoration(
         hintText: hint,
-        hintStyle: TextStyle(fontSize: 14, color: Colors.grey.shade400),
-        prefixIcon: PhosphorIcon(icon, size: 20, color: Colors.grey.shade400),
+        hintStyle: TextStyle(fontSize: 14, color: palette.textFaint),
+        prefixIcon: PhosphorIcon(icon, size: 20, color: palette.textFaint),
         suffixIcon: suffix,
         filled: true,
-        fillColor: const Color(0xFFF5F5F5),
+        fillColor: palette.inputFill,
         contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 16),
         enabledBorder: OutlineInputBorder(
           borderRadius: BorderRadius.circular(14),
-          borderSide: BorderSide(color: Colors.grey.shade200),
+          borderSide: BorderSide(color: palette.divider),
         ),
         focusedBorder: OutlineInputBorder(
           borderRadius: BorderRadius.circular(14),

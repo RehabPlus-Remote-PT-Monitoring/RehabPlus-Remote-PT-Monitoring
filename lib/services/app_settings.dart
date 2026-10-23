@@ -1,10 +1,11 @@
+import 'package:flutter/material.dart' show ThemeMode;
 import 'package:flutter/foundation.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
 import '../core/diagnostic_logger.dart';
 
 /// Settings that live on this phone (SharedPreferences): exercise feedback,
-/// camera, reminder time and text size. Notification choices that the clinic
+/// camera, reminder time, text size and light/dark theme. Notification choices that the clinic
 /// must respect are stored with the account instead (NotificationPrefsService).
 ///
 /// Every stored value is type- and range-checked when loaded: a value of the
@@ -34,6 +35,9 @@ class AppSettings extends ChangeNotifier {
   static const int defaultReminderMinutes = 18 * 60;
   static const double defaultTextScale = 1.0;
 
+  /// Follow the phone's light/dark setting unless the patient picks one.
+  static const ThemeMode defaultThemeMode = ThemeMode.system;
+
   /// Last valid reminder time: 23:59.
   static const int maxReminderMinutes = 24 * 60 - 1;
 
@@ -62,6 +66,9 @@ class AppSettings extends ChangeNotifier {
   // Appearance
   /// Multiplies the phone's own text size: 1.0, 1.15 or 1.3.
   double textScale = defaultTextScale;
+
+  /// Light, dark, or the phone's setting (Settings > Appearance > Theme).
+  ThemeMode themeMode = defaultThemeMode;
 
   static const countdownChoices = [0, 3, 5];
   static const textScaleChoices = [1.0, 1.15, 1.3];
@@ -119,6 +126,15 @@ class AppSettings extends ChangeNotifier {
       textScale = defaultTextScale;
     }
 
+    final theme = p.get('s_themeMode');
+    final storedTheme = ThemeMode.values.where((m) => m.name == theme).firstOrNull;
+    if (storedTheme != null) {
+      themeMode = storedTheme;
+    } else {
+      if (theme != null) invalid.add('s_themeMode');
+      themeMode = defaultThemeMode;
+    }
+
     _logger.info('AppSettings', 'Loaded', {
       'repSound': repSound,
       'repVibration': repVibration,
@@ -130,6 +146,7 @@ class AppSettings extends ChangeNotifier {
       'reminderEnabled': reminderEnabled,
       'reminderMinutes': reminderMinutes,
       'textScale': textScale,
+      'themeMode': themeMode.name,
       if (invalid.isNotEmpty) 'invalid': invalid,
     });
     notifyListeners();
@@ -157,6 +174,8 @@ class AppSettings extends ChangeNotifier {
           await p.setInt(key, v);
         case double v:
           await p.setDouble(key, v);
+        case String v:
+          await p.setString(key, v);
       }
     } catch (e, st) {
       _logger.warn('AppSettings', 'Saving setting failed', {'key': key}, e, st);
@@ -199,5 +218,11 @@ class AppSettings extends ChangeNotifier {
       throw ArgumentError.value(v, 'v', 'Not one of $textScaleChoices');
     }
     return _save('s_textScale', textScale = v);
+  }
+
+  /// Stored by name ('system', 'light', 'dark'); the app rebuilds at once.
+  Future<void> setThemeMode(ThemeMode v) {
+    themeMode = v;
+    return _save('s_themeMode', v.name);
   }
 }

@@ -5,6 +5,7 @@ import 'package:flutter/services.dart' show PlatformException;
 import 'package:image_picker/image_picker.dart';
 import 'package:permission_handler/permission_handler.dart';
 
+import '../core/app_palette.dart';
 import '../core/diagnostic_logger.dart';
 import '../services/profile_service.dart';
 import '../widgets/profile_avatar.dart';
@@ -91,38 +92,35 @@ class _EditProfileScreenState extends State<EditProfileScreen>
     final source = await showModalBottomSheet<Object>(
       context: context,
       showDragHandle: true,
-      // Light like the rest of this screen, even when the phone is in dark mode.
-      backgroundColor: Colors.white,
-      builder: (ctx) => Theme(
-        data: ThemeData.light(useMaterial3: true),
-        child: SafeArea(
-          child: Column(
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              ListTile(
-                leading: const Icon(
-                  Icons.photo_camera_outlined,
-                  color: primaryTeal,
-                ),
-                title: const Text('Take a photo'),
-                onTap: () => Navigator.pop(ctx, ImageSource.camera),
+      // Follows the app theme (light or dark) like the rest of this screen.
+      backgroundColor: context.palette.surface,
+      builder: (ctx) => SafeArea(
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            ListTile(
+              leading: const Icon(
+                Icons.photo_camera_outlined,
+                color: primaryTeal,
               ),
-              ListTile(
-                leading: const Icon(
-                  Icons.photo_library_outlined,
-                  color: primaryTeal,
-                ),
-                title: const Text('Choose from gallery'),
-                onTap: () => Navigator.pop(ctx, ImageSource.gallery),
+              title: const Text('Take a photo'),
+              onTap: () => Navigator.pop(ctx, ImageSource.camera),
+            ),
+            ListTile(
+              leading: const Icon(
+                Icons.photo_library_outlined,
+                color: primaryTeal,
               ),
-              if (_photo != null)
-                ListTile(
-                  leading: Icon(Icons.delete_outline, color: Colors.red[700]),
-                  title: const Text('Remove photo'),
-                  onTap: () => Navigator.pop(ctx, 'remove'),
-                ),
-            ],
-          ),
+              title: const Text('Choose from gallery'),
+              onTap: () => Navigator.pop(ctx, ImageSource.gallery),
+            ),
+            if (_photo != null)
+              ListTile(
+                leading: Icon(Icons.delete_outline, color: Colors.red[700]),
+                title: const Text('Remove photo'),
+                onTap: () => Navigator.pop(ctx, 'remove'),
+              ),
+          ],
         ),
       ),
     );
@@ -271,7 +269,7 @@ class _EditProfileScreenState extends State<EditProfileScreen>
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      backgroundColor: const Color(0xFFF0F4F4),
+      backgroundColor: context.palette.background,
       body: Column(
         children: [
           _buildHeader(context),
@@ -425,6 +423,7 @@ class _EditProfileScreenState extends State<EditProfileScreen>
   }
 
   Widget _buildAvatarSection() {
+    final palette = context.palette;
     return Center(
       child: Column(
         children: [
@@ -440,11 +439,11 @@ class _EditProfileScreenState extends State<EditProfileScreen>
                     width: 32,
                     height: 32,
                     decoration: BoxDecoration(
-                      color: Colors.white,
+                      color: palette.surface,
                       shape: BoxShape.circle,
                       boxShadow: [
                         BoxShadow(
-                          color: Colors.black.withValues(alpha: 0.1),
+                          color: palette.shadow.withValues(alpha: 0.1),
                           blurRadius: 6,
                         ),
                       ],
@@ -481,10 +480,10 @@ class _EditProfileScreenState extends State<EditProfileScreen>
         const SizedBox(width: 8),
         Text(
           label,
-          style: const TextStyle(
+          style: TextStyle(
             fontSize: 14,
             fontWeight: FontWeight.bold,
-            color: Colors.black54,
+            color: context.palette.textSecondary,
           ),
         ),
       ],
@@ -492,13 +491,14 @@ class _EditProfileScreenState extends State<EditProfileScreen>
   }
 
   Widget _buildCard(List<Widget> children) {
+    final palette = context.palette;
     return Container(
       decoration: BoxDecoration(
-        color: Colors.white,
+        color: palette.surface,
         borderRadius: BorderRadius.circular(20),
         boxShadow: [
           BoxShadow(
-            color: Colors.black.withValues(alpha: 0.05),
+            color: palette.shadow.withValues(alpha: 0.05),
             blurRadius: 12,
             offset: const Offset(0, 3),
           ),
@@ -521,6 +521,7 @@ class _EditProfileScreenState extends State<EditProfileScreen>
     Iterable<String>? autofillHints,
     TextCapitalization capitalization = TextCapitalization.none,
   }) {
+    final palette = context.palette;
     return Padding(
       padding: const EdgeInsets.symmetric(vertical: 4),
       child: TextFormField(
@@ -530,32 +531,32 @@ class _EditProfileScreenState extends State<EditProfileScreen>
         validator: validator,
         autofillHints: readOnly ? null : autofillHints,
         textCapitalization: capitalization,
-        style: const TextStyle(
+        style: TextStyle(
           fontSize: 14,
-          color: Colors.black87,
+          color: palette.textPrimary,
           fontWeight: FontWeight.w500,
         ),
         decoration: InputDecoration(
           prefixIcon: Icon(
             icon,
             size: 18,
-            color: readOnly ? Colors.black26 : primaryTeal,
+            color: readOnly ? palette.textFaint : primaryTeal,
           ),
           labelText: label,
           labelStyle: TextStyle(
             fontSize: 13,
-            color: readOnly ? Colors.black26 : Colors.black45,
+            color: readOnly ? palette.textFaint : palette.textMuted,
           ),
           border: InputBorder.none,
           suffixIcon: readOnly
-              ? const Icon(Icons.lock_outline, size: 14, color: Colors.black26)
+              ? Icon(Icons.lock_outline, size: 14, color: palette.textFaint)
               : null,
         ),
       ),
     );
   }
 
-  Widget _divider() => const Divider(height: 1, color: Color(0xFFF0F0F0));
+  Widget _divider() => Divider(height: 1, color: context.palette.divider);
 
   // Lengths match the Firestore rules (name ≤ 100, phone/date of birth ≤ 30).
   String? _required(String? v) => _check(v, 30);

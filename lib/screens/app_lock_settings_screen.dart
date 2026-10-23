@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 
+import '../core/app_palette.dart';
 import '../core/diagnostic_logger.dart';
 import '../services/app_lock_service.dart';
 import 'app_lock_screen.dart';
@@ -140,9 +141,10 @@ class _AppLockSettingsScreenState extends State<AppLockSettingsScreen> {
   Widget build(BuildContext context) {
     final enabled = _lock.isEnabled;
     final bioAvailable = _biometricsAvailable == true;
+    final palette = context.palette;
 
     return Scaffold(
-      backgroundColor: const Color(0xFFF4F7F8),
+      backgroundColor: palette.background,
       appBar: AppBar(title: const Text('App lock'), backgroundColor: darkTeal),
       body: ListView(
         padding: const EdgeInsets.all(16),
@@ -154,8 +156,8 @@ class _AppLockSettingsScreenState extends State<AppLockSettingsScreen> {
               activeThumbColor: Colors.white,
               activeTrackColor: primaryTeal,
               secondary: _leading(Icons.pin_outlined),
-              title: const Text('PIN lock', style: _titleStyle),
-              subtitle: const Text(
+              title: Text('PIN lock', style: _titleStyle),
+              subtitle: Text(
                 'Ask for a ${AppLockService.pinLength}-digit PIN before '
                 'showing your dashboard',
                 style: _subtitleStyle,
@@ -169,7 +171,7 @@ class _AppLockSettingsScreenState extends State<AppLockSettingsScreen> {
               activeThumbColor: Colors.white,
               activeTrackColor: primaryTeal,
               secondary: _leading(Icons.fingerprint_rounded),
-              title: const Text('Unlock with fingerprint', style: _titleStyle),
+              title: Text('Unlock with fingerprint', style: _titleStyle),
               subtitle: Text(
                 switch (_biometricsAvailable) {
                   null => 'Checking this phone…',
@@ -185,16 +187,16 @@ class _AppLockSettingsScreenState extends State<AppLockSettingsScreen> {
               enabled: enabled && !_busy,
               onTap: _changePin,
               leading: _leading(Icons.lock_reset_rounded),
-              title: const Text('Change PIN', style: _titleStyle),
-              trailing: const Icon(
+              title: Text('Change PIN', style: _titleStyle),
+              trailing: Icon(
                 Icons.chevron_right_rounded,
-                color: Colors.black26,
+                color: palette.textFaint,
                 size: 20,
               ),
             ),
           ]),
-          const Padding(
-            padding: EdgeInsets.fromLTRB(8, 4, 8, 0),
+          Padding(
+            padding: const EdgeInsets.fromLTRB(8, 4, 8, 0),
             child: Text(
               'RehabPlus asks for the PIN when you open the app and when you '
               'come back to it after a minute or more. The PIN is kept only '
@@ -203,7 +205,11 @@ class _AppLockSettingsScreenState extends State<AppLockSettingsScreen> {
               'again with your password. After '
               '${AppLockService.maxAttempts} wrong PINs you are signed out '
               'for safety. Signing out also turns the lock off.',
-              style: TextStyle(fontSize: 12, color: Colors.black54, height: 1.4),
+              style: TextStyle(
+                fontSize: 12,
+                color: palette.textSecondary,
+                height: 1.4,
+              ),
             ),
           ),
         ],
@@ -211,22 +217,24 @@ class _AppLockSettingsScreenState extends State<AppLockSettingsScreen> {
     );
   }
 
-  static const _titleStyle = TextStyle(
+  // Getters (not consts) so they follow the light/dark palette.
+  TextStyle get _titleStyle => TextStyle(
     fontSize: 14,
     fontWeight: FontWeight.w500,
-    color: Colors.black87,
+    color: context.palette.textPrimary,
   );
-  static const _subtitleStyle = TextStyle(fontSize: 12, color: Colors.black45);
+  TextStyle get _subtitleStyle =>
+      TextStyle(fontSize: 12, color: context.palette.textMuted);
 
   Widget _card(List<Widget> children) => Container(
     margin: const EdgeInsets.only(bottom: 14),
     padding: const EdgeInsets.symmetric(vertical: 6),
     decoration: BoxDecoration(
-      color: Colors.white,
+      color: context.palette.surface,
       borderRadius: BorderRadius.circular(20),
       boxShadow: [
         BoxShadow(
-          color: Colors.black.withValues(alpha: 0.05),
+          color: context.palette.shadow.withValues(alpha: 0.05),
           blurRadius: 12,
           offset: const Offset(0, 3),
         ),

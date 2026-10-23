@@ -4,6 +4,7 @@ import 'package:flutter/material.dart';
 import 'package:intl/intl.dart' show DateFormat;
 import 'package:provider/provider.dart';
 
+import '../core/app_palette.dart';
 import '../models/exercise_model.dart';
 import '../services/app_provider.dart';
 import '../services/prescription_service.dart';
@@ -23,6 +24,12 @@ class ExercisePage extends StatefulWidget {
 class _ExercisePageState extends State<ExercisePage> {
   static const Color primaryTeal = Color(0xFF23A8AA);
   static const Color lightTealBg = Color(0xFFE8F7F7);
+
+  /// Pale teal for the background circles and count chip. The light pastel
+  /// glares on a dark page, so dark mode uses a faint teal tint instead.
+  Color _tealTint(BuildContext context) => context.isDarkMode
+      ? primaryTeal.withValues(alpha: 0.14)
+      : lightTealBg;
 
   late Future<List<ExerciseConfig>> _exercisesFuture;
 
@@ -60,8 +67,12 @@ class _ExercisePageState extends State<ExercisePage> {
 
   @override
   Widget build(BuildContext context) {
+    final palette = context.palette;
     return Scaffold(
-      backgroundColor: Colors.white,
+      // Light: white page like before. Dark: the darker page colour so the
+      // cards (palette.surface) still stand out, as shadows barely show.
+      backgroundColor:
+          context.isDarkMode ? palette.background : palette.surface,
       // No bottomNavigationBar here: DashboardScreen already has one.
       body: Stack(
         children: [
@@ -72,8 +83,8 @@ class _ExercisePageState extends State<ExercisePage> {
             child: Container(
               width: 300,
               height: 300,
-              decoration: const BoxDecoration(
-                color: lightTealBg,
+              decoration: BoxDecoration(
+                color: _tealTint(context),
                 shape: BoxShape.circle,
               ),
             ),
@@ -84,8 +95,8 @@ class _ExercisePageState extends State<ExercisePage> {
             child: Container(
               width: 280,
               height: 280,
-              decoration: const BoxDecoration(
-                color: lightTealBg,
+              decoration: BoxDecoration(
+                color: _tealTint(context),
                 shape: BoxShape.circle,
               ),
             ),
@@ -167,21 +178,21 @@ class _ExercisePageState extends State<ExercisePage> {
                         DateFormat(
                           'EEEE, d MMMM',
                         ).format(DateTime.now()).toUpperCase(),
-                        style: const TextStyle(
+                        style: TextStyle(
                           fontSize: 11,
                           fontWeight: FontWeight.w600,
-                          color: Colors.black54,
+                          color: palette.textSecondary,
                           letterSpacing: 0.5,
                         ),
                       ),
                       const SizedBox(height: 4),
-                      const Text(
+                      Text(
                         'Select an\nExercise',
                         style: TextStyle(
                           fontSize: 24,
                           fontWeight: FontWeight.bold,
                           height: 1.15,
-                          color: Colors.black,
+                          color: palette.textPrimary,
                         ),
                       ),
                     ],
@@ -286,17 +297,17 @@ class _ExercisePageState extends State<ExercisePage> {
         children: [
           Text(
             title,
-            style: const TextStyle(
+            style: TextStyle(
               fontSize: 16,
               fontWeight: FontWeight.bold,
-              color: Colors.black87,
+              color: context.palette.textPrimary,
             ),
           ),
           const SizedBox(width: 8),
           Container(
             padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
             decoration: BoxDecoration(
-              color: lightTealBg,
+              color: _tealTint(context),
               borderRadius: BorderRadius.circular(10),
             ),
             child: Text(
@@ -318,17 +329,21 @@ class _ExercisePageState extends State<ExercisePage> {
       margin: const EdgeInsets.only(bottom: 16),
       padding: const EdgeInsets.all(16),
       decoration: BoxDecoration(
-        color: lightTealBg,
+        color: _tealTint(context),
         borderRadius: BorderRadius.circular(16),
       ),
-      child: const Row(
+      child: Row(
         children: [
-          Icon(Icons.event_note_rounded, color: primaryTeal),
-          SizedBox(width: 12),
+          const Icon(Icons.event_note_rounded, color: primaryTeal),
+          const SizedBox(width: 12),
           Expanded(
             child: Text(
               'No therapy plan assigned yet. Check back once your therapist sets one up.',
-              style: TextStyle(fontSize: 13, color: Colors.black54, height: 1.4),
+              style: TextStyle(
+                fontSize: 13,
+                color: context.palette.textSecondary,
+                height: 1.4,
+              ),
             ),
           ),
         ],
@@ -349,14 +364,14 @@ class _ExercisePageState extends State<ExercisePage> {
           children: [
             Container(
               padding: const EdgeInsets.all(18),
-              decoration: BoxDecoration(color: lightTealBg, shape: BoxShape.circle),
+              decoration: BoxDecoration(color: _tealTint(context), shape: BoxShape.circle),
               child: Icon(icon, size: 36, color: primaryTeal),
             ),
             const SizedBox(height: 16),
             Text(
               text,
               textAlign: TextAlign.center,
-              style: const TextStyle(fontSize: 14, color: Colors.black54, height: 1.4),
+              style: TextStyle(fontSize: 14, color: context.palette.textSecondary, height: 1.4),
             ),
             const SizedBox(height: 16),
             TextButton(
@@ -492,7 +507,15 @@ class _AnimatedExerciseCardState extends State<AnimatedExerciseCard>
     }
   }
 
+  // Pastel chip backgrounds in light mode; in dark mode a translucent tint
+  // of the label colour, since the pastels glare on a dark card.
   ({Color bg, Color fg}) get _difficultyColors {
+    final colors = _lightDifficultyColors;
+    if (!context.isDarkMode) return colors;
+    return (bg: colors.fg.withValues(alpha: 0.18), fg: colors.fg);
+  }
+
+  ({Color bg, Color fg}) get _lightDifficultyColors {
     switch (widget.config.difficulty) {
       case ExerciseDifficulty.easy:
         return (bg: const Color(0xFFE2F3D3), fg: const Color(0xFF558B2F));
@@ -517,6 +540,7 @@ class _AnimatedExerciseCardState extends State<AnimatedExerciseCard>
     final config = widget.config;
     final visuals = _visuals;
     final diff = _difficultyColors;
+    final palette = context.palette;
 
     return FadeTransition(
       opacity: _fadeAnimation,
@@ -535,11 +559,11 @@ class _AnimatedExerciseCardState extends State<AnimatedExerciseCard>
               margin: const EdgeInsets.only(bottom: 16),
               padding: const EdgeInsets.all(16),
               decoration: BoxDecoration(
-                color: Colors.white,
+                color: palette.surface,
                 borderRadius: BorderRadius.circular(22),
                 boxShadow: [
                   BoxShadow(
-                    color: Colors.black.withValues(alpha: 0.05),
+                    color: palette.shadow.withValues(alpha: 0.05),
                     blurRadius: 12,
                     offset: const Offset(0, 4),
                   ),
@@ -567,29 +591,29 @@ class _AnimatedExerciseCardState extends State<AnimatedExerciseCard>
                           children: [
                             Text(
                               config.title,
-                              style: const TextStyle(
+                              style: TextStyle(
                                 fontSize: 16,
                                 fontWeight: FontWeight.bold,
-                                color: Colors.black87,
+                                color: palette.textPrimary,
                               ),
                             ),
                             const SizedBox(height: 6),
                             Row(
                               children: [
-                                Icon(Icons.schedule_rounded, size: 13, color: Colors.grey.shade500),
+                                Icon(Icons.schedule_rounded, size: 13, color: palette.textMuted),
                                 const SizedBox(width: 4),
                                 Text(
                                   '${config.estimatedMinutes} min',
-                                  style: TextStyle(fontSize: 12, color: Colors.grey.shade600),
+                                  style: TextStyle(fontSize: 12, color: palette.textMuted),
                                 ),
                                 const SizedBox(width: 12),
-                                Icon(Icons.repeat_rounded, size: 13, color: Colors.grey.shade500),
+                                Icon(Icons.repeat_rounded, size: 13, color: palette.textMuted),
                                 const SizedBox(width: 4),
                                 Expanded(
                                   child: Text(
                                     config.repsText,
                                     overflow: TextOverflow.ellipsis,
-                                    style: TextStyle(fontSize: 12, color: Colors.grey.shade600),
+                                    style: TextStyle(fontSize: 12, color: palette.textMuted),
                                   ),
                                 ),
                               ],
@@ -599,13 +623,13 @@ class _AnimatedExerciseCardState extends State<AnimatedExerciseCard>
                             // from the right camera view.
                             Row(
                               children: [
-                                Icon(Icons.videocam_outlined, size: 13, color: Colors.grey.shade500),
+                                Icon(Icons.videocam_outlined, size: 13, color: palette.textMuted),
                                 const SizedBox(width: 4),
                                 Expanded(
                                   child: Text(
                                     config.cameraView.label,
                                     overflow: TextOverflow.ellipsis,
-                                    style: TextStyle(fontSize: 12, color: Colors.grey.shade600),
+                                    style: TextStyle(fontSize: 12, color: palette.textMuted),
                                   ),
                                 ),
                               ],

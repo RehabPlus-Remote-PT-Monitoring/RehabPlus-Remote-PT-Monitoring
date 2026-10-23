@@ -1,6 +1,6 @@
 # Handoff: RehabPlus patient app and clinic dashboard
 
-_Last updated: 18 Oct 2026_
+_Last updated: 24 Oct 2026_
 
 ## 1. Goal
 
@@ -21,11 +21,15 @@ This is the capstone project **"Mobile-Based Camera-Assisted Remote Physical The
 
 ## 2. Current state
 
-Everything is **committed and pushed**:
-- `camera/monitoring` at `931abdc` (patient app).
-- `web/messaging` at `8250d5a` (dashboard).
+Everything is **committed and pushed to the org repo**
+(`github.com/RehabPlus-Remote-PT-Monitoring/RehabPlus-Remote-PT-Monitoring`):
+- `camera/monitoring`: patient app (this file).
+- `web/messaging`: dashboard. Pushing it deploys https://rehab-plus-remote-pt-monitoring.vercel.app via `.github/workflows/vercel-deploy.yml`.
+- `main`: only docs plus `.github/workflows/exercise-reminders.yml` (the daily reminder trigger; GitHub runs schedules only from the default branch).
 
-Neither branch is merged into `main`.
+The group repo (`paulirichmond/...`) is behind on both branches; push there only with the owner's OK. Neither branch is merged into `main`.
+
+`lib/firebase_options.dart` and `android/app/google-services.json` are now committed (public client config, no secrets), so a fresh clone builds.
 
 ### Patient app
 
@@ -43,8 +47,11 @@ Neither branch is merged into `main`.
 | Exercises page "Today's Plan" checklist sheet and its badge | ✅ Built. **Not yet tested on the phone** |
 | Exercises page split into "Your Plan" (prescriptions, with weekly progress bar) and "All Exercises" (rest of the 17-exercise catalog, no bar, saved with `prescriptionId: null`) | ✅ Built, analyze clean. **Not yet tested on the phone** |
 | 5 new exercises: Mini Squat, Standing Hip Abduction, Standing Hamstring Curl, Marching in Place, Overhead Arm Raise (geometry in `lib/services/exercise_geometry.dart`, unit-tested; dashboard `ExerciseCatalog` updated) | ✅ Built, tests pass. **Angles not yet tuned on the phone** |
-| Firestore security rules | ✅ Deployed |
-| `flutter analyze`: no issues. `flutter test`: 9 passing | ✅ |
+| Profile > My Goals: read-only goals set by the therapist (`lib/screens/goals_screen.dart`, `GoalService`, `TherapyGoal`) | ✅ Built, tests pass. **Not yet tested on the phone** |
+| Dark mode: Settings > Appearance > Theme (Phone setting / Light / Dark, default Phone setting). Colours by role in `lib/core/app_palette.dart` (`context.palette`); every screen restyled; camera overlays and splash unchanged | ✅ Analyze clean, tests pass. **Not yet checked on the phone in either mode** |
+| Settings > Notifications > Clinic reminders (`reminders` preference, honoured by the dashboard's evening reminder) | ✅ Built, tests pass |
+| Firestore security rules (incl. goals read + `reminders` pref) | ✅ Deployed 24 Oct; live ruleset verified identical to `firestore.rules`. Emulator suite: 26 passing |
+| `flutter analyze`: no issues. `flutter test`: 200 passing | ✅ |
 
 ### Clinic dashboard (`laravel-app/`)
 
@@ -61,7 +68,8 @@ Neither branch is merged into `main`.
 | Dark mode, including the chat bubbles | ✅ Checked |
 | Friendly "can't reach Firebase" page / form error instead of a 500 | ✅ Seen live during a network blip |
 | Appointments, billing, inventory, staff schedule | Still on SQL (SQLite locally; the team uses MySQL/XAMPP). Therapist and staff names come from Firebase |
-| `php artisan test`: 73 passing (all against an in-memory Firebase fake, no network) | ✅ |
+| Evening exercise reminders: `ExerciseReminderService`, `POST /cron/exercise-reminders` (bearer `CRON_SECRET`, refuses before 6 PM Manila), `php artisan rehab:send-reminders [--dry-run]`. Triggered daily at 6:05 PM Manila by the org repo's `exercise-reminders.yml` on `main` | ✅ Tests pass. Live: route deployed, auth checked (401 / 409 "too early"); a local dry run against real data found 2 of 5 patients due. **First real run: 24 Oct, 6:05 PM** |
+| `php artisan test`: 172 passing (all against an in-memory Firebase fake, no network); JS: 43 passing | ✅ |
 
 **Test data**
 - Patient `rob@rehabplus.com` (uid `pVRhO9k4pybGItH5IyAJbV0f8aC3`) is seeded. He has 3 prescriptions: kneeExtension, bicepCurl and sideRaise. He has no therapist assigned and no sessions yet.
@@ -190,19 +198,17 @@ Neither branch is merged into `main`.
    - ⚠️ `seed.mjs` overwrites the patient's phone and date of birth, so don't re-run it on accounts with real data.
    - Or just add kenji's patient profile from the dashboard instead.
 4. **Repo housekeeping:**
-   - Decide whether to commit `lib/firebase_options.dart`. It is gitignored right now; committing it is recommended, because it holds no secrets and teammates need it to build.
    - In the dashboard worktree, a root `package.json` / `package-lock.json` change and `node_modules/` (dependency `headroom-ai`) appeared from outside this work and are uncommitted. Remove them or add `node_modules/` to `.gitignore`.
    - Ask sekendd/Rodel to push their latest local code: their database dump has a `drop_super_admins_table` migration that isn't on GitHub. Rebase `web/messaging` on it. Decide which dashboard copy is the main one (`updated-admin-dashboard` vs `sekendd/rehabplus2`).
    - Open pull requests for `camera/monitoring` and `web/messaging`.
 5. **Dashboard follow-ups:**
    - Move appointments, billing, inventory and the staff schedule to Firestore too (the user chose "later").
    - The patient profile takes about 2 s to load (6 sequential Firestore reads). Batch or parallelise them if it matters.
-   - Optionally let patients see their goals in the app: add a read rule for `goals` and an app screen.
-6. **Dark mode:** the Settings page has no theme option yet, because the screens hard-code light colours (about 600 places). The app is locked to light mode (`themeMode: ThemeMode.light` in `lib/main.dart`) until every screen is restyled.
+6. **Check on the phone:** dark mode on every screen (Settings > Appearance > Theme > Dark), My Goals (add a goal from the dashboard first), the Clinic reminders switch, and the first evening reminder (Actions tab of the org repo shows each run's counts).
+   - `CRON_SECRET` lives only as an org-repo Actions secret; the deploy workflow passes it to Vercel with `vercel deploy --env`. To rotate it: set a new secret, then re-run the deploy workflow.
 7. **Before patients use the app (legal):**
    - Fill in the placeholders in `lib/legal/legal_info.dart`: clinic address, Data Protection Officer name and email, city for disputes, record-retention period.
    - Have a lawyer or the clinic's DPO review both documents. Register with the National Privacy Commission if the clinic's processing requires it.
    - Show the consent status on the dashboard's patient profile (see API_CONTRACT.md).
 8. **Smaller items:**
-   - Add exercise reminders (`reminder` type). These would need a scheduler on the Laravel side, since there are no Cloud Functions.
    - Seed `settings/clinic.phone` with the real clinic number (set the `CLINIC_PHONE` environment variable). The dashboard has no settings page for it yet.

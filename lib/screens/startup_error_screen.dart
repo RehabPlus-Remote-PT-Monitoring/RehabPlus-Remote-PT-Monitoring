@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 
+import '../core/app_palette.dart';
 import '../core/diagnostic_logger.dart';
 
 /// Shown instead of the splash's next screen when app startup failed (for
@@ -54,11 +55,11 @@ class _StartupErrorScreenState extends State<StartupErrorScreen> {
                   style: TextStyle(fontSize: 20, fontWeight: FontWeight.bold),
                 ),
                 const SizedBox(height: 8),
-                const Text(
+                Text(
                   'Please check your internet connection and try again. '
                   'If this keeps happening, contact the clinic.',
                   textAlign: TextAlign.center,
-                  style: TextStyle(color: Colors.black54),
+                  style: TextStyle(color: context.palette.textSecondary),
                 ),
                 const SizedBox(height: 24),
                 FilledButton.icon(

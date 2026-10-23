@@ -3,6 +3,7 @@ import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 
+import '../core/app_palette.dart';
 import '../core/diagnostic_logger.dart';
 import '../legal/legal_info.dart';
 import '../services/app_provider.dart';
@@ -174,10 +175,11 @@ class _ConsentScreenState extends State<ConsentScreen> {
 
   @override
   Widget build(BuildContext context) {
+    final palette = context.palette;
     return PopScope(
       canPop: false,
       child: Scaffold(
-        backgroundColor: const Color(0xFFF0F4F4),
+        backgroundColor: palette.background,
         body: Column(
           children: [
             _header(),
@@ -187,12 +189,12 @@ class _ConsentScreenState extends State<ConsentScreen> {
                 children: [
                   _card(
                     children: [
-                      const Text(
+                      Text(
                         'Before you start',
                         style: TextStyle(
                           fontSize: 16,
                           fontWeight: FontWeight.bold,
-                          color: Colors.black87,
+                          color: palette.textPrimary,
                         ),
                       ),
                       const SizedBox(height: 12),
@@ -270,7 +272,7 @@ class _ConsentScreenState extends State<ConsentScreen> {
                   Text(
                     'Version ${LegalInfo.version} · effective ${LegalInfo.effectiveDate}',
                     textAlign: TextAlign.center,
-                    style: const TextStyle(fontSize: 11, color: Colors.black38),
+                    style: TextStyle(fontSize: 11, color: palette.textMuted),
                   ),
                 ],
               ),
@@ -329,11 +331,11 @@ class _ConsentScreenState extends State<ConsentScreen> {
     return Container(
       padding: padding,
       decoration: BoxDecoration(
-        color: Colors.white,
+        color: context.palette.surface,
         borderRadius: BorderRadius.circular(18),
         boxShadow: [
           BoxShadow(
-            color: Colors.black.withValues(alpha: 0.05),
+            color: context.palette.shadow.withValues(alpha: 0.05),
             blurRadius: 10,
             offset: const Offset(0, 3),
           ),
@@ -357,10 +359,10 @@ class _ConsentScreenState extends State<ConsentScreen> {
           Expanded(
             child: Text(
               text,
-              style: const TextStyle(
+              style: TextStyle(
                 fontSize: 13,
                 height: 1.45,
-                color: Colors.black87,
+                color: context.palette.textPrimary,
               ),
             ),
           ),
@@ -375,13 +377,14 @@ class _ConsentScreenState extends State<ConsentScreen> {
       leading: Icon(icon, color: primaryTeal),
       title: Text(
         label,
-        style: const TextStyle(
+        style: TextStyle(
           fontSize: 14,
           fontWeight: FontWeight.w600,
-          color: darkTeal,
+          // Dark teal is too dim on the dark card; the brighter teal reads.
+          color: context.isDarkMode ? primaryTeal : darkTeal,
         ),
       ),
-      trailing: const Icon(Icons.chevron_right_rounded, color: Colors.black26),
+      trailing: Icon(Icons.chevron_right_rounded, color: context.palette.textFaint),
     );
   }
 
@@ -394,10 +397,10 @@ class _ConsentScreenState extends State<ConsentScreen> {
       dense: true,
       title: Text(
         label,
-        style: const TextStyle(
+        style: TextStyle(
           fontSize: 13,
           height: 1.4,
-          color: Colors.black87,
+          color: context.palette.textPrimary,
         ),
       ),
     );
@@ -418,7 +421,7 @@ class _ConsentScreenState extends State<ConsentScreen> {
                 onPressed: _allChecked && !_saving ? _accept : null,
                 style: FilledButton.styleFrom(
                   backgroundColor: primaryTeal,
-                  disabledBackgroundColor: Colors.black12,
+                  disabledBackgroundColor: context.palette.divider,
                   shape: RoundedRectangleBorder(
                     borderRadius: BorderRadius.circular(14),
                   ),
@@ -443,9 +446,9 @@ class _ConsentScreenState extends State<ConsentScreen> {
             ),
             TextButton(
               onPressed: _saving ? null : _decline,
-              child: const Text(
+              child: Text(
                 'Decline and sign out',
-                style: TextStyle(color: Colors.black54),
+                style: TextStyle(color: context.palette.textSecondary),
               ),
             ),
           ],

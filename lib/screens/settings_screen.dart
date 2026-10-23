@@ -5,6 +5,7 @@ import 'package:flutter/material.dart' hide DiagnosticLevel;
 import 'package:package_info_plus/package_info_plus.dart';
 import 'package:permission_handler/permission_handler.dart';
 
+import '../core/app_palette.dart';
 import '../core/diagnostic_logger.dart';
 import '../models/chat.dart';
 import '../services/app_lock_service.dart';
@@ -81,6 +82,10 @@ class _SettingsScreenState extends State<SettingsScreen>
   static const Color primaryTeal = Color(0xFF23A8AA);
   static const Color darkTeal = Color(0xFF0D6E71);
   static const String _tag = 'Settings';
+
+  /// Teal for values and unselected segment labels. Dark teal is too dim on
+  /// a dark card, so dark mode uses the brighter brand teal.
+  Color get _valueTeal => context.isDarkMode ? primaryTeal : darkTeal;
 
   final _settings = AppSettings.I;
   final DiagnosticLogger _logger = DiagnosticLogger.I;
@@ -273,6 +278,7 @@ class _SettingsScreenState extends State<SettingsScreen>
     final ok = await showDialog<bool>(
       context: context,
       builder: (ctx) => AlertDialog(
+        backgroundColor: ctx.palette.surface,
         title: const Text('Change password'),
         content: Text(
           'We\'ll email a link to $email. Open it to choose a new password.',
@@ -395,9 +401,10 @@ class _SettingsScreenState extends State<SettingsScreen>
       hour: s.reminderMinutes ~/ 60,
       minute: s.reminderMinutes % 60,
     ).format(context);
+    final palette = context.palette;
 
     return Scaffold(
-      backgroundColor: const Color(0xFFF0F4F4),
+      backgroundColor: palette.background,
       body: Column(
         children: [
           _header(),
@@ -474,7 +481,7 @@ class _SettingsScreenState extends State<SettingsScreen>
                       reminderTime,
                       style: TextStyle(
                         fontWeight: FontWeight.w600,
-                        color: s.reminderEnabled ? darkTeal : Colors.black38,
+                        color: s.reminderEnabled ? _valueTeal : palette.textMuted,
                       ),
                     ),
                     onTap: _pickReminderTime,
@@ -518,17 +525,28 @@ class _SettingsScreenState extends State<SettingsScreen>
                           : (v) => _setNotif(notif.copyWith(reminders: v)),
                       subtitle: "6 PM, if today's exercises aren't done yet",
                     ),
-                    const Padding(
-                      padding: EdgeInsets.fromLTRB(16, 0, 16, 12),
+                    Padding(
+                      padding: const EdgeInsets.fromLTRB(16, 0, 16, 12),
                       child: Text(
                         'Turning these off stops the phone alerts only. Everything '
                         'still appears on the Notifications page.',
-                        style: TextStyle(fontSize: 12, color: Colors.black45),
+                        style: TextStyle(fontSize: 12, color: palette.textMuted),
                       ),
                     ),
                   ],
                 ]),
                 _section('Appearance', Icons.text_fields_rounded, [
+                  _choice<ThemeMode>(
+                    Icons.dark_mode_outlined,
+                    'Theme',
+                    s.themeMode,
+                    {
+                      ThemeMode.system: 'Phone setting',
+                      ThemeMode.light: 'Light',
+                      ThemeMode.dark: 'Dark',
+                    },
+                    _logged('themeMode', s.setThemeMode),
+                  ),
                   _choice<double>(
                     Icons.format_size_rounded,
                     'Text size',
@@ -570,7 +588,7 @@ class _SettingsScreenState extends State<SettingsScreen>
                       style: TextStyle(
                         fontWeight: FontWeight.w600,
                         color: _camera == PermissionStatus.granted
-                            ? darkTeal
+                            ? _valueTeal
                             : Colors.red[700],
                       ),
                     ),
@@ -609,7 +627,7 @@ class _SettingsScreenState extends State<SettingsScreen>
                     'App version',
                     trailing: Text(
                       _version,
-                      style: const TextStyle(color: Colors.black54),
+                      style: TextStyle(color: palette.textSecondary),
                     ),
                   ),
                 ]),
@@ -625,7 +643,7 @@ class _SettingsScreenState extends State<SettingsScreen>
     return Container(
       decoration: const BoxDecoration(
         gradient: LinearGradient(
-          colors: [darkTeal, Color(0xFF1A8587), primaryTeal],
+          colors: AppPalette.headerGradient,
           begin: Alignment.topLeft,
           end: Alignment.bottomRight,
         ),
@@ -675,14 +693,15 @@ class _SettingsScreenState extends State<SettingsScreen>
   }
 
   Widget _section(String title, IconData icon, List<Widget> children) {
+    final palette = context.palette;
     return Container(
       margin: const EdgeInsets.only(bottom: 14),
       decoration: BoxDecoration(
-        color: Colors.white,
+        color: palette.surface,
         borderRadius: BorderRadius.circular(20),
         boxShadow: [
           BoxShadow(
-            color: Colors.black.withValues(alpha: 0.05),
+            color: palette.shadow.withValues(alpha: 0.05),
             blurRadius: 12,
             offset: const Offset(0, 3),
           ),
@@ -699,10 +718,10 @@ class _SettingsScreenState extends State<SettingsScreen>
                 const SizedBox(width: 8),
                 Text(
                   title,
-                  style: const TextStyle(
+                  style: TextStyle(
                     fontWeight: FontWeight.bold,
                     fontSize: 14,
-                    color: Colors.black87,
+                    color: palette.textPrimary,
                   ),
                 ),
               ],
@@ -724,12 +743,14 @@ class _SettingsScreenState extends State<SettingsScreen>
     child: Icon(icon, size: 18, color: primaryTeal),
   );
 
-  static const _titleStyle = TextStyle(
+  // Getters (not consts) so they follow the light/dark palette.
+  TextStyle get _titleStyle => TextStyle(
     fontSize: 14,
     fontWeight: FontWeight.w500,
-    color: Colors.black87,
+    color: context.palette.textPrimary,
   );
-  static const _subtitleStyle = TextStyle(fontSize: 12, color: Colors.black45);
+  TextStyle get _subtitleStyle =>
+      TextStyle(fontSize: 12, color: context.palette.textMuted);
 
   Widget _switch(
     IconData icon,
@@ -767,9 +788,9 @@ class _SettingsScreenState extends State<SettingsScreen>
           trailing ??
           (onTap == null
               ? null
-              : const Icon(
+              : Icon(
                   Icons.chevron_right_rounded,
-                  color: Colors.black26,
+                  color: context.palette.textFaint,
                   size: 20,
                 )),
     );
@@ -809,7 +830,8 @@ class _SettingsScreenState extends State<SettingsScreen>
               style: SegmentedButton.styleFrom(
                 selectedBackgroundColor: primaryTeal,
                 selectedForegroundColor: Colors.white,
-                foregroundColor: darkTeal,
+                foregroundColor: _valueTeal,
+                side: BorderSide(color: context.palette.divider),
               ),
             ),
           ),
@@ -840,7 +862,9 @@ class _ReportProblemDialogState extends State<_ReportProblemDialog> {
 
   @override
   Widget build(BuildContext context) {
+    final palette = context.palette;
     return AlertDialog(
+      backgroundColor: palette.surface,
       title: const Text('Report a problem'),
       content: Column(
         mainAxisSize: MainAxisSize.min,
@@ -855,10 +879,10 @@ class _ReportProblemDialogState extends State<_ReportProblemDialog> {
               border: OutlineInputBorder(),
             ),
           ),
-          const Text(
+          Text(
             'Sent to the clinic with the app version and recent error '
             'messages, to help fix it.',
-            style: TextStyle(fontSize: 12, color: Colors.black54),
+            style: TextStyle(fontSize: 12, color: palette.textSecondary),
           ),
         ],
       ),

@@ -3,6 +3,7 @@ import 'package:flutter/material.dart';
 // with Flutter's.
 import 'package:intl/intl.dart' show DateFormat;
 
+import '../core/app_palette.dart';
 import '../core/diagnostic_logger.dart';
 import '../models/app_notification.dart';
 import '../models/chat.dart';
@@ -169,15 +170,16 @@ class _NotificationPageState extends State<NotificationPage> {
   }
 
   Widget _buildPage({required bool loading}) {
+    final palette = context.palette;
     return Scaffold(
-      backgroundColor: const Color(0xFFF0F4F4),
+      backgroundColor: palette.background,
       body: Column(
         children: [
           _buildHeader(context),
           const SizedBox(height: 16),
           Padding(
             padding: const EdgeInsets.symmetric(horizontal: 16),
-            child: _buildFilterRow(),
+            child: _buildFilterRow(palette),
           ),
           const SizedBox(height: 16),
           Padding(
@@ -191,15 +193,15 @@ class _NotificationPageState extends State<NotificationPage> {
                       : _selectedFilterIndex == 1
                       ? 'Read'
                       : 'Unread',
-                  style: const TextStyle(
+                  style: TextStyle(
                     fontSize: 15,
                     fontWeight: FontWeight.bold,
-                    color: Colors.black87,
+                    color: palette.textPrimary,
                   ),
                 ),
                 Text(
                   '${_filtered.length} items',
-                  style: const TextStyle(fontSize: 12, color: Colors.black45),
+                  style: TextStyle(fontSize: 12, color: palette.textMuted),
                 ),
               ],
             ),
@@ -211,11 +213,12 @@ class _NotificationPageState extends State<NotificationPage> {
                     child: CircularProgressIndicator(color: primaryTeal),
                   )
                 : _filtered.isEmpty
-                ? _buildEmpty()
+                ? _buildEmpty(palette)
                 : ListView.builder(
                     padding: const EdgeInsets.fromLTRB(16, 0, 16, 16),
                     itemCount: _filtered.length,
-                    itemBuilder: (_, i) => _notificationCard(_filtered[i]),
+                    itemBuilder: (_, i) =>
+                        _notificationCard(_filtered[i], palette),
                   ),
           ),
         ],
@@ -292,16 +295,16 @@ class _NotificationPageState extends State<NotificationPage> {
     );
   }
 
-  Widget _buildFilterRow() {
+  Widget _buildFilterRow(AppPalette palette) {
     const labels = ['All', 'Read', 'Unread'];
     return Container(
       padding: const EdgeInsets.all(4),
       decoration: BoxDecoration(
-        color: Colors.white,
+        color: palette.surface,
         borderRadius: BorderRadius.circular(16),
         boxShadow: [
           BoxShadow(
-            color: Colors.black.withValues(alpha: 0.06),
+            color: palette.shadow.withValues(alpha: 0.06),
             blurRadius: 10,
             offset: const Offset(0, 3),
           ),
@@ -342,7 +345,7 @@ class _NotificationPageState extends State<NotificationPage> {
                   style: TextStyle(
                     fontWeight: FontWeight.w600,
                     fontSize: 13,
-                    color: selected ? Colors.white : Colors.black45,
+                    color: selected ? Colors.white : palette.textMuted,
                   ),
                 ),
               ),
@@ -353,16 +356,19 @@ class _NotificationPageState extends State<NotificationPage> {
     );
   }
 
-  Widget _notificationCard(AppNotification item) {
+  Widget _notificationCard(AppNotification item, AppPalette palette) {
     final v = _visuals[item.type] ?? _defaultVisual;
     final isUnread = !item.read;
+    // The pastel circles glare on a dark card; a tint of the icon colour
+    // keeps the same hue there.
+    final iconBg = context.isDarkMode ? v.fg.withValues(alpha: 0.18) : v.bg;
     return GestureDetector(
       onTap: () => _open(item),
       child: Container(
         margin: const EdgeInsets.only(bottom: 10),
         padding: const EdgeInsets.all(14),
         decoration: BoxDecoration(
-          color: Colors.white,
+          color: palette.surface,
           borderRadius: BorderRadius.circular(18),
           border: isUnread
               ? Border.all(
@@ -372,7 +378,7 @@ class _NotificationPageState extends State<NotificationPage> {
               : Border.all(color: Colors.transparent),
           boxShadow: [
             BoxShadow(
-              color: Colors.black.withValues(alpha: 0.05),
+              color: palette.shadow.withValues(alpha: 0.05),
               blurRadius: 10,
               offset: const Offset(0, 3),
             ),
@@ -384,7 +390,7 @@ class _NotificationPageState extends State<NotificationPage> {
             Container(
               width: 48,
               height: 48,
-              decoration: BoxDecoration(color: v.bg, shape: BoxShape.circle),
+              decoration: BoxDecoration(color: iconBg, shape: BoxShape.circle),
               child: Icon(v.icon, color: v.fg, size: 24),
             ),
             const SizedBox(width: 12),
@@ -397,19 +403,19 @@ class _NotificationPageState extends State<NotificationPage> {
                       Expanded(
                         child: Text(
                           item.title,
-                          style: const TextStyle(
+                          style: TextStyle(
                             fontWeight: FontWeight.bold,
                             fontSize: 14,
-                            color: Colors.black87,
+                            color: palette.textPrimary,
                           ),
                         ),
                       ),
                       const SizedBox(width: 8),
                       Text(
                         _time(item.createdAt),
-                        style: const TextStyle(
+                        style: TextStyle(
                           fontSize: 11,
-                          color: Colors.black38,
+                          color: palette.textMuted,
                         ),
                       ),
                     ],
@@ -421,9 +427,9 @@ class _NotificationPageState extends State<NotificationPage> {
                       Expanded(
                         child: Text(
                           item.body,
-                          style: const TextStyle(
+                          style: TextStyle(
                             fontSize: 12,
-                            color: Colors.black54,
+                            color: palette.textSecondary,
                             height: 1.4,
                           ),
                         ),
@@ -450,7 +456,7 @@ class _NotificationPageState extends State<NotificationPage> {
     );
   }
 
-  Widget _buildEmpty() {
+  Widget _buildEmpty(AppPalette palette) {
     return Center(
       child: Column(
         mainAxisSize: MainAxisSize.min,
@@ -472,10 +478,10 @@ class _NotificationPageState extends State<NotificationPage> {
             _notifications.isEmpty
                 ? 'No notifications yet'
                 : 'No notifications here',
-            style: const TextStyle(
+            style: TextStyle(
               fontSize: 15,
               fontWeight: FontWeight.w600,
-              color: Colors.black54,
+              color: palette.textSecondary,
             ),
           ),
         ],

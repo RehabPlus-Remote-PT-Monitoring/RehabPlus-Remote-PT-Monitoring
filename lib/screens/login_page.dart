@@ -3,6 +3,7 @@ import 'package:flutter/services.dart'
     show LengthLimitingTextInputFormatter, TextInput;
 import 'package:phosphor_flutter/phosphor_flutter.dart';
 import 'package:provider/provider.dart';
+import '../core/app_palette.dart';
 import '../core/diagnostic_logger.dart';
 import '../services/app_provider.dart';
 import '../services/auth_service.dart';
@@ -176,6 +177,7 @@ class _LoginPageState extends State<LoginPage> with TickerProviderStateMixin {
 
   @override
   Widget build(BuildContext context) {
+    final palette = context.palette;
     return Scaffold(
       body: Container(
         decoration: const BoxDecoration(
@@ -288,11 +290,11 @@ class _LoginPageState extends State<LoginPage> with TickerProviderStateMixin {
                           child: Container(
                             padding: const EdgeInsets.all(28),
                             decoration: BoxDecoration(
-                              color: Colors.white,
+                              color: palette.surface,
                               borderRadius: BorderRadius.circular(24),
                               boxShadow: [
                                 BoxShadow(
-                                  color: Colors.black.withValues(alpha: 0.18),
+                                  color: palette.shadow.withValues(alpha: 0.18),
                                   blurRadius: 40,
                                   offset: const Offset(0, 16),
                                 ),
@@ -301,12 +303,12 @@ class _LoginPageState extends State<LoginPage> with TickerProviderStateMixin {
                             child: Column(
                               crossAxisAlignment: CrossAxisAlignment.start,
                               children: [
-                                const Text(
+                                Text(
                                   'Welcome',
                                   style: TextStyle(
                                     fontSize: 22,
                                     fontWeight: FontWeight.bold,
-                                    color: Color(0xFF1A1A1A),
+                                    color: palette.textPrimary,
                                   ),
                                 ),
                                 const SizedBox(height: 4),
@@ -314,7 +316,7 @@ class _LoginPageState extends State<LoginPage> with TickerProviderStateMixin {
                                   'Sign in to continue your recovery',
                                   style: TextStyle(
                                     fontSize: 13,
-                                    color: Colors.grey.shade500,
+                                    color: palette.textMuted,
                                   ),
                                 ),
 
@@ -352,7 +354,7 @@ class _LoginPageState extends State<LoginPage> with TickerProviderStateMixin {
                                           icon: PhosphorIcon(
                                             showPassword ? PhosphorIcons.eyeSlash() : PhosphorIcons.eye(),
                                             size: 20,
-                                            color: Colors.grey.shade400,
+                                            color: palette.textFaint,
                                           ),
                                         ),
                                       ),
@@ -426,7 +428,7 @@ class _LoginPageState extends State<LoginPage> with TickerProviderStateMixin {
 
                                 const SizedBox(height: 22),
 
-                                Divider(color: Colors.grey.shade100, thickness: 1.5),
+                                Divider(color: palette.divider, thickness: 1.5),
 
                                 const SizedBox(height: 16),
 
@@ -436,14 +438,14 @@ class _LoginPageState extends State<LoginPage> with TickerProviderStateMixin {
                                     PhosphorIcon(
                                       PhosphorIcons.shieldCheck(),
                                       size: 14,
-                                      color: Colors.grey.shade400,
+                                      color: palette.textFaint,
                                     ),
                                     const SizedBox(width: 6),
                                     Text(
                                       'Secured Access · Patients Only',
                                       style: TextStyle(
                                         fontSize: 11,
-                                        color: Colors.grey.shade400,
+                                        color: palette.textFaint,
                                       ),
                                     ),
                                   ],
@@ -527,6 +529,7 @@ class _RehabTextField extends StatelessWidget {
     // E-mail addresses and passwords must not be "corrected" by the keyboard.
     final noAutocorrect =
         isPassword || keyboardType == TextInputType.emailAddress;
+    final palette = context.palette;
     return TextField(
       controller: controller,
       obscureText: obscureText,
@@ -539,18 +542,18 @@ class _RehabTextField extends StatelessWidget {
       inputFormatters: [
         if (maxLength != null) LengthLimitingTextInputFormatter(maxLength),
       ],
-      style: const TextStyle(fontSize: 14, color: Color(0xFF1A1A1A)),
+      style: TextStyle(fontSize: 14, color: palette.textPrimary),
       decoration: InputDecoration(
         hintText: hint,
-        hintStyle: TextStyle(fontSize: 14, color: Colors.grey.shade400),
-        prefixIcon: PhosphorIcon(icon, size: 20, color: Colors.grey.shade400),
+        hintStyle: TextStyle(fontSize: 14, color: palette.textFaint),
+        prefixIcon: PhosphorIcon(icon, size: 20, color: palette.textFaint),
         suffixIcon: suffix,
         filled: true,
-        fillColor: const Color(0xFFF5F5F5),
+        fillColor: palette.inputFill,
         contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 16),
         enabledBorder: OutlineInputBorder(
           borderRadius: BorderRadius.circular(14),
-          borderSide: BorderSide(color: Colors.grey.shade200),
+          borderSide: BorderSide(color: palette.divider),
         ),
         focusedBorder: OutlineInputBorder(
           borderRadius: BorderRadius.circular(14),

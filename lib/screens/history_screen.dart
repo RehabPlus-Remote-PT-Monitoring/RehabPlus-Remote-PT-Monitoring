@@ -4,10 +4,25 @@ import 'package:provider/provider.dart';
 import 'package:fl_chart/fl_chart.dart';
 // `show`: intl also exports a TextDirection that clashes with Flutter's.
 import 'package:intl/intl.dart' show DateFormat;
+import '../core/app_palette.dart';
 import '../core/diagnostic_logger.dart';
 import '../services/app_provider.dart';
 import '../services/progress_stats.dart';
 import '../models/session.dart';
+
+/// Card shadow for this screen. Light mode keeps the design's soft glow in
+/// the card's own colour; on a dark page a coloured glow reads as a smudge,
+/// so dark mode uses a plain, slightly stronger black shadow instead.
+BoxShadow _cardShadow(BuildContext context, Color glow, {double alpha = 0.08}) {
+  final dark = context.isDarkMode;
+  return BoxShadow(
+    color: dark
+        ? context.palette.shadow.withValues(alpha: 0.3)
+        : glow.withValues(alpha: alpha),
+    blurRadius: 12,
+    offset: const Offset(0, 4),
+  );
+}
 
 /// Totals for the summary row, computed once per session list (see
 /// [_HistoryScreenState._summaryFor]) instead of on every rebuild.
@@ -49,8 +64,9 @@ class HistoryScreen extends StatefulWidget {
 
 class _HistoryScreenState extends State<HistoryScreen>
     with TickerProviderStateMixin {
-  static const Color primaryTeal = Color(0xFF23A8AA);
-  static const Color darkTeal = Color(0xFF0D6E71);
+  // Brand colours come from AppPalette so they match every other screen.
+  static const Color primaryTeal = AppPalette.teal;
+  static const Color darkTeal = AppPalette.darkTeal;
 
   int _selectedCategory = 0;
   static const List<String> _categories = [
@@ -189,7 +205,7 @@ class _HistoryScreenState extends State<HistoryScreen>
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      backgroundColor: const Color(0xFFF0F4F4),
+      backgroundColor: context.palette.background,
       body: Column(
         children: [
           SlideTransition(
@@ -269,7 +285,7 @@ class _HistoryScreenState extends State<HistoryScreen>
     return Container(
       decoration: const BoxDecoration(
         gradient: LinearGradient(
-          colors: [darkTeal, Color(0xFF1A8587), primaryTeal],
+          colors: AppPalette.headerGradient,
           begin: Alignment.topLeft,
           end: Alignment.bottomRight,
         ),
@@ -357,15 +373,14 @@ class _HistoryScreenState extends State<HistoryScreen>
   }
 
   Widget _summaryCard(String label, String value, PhosphorIconData icon, Color color) {
+    final palette = context.palette;
     return Expanded(
       child: Container(
         padding: const EdgeInsets.all(14),
         decoration: BoxDecoration(
-          color: Colors.white,
+          color: palette.surface,
           borderRadius: BorderRadius.circular(16),
-          boxShadow: [
-            BoxShadow(color: color.withValues(alpha: 0.12), blurRadius: 12, offset: const Offset(0, 4)),
-          ],
+          boxShadow: [_cardShadow(context, color, alpha: 0.12)],
         ),
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
@@ -379,8 +394,8 @@ class _HistoryScreenState extends State<HistoryScreen>
               child: PhosphorIcon(icon, size: 16, color: color),
             ),
             const SizedBox(height: 10),
-            Text(value, style: const TextStyle(fontSize: 20, fontWeight: FontWeight.bold, color: Colors.black87)),
-            Text(label, style: const TextStyle(fontSize: 11, color: Colors.black45)),
+            Text(value, style: TextStyle(fontSize: 20, fontWeight: FontWeight.bold, color: palette.textPrimary)),
+            Text(label, style: TextStyle(fontSize: 11, color: palette.textMuted)),
           ],
         ),
       ),
@@ -389,6 +404,7 @@ class _HistoryScreenState extends State<HistoryScreen>
 
   // ── CATEGORY FILTER ──────────────────────────────────────────────────────────
   Widget _buildCategoryFilter() {
+    final palette = context.palette;
     return SizedBox(
       height: 36,
       child: ListView.separated(
@@ -407,11 +423,13 @@ class _HistoryScreenState extends State<HistoryScreen>
                 gradient: selected
                     ? const LinearGradient(colors: [primaryTeal, darkTeal])
                     : null,
-                color: selected ? null : Colors.white,
+                color: selected ? null : palette.surface,
                 borderRadius: BorderRadius.circular(20),
                 boxShadow: [
                   BoxShadow(
-                    color: selected ? primaryTeal.withValues(alpha: 0.3) : Colors.black.withValues(alpha: 0.05),
+                    color: selected
+                        ? primaryTeal.withValues(alpha: 0.3)
+                        : palette.shadow.withValues(alpha: context.isDarkMode ? 0.3 : 0.05),
                     blurRadius: 8,
                     offset: const Offset(0, 3),
                   ),
@@ -423,7 +441,7 @@ class _HistoryScreenState extends State<HistoryScreen>
                   style: TextStyle(
                     fontSize: 13,
                     fontWeight: FontWeight.w600,
-                    color: selected ? Colors.white : Colors.black54,
+                    color: selected ? Colors.white : palette.textSecondary,
                   ),
                 ),
               ),
@@ -470,7 +488,7 @@ class _HistoryScreenState extends State<HistoryScreen>
         const SizedBox(width: 8),
         Text(
           title,
-          style: const TextStyle(fontSize: 16, fontWeight: FontWeight.bold, color: Colors.black87),
+          style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold, color: context.palette.textPrimary),
         ),
       ],
     );
@@ -580,15 +598,14 @@ class _ExerciseListTile extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final palette = context.palette;
     return Container(
       margin: const EdgeInsets.only(bottom: 12),
       padding: const EdgeInsets.all(16),
       decoration: BoxDecoration(
-        color: Colors.white,
+        color: palette.surface,
         borderRadius: BorderRadius.circular(18),
-        boxShadow: [
-          BoxShadow(color: item.color.withValues(alpha: 0.08), blurRadius: 12, offset: const Offset(0, 4)),
-        ],
+        boxShadow: [_cardShadow(context, item.color)],
       ),
       child: Row(
         children: [
@@ -606,17 +623,17 @@ class _ExerciseListTile extends StatelessWidget {
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                Text(item.name, style: const TextStyle(fontSize: 14, fontWeight: FontWeight.bold, color: Colors.black87)),
+                Text(item.name, style: TextStyle(fontSize: 14, fontWeight: FontWeight.bold, color: palette.textPrimary)),
                 const SizedBox(height: 4),
                 Row(
                   children: [
-                    PhosphorIcon(PhosphorIcons.clock(), size: 12, color: Colors.grey.shade400),
+                    PhosphorIcon(PhosphorIcons.clock(), size: 12, color: palette.textFaint),
                     const SizedBox(width: 4),
-                    Text(item.duration, style: TextStyle(fontSize: 11, color: Colors.grey.shade500)),
+                    Text(item.duration, style: TextStyle(fontSize: 11, color: palette.textMuted)),
                     const SizedBox(width: 10),
-                    PhosphorIcon(PhosphorIcons.repeat(), size: 12, color: Colors.grey.shade400),
+                    PhosphorIcon(PhosphorIcons.repeat(), size: 12, color: palette.textFaint),
                     const SizedBox(width: 4),
-                    Text('${item.sets}×${item.reps}', style: TextStyle(fontSize: 11, color: Colors.grey.shade500)),
+                    Text('${item.sets}×${item.reps}', style: TextStyle(fontSize: 11, color: palette.textMuted)),
                   ],
                 ),
                 const SizedBox(height: 8),
@@ -624,7 +641,7 @@ class _ExerciseListTile extends StatelessWidget {
                   borderRadius: BorderRadius.circular(4),
                   child: LinearProgressIndicator(
                     value: item.progress,
-                    backgroundColor: Colors.grey.shade100,
+                    backgroundColor: palette.surfaceMuted,
                     valueColor: AlwaysStoppedAnimation(item.color),
                     minHeight: 5,
                   ),
@@ -659,7 +676,7 @@ class _ExerciseListTile extends StatelessWidget {
                       crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
                         Text('${item.sets} sets · ${item.reps} reps · ${item.duration}',
-                            style: const TextStyle(fontSize: 13, color: Colors.black54)),
+                            style: TextStyle(fontSize: 13, color: palette.textSecondary)),
                         const SizedBox(height: 8),
                         Text('Difficulty: ${item.difficulty}',
                             style: TextStyle(fontSize: 13, color: _difficultyColor, fontWeight: FontWeight.w600)),
@@ -712,20 +729,21 @@ class _SessionCard extends StatelessWidget {
             ? Colors.orange
             : Colors.red;
 
+    final palette = context.palette;
     return Container(
       margin: const EdgeInsets.only(bottom: 12),
       decoration: BoxDecoration(
-        color: Colors.white,
+        color: palette.surface,
         borderRadius: BorderRadius.circular(18),
-        boxShadow: [
-          BoxShadow(color: color.withValues(alpha: 0.08), blurRadius: 12, offset: const Offset(0, 4)),
-        ],
+        boxShadow: [_cardShadow(context, color)],
       ),
       child: Theme(
         data: Theme.of(context).copyWith(dividerColor: Colors.transparent),
         child: ExpansionTile(
           tilePadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 4),
           childrenPadding: const EdgeInsets.fromLTRB(16, 0, 16, 16),
+          iconColor: AppPalette.teal,
+          collapsedIconColor: palette.textMuted,
           leading: Container(
             width: 48,
             height: 48,
@@ -740,30 +758,33 @@ class _SessionCard extends StatelessWidget {
               ),
             ),
           ),
-          title: Text(session.exerciseName, style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 14)),
+          title: Text(
+            session.exerciseName,
+            style: TextStyle(fontWeight: FontWeight.bold, fontSize: 14, color: palette.textPrimary),
+          ),
           subtitle: Padding(
             padding: const EdgeInsets.only(top: 4),
             child: Row(
               children: [
-                PhosphorIcon(PhosphorIcons.calendar(), size: 11, color: Colors.grey.shade400),
+                PhosphorIcon(PhosphorIcons.calendar(), size: 11, color: palette.textFaint),
                 const SizedBox(width: 4),
                 Text(
                   DateFormat('MMM d, y').format(session.startTime),
-                  style: TextStyle(fontSize: 11, color: Colors.grey.shade500),
+                  style: TextStyle(fontSize: 11, color: palette.textMuted),
                 ),
                 const SizedBox(width: 10),
-                PhosphorIcon(PhosphorIcons.repeat(), size: 11, color: Colors.grey.shade400),
+                PhosphorIcon(PhosphorIcons.repeat(), size: 11, color: palette.textFaint),
                 const SizedBox(width: 4),
                 Text(
                   '${session.completedSets}/${session.targetSets} sets',
-                  style: TextStyle(fontSize: 11, color: Colors.grey.shade500),
+                  style: TextStyle(fontSize: 11, color: palette.textMuted),
                 ),
               ],
             ),
           ),
           children: [
             if (session.repComplianceScores.isNotEmpty) ...[
-              const Text('Rep Performance', style: TextStyle(fontSize: 12, fontWeight: FontWeight.w600, color: Colors.black54)),
+              Text('Rep Performance', style: TextStyle(fontSize: 12, fontWeight: FontWeight.w600, color: palette.textSecondary)),
               const SizedBox(height: 10),
               SizedBox(
                 height: 120,
@@ -789,11 +810,11 @@ class _SessionCard extends StatelessWidget {
                       leftTitles: AxisTitles(sideTitles: SideTitles(
                         showTitles: true,
                         reservedSize: 32,
-                        getTitlesWidget: (v, _) => Text('${v.toInt()}%', style: const TextStyle(fontSize: 9, color: Colors.black45)),
+                        getTitlesWidget: (v, _) => Text('${v.toInt()}%', style: TextStyle(fontSize: 9, color: palette.textMuted)),
                       )),
                       bottomTitles: AxisTitles(sideTitles: SideTitles(
                         showTitles: true,
-                        getTitlesWidget: (v, _) => Text('R${v.toInt() + 1}', style: const TextStyle(fontSize: 9, color: Colors.black45)),
+                        getTitlesWidget: (v, _) => Text('R${v.toInt() + 1}', style: TextStyle(fontSize: 9, color: palette.textMuted)),
                       )),
                       topTitles: const AxisTitles(sideTitles: SideTitles(showTitles: false)),
                       rightTitles: const AxisTitles(sideTitles: SideTitles(showTitles: false)),
@@ -801,7 +822,7 @@ class _SessionCard extends StatelessWidget {
                     gridData: FlGridData(
                       show: true,
                       drawVerticalLine: false,
-                      getDrawingHorizontalLine: (_) => FlLine(color: Colors.grey.shade100, strokeWidth: 1),
+                      getDrawingHorizontalLine: (_) => FlLine(color: palette.divider, strokeWidth: 1),
                     ),
                     borderData: FlBorderData(show: false),
                   ),

@@ -1,6 +1,7 @@
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/material.dart';
 
+import '../core/app_palette.dart';
 import '../core/diagnostic_logger.dart';
 import '../services/app_lock_service.dart';
 import 'app_lock_screen.dart';
@@ -54,6 +55,10 @@ class _AppLockOfferScreenState extends State<AppLockOfferScreen> {
   static const Color darkTeal = Color(0xFF0D6E71);
   static const Color primaryTeal = Color(0xFF23A8AA);
   static const String _tag = 'AppLockOffer';
+
+  /// Teal for the icon, heading and text button. Dark teal is too dim on a
+  /// dark page, so dark mode uses the brighter brand teal.
+  Color get _accentTeal => context.isDarkMode ? primaryTeal : darkTeal;
 
   final DiagnosticLogger _logger = DiagnosticLogger.I;
   late final AppLockService _lock = widget.service ?? AppLockService.I;
@@ -138,11 +143,12 @@ class _AppLockOfferScreenState extends State<AppLockOfferScreen> {
   @override
   Widget build(BuildContext context) {
     final pinStep = _step == _Step.offerPin;
+    final palette = context.palette;
     return PopScope(
       // The patient chooses with the buttons; back would leave the app.
       canPop: false,
       child: Scaffold(
-        backgroundColor: const Color(0xFFF4F7F8),
+        backgroundColor: palette.background,
         body: SafeArea(
           child: Padding(
             padding: const EdgeInsets.fromLTRB(24, 16, 24, 24),
@@ -163,7 +169,7 @@ class _AppLockOfferScreenState extends State<AppLockOfferScreen> {
                           ? Icons.lock_outline_rounded
                           : Icons.fingerprint_rounded,
                       size: 48,
-                      color: darkTeal,
+                      color: _accentTeal,
                     ),
                   ),
                 ),
@@ -173,10 +179,10 @@ class _AppLockOfferScreenState extends State<AppLockOfferScreen> {
                       ? 'Protect your health data'
                       : 'Unlock with your fingerprint?',
                   textAlign: TextAlign.center,
-                  style: const TextStyle(
+                  style: TextStyle(
                     fontSize: 22,
                     fontWeight: FontWeight.bold,
-                    color: darkTeal,
+                    color: _accentTeal,
                   ),
                 ),
                 const SizedBox(height: 12),
@@ -189,9 +195,9 @@ class _AppLockOfferScreenState extends State<AppLockOfferScreen> {
                       : 'Use your fingerprint or face instead of typing '
                             'the PIN. Your PIN still works too.',
                   textAlign: TextAlign.center,
-                  style: const TextStyle(
+                  style: TextStyle(
                     fontSize: 15,
-                    color: Colors.black54,
+                    color: palette.textSecondary,
                     height: 1.4,
                   ),
                 ),
@@ -220,16 +226,16 @@ class _AppLockOfferScreenState extends State<AppLockOfferScreen> {
                                 'later in Settings.',
                               )),
                   style: TextButton.styleFrom(
-                    foregroundColor: darkTeal,
+                    foregroundColor: _accentTeal,
                     minimumSize: const Size.fromHeight(48),
                   ),
                   child: Text(pinStep ? 'Not now' : 'Skip'),
                 ),
                 if (pinStep)
-                  const Text(
+                  Text(
                     'You can turn this on any time in Settings > App lock.',
                     textAlign: TextAlign.center,
-                    style: TextStyle(fontSize: 12, color: Colors.black45),
+                    style: TextStyle(fontSize: 12, color: palette.textMuted),
                   ),
               ],
             ),

@@ -55,6 +55,7 @@ import 'package:provider/provider.dart';
 
 import 'package:google_mlkit_pose_detection/google_mlkit_pose_detection.dart';
 
+import '../core/app_palette.dart';
 import '../core/diagnostic_logger.dart';
 import '../models/exercise_model.dart';
 import '../models/session.dart';
@@ -2038,6 +2039,7 @@ class _PoseDetectorScreenState extends State<PoseDetectorScreen>
       end = await showDialog<bool>(
         context: context,
         builder: (dialogContext) => AlertDialog(
+          backgroundColor: dialogContext.palette.surface,
           title: const Text('End session early?'),
           content: Text(
             'You have done $_repCounter of ${widget.selectedExercise.targetReps}. '
@@ -2149,6 +2151,7 @@ class _PoseDetectorScreenState extends State<PoseDetectorScreen>
       barrierDismissible: false,
       builder: (dialogContext) => StatefulBuilder(
         builder: (dialogContext, setDialogState) => AlertDialog(
+          backgroundColor: dialogContext.palette.surface,
           shape: RoundedRectangleBorder(
             borderRadius: BorderRadius.circular(20),
           ),
@@ -2179,7 +2182,7 @@ class _PoseDetectorScreenState extends State<PoseDetectorScreen>
                     ? 'You finished ${exercise.targetReps} holds of ${exercise.title}.'
                     : 'You finished ${exercise.targetReps} reps of ${exercise.title}.',
                 textAlign: TextAlign.center,
-                style: const TextStyle(color: Colors.black54),
+                style: TextStyle(color: dialogContext.palette.textSecondary),
               ),
               if (_rejectedReps > 0) ...[
                 const SizedBox(height: 8),
@@ -2209,16 +2212,22 @@ class _PoseDetectorScreenState extends State<PoseDetectorScreen>
                     ? null
                     : (v) => setDialogState(() => pain = v.round()),
               ),
-              const Row(
+              Row(
                 mainAxisAlignment: MainAxisAlignment.spaceBetween,
                 children: [
                   Text(
                     'No pain',
-                    style: TextStyle(fontSize: 11, color: Colors.black45),
+                    style: TextStyle(
+                      fontSize: 11,
+                      color: dialogContext.palette.textMuted,
+                    ),
                   ),
                   Text(
                     'Worst pain',
-                    style: TextStyle(fontSize: 11, color: Colors.black45),
+                    style: TextStyle(
+                      fontSize: 11,
+                      color: dialogContext.palette.textMuted,
+                    ),
                   ),
                 ],
               ),
@@ -2419,10 +2428,10 @@ class _PoseDetectorScreenState extends State<PoseDetectorScreen>
             child: Column(
               mainAxisSize: MainAxisSize.min,
               children: [
-                const Icon(
+                Icon(
                   Icons.videocam_off_rounded,
                   size: 56,
-                  color: Colors.black38,
+                  color: context.palette.textMuted,
                 ),
                 const SizedBox(height: 16),
                 Text(

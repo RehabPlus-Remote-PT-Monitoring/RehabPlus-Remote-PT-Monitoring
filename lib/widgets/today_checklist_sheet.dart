@@ -3,6 +3,7 @@ import 'package:flutter/material.dart';
 import 'package:intl/intl.dart' show DateFormat;
 import 'package:provider/provider.dart';
 
+import '../core/app_palette.dart';
 import '../models/exercise_model.dart';
 import '../models/session.dart';
 import '../screens/pose_detector_screen.dart';
@@ -22,7 +23,7 @@ class TodayChecklistSheet extends StatelessWidget {
     return showModalBottomSheet(
       context: context,
       isScrollControlled: true,
-      backgroundColor: Colors.white,
+      backgroundColor: context.palette.surface,
       shape: const RoundedRectangleBorder(
         borderRadius: BorderRadius.vertical(top: Radius.circular(24)),
       ),
@@ -58,6 +59,7 @@ class TodayChecklistSheet extends StatelessWidget {
     final todaySet = today.toSet();
     final other = exercises.where((e) => !todaySet.contains(e)).toList();
     final done = today.where((e) => activity.isDoneToday(e.type.name)).length;
+    final palette = context.palette;
 
     Widget row(ExerciseConfig e, {required bool dueToday}) {
       final isDone = activity.isDoneToday(e.type.name);
@@ -70,21 +72,21 @@ class TodayChecklistSheet extends StatelessWidget {
           color: isDone
               ? _primaryTeal
               : dueToday
-              ? Colors.black38
-              : Colors.black12,
+              ? palette.textMuted
+              : palette.divider,
           size: 28,
         ),
         title: Text(
           e.title,
           style: TextStyle(
             fontWeight: FontWeight.w600,
-            color: dueToday ? Colors.black87 : Colors.black45,
+            color: dueToday ? palette.textPrimary : palette.textMuted,
             decoration: isDone ? TextDecoration.lineThrough : null,
           ),
         ),
         subtitle: Text(
           '${e.repsText}  ·  $week${goal != null ? '/$goal' : ''} this week',
-          style: const TextStyle(fontSize: 12),
+          style: TextStyle(fontSize: 12, color: palette.textMuted),
         ),
         trailing: isDone
             ? null
@@ -117,7 +119,7 @@ class TodayChecklistSheet extends StatelessWidget {
                 width: 40,
                 height: 4,
                 decoration: BoxDecoration(
-                  color: Colors.black12,
+                  color: palette.divider,
                   borderRadius: BorderRadius.circular(2),
                 ),
               ),
@@ -125,26 +127,30 @@ class TodayChecklistSheet extends StatelessWidget {
             const SizedBox(height: 16),
             Text(
               DateFormat('EEEE, d MMMM').format(now).toUpperCase(),
-              style: const TextStyle(
+              style: TextStyle(
                 fontSize: 11,
                 fontWeight: FontWeight.w600,
-                color: Colors.black54,
+                color: palette.textSecondary,
                 letterSpacing: 0.5,
               ),
             ),
             const SizedBox(height: 4),
-            const Text(
+            Text(
               "Today's Plan",
-              style: TextStyle(fontSize: 22, fontWeight: FontWeight.bold),
+              style: TextStyle(
+                fontSize: 22,
+                fontWeight: FontWeight.bold,
+                color: palette.textPrimary,
+              ),
             ),
             const SizedBox(height: 12),
             if (exercises.isEmpty)
-              const Padding(
-                padding: EdgeInsets.symmetric(vertical: 24),
+              Padding(
+                padding: const EdgeInsets.symmetric(vertical: 24),
                 child: Text(
                   'No exercises assigned yet. Your therapist will set up your plan.',
                   textAlign: TextAlign.center,
-                  style: TextStyle(color: Colors.black54),
+                  style: TextStyle(color: palette.textSecondary),
                 ),
               )
             else ...[
@@ -163,26 +169,26 @@ class TodayChecklistSheet extends StatelessWidget {
                   done == today.length
                       ? 'All done for today. Nice work!'
                       : '$done of ${today.length} done today',
-                  style: const TextStyle(fontSize: 12, color: Colors.black54),
+                  style: TextStyle(fontSize: 12, color: palette.textSecondary),
                 ),
                 const SizedBox(height: 8),
                 for (final e in today) row(e, dueToday: true),
               ] else
-                const Padding(
-                  padding: EdgeInsets.symmetric(vertical: 12),
+                Padding(
+                  padding: const EdgeInsets.symmetric(vertical: 12),
                   child: Text(
                     'Nothing scheduled today. Rest up!',
-                    style: TextStyle(color: Colors.black54),
+                    style: TextStyle(color: palette.textSecondary),
                   ),
                 ),
               if (other.isNotEmpty) ...[
                 const Divider(height: 32),
-                const Text(
+                Text(
                   'Not scheduled today',
                   style: TextStyle(
                     fontSize: 13,
                     fontWeight: FontWeight.w600,
-                    color: Colors.black54,
+                    color: palette.textSecondary,
                   ),
                 ),
                 for (final e in other) row(e, dueToday: false),

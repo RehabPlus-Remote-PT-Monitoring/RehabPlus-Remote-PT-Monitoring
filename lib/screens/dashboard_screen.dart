@@ -4,6 +4,7 @@ import 'package:flutter/material.dart';
 import 'package:intl/intl.dart' show DateFormat;
 import 'package:phosphor_flutter/phosphor_flutter.dart';
 import 'package:provider/provider.dart';
+import '../core/app_palette.dart';
 import '../core/diagnostic_logger.dart';
 import '../services/app_provider.dart';
 import '../models/prescription.dart';
@@ -261,7 +262,7 @@ class _DashboardScreenState extends State<DashboardScreen>
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      backgroundColor: const Color(0xFFF0F4F4),
+      backgroundColor: context.palette.background,
       // Pages slide sideways like a carousel: tapping a tab to the right pushes
       // the current page out to the left, and vice versa. Both pages share the
       // same curve so they move together without a gap.
@@ -534,13 +535,14 @@ class _DashboardScreenState extends State<DashboardScreen>
     bool hasBadge = false,
     VoidCallback? onTap,
   }) {
+    final palette = context.palette;
     return Expanded(
       child: GestureDetector(
         onTap: onTap,
         child: Container(
           padding: const EdgeInsets.symmetric(vertical: 14),
           decoration: BoxDecoration(
-            color: Colors.white,
+            color: palette.surface,
             borderRadius: BorderRadius.circular(16),
             boxShadow: [
               BoxShadow(
@@ -573,7 +575,8 @@ class _DashboardScreenState extends State<DashboardScreen>
                         decoration: BoxDecoration(
                           color: Colors.redAccent,
                           shape: BoxShape.circle,
-                          border: Border.all(color: Colors.white, width: 1.5),
+                          // Ring in the card colour so the dot looks cut out.
+                          border: Border.all(color: palette.surface, width: 1.5),
                         ),
                       ),
                     ),
@@ -582,10 +585,10 @@ class _DashboardScreenState extends State<DashboardScreen>
               const SizedBox(height: 8),
               Text(
                 label,
-                style: const TextStyle(
+                style: TextStyle(
                   fontSize: 12,
                   fontWeight: FontWeight.w600,
-                  color: Colors.black87,
+                  color: palette.textPrimary,
                 ),
               ),
             ],
@@ -602,11 +605,12 @@ class _DashboardScreenState extends State<DashboardScreen>
     final now = DateTime.now();
     final todayIndex = now.weekday - 1;
     final activeThisWeek = week.where((d) => d).length;
+    final palette = context.palette;
 
     return Container(
       padding: const EdgeInsets.all(20),
       decoration: BoxDecoration(
-        color: Colors.white,
+        color: palette.surface,
         borderRadius: BorderRadius.circular(22),
         boxShadow: [
           BoxShadow(
@@ -622,12 +626,12 @@ class _DashboardScreenState extends State<DashboardScreen>
           Row(
             mainAxisAlignment: MainAxisAlignment.spaceBetween,
             children: [
-              const Text(
+              Text(
                 'Weekly Progress',
                 style: TextStyle(
                   fontSize: 16,
                   fontWeight: FontWeight.bold,
-                  color: Colors.black87,
+                  color: palette.textPrimary,
                 ),
               ),
               Container(
@@ -674,7 +678,7 @@ class _DashboardScreenState extends State<DashboardScreen>
                       width: 38,
                       height: 38,
                       decoration: BoxDecoration(
-                        color: checked ? primaryTeal : Colors.grey.shade100,
+                        color: checked ? primaryTeal : palette.surfaceMuted,
                         shape: BoxShape.circle,
                         border: isToday && !checked
                             ? Border.all(color: primaryTeal, width: 2)
@@ -698,9 +702,9 @@ class _DashboardScreenState extends State<DashboardScreen>
                               )
                             : Text(
                                 _days[i],
-                                style: const TextStyle(
+                                style: TextStyle(
                                   fontSize: 12,
-                                  color: Colors.black38,
+                                  color: palette.textMuted,
                                   fontWeight: FontWeight.w500,
                                 ),
                               ),
@@ -714,7 +718,7 @@ class _DashboardScreenState extends State<DashboardScreen>
                         fontWeight: checked
                             ? FontWeight.bold
                             : FontWeight.normal,
-                        color: checked ? primaryTeal : Colors.black38,
+                        color: checked ? primaryTeal : palette.textMuted,
                       ),
                     ),
                   ],
@@ -729,7 +733,7 @@ class _DashboardScreenState extends State<DashboardScreen>
           Container(
             padding: const EdgeInsets.all(4),
             decoration: BoxDecoration(
-              color: Colors.grey.shade100,
+              color: palette.surfaceMuted,
               borderRadius: BorderRadius.circular(14),
             ),
             child: Stack(
@@ -800,7 +804,7 @@ class _DashboardScreenState extends State<DashboardScreen>
             style: TextStyle(
               fontSize: 13,
               fontWeight: FontWeight.w600,
-              color: isSelected ? Colors.white : Colors.black45,
+              color: isSelected ? Colors.white : context.palette.textMuted,
             ),
             child: Text(title, textAlign: TextAlign.center),
           ),
@@ -894,11 +898,12 @@ class _DashboardScreenState extends State<DashboardScreen>
         : delta < 0
             ? Colors.red
             : Colors.grey;
+    final palette = context.palette;
     return Expanded(
       child: Container(
         padding: const EdgeInsets.all(16),
         decoration: BoxDecoration(
-          color: Colors.white,
+          color: palette.surface,
           borderRadius: BorderRadius.circular(18),
           boxShadow: [
             BoxShadow(
@@ -922,22 +927,25 @@ class _DashboardScreenState extends State<DashboardScreen>
             const SizedBox(height: 12),
             Text(
               value,
-              style: const TextStyle(
+              style: TextStyle(
                 fontSize: 22,
                 fontWeight: FontWeight.bold,
-                color: Colors.black87,
+                color: palette.textPrimary,
               ),
             ),
             const SizedBox(height: 2),
             Text(
               label,
-              style: const TextStyle(fontSize: 11, color: Colors.black45),
+              style: TextStyle(fontSize: 11, color: palette.textMuted),
             ),
             const SizedBox(height: 6),
             Container(
               padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
               decoration: BoxDecoration(
-                color: trendColor.shade50,
+                // shade50 is a glaring pastel on a dark card: use a tint.
+                color: context.isDarkMode
+                    ? trendColor.withValues(alpha: 0.15)
+                    : trendColor.shade50,
                 borderRadius: BorderRadius.circular(6),
               ),
               child: Row(
@@ -1039,10 +1047,11 @@ class _DashboardScreenState extends State<DashboardScreen>
   // ── THERAPIST CARD ───────────────────────────────────────────────────────────
   Widget _buildTherapistCard() {
     final therapist = context.watch<AppProvider>().profile?.therapist ?? '';
+    final palette = context.palette;
     return Container(
       padding: const EdgeInsets.all(18),
       decoration: BoxDecoration(
-        color: Colors.white,
+        color: palette.surface,
         borderRadius: BorderRadius.circular(22),
         boxShadow: [
           BoxShadow(
@@ -1063,12 +1072,12 @@ class _DashboardScreenState extends State<DashboardScreen>
                 size: 16,
               ),
               const SizedBox(width: 6),
-              const Text(
+              Text(
                 'Your Therapist',
                 style: TextStyle(
                   fontSize: 13,
                   fontWeight: FontWeight.bold,
-                  color: Colors.black54,
+                  color: palette.textSecondary,
                 ),
               ),
             ],
@@ -1082,8 +1091,15 @@ class _DashboardScreenState extends State<DashboardScreen>
                     width: 58,
                     height: 58,
                     decoration: BoxDecoration(
-                      gradient: const LinearGradient(
-                        colors: [lightTealBg, Color(0xFFB2DFDB)],
+                      // Pale teal avatar in light mode; a teal tint in dark,
+                      // where the pastel would glare.
+                      gradient: LinearGradient(
+                        colors: context.isDarkMode
+                            ? [
+                                primaryTeal.withValues(alpha: 0.18),
+                                primaryTeal.withValues(alpha: 0.28),
+                              ]
+                            : const [lightTealBg, Color(0xFFB2DFDB)],
                       ),
                       shape: BoxShape.circle,
                     ),
@@ -1102,7 +1118,7 @@ class _DashboardScreenState extends State<DashboardScreen>
                       decoration: BoxDecoration(
                         color: const Color(0xFF4CAF50),
                         shape: BoxShape.circle,
-                        border: Border.all(color: Colors.white, width: 2),
+                        border: Border.all(color: palette.surface, width: 2),
                       ),
                     ),
                   ),
@@ -1118,7 +1134,7 @@ class _DashboardScreenState extends State<DashboardScreen>
                       style: TextStyle(
                         fontSize: 16,
                         fontWeight: FontWeight.bold,
-                        color: Colors.black87,
+                        color: palette.textPrimary,
                       ),
                     ),
                     const SizedBox(height: 3),
@@ -1126,7 +1142,7 @@ class _DashboardScreenState extends State<DashboardScreen>
                       'Physical Therapist',
                       style: TextStyle(
                         fontSize: 12,
-                        color: Colors.grey.shade500,
+                        color: palette.textMuted,
                       ),
                     ),
                     const SizedBox(height: 4),
@@ -1213,6 +1229,7 @@ class _DashboardScreenState extends State<DashboardScreen>
       color: Colors.white,
     );
     final textScaler = MediaQuery.textScalerOf(context);
+    final palette = context.palette;
 
     double labelWidth(String label) {
       final painter = TextPainter(
@@ -1231,11 +1248,11 @@ class _DashboardScreenState extends State<DashboardScreen>
 
     return Container(
       decoration: BoxDecoration(
-        color: Colors.white,
+        color: palette.surface,
         borderRadius: const BorderRadius.vertical(top: Radius.circular(26)),
         boxShadow: [
           BoxShadow(
-            color: Colors.black.withValues(alpha: 0.08),
+            color: palette.shadow.withValues(alpha: 0.08),
             blurRadius: 20,
             offset: const Offset(0, -4),
           ),
@@ -1317,7 +1334,7 @@ class _DashboardScreenState extends State<DashboardScreen>
                                         tween: ColorTween(
                                           end: selected
                                               ? Colors.white
-                                              : Colors.grey.shade400,
+                                              : palette.textFaint,
                                         ),
                                         duration: _navDuration,
                                         curve: _navCurve,
