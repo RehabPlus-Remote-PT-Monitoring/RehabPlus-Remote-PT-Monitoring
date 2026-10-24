@@ -1353,3 +1353,42 @@ html.dark-mode{
                 backdrop-filter:none;
             }
         }
+
+        /* Patient profile: Terms/Privacy consent line. Own classes (not .small
+           or Bootstrap text colours) so the dark-mode overrides above can't
+           flatten the ticks and the "older version" warning to plain grey. */
+        .consent-status{
+            color:var(--muted);
+            font-size:.875rem;
+        }
+
+        .consent-flag{
+            display:inline-flex;
+            align-items:center;
+            gap:.15rem;
+            color:var(--primary-dark);
+            font-weight:600;
+            white-space:nowrap;
+        }
+
+        .consent-flag-missing{
+            color:var(--muted);
+            font-weight:400;
+            text-decoration:line-through;
+        }
+
+        .consent-outdated{
+            color:#b45309;
+        }
+
+        html.dark-mode body .consent-flag{
+            color:#5eead4;
+        }
+
+        html.dark-mode body .consent-flag-missing{
+            color:var(--muted);
+        }
+
+        html.dark-mode body .consent-outdated{
+            color:#fbbf24;
+        }

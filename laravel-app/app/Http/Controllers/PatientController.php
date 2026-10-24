@@ -5,6 +5,7 @@ namespace App\Http\Controllers;
 use App\Helpers\PatientValidation;
 use App\Services\Firebase\FirebaseTransport;
 use App\Services\Patient\ClinicalRecordService;
+use App\Services\Patient\ConsentService;
 use App\Services\Patient\PatientProgress;
 use App\Services\Patient\PatientService;
 use App\Services\Patient\PrescriptionService;
@@ -25,6 +26,7 @@ class PatientController extends Controller
         private PatientProgress $progress,
         private PrescriptionService $prescriptions,
         private ClinicalRecordService $records,
+        private ConsentService $consents,
         private UserService $users,
         private FirebaseTransport $firebase,
     ) {
@@ -51,8 +53,11 @@ class PatientController extends Controller
         ];
 
         if ($data['clinical']) {
-            // Five independent reads, fetched in one parallel round trip.
+            // Six independent reads, fetched in one parallel round trip. The
+            // consent read never throws (a failure shows "unavailable"), so it
+            // can't fail the clinical reads alongside it.
             $clinical = $this->firebase->concurrently([
+                'consent' => fn () => $this->consents->forPatient($uid),
                 'sessions' => fn () => $this->progress->sessions($uid),
                 'prescriptions' => fn () => $this->prescriptions->forPatient($uid),
                 'assessments' => fn () => $this->records->list(ClinicalRecordService::ASSESSMENTS, [$patient]),
@@ -66,6 +71,10 @@ class PatientController extends Controller
                 'painTrend' => PatientProgress::painTrend($clinical['sessions']),
                 'goalAchievement' => ClinicalRecordService::goalAchievement($clinical['goals']),
             ];
+        } else {
+            // Front desk staff don't see clinical records, but they do see
+            // whether the patient has accepted the Terms and Privacy Policy.
+            $data['consent'] = $this->consents->forPatient($uid);
         }
 
         return view('patients.show', $data);

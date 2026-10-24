@@ -33,6 +33,27 @@
                 <span class="ms-3"><i class="bi bi-calendar3 me-1"></i>Born {{ $patient['dob'] ?: '—' }}</span>
                 <span class="ms-3">Added {{ $patient['createdAt']?->setTimezone($tz)->format('M j, Y') ?? '—' }}</span>
             </p>
+            {{-- Terms / Privacy Policy consent the patient gave in the app (read-only, see ConsentService) --}}
+            <p class="consent-status mt-1 mb-0" data-consent="{{ $consent['status'] }}">
+                @switch($consent['status'])
+                    @case(\App\Services\Patient\ConsentService::CURRENT)
+                    @case(\App\Services\Patient\ConsentService::OUTDATED)
+                        <i class="bi bi-shield-check me-1"></i>Accepted terms v{{ $consent['version'] }}
+                        on {{ $consent['acceptedAt']?->setTimezone($tz)->format('M j, Y') ?? 'an unknown date' }}
+                        @foreach ($consent['flags'] as $flagLabel => $flagGiven)
+                            <span class="consent-flag {{ $flagGiven ? '' : 'consent-flag-missing' }} ms-2" title="{{ $flagLabel }}: {{ $flagGiven ? 'agreed' : 'not agreed' }}"><i class="bi {{ $flagGiven ? 'bi-check-lg' : 'bi-x-lg' }}"></i>{{ $flagLabel }}</span>
+                        @endforeach
+                        @if ($consent['status'] === \App\Services\Patient\ConsentService::OUTDATED)
+                            <span class="consent-outdated d-block mt-1"><i class="bi bi-exclamation-circle me-1"></i>This is an older version (current is v{{ $consent['currentVersion'] }}). The patient will be asked to accept the new terms next time they open the app.</span>
+                        @endif
+                        @break
+                    @case(\App\Services\Patient\ConsentService::NONE)
+                        <i class="bi bi-shield me-1"></i>Not yet accepted (the patient hasn't signed in to the app yet)
+                        @break
+                    @default
+                        <i class="bi bi-shield-exclamation me-1"></i>Consent status unavailable. Reload the page to try again.
+                @endswitch
+            </p>
         </div>
         <div class="d-flex flex-wrap gap-2">
             @if ($canMessage && ! $patient['archived'])

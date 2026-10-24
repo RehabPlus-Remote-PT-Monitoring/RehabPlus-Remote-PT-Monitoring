@@ -60,6 +60,15 @@ return [
         'send_after_hour' => (int) env('REMINDER_SEND_AFTER_HOUR', 18),
     ],
 
+    // Terms of Service / Privacy Policy version the patient app currently asks
+    // patients to accept (App\Services\Patient\ConsentService). MUST match
+    // LegalInfo.version in the app repo's lib/legal/legal_info.dart: when the
+    // app ships new terms, bump this too, or the profile page will call the
+    // new version "current" too late (or flag patients as outdated too early).
+    'legal' => [
+        'consent_version' => env('LEGAL_CONSENT_VERSION', '2026-10-18'),
+    ],
+
     'slack' => [
         'notifications' => [
             'bot_user_oauth_token' => env('SLACK_BOT_USER_OAUTH_TOKEN'),
