@@ -46,7 +46,7 @@ class _ChartColours {
   final Color tooltip;
   final Color dotFill;
 
-  TextStyle get axisStyle => TextStyle(fontSize: 9, color: axis);
+  TextStyle get axisStyle => TextStyle(fontSize: 11, color: axis);
 
   @override
   bool operator ==(Object other) =>

@@ -1,3 +1,4 @@
+import 'package:flutter/cupertino.dart' show CupertinoIcons;
 import 'package:flutter/material.dart';
 // `show`: the full intl library also exports a TextDirection that clashes
 // with Flutter's.
@@ -24,7 +25,6 @@ class ProfileScreen extends StatefulWidget {
 
 class _ProfileScreenState extends State<ProfileScreen> {
   static const Color primaryTeal = Color(0xFF23A8AA);
-  static const Color darkTeal = Color(0xFF0D6E71);
   static const String _tag = 'Profile';
 
   final DiagnosticLogger _logger = DiagnosticLogger.I;
@@ -69,7 +69,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
       context.read<AppProvider>().updateProfile(result);
       ScaffoldMessenger.of(context).showSnackBar(SnackBar(
         content: const Row(children: [
-          Icon(Icons.check_circle_outline, color: Colors.white, size: 18),
+          Icon(CupertinoIcons.checkmark_circle, color: Colors.white, size: 18),
           SizedBox(width: 8),
           Text('Profile updated successfully!'),
         ]),
@@ -107,23 +107,23 @@ class _ProfileScreenState extends State<ProfileScreen> {
                       const SizedBox(height: 14),
                       _buildInfoCard(
                         title: 'Personal Info',
-                        icon: Icons.person_outline_rounded,
+                        icon: CupertinoIcons.person,
                         items: [
-                          _InfoRow(icon: Icons.person_outline, label: 'Full Name', value: _profile.name),
-                          _InfoRow(icon: Icons.email_outlined, label: 'Email', value: _profile.email),
-                          _InfoRow(icon: Icons.phone_outlined, label: 'Phone', value: _profile.phone),
-                          _InfoRow(icon: Icons.cake_outlined, label: 'Date of Birth', value: _profile.dob),
+                          _InfoRow(icon: CupertinoIcons.person, label: 'Full Name', value: _profile.name),
+                          _InfoRow(icon: CupertinoIcons.envelope, label: 'Email', value: _profile.email),
+                          _InfoRow(icon: CupertinoIcons.phone, label: 'Phone', value: _profile.phone),
+                          _InfoRow(icon: CupertinoIcons.gift, label: 'Date of Birth', value: _profile.dob),
                         ],
                       ),
                       const SizedBox(height: 14),
                       _buildInfoCard(
                         title: 'Rehab Info',
-                        icon: Icons.medical_services_outlined,
+                        icon: CupertinoIcons.bandage,
                         items: [
-                          _InfoRow(icon: Icons.medical_services_outlined, label: 'Condition', value: _profile.condition),
-                          _InfoRow(icon: Icons.person_pin_outlined, label: 'Therapist', value: _profile.therapist),
+                          _InfoRow(icon: CupertinoIcons.bandage, label: 'Condition', value: _profile.condition),
+                          _InfoRow(icon: CupertinoIcons.person_crop_square, label: 'Therapist', value: _profile.therapist),
                           _InfoRow(
-                            icon: Icons.calendar_today_outlined,
+                            icon: CupertinoIcons.calendar,
                             label: 'Program Start',
                             value: _profile.programStart == null
                                 ? ''
@@ -156,11 +156,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
   Widget _buildHeader() {
     return Container(
       decoration: const BoxDecoration(
-        gradient: LinearGradient(
-          colors: [darkTeal, Color(0xFF1A8587), primaryTeal],
-          begin: Alignment.topLeft,
-          end: Alignment.bottomRight,
-        ),
+        color: AppPalette.midTeal,
         borderRadius: BorderRadius.vertical(bottom: Radius.circular(32)),
       ),
       child: SafeArea(
@@ -184,7 +180,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
                       ),
                       child: const Row(
                         children: [
-                          Icon(Icons.edit_outlined, color: Colors.white, size: 14),
+                          Icon(CupertinoIcons.pencil, color: Colors.white, size: 14),
                           SizedBox(width: 5),
                           Text('Edit', style: TextStyle(color: Colors.white, fontSize: 12, fontWeight: FontWeight.w600)),
                         ],
@@ -214,7 +210,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
                         child: const Row(
                           mainAxisSize: MainAxisSize.min,
                           children: [
-                            Icon(Icons.circle, size: 7, color: Color(0xFF69F0AE)),
+                            Icon(CupertinoIcons.circle_fill, size: 7, color: Color(0xFF69F0AE)),
                             SizedBox(width: 5),
                             Text('Active Patient', style: TextStyle(color: Colors.white, fontSize: 11, fontWeight: FontWeight.w500)),
                           ],
@@ -240,17 +236,16 @@ class _ProfileScreenState extends State<ProfileScreen> {
         decoration: BoxDecoration(
           color: palette.surface,
           borderRadius: BorderRadius.circular(20),
-          boxShadow: [BoxShadow(color: primaryTeal.withValues(alpha: 0.08), blurRadius: 16, offset: const Offset(0, 4))],
         ),
         child: Row(
           children: [
-            _statItem('Sessions', '$sessions', Icons.fitness_center_rounded),
+            _statItem('Sessions', '$sessions', CupertinoIcons.flame),
             _vDivider(),
-            _statItem('Total Sets', '$sets', Icons.repeat_rounded),
+            _statItem('Total Sets', '$sets', CupertinoIcons.repeat),
             _vDivider(),
-            _statItem('Total Reps', '$reps', Icons.loop_rounded),
+            _statItem('Total Reps', '$reps', CupertinoIcons.arrow_2_circlepath),
             _vDivider(),
-            _statItem('Avg Score', '${(avg * 100).toInt()}%', Icons.bar_chart_rounded),
+            _statItem('Avg Score', '${(avg * 100).toInt()}%', CupertinoIcons.chart_bar),
           ],
         ),
       ),
@@ -266,7 +261,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
           const SizedBox(height: 6),
           Text(value, style: TextStyle(fontWeight: FontWeight.bold, fontSize: 16, color: palette.textPrimary)),
           const SizedBox(height: 2),
-          Text(label, style: TextStyle(color: palette.textMuted, fontSize: 10), textAlign: TextAlign.center),
+          Text(label, style: TextStyle(color: palette.textMuted, fontSize: 11), textAlign: TextAlign.center),
         ],
       ),
     );
@@ -282,7 +277,6 @@ class _ProfileScreenState extends State<ProfileScreen> {
         decoration: BoxDecoration(
           color: palette.surface,
           borderRadius: BorderRadius.circular(20),
-          boxShadow: [BoxShadow(color: palette.shadow.withValues(alpha: 0.05), blurRadius: 12, offset: const Offset(0, 3))],
         ),
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
@@ -334,7 +328,6 @@ class _ProfileScreenState extends State<ProfileScreen> {
         decoration: BoxDecoration(
           color: palette.surface,
           borderRadius: BorderRadius.circular(20),
-          boxShadow: [BoxShadow(color: palette.shadow.withValues(alpha: 0.05), blurRadius: 12, offset: const Offset(0, 3))],
         ),
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
@@ -346,7 +339,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
                   Container(
                     padding: const EdgeInsets.all(7),
                     decoration: BoxDecoration(color: primaryTeal.withValues(alpha: 0.1), borderRadius: BorderRadius.circular(9)),
-                    child: const Icon(Icons.fitness_center_rounded, size: 16, color: primaryTeal),
+                    child: const Icon(CupertinoIcons.flame, size: 16, color: primaryTeal),
                   ),
                   const SizedBox(width: 10),
                   Text('Exercise Breakdown', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 14, color: palette.textPrimary)),
@@ -383,7 +376,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
       padding: const EdgeInsets.symmetric(vertical: 8),
       child: Row(
         children: [
-          Icon(Icons.check_circle_outline_rounded, size: 17, color: palette.textMuted),
+          Icon(CupertinoIcons.checkmark_circle, size: 17, color: palette.textMuted),
           const SizedBox(width: 12),
           Expanded(
             child: Text(
@@ -409,7 +402,6 @@ class _ProfileScreenState extends State<ProfileScreen> {
         decoration: BoxDecoration(
           color: palette.surface,
           borderRadius: BorderRadius.circular(20),
-          boxShadow: [BoxShadow(color: palette.shadow.withValues(alpha: 0.05), blurRadius: 12, offset: const Offset(0, 3))],
         ),
         child: ListTile(
           onTap: () => Navigator.push(context, MaterialPageRoute(builder: (_) => const GoalsScreen())),
@@ -417,11 +409,11 @@ class _ProfileScreenState extends State<ProfileScreen> {
           leading: Container(
             padding: const EdgeInsets.all(7),
             decoration: BoxDecoration(color: primaryTeal.withValues(alpha: 0.1), borderRadius: BorderRadius.circular(9)),
-            child: const Icon(Icons.flag_outlined, size: 16, color: primaryTeal),
+            child: const Icon(CupertinoIcons.flag, size: 16, color: primaryTeal),
           ),
           title: Text('My Goals', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 14, color: palette.textPrimary)),
           subtitle: Text('The recovery goals your therapist set for you', style: TextStyle(fontSize: 12, color: palette.textMuted)),
-          trailing: Icon(Icons.chevron_right_rounded, color: palette.textFaint, size: 20),
+          trailing: Icon(CupertinoIcons.chevron_right, color: palette.textFaint, size: 20),
         ),
       ),
     );
@@ -437,7 +429,6 @@ class _ProfileScreenState extends State<ProfileScreen> {
         decoration: BoxDecoration(
           color: palette.surface,
           borderRadius: BorderRadius.circular(20),
-          boxShadow: [BoxShadow(color: palette.shadow.withValues(alpha: 0.05), blurRadius: 12, offset: const Offset(0, 3))],
         ),
         child: ListTile(
           onTap: () => Navigator.push(context, MaterialPageRoute(builder: (_) => const SettingsScreen())),
@@ -445,11 +436,11 @@ class _ProfileScreenState extends State<ProfileScreen> {
           leading: Container(
             padding: const EdgeInsets.all(7),
             decoration: BoxDecoration(color: primaryTeal.withValues(alpha: 0.1), borderRadius: BorderRadius.circular(9)),
-            child: const Icon(Icons.settings_outlined, size: 16, color: primaryTeal),
+            child: const Icon(CupertinoIcons.gear, size: 16, color: primaryTeal),
           ),
           title: Text('Settings', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 14, color: palette.textPrimary)),
           subtitle: Text('Exercise, camera, reminders, notifications and more', style: TextStyle(fontSize: 12, color: palette.textMuted)),
-          trailing: Icon(Icons.chevron_right_rounded, color: palette.textFaint, size: 20),
+          trailing: Icon(CupertinoIcons.chevron_right, color: palette.textFaint, size: 20),
         ),
       ),
     );
@@ -464,7 +455,6 @@ class _ProfileScreenState extends State<ProfileScreen> {
         decoration: BoxDecoration(
           color: palette.surface,
           borderRadius: BorderRadius.circular(20),
-          boxShadow: [BoxShadow(color: palette.shadow.withValues(alpha: 0.05), blurRadius: 12, offset: const Offset(0, 3))],
         ),
         child: ListTile(
           onTap: () => Navigator.push(context, MaterialPageRoute(builder: (_) => const PrivacyLegalScreen())),
@@ -472,11 +462,11 @@ class _ProfileScreenState extends State<ProfileScreen> {
           leading: Container(
             padding: const EdgeInsets.all(7),
             decoration: BoxDecoration(color: primaryTeal.withValues(alpha: 0.1), borderRadius: BorderRadius.circular(9)),
-            child: const Icon(Icons.shield_outlined, size: 16, color: primaryTeal),
+            child: const Icon(CupertinoIcons.shield, size: 16, color: primaryTeal),
           ),
           title: Text('Privacy & Legal', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 14, color: palette.textPrimary)),
           subtitle: Text('Account info, terms and privacy policy', style: TextStyle(fontSize: 12, color: palette.textMuted)),
-          trailing: Icon(Icons.chevron_right_rounded, color: palette.textFaint, size: 20),
+          trailing: Icon(CupertinoIcons.chevron_right, color: palette.textFaint, size: 20),
         ),
       ),
     );
@@ -519,12 +509,11 @@ class _ProfileScreenState extends State<ProfileScreen> {
             color: palette.surface,
             borderRadius: BorderRadius.circular(18),
             border: Border.all(color: Colors.red.shade200),
-            boxShadow: [BoxShadow(color: Colors.red.withValues(alpha: 0.06), blurRadius: 10, offset: const Offset(0, 3))],
           ),
           child: Row(
             mainAxisAlignment: MainAxisAlignment.center,
             children: [
-              Icon(Icons.logout_rounded, color: Colors.red.shade400, size: 18),
+              Icon(CupertinoIcons.square_arrow_right, color: Colors.red.shade400, size: 18),
               const SizedBox(width: 8),
               Text('Sign Out', style: TextStyle(color: Colors.red.shade400, fontSize: 14, fontWeight: FontWeight.w600)),
             ],

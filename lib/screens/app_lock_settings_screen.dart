@@ -1,3 +1,4 @@
+import 'package:flutter/cupertino.dart' show CupertinoIcons;
 import 'package:flutter/material.dart';
 
 import '../core/app_palette.dart';
@@ -151,12 +152,12 @@ class _AppLockSettingsScreenState extends State<AppLockSettingsScreen> {
         padding: readablePadding(context, const EdgeInsets.all(16)),
         children: [
           _card([
-            SwitchListTile(
+            SwitchListTile.adaptive(
               value: enabled,
               onChanged: _busy ? null : _togglePin,
               activeThumbColor: Colors.white,
               activeTrackColor: primaryTeal,
-              secondary: _leading(Icons.pin_outlined),
+              secondary: _leading(CupertinoIcons.number_square),
               title: Text('PIN lock', style: _titleStyle),
               subtitle: Text(
                 'Ask for a ${AppLockService.pinLength}-digit PIN before '
@@ -164,7 +165,7 @@ class _AppLockSettingsScreenState extends State<AppLockSettingsScreen> {
                 style: _subtitleStyle,
               ),
             ),
-            SwitchListTile(
+            SwitchListTile.adaptive(
               value: _lock.biometricsEnabled,
               onChanged: (_busy || !enabled || !bioAvailable)
                   ? null
@@ -187,10 +188,10 @@ class _AppLockSettingsScreenState extends State<AppLockSettingsScreen> {
             ListTile(
               enabled: enabled && !_busy,
               onTap: _changePin,
-              leading: _leading(Icons.lock_reset_rounded),
+              leading: _leading(CupertinoIcons.lock_rotation),
               title: Text('Change PIN', style: _titleStyle),
               trailing: Icon(
-                Icons.chevron_right_rounded,
+                CupertinoIcons.chevron_right,
                 color: palette.textFaint,
                 size: 20,
               ),
@@ -233,13 +234,6 @@ class _AppLockSettingsScreenState extends State<AppLockSettingsScreen> {
     decoration: BoxDecoration(
       color: context.palette.surface,
       borderRadius: BorderRadius.circular(20),
-      boxShadow: [
-        BoxShadow(
-          color: context.palette.shadow.withValues(alpha: 0.05),
-          blurRadius: 12,
-          offset: const Offset(0, 3),
-        ),
-      ],
     ),
     child: Column(children: children),
   );

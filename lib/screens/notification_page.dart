@@ -1,3 +1,4 @@
+import 'package:flutter/cupertino.dart' show CupertinoIcons;
 import 'package:flutter/material.dart';
 // `show`: the full intl library also exports a TextDirection that clashes
 // with Flutter's.
@@ -26,38 +27,38 @@ const _visuals = <String, _Visual>{
     Color(0xFF0097A7),
   ),
   'exercise_assigned': _Visual(
-    Icons.assignment_outlined,
+    CupertinoIcons.doc_text,
     Color(0xFFC8E6C9),
     Color(0xFF388E3C),
   ),
   'appointment': _Visual(
-    Icons.calendar_month_outlined,
+    CupertinoIcons.calendar,
     Color(0xFFBBDEFB),
     Color(0xFF1976D2),
   ),
   'progress': _Visual(
-    Icons.bar_chart_rounded,
+    CupertinoIcons.chart_bar,
     Color(0xFFE1BEE7),
     Color(0xFF7B1FA2),
   ),
   'milestone': _Visual(
-    Icons.emoji_events_outlined,
+    CupertinoIcons.rosette,
     Color(0xFFFFF9C4),
     Color(0xFFFBC02D),
   ),
   'message': _Visual(
-    Icons.chat_bubble_outline_rounded,
+    CupertinoIcons.chat_bubble,
     Color(0xFFB2EBF2),
     Color(0xFF00838F),
   ),
   'reminder': _Visual(
-    Icons.alarm_rounded,
+    CupertinoIcons.alarm,
     Color(0xFFFFE0B2),
     Color(0xFFF57C00),
   ),
 };
 const _defaultVisual = _Visual(
-  Icons.notifications_none_rounded,
+  CupertinoIcons.bell,
   Color(0xFFE0E0E0),
   Color(0xFF616161),
 );
@@ -215,7 +216,7 @@ class _NotificationPageState extends State<NotificationPage> {
           Expanded(
             child: loading
                 ? const Center(
-                    child: CircularProgressIndicator(color: primaryTeal),
+                    child: CircularProgressIndicator.adaptive(valueColor: AlwaysStoppedAnimation(primaryTeal)),
                   )
                 : _filtered.isEmpty
                 ? _buildEmpty(palette)
@@ -234,11 +235,7 @@ class _NotificationPageState extends State<NotificationPage> {
   Widget _buildHeader(BuildContext context) {
     return Container(
       decoration: const BoxDecoration(
-        gradient: LinearGradient(
-          colors: [darkTeal, Color(0xFF1A8587), primaryTeal],
-          begin: Alignment.topLeft,
-          end: Alignment.bottomRight,
-        ),
+        color: AppPalette.midTeal,
         borderRadius: BorderRadius.vertical(bottom: Radius.circular(32)),
       ),
       child: SafeArea(
@@ -249,7 +246,7 @@ class _NotificationPageState extends State<NotificationPage> {
             children: [
               IconButton(
                 icon: const Icon(
-                  Icons.arrow_back_ios,
+                  CupertinoIcons.chevron_left,
                   color: Colors.white,
                   size: 20,
                 ),
@@ -307,13 +304,6 @@ class _NotificationPageState extends State<NotificationPage> {
       decoration: BoxDecoration(
         color: palette.surface,
         borderRadius: BorderRadius.circular(16),
-        boxShadow: [
-          BoxShadow(
-            color: palette.shadow.withValues(alpha: 0.06),
-            blurRadius: 10,
-            offset: const Offset(0, 3),
-          ),
-        ],
       ),
       child: Row(
         children: List.generate(3, (i) {
@@ -381,13 +371,6 @@ class _NotificationPageState extends State<NotificationPage> {
                   width: 1.2,
                 )
               : Border.all(color: Colors.transparent),
-          boxShadow: [
-            BoxShadow(
-              color: palette.shadow.withValues(alpha: 0.05),
-              blurRadius: 10,
-              offset: const Offset(0, 3),
-            ),
-          ],
         ),
         child: Row(
           crossAxisAlignment: CrossAxisAlignment.start,
@@ -473,7 +456,7 @@ class _NotificationPageState extends State<NotificationPage> {
               shape: BoxShape.circle,
             ),
             child: const Icon(
-              Icons.notifications_off_outlined,
+              CupertinoIcons.bell_slash,
               size: 40,
               color: primaryTeal,
             ),

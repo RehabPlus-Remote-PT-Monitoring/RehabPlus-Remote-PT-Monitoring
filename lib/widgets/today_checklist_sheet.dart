@@ -1,3 +1,4 @@
+import 'package:flutter/cupertino.dart' show CupertinoIcons;
 import 'package:flutter/material.dart';
 // `show`: intl also exports a TextDirection that clashes with Flutter's.
 import 'package:intl/intl.dart' show DateFormat;
@@ -68,7 +69,7 @@ class TodayChecklistSheet extends StatelessWidget {
       return ListTile(
         contentPadding: EdgeInsets.zero,
         leading: Icon(
-          isDone ? Icons.check_circle_rounded : Icons.radio_button_unchecked,
+          isDone ? CupertinoIcons.checkmark_circle_fill : CupertinoIcons.circle,
           color: isDone
               ? _primaryTeal
               : dueToday

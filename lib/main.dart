@@ -4,7 +4,7 @@ import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import 'core/app_diagnostics.dart';
 import 'core/app_keys.dart';
-import 'core/app_palette.dart';
+import 'core/app_theme.dart';
 import 'core/diagnostic_logger.dart';
 import 'firebase_options.dart';
 import 'services/app_lock_service.dart';
@@ -161,99 +161,9 @@ class _RehabPlusAppState extends State<RehabPlusApp> {
           );
         },
       ),
-      theme: ThemeData(
-        colorScheme: ColorScheme.fromSeed(
-          seedColor: const Color(0xFF00BCD4),
-          primary: const Color(0xFF00BCD4),
-          secondary: const Color(0xFF0097A7),
-        ),
-        useMaterial3: true,
-        extensions: const [AppPalette.light],
-        scaffoldBackgroundColor: AppPalette.light.background,
-        appBarTheme: const AppBarTheme(
-          backgroundColor: Color(0xFF00BCD4),
-          foregroundColor: Colors.white,
-          elevation: 0,
-          centerTitle: true,
-        ),
-        cardTheme: CardThemeData(
-          elevation: 2,
-          shape: RoundedRectangleBorder(
-            borderRadius: BorderRadius.all(Radius.circular(16)),
-          ),
-        ),
-        navigationBarTheme: NavigationBarThemeData(
-          indicatorColor: const Color(0xFF00BCD4).withValues(alpha: 0.2),
-          iconTheme: WidgetStateProperty.resolveWith((states) {
-            if (states.contains(WidgetState.selected)) {
-              return const IconThemeData(color: Color(0xFF00838F));
-            }
-            return const IconThemeData(color: Colors.grey);
-          }),
-        ),
-        filledButtonTheme: FilledButtonThemeData(
-          style: FilledButton.styleFrom(
-            backgroundColor: const Color(0xFF00BCD4),
-            foregroundColor: Colors.white,
-            shape: RoundedRectangleBorder(
-              borderRadius: BorderRadius.all(Radius.circular(12)),
-            ),
-          ),
-        ),
-      ),
-      darkTheme: ThemeData(
-        colorScheme: ColorScheme.fromSeed(
-          seedColor: const Color(0xFF00BCD4),
-          brightness: Brightness.dark,
-          primary: AppPalette.teal,
-          secondary: const Color(0xFF4DD0E1),
-          surface: AppPalette.dark.surface,
-        ),
-        useMaterial3: true,
-        extensions: const [AppPalette.dark],
-        scaffoldBackgroundColor: AppPalette.dark.background,
-        dialogTheme: DialogThemeData(backgroundColor: AppPalette.dark.surface),
-        bottomSheetTheme: BottomSheetThemeData(
-          backgroundColor: AppPalette.dark.surface,
-          modalBackgroundColor: AppPalette.dark.surface,
-        ),
-        dividerTheme: DividerThemeData(color: AppPalette.dark.divider),
-        snackBarTheme: const SnackBarThemeData(
-          backgroundColor: Color(0xFF2C3A3A),
-          contentTextStyle: TextStyle(color: Colors.white),
-        ),
-        navigationBarTheme: NavigationBarThemeData(
-          backgroundColor: AppPalette.dark.surface,
-          indicatorColor: AppPalette.teal.withValues(alpha: 0.25),
-          iconTheme: WidgetStateProperty.resolveWith((states) {
-            if (states.contains(WidgetState.selected)) {
-              return const IconThemeData(color: Color(0xFF4DD0E1));
-            }
-            return IconThemeData(color: AppPalette.dark.textMuted);
-          }),
-        ),
-        filledButtonTheme: FilledButtonThemeData(
-          style: FilledButton.styleFrom(
-            backgroundColor: const Color(0xFF00BCD4),
-            foregroundColor: Colors.white,
-            shape: RoundedRectangleBorder(
-              borderRadius: BorderRadius.all(Radius.circular(12)),
-            ),
-          ),
-        ),
-        appBarTheme: const AppBarTheme(
-          backgroundColor: Color(0xFF006064),
-          foregroundColor: Colors.white,
-          elevation: 0,
-          centerTitle: true,
-        ),
-        cardTheme: CardThemeData(
-          elevation: 2,
-          shape: RoundedRectangleBorder(
-            borderRadius: BorderRadius.all(Radius.circular(16)),
-          ),
-        ),
-      ),
+      // iOS-style look for both modes: lib/core/app_theme.dart.
+      theme: buildAppTheme(Brightness.light),
+      darkTheme: buildAppTheme(Brightness.dark),
       // Animated startup screen, then the dashboard or the login page.
       home: SplashScreen(
         next: _firstScreen,

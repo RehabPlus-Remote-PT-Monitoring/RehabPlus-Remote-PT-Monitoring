@@ -1,5 +1,6 @@
 import 'dart:async';
 
+import 'package:flutter/cupertino.dart' show CupertinoIcons;
 import 'package:flutter/material.dart';
 import 'package:intl/intl.dart' show DateFormat;
 import 'package:phosphor_flutter/phosphor_flutter.dart';
@@ -353,7 +354,7 @@ class _DashboardScreenState extends State<DashboardScreen>
                     children: [
                       UnreadNotifications(
                         builder: (context, unread) => _headerIconBtn(
-                          PhosphorIcons.bell(),
+                          CupertinoIcons.bell,
                           badge: unread > 0,
                           onTap: () => Navigator.push(
                             context,
@@ -365,7 +366,7 @@ class _DashboardScreenState extends State<DashboardScreen>
                       ),
                       const SizedBox(width: 4),
                       _headerIconBtn(
-                        PhosphorIcons.plus(),
+                        CupertinoIcons.plus,
                         onTap: () => setState(() {
                           _prevNavIndex = _bottomNavIndex;
                           _bottomNavIndex = 1;
@@ -429,8 +430,8 @@ class _DashboardScreenState extends State<DashboardScreen>
                     ),
                     child: Row(
                       children: [
-                        PhosphorIcon(
-                          PhosphorIcons.calendarBlank(),
+                        Icon(
+                          CupertinoIcons.calendar,
                           color: Colors.white70,
                           size: 13,
                         ),
@@ -456,7 +457,7 @@ class _DashboardScreenState extends State<DashboardScreen>
   }
 
   Widget _headerIconBtn(
-    PhosphorIconData icon, {
+    IconData icon, {
     bool badge = false,
     VoidCallback? onTap,
   }) {
@@ -473,7 +474,7 @@ class _DashboardScreenState extends State<DashboardScreen>
           child: IconButton(
             padding: EdgeInsets.zero,
             onPressed: onTap,
-            icon: PhosphorIcon(icon, color: Colors.white, size: 20),
+            icon: Icon(icon, color: Colors.white, size: 20),
           ),
         ),
         if (badge)
@@ -499,7 +500,7 @@ class _DashboardScreenState extends State<DashboardScreen>
     return Row(
       children: [
         _chip(
-          PhosphorIcons.bellSimple(),
+          CupertinoIcons.bell,
           'Alerts',
           const Color(0xFFFF6B35),
           hasBadge: true,
@@ -510,14 +511,14 @@ class _DashboardScreenState extends State<DashboardScreen>
         ),
         const SizedBox(width: 10),
         _chip(
-          PhosphorIcons.chartLineUp(),
+          CupertinoIcons.graph_square,
           'Progress',
           const Color(0xFF4A90D9),
           onTap: _openReport,
         ),
         const SizedBox(width: 10),
         _chip(
-          PhosphorIcons.playCircle(),
+          CupertinoIcons.play_circle,
           'Demo',
           const Color(0xFFE53935),
           onTap: () => Navigator.push(
@@ -530,7 +531,7 @@ class _DashboardScreenState extends State<DashboardScreen>
   }
 
   Widget _chip(
-    PhosphorIconData icon,
+    IconData icon,
     String label,
     Color color, {
     bool hasBadge = false,
@@ -545,13 +546,6 @@ class _DashboardScreenState extends State<DashboardScreen>
           decoration: BoxDecoration(
             color: palette.surface,
             borderRadius: BorderRadius.circular(16),
-            boxShadow: [
-              BoxShadow(
-                color: color.withValues(alpha: 0.12),
-                blurRadius: 12,
-                offset: const Offset(0, 4),
-              ),
-            ],
           ),
           child: Column(
             children: [
@@ -564,7 +558,7 @@ class _DashboardScreenState extends State<DashboardScreen>
                       color: color.withValues(alpha: 0.1),
                       shape: BoxShape.circle,
                     ),
-                    child: PhosphorIcon(icon, size: 22, color: color),
+                    child: Icon(icon, size: 22, color: color),
                   ),
                   if (hasBadge)
                     Positioned(
@@ -613,13 +607,6 @@ class _DashboardScreenState extends State<DashboardScreen>
       decoration: BoxDecoration(
         color: palette.surface,
         borderRadius: BorderRadius.circular(22),
-        boxShadow: [
-          BoxShadow(
-            color: primaryTeal.withValues(alpha: 0.08),
-            blurRadius: 20,
-            offset: const Offset(0, 6),
-          ),
-        ],
       ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
@@ -641,9 +628,7 @@ class _DashboardScreenState extends State<DashboardScreen>
                   vertical: 5,
                 ),
                 decoration: BoxDecoration(
-                  gradient: const LinearGradient(
-                    colors: [primaryTeal, darkTeal],
-                  ),
+                  color: primaryTeal,
                   borderRadius: BorderRadius.circular(20),
                 ),
                 child: Text(
@@ -697,7 +682,7 @@ class _DashboardScreenState extends State<DashboardScreen>
                       child: Center(
                         child: checked
                             ? const Icon(
-                                Icons.check_rounded,
+                                CupertinoIcons.checkmark,
                                 size: 18,
                                 color: Colors.white,
                               )
@@ -750,17 +735,8 @@ class _DashboardScreenState extends State<DashboardScreen>
                       heightFactor: 1,
                       child: DecoratedBox(
                         decoration: BoxDecoration(
-                          gradient: const LinearGradient(
-                            colors: [primaryTeal, darkTeal],
-                          ),
+                          color: primaryTeal,
                           borderRadius: BorderRadius.circular(10),
-                          boxShadow: [
-                            BoxShadow(
-                              color: primaryTeal.withValues(alpha: 0.3),
-                              blurRadius: 8,
-                              offset: const Offset(0, 3),
-                            ),
-                          ],
                         ),
                       ),
                     ),
@@ -861,7 +837,7 @@ class _DashboardScreenState extends State<DashboardScreen>
           '${cur.activeDays}',
           cur.activeDays - prev.activeDays,
           signed(cur.activeDays - prev.activeDays),
-          PhosphorIcons.calendarCheck(),
+          CupertinoIcons.calendar_badge_plus,
           const Color(0xFFFF6B35),
         ),
         const SizedBox(width: 10),
@@ -870,7 +846,7 @@ class _DashboardScreenState extends State<DashboardScreen>
           '${cur.sessions}',
           cur.sessions - prev.sessions,
           signed(cur.sessions - prev.sessions),
-          PhosphorIcons.heartbeat(),
+          CupertinoIcons.heart,
           primaryTeal,
         ),
         const SizedBox(width: 10),
@@ -879,7 +855,7 @@ class _DashboardScreenState extends State<DashboardScreen>
           ProgressStats.formatDuration(cur.time),
           timeDelta,
           signed(timeDelta, 'm'),
-          PhosphorIcons.timer(),
+          CupertinoIcons.timer,
           const Color(0xFF7C4DFF),
         ),
       ],
@@ -891,7 +867,7 @@ class _DashboardScreenState extends State<DashboardScreen>
     String value,
     int delta,
     String sub,
-    PhosphorIconData icon,
+    IconData icon,
     Color color,
   ) {
     final trendColor = delta > 0
@@ -906,13 +882,6 @@ class _DashboardScreenState extends State<DashboardScreen>
         decoration: BoxDecoration(
           color: palette.surface,
           borderRadius: BorderRadius.circular(18),
-          boxShadow: [
-            BoxShadow(
-              color: color.withValues(alpha: 0.1),
-              blurRadius: 14,
-              offset: const Offset(0, 4),
-            ),
-          ],
         ),
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
@@ -923,7 +892,7 @@ class _DashboardScreenState extends State<DashboardScreen>
                 color: color.withValues(alpha: 0.1),
                 borderRadius: BorderRadius.circular(10),
               ),
-              child: PhosphorIcon(icon, size: 18, color: color),
+              child: Icon(icon, size: 18, color: color),
             ),
             const SizedBox(height: 12),
             Text(
@@ -952,12 +921,12 @@ class _DashboardScreenState extends State<DashboardScreen>
               child: Row(
                 mainAxisSize: MainAxisSize.min,
                 children: [
-                  PhosphorIcon(
+                  Icon(
                     delta > 0
-                        ? PhosphorIconsRegular.arrowUp
+                        ? CupertinoIcons.arrow_up
                         : delta < 0
-                            ? PhosphorIconsRegular.arrowDown
-                            : PhosphorIconsRegular.minus,
+                            ? CupertinoIcons.arrow_down
+                            : CupertinoIcons.minus,
                     size: 10,
                     color: trendColor,
                   ),
@@ -965,7 +934,7 @@ class _DashboardScreenState extends State<DashboardScreen>
                   Text(
                     sub,
                     style: TextStyle(
-                      fontSize: 10,
+                      fontSize: 11,
                       color: trendColor,
                       fontWeight: FontWeight.w700,
                     ),
@@ -984,19 +953,8 @@ class _DashboardScreenState extends State<DashboardScreen>
     return Container(
       padding: const EdgeInsets.all(20),
       decoration: BoxDecoration(
-        gradient: const LinearGradient(
-          colors: [Color(0xFF6A1B9A), Color(0xFF9C27B0), Color(0xFFAB47BC)],
-          begin: Alignment.topLeft,
-          end: Alignment.bottomRight,
-        ),
+        color: const Color(0xFF8E24AA),
         borderRadius: BorderRadius.circular(22),
-        boxShadow: [
-          BoxShadow(
-            color: const Color(0xFF9C27B0).withValues(alpha: 0.3),
-            blurRadius: 20,
-            offset: const Offset(0, 8),
-          ),
-        ],
       ),
       child: Row(
         crossAxisAlignment: CrossAxisAlignment.start,
@@ -1007,8 +965,8 @@ class _DashboardScreenState extends State<DashboardScreen>
               color: Colors.white.withValues(alpha: 0.15),
               borderRadius: BorderRadius.circular(10),
             ),
-            child: const PhosphorIcon(
-              PhosphorIconsRegular.quotes,
+            child: const Icon(
+              CupertinoIcons.quote_bubble,
               color: Colors.white,
               size: 22,
             ),
@@ -1054,21 +1012,14 @@ class _DashboardScreenState extends State<DashboardScreen>
       decoration: BoxDecoration(
         color: palette.surface,
         borderRadius: BorderRadius.circular(22),
-        boxShadow: [
-          BoxShadow(
-            color: primaryTeal.withValues(alpha: 0.08),
-            blurRadius: 20,
-            offset: const Offset(0, 6),
-          ),
-        ],
       ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           Row(
             children: [
-              PhosphorIcon(
-                PhosphorIcons.stethoscope(),
+              Icon(
+                CupertinoIcons.heart_circle,
                 color: primaryTeal,
                 size: 16,
               ),
@@ -1104,8 +1055,8 @@ class _DashboardScreenState extends State<DashboardScreen>
                       ),
                       shape: BoxShape.circle,
                     ),
-                    child: const PhosphorIcon(
-                      PhosphorIconsRegular.user,
+                    child: const Icon(
+                      CupertinoIcons.person,
                       size: 30,
                       color: primaryTeal,
                     ),
@@ -1213,11 +1164,11 @@ class _DashboardScreenState extends State<DashboardScreen>
   /// left/width with the same duration and curve keeps the pill exactly under
   /// its item for the whole animation.
   Widget _buildBottomNav() {
-    final List<(PhosphorIconData, String)> items = [
-      (PhosphorIcons.squaresFour(), 'Home'),
-      (PhosphorIcons.barbell(), 'Exercise'),
-      (PhosphorIcons.chatCircle(), 'Messages'),
-      (PhosphorIcons.userCircle(), 'Profile'),
+    final List<(IconData, String)> items = [
+      (CupertinoIcons.square_grid_2x2, 'Home'),
+      (CupertinoIcons.flame, 'Exercise'),
+      (CupertinoIcons.chat_bubble, 'Messages'),
+      (CupertinoIcons.person_crop_circle, 'Profile'),
     ];
 
     const iconSize = 22.0;
@@ -1251,13 +1202,6 @@ class _DashboardScreenState extends State<DashboardScreen>
       decoration: BoxDecoration(
         color: palette.surface,
         borderRadius: const BorderRadius.vertical(top: Radius.circular(26)),
-        boxShadow: [
-          BoxShadow(
-            color: palette.shadow.withValues(alpha: 0.08),
-            blurRadius: 20,
-            offset: const Offset(0, -4),
-          ),
-        ],
       ),
       child: SafeArea(
         top: false,
@@ -1288,17 +1232,8 @@ class _DashboardScreenState extends State<DashboardScreen>
                       bottom: 0,
                       child: DecoratedBox(
                         decoration: BoxDecoration(
-                          gradient: const LinearGradient(
-                            colors: [primaryTeal, darkTeal],
-                          ),
+                          color: primaryTeal,
                           borderRadius: BorderRadius.circular(16),
-                          boxShadow: [
-                            BoxShadow(
-                              color: primaryTeal.withValues(alpha: 0.3),
-                              blurRadius: 10,
-                              offset: const Offset(0, 4),
-                            ),
-                          ],
                         ),
                       ),
                     ),
@@ -1340,7 +1275,7 @@ class _DashboardScreenState extends State<DashboardScreen>
                                         duration: _navDuration,
                                         curve: _navCurve,
                                         builder: (context, color, _) =>
-                                            PhosphorIcon(
+                                            Icon(
                                               items[i].$1,
                                               size: iconSize,
                                               color: color,

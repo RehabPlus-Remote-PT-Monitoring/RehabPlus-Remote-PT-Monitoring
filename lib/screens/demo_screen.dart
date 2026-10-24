@@ -1,5 +1,5 @@
+import 'package:flutter/cupertino.dart' show CupertinoIcons;
 import 'package:flutter/material.dart';
-import 'package:phosphor_flutter/phosphor_flutter.dart';
 import 'package:video_player/video_player.dart';
 import 'package:chewie/chewie.dart';
 
@@ -18,7 +18,6 @@ class DemoScreen extends StatefulWidget {
 
 class _DemoScreenState extends State<DemoScreen> with TickerProviderStateMixin {
   static const Color primaryTeal = Color(0xFF23A8AA);
-  static const Color darkTeal = Color(0xFF0D6E71);
 
   final PageController _pageCtrl = PageController();
   int _currentPage = 0;
@@ -37,7 +36,7 @@ class _DemoScreenState extends State<DemoScreen> with TickerProviderStateMixin {
 
   final List<_DemoFeature> _features = [
     _DemoFeature(
-      icon: PhosphorIconsRegular.chartLineUp,
+      icon: CupertinoIcons.graph_square,
       color: Color(0xFF23A8AA),
       title: 'Track Progress',
       subtitle:
@@ -45,7 +44,7 @@ class _DemoScreenState extends State<DemoScreen> with TickerProviderStateMixin {
       preview: _PreviewType.progress,
     ),
     _DemoFeature(
-      icon: PhosphorIconsRegular.barbell,
+      icon: CupertinoIcons.flame,
       color: Color(0xFF4A90D9),
       title: 'Exercise Plans',
       subtitle:
@@ -53,7 +52,7 @@ class _DemoScreenState extends State<DemoScreen> with TickerProviderStateMixin {
       preview: _PreviewType.exercise,
     ),
     _DemoFeature(
-      icon: PhosphorIconsRegular.chatCircle,
+      icon: CupertinoIcons.chat_bubble,
       color: Color(0xFF7C4DFF),
       title: 'Message Therapist',
       subtitle:
@@ -61,7 +60,7 @@ class _DemoScreenState extends State<DemoScreen> with TickerProviderStateMixin {
       preview: _PreviewType.messages,
     ),
     _DemoFeature(
-      icon: PhosphorIconsRegular.bell,
+      icon: CupertinoIcons.bell,
       color: Color(0xFFFF6B35),
       title: 'Smart Reminders',
       subtitle:
@@ -197,11 +196,7 @@ class _DemoScreenState extends State<DemoScreen> with TickerProviderStateMixin {
   Widget _buildHeader(BuildContext context) {
     return Container(
       decoration: const BoxDecoration(
-        gradient: LinearGradient(
-          colors: [darkTeal, Color(0xFF1A8587), primaryTeal],
-          begin: Alignment.topLeft,
-          end: Alignment.bottomRight,
-        ),
+        color: AppPalette.midTeal,
         borderRadius: BorderRadius.vertical(bottom: Radius.circular(32)),
       ),
       child: SafeArea(
@@ -220,7 +215,7 @@ class _DemoScreenState extends State<DemoScreen> with TickerProviderStateMixin {
                     borderRadius: BorderRadius.circular(12),
                   ),
                   child: const Icon(
-                    Icons.arrow_back_ios_new_rounded,
+                    CupertinoIcons.chevron_left,
                     color: Colors.white,
                     size: 18,
                   ),
@@ -300,8 +295,8 @@ class _DemoScreenState extends State<DemoScreen> with TickerProviderStateMixin {
       children: [
         Row(
           children: [
-            const PhosphorIcon(
-              PhosphorIconsRegular.sparkle,
+            const Icon(
+              CupertinoIcons.sparkles,
               size: 18,
               color: primaryTeal,
             ),
@@ -357,8 +352,8 @@ class _DemoScreenState extends State<DemoScreen> with TickerProviderStateMixin {
       children: [
         Row(
           children: [
-            const PhosphorIcon(
-              PhosphorIconsRegular.videoCamera,
+            const Icon(
+              CupertinoIcons.videocam,
               size: 18,
               color: primaryTeal,
             ),
@@ -402,21 +397,14 @@ class _DemoScreenState extends State<DemoScreen> with TickerProviderStateMixin {
       decoration: BoxDecoration(
         color: palette.surface,
         borderRadius: BorderRadius.circular(22),
-        boxShadow: [
-          BoxShadow(
-            color: primaryTeal.withValues(alpha: 0.08),
-            blurRadius: 20,
-            offset: const Offset(0, 6),
-          ),
-        ],
       ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           Row(
             children: [
-              const PhosphorIcon(
-                PhosphorIconsRegular.barbell,
+              const Icon(
+                CupertinoIcons.flame,
                 size: 18,
                 color: primaryTeal,
               ),
@@ -513,9 +501,7 @@ class _DemoScreenState extends State<DemoScreen> with TickerProviderStateMixin {
                     width: 52,
                     height: 52,
                     decoration: BoxDecoration(
-                      gradient: const LinearGradient(
-                        colors: [primaryTeal, darkTeal],
-                      ),
+                      color: primaryTeal,
                       borderRadius: BorderRadius.circular(14),
                     ),
                     child: Center(
@@ -554,8 +540,8 @@ class _DemoScreenState extends State<DemoScreen> with TickerProviderStateMixin {
                         const SizedBox(height: 8),
                         Row(
                           children: [
-                            const PhosphorIcon(
-                              PhosphorIconsRegular.timer,
+                            const Icon(
+                              CupertinoIcons.timer,
                               size: 13,
                               color: primaryTeal,
                             ),
@@ -586,7 +572,7 @@ class _DemoScreenState extends State<DemoScreen> with TickerProviderStateMixin {
                   onPressed: _activeStep > 0
                       ? () => setState(() => _activeStep--)
                       : null,
-                  icon: const Icon(Icons.arrow_back_ios_new_rounded, size: 14),
+                  icon: const Icon(CupertinoIcons.chevron_left, size: 14),
                   label: const Text('Prev'),
                   style: OutlinedButton.styleFrom(
                     foregroundColor: primaryTeal,
@@ -605,8 +591,8 @@ class _DemoScreenState extends State<DemoScreen> with TickerProviderStateMixin {
                   onPressed: _nextStep,
                   icon: Icon(
                     _activeStep < _steps.length - 1
-                        ? Icons.arrow_forward_ios_rounded
-                        : Icons.refresh_rounded,
+                        ? CupertinoIcons.chevron_right
+                        : CupertinoIcons.arrow_clockwise,
                     size: 14,
                   ),
                   label: Text(
@@ -635,27 +621,16 @@ class _DemoScreenState extends State<DemoScreen> with TickerProviderStateMixin {
     return Container(
       padding: const EdgeInsets.all(20),
       decoration: BoxDecoration(
-        gradient: const LinearGradient(
-          colors: [darkTeal, Color(0xFF1A8587), primaryTeal],
-          begin: Alignment.topLeft,
-          end: Alignment.bottomRight,
-        ),
+        color: AppPalette.midTeal,
         borderRadius: BorderRadius.circular(22),
-        boxShadow: [
-          BoxShadow(
-            color: primaryTeal.withValues(alpha: 0.3),
-            blurRadius: 20,
-            offset: const Offset(0, 8),
-          ),
-        ],
       ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           const Row(
             children: [
-              PhosphorIcon(
-                PhosphorIconsRegular.chartBar,
+              Icon(
+                CupertinoIcons.chart_bar,
                 size: 18,
                 color: Colors.white,
               ),
@@ -681,11 +656,11 @@ class _DemoScreenState extends State<DemoScreen> with TickerProviderStateMixin {
           const SizedBox(height: 20),
           Row(
             children: [
-              _statPill('Sessions', '12', PhosphorIconsRegular.heartbeat),
+              _statPill('Sessions', '12', CupertinoIcons.heart),
               const SizedBox(width: 10),
-              _statPill('Streak', '5 days', PhosphorIconsRegular.flame),
+              _statPill('Streak', '5 days', CupertinoIcons.flame_fill),
               const SizedBox(width: 10),
-              _statPill('Score', '87%', PhosphorIconsRegular.trophy),
+              _statPill('Score', '87%', CupertinoIcons.rosette),
             ],
           ),
           const SizedBox(height: 20),
@@ -718,7 +693,7 @@ class _DemoScreenState extends State<DemoScreen> with TickerProviderStateMixin {
     );
   }
 
-  Widget _statPill(String label, String value, PhosphorIconData icon) {
+  Widget _statPill(String label, String value, IconData icon) {
     return Expanded(
       child: Container(
         padding: const EdgeInsets.symmetric(vertical: 12, horizontal: 10),
@@ -729,7 +704,7 @@ class _DemoScreenState extends State<DemoScreen> with TickerProviderStateMixin {
         ),
         child: Column(
           children: [
-            PhosphorIcon(icon, size: 18, color: Colors.white),
+            Icon(icon, size: 18, color: Colors.white),
             const SizedBox(height: 6),
             Text(
               value,
@@ -742,7 +717,7 @@ class _DemoScreenState extends State<DemoScreen> with TickerProviderStateMixin {
             Text(
               label,
               style: TextStyle(
-                fontSize: 10,
+                fontSize: 11,
                 color: Colors.white.withValues(alpha: 0.7),
               ),
             ),
@@ -767,7 +742,7 @@ class _DemoScreenState extends State<DemoScreen> with TickerProviderStateMixin {
         Text(
           day,
           style: TextStyle(
-            fontSize: 10,
+            fontSize: 11,
             color: Colors.white.withValues(alpha: 0.7),
           ),
         ),
@@ -790,13 +765,6 @@ class _FeatureCard extends StatelessWidget {
       decoration: BoxDecoration(
         color: palette.surface,
         borderRadius: BorderRadius.circular(22),
-        boxShadow: [
-          BoxShadow(
-            color: feature.color.withValues(alpha: 0.12),
-            blurRadius: 16,
-            offset: const Offset(0, 6),
-          ),
-        ],
       ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
@@ -807,7 +775,7 @@ class _FeatureCard extends StatelessWidget {
               color: feature.color.withValues(alpha: 0.1),
               borderRadius: BorderRadius.circular(16),
             ),
-            child: PhosphorIcon(feature.icon, size: 28, color: feature.color),
+            child: Icon(feature.icon, size: 28, color: feature.color),
           ),
           const SizedBox(height: 16),
           Text(
@@ -837,7 +805,7 @@ class _FeatureCard extends StatelessWidget {
 enum _PreviewType { progress, exercise, messages, notifications }
 
 class _DemoFeature {
-  final PhosphorIconData icon;
+  final IconData icon;
   final Color color;
   final String title, subtitle;
   final _PreviewType preview;
@@ -986,13 +954,6 @@ class _VideoCardState extends State<_VideoCard> {
       decoration: BoxDecoration(
         color: palette.surface,
         borderRadius: BorderRadius.circular(20),
-        boxShadow: [
-          BoxShadow(
-            color: widget.color.withValues(alpha: 0.1),
-            blurRadius: 14,
-            offset: const Offset(0, 5),
-          ),
-        ],
       ),
       child: Column(
         children: [
@@ -1032,8 +993,8 @@ class _VideoCardState extends State<_VideoCard> {
                             ),
                           )
                         : const Center(
-                            child: CircularProgressIndicator(
-                              color: primaryTeal,
+                            child: CircularProgressIndicator.adaptive(
+                              valueColor: AlwaysStoppedAnimation(primaryTeal),
                               strokeWidth: 2,
                             ),
                           ))
@@ -1049,7 +1010,7 @@ class _VideoCardState extends State<_VideoCard> {
                               borderRadius: BorderRadius.circular(12),
                             ),
                             child: const Icon(
-                              Icons.play_arrow_rounded,
+                              CupertinoIcons.play_fill,
                               color: Colors.white,
                               size: 26,
                             ),
@@ -1072,7 +1033,7 @@ class _VideoCardState extends State<_VideoCard> {
                                 Row(
                                   children: [
                                     Icon(
-                                      Icons.access_time_rounded,
+                                      CupertinoIcons.clock,
                                       size: 12,
                                       color: palette.textFaint,
                                     ),
@@ -1099,7 +1060,7 @@ class _VideoCardState extends State<_VideoCard> {
                                       child: Text(
                                         widget.level,
                                         style: TextStyle(
-                                          fontSize: 10,
+                                          fontSize: 11,
                                           color: _levelColor,
                                           fontWeight: FontWeight.w700,
                                         ),
@@ -1112,8 +1073,8 @@ class _VideoCardState extends State<_VideoCard> {
                           ),
                           Icon(
                             _expanded
-                                ? Icons.keyboard_arrow_up_rounded
-                                : Icons.play_circle_outline_rounded,
+                                ? CupertinoIcons.chevron_up
+                                : CupertinoIcons.play_circle,
                             color: widget.color,
                             size: 28,
                           ),

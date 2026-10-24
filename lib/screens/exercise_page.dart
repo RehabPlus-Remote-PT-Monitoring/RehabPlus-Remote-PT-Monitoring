@@ -1,4 +1,5 @@
 // lib/screens/exercise_page.dart
+import 'package:flutter/cupertino.dart' show CupertinoIcons;
 import 'package:flutter/material.dart';
 // `show`: intl also exports a TextDirection that clashes with Flutter's.
 import 'package:intl/intl.dart' show DateFormat;
@@ -132,7 +133,7 @@ class _ExercisePageState extends State<ExercisePage> {
                           children: [
                             UnreadNotifications(
                               builder: (context, unread) => _buildTopCircleButton(
-                                Icons.notifications_rounded,
+                                CupertinoIcons.bell_fill,
                                 tooltip: 'Notifications',
                                 hasBadge: unread > 0,
                                 onTap: () => Navigator.push(
@@ -147,7 +148,7 @@ class _ExercisePageState extends State<ExercisePage> {
                             Consumer<AppProvider>(
                               builder: (context, provider, _) =>
                                   _buildTopCircleButton(
-                                    Icons.assignment_turned_in_rounded,
+                                    CupertinoIcons.doc_checkmark,
                                     tooltip: "Today's plan",
                                     // Dot while something due today is not done.
                                     hasBadge:
@@ -212,13 +213,13 @@ class _ExercisePageState extends State<ExercisePage> {
                     builder: (context, snapshot) {
                       if (snapshot.connectionState == ConnectionState.waiting) {
                         return const Center(
-                          child: CircularProgressIndicator(color: primaryTeal),
+                          child: CircularProgressIndicator.adaptive(valueColor: AlwaysStoppedAnimation(primaryTeal)),
                         );
                       }
 
                       if (snapshot.hasError) {
                         return _buildMessage(
-                          icon: Icons.wifi_off_rounded,
+                          icon: CupertinoIcons.wifi_slash,
                           text: "Couldn't load your plan. Check your connection and try again.",
                           onRetry: _refresh,
                         );
@@ -232,7 +233,7 @@ class _ExercisePageState extends State<ExercisePage> {
                           .where((c) => !assignedTypes.contains(c.type))
                           .toList();
 
-                      return RefreshIndicator(
+                      return RefreshIndicator.adaptive(
                         color: primaryTeal,
                         onRefresh: _refresh,
                         child: Consumer<AppProvider>(
@@ -342,7 +343,7 @@ class _ExercisePageState extends State<ExercisePage> {
       ),
       child: Row(
         children: [
-          const Icon(Icons.event_note_rounded, color: primaryTeal),
+          const Icon(CupertinoIcons.calendar, color: primaryTeal),
           const SizedBox(width: 12),
           Expanded(
             child: Text(
@@ -499,11 +500,11 @@ class _AnimatedExerciseCardState extends State<AnimatedExerciseCard>
   // than "which body part" at a glance.
   ({Color accent, IconData icon}) get _visuals {
     if (widget.config.isHold) {
-      return (accent: const Color(0xFFE91E63), icon: Icons.timer_rounded);
+      return (accent: const Color(0xFFE91E63), icon: CupertinoIcons.timer_fill);
     }
     switch (widget.config.category) {
       case 'MCL Recovery':
-        return (accent: const Color(0xFF00ACC1), icon: Icons.swap_vert_rounded);
+        return (accent: const Color(0xFF00ACC1), icon: CupertinoIcons.arrow_up_arrow_down);
       case 'Lower Body':
         return (accent: const Color(0xFFFF7043), icon: Icons.directions_walk_rounded);
       case 'Core & Hips':
@@ -569,13 +570,6 @@ class _AnimatedExerciseCardState extends State<AnimatedExerciseCard>
               decoration: BoxDecoration(
                 color: palette.surface,
                 borderRadius: BorderRadius.circular(22),
-                boxShadow: [
-                  BoxShadow(
-                    color: palette.shadow.withValues(alpha: 0.05),
-                    blurRadius: 12,
-                    offset: const Offset(0, 4),
-                  ),
-                ],
               ),
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
@@ -608,14 +602,14 @@ class _AnimatedExerciseCardState extends State<AnimatedExerciseCard>
                             const SizedBox(height: 6),
                             Row(
                               children: [
-                                Icon(Icons.schedule_rounded, size: 13, color: palette.textMuted),
+                                Icon(CupertinoIcons.clock, size: 13, color: palette.textMuted),
                                 const SizedBox(width: 4),
                                 Text(
                                   '${config.estimatedMinutes} min',
                                   style: TextStyle(fontSize: 12, color: palette.textMuted),
                                 ),
                                 const SizedBox(width: 12),
-                                Icon(Icons.repeat_rounded, size: 13, color: palette.textMuted),
+                                Icon(CupertinoIcons.repeat, size: 13, color: palette.textMuted),
                                 const SizedBox(width: 4),
                                 Expanded(
                                   child: Text(
@@ -631,7 +625,7 @@ class _AnimatedExerciseCardState extends State<AnimatedExerciseCard>
                             // from the right camera view.
                             Row(
                               children: [
-                                Icon(Icons.videocam_outlined, size: 13, color: palette.textMuted),
+                                Icon(CupertinoIcons.videocam, size: 13, color: palette.textMuted),
                                 const SizedBox(width: 4),
                                 Expanded(
                                   child: Text(
@@ -667,7 +661,7 @@ class _AnimatedExerciseCardState extends State<AnimatedExerciseCard>
                               width: 36,
                               height: 36,
                               decoration: BoxDecoration(color: visuals.accent, shape: BoxShape.circle),
-                              child: const Icon(Icons.play_arrow_rounded, color: Colors.white, size: 20),
+                              child: const Icon(CupertinoIcons.play_fill, color: Colors.white, size: 20),
                             ),
                           ),
                         ],

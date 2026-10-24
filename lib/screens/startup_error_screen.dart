@@ -1,3 +1,4 @@
+import 'package:flutter/cupertino.dart' show CupertinoIcons;
 import 'package:flutter/material.dart';
 
 import '../core/app_palette.dart';
@@ -47,7 +48,7 @@ class _StartupErrorScreenState extends State<StartupErrorScreen> {
                 mainAxisSize: MainAxisSize.min,
                 children: [
                   const Icon(
-                    Icons.cloud_off_rounded,
+                    CupertinoIcons.wifi_slash,
                     size: 64,
                     color: Color(0xFF00BCD4),
                   ),
@@ -70,9 +71,9 @@ class _StartupErrorScreenState extends State<StartupErrorScreen> {
                         ? const SizedBox(
                             width: 18,
                             height: 18,
-                            child: CircularProgressIndicator(strokeWidth: 2),
+                            child: CircularProgressIndicator.adaptive(strokeWidth: 2),
                           )
-                        : const Icon(Icons.refresh_rounded),
+                        : const Icon(CupertinoIcons.arrow_clockwise),
                     label: Text(_retrying ? 'Trying again...' : 'Try again'),
                   ),
                 ],

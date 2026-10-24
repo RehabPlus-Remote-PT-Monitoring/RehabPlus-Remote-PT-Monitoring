@@ -1,10 +1,13 @@
 import 'dart:async';
 
 import 'package:firebase_auth/firebase_auth.dart';
+import 'package:flutter/cupertino.dart' show CupertinoIcons;
 import 'package:flutter/material.dart' hide DiagnosticLevel;
 import 'package:package_info_plus/package_info_plus.dart';
 import 'package:permission_handler/permission_handler.dart';
 
+import '../widgets/ios_segmented_control.dart';
+import '../widgets/app_dialogs.dart';
 import '../core/app_palette.dart';
 import '../core/diagnostic_logger.dart';
 import '../models/chat.dart';
@@ -276,25 +279,11 @@ class _SettingsScreenState extends State<SettingsScreen>
       _logger.warn(_tag, 'Change password: no signed-in e-mail');
       return;
     }
-    final ok = await showDialog<bool>(
-      context: context,
-      builder: (ctx) => AlertDialog(
-        backgroundColor: ctx.palette.surface,
-        title: const Text('Change password'),
-        content: Text(
-          'We\'ll email a link to $email. Open it to choose a new password.',
-        ),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.pop(ctx, false),
-            child: const Text('Cancel'),
-          ),
-          TextButton(
-            onPressed: () => Navigator.pop(ctx, true),
-            child: const Text('Send link'),
-          ),
-        ],
-      ),
+    final ok = await showConfirmDialog(
+      context,
+      title: 'Change password',
+      message: 'We\'ll email a link to $email. Open it to choose a new password.',
+      confirmLabel: 'Send link',
     );
     if (ok != true) return;
     _sendingPasswordLink = true;
@@ -413,29 +402,29 @@ class _SettingsScreenState extends State<SettingsScreen>
             child: ListView(
               padding: readablePadding(context, const EdgeInsets.fromLTRB(16, 16, 16, 32)),
               children: [
-                _section('Exercise feedback', Icons.fitness_center_rounded, [
+                _section('Exercise feedback', CupertinoIcons.flame, [
                   _switch(
-                    Icons.volume_up_outlined,
+                    CupertinoIcons.speaker_2,
                     'Sound on each rep',
                     s.repSound,
                     _logged('repSound', s.setRepSound),
                   ),
                   _switch(
-                    Icons.vibration_rounded,
+                    CupertinoIcons.device_phone_portrait,
                     'Vibrate on each rep',
                     s.repVibration,
                     _logged('repVibration', s.setRepVibration),
                     subtitle: 'Also a double buzz when a rep isn\'t counted',
                   ),
                   _switch(
-                    Icons.record_voice_over_outlined,
+                    CupertinoIcons.waveform,
                     'Spoken cues',
                     s.voiceCues,
                     _logged('voiceCues', s.setVoiceCues),
                     subtitle: 'Reads your rep count and form tips aloud',
                   ),
                   _choice<int>(
-                    Icons.timer_outlined,
+                    CupertinoIcons.timer,
                     'Countdown before counting',
                     s.countdownSeconds,
                     {
@@ -445,9 +434,9 @@ class _SettingsScreenState extends State<SettingsScreen>
                     _logged('countdownSeconds', s.setCountdownSeconds),
                   ),
                 ]),
-                _section('Camera', Icons.videocam_outlined, [
+                _section('Camera', CupertinoIcons.videocam, [
                   _choice<bool>(
-                    Icons.cameraswitch_outlined,
+                    CupertinoIcons.camera_rotate,
                     'Start with',
                     s.useBackCamera,
                     const {false: 'Front', true: 'Back'},
@@ -461,22 +450,22 @@ class _SettingsScreenState extends State<SettingsScreen>
                     subtitle: 'The lines drawn over your body',
                   ),
                   _switch(
-                    Icons.flip_rounded,
+                    CupertinoIcons.arrow_right_arrow_left,
                     'Flip skeleton',
                     s.flipSkeleton,
                     _logged('flipSkeleton', s.setFlipSkeleton),
                     subtitle: 'Turn on if it moves opposite to you',
                   ),
                 ]),
-                _section('Reminders', Icons.alarm_rounded, [
+                _section('Reminders', CupertinoIcons.alarm, [
                   _switch(
-                    Icons.notifications_active_outlined,
+                    CupertinoIcons.bell,
                     'Daily exercise reminder',
                     s.reminderEnabled,
                     _toggleReminder,
                   ),
                   _tile(
-                    Icons.schedule_rounded,
+                    CupertinoIcons.clock,
                     'Reminder time',
                     trailing: Text(
                       reminderTime,
@@ -488,7 +477,7 @@ class _SettingsScreenState extends State<SettingsScreen>
                     onTap: _pickReminderTime,
                   ),
                 ]),
-                _section('Notifications', Icons.notifications_none_rounded, [
+                _section('Notifications', CupertinoIcons.bell, [
                   if (notif == null)
                     const Padding(
                       padding: EdgeInsets.all(16),
@@ -496,13 +485,13 @@ class _SettingsScreenState extends State<SettingsScreen>
                         child: SizedBox(
                           width: 22,
                           height: 22,
-                          child: CircularProgressIndicator(strokeWidth: 2.5),
+                          child: CircularProgressIndicator.adaptive(strokeWidth: 2.5),
                         ),
                       ),
                     )
                   else ...[
                     _switch(
-                      Icons.chat_bubble_outline_rounded,
+                      CupertinoIcons.chat_bubble,
                       'New messages',
                       notif.messages,
                       _savingNotif
@@ -510,7 +499,7 @@ class _SettingsScreenState extends State<SettingsScreen>
                           : (v) => _setNotif(notif.copyWith(messages: v)),
                     ),
                     _switch(
-                      Icons.assignment_outlined,
+                      CupertinoIcons.doc_text,
                       'New exercises',
                       notif.exercises,
                       _savingNotif
@@ -518,7 +507,7 @@ class _SettingsScreenState extends State<SettingsScreen>
                           : (v) => _setNotif(notif.copyWith(exercises: v)),
                     ),
                     _switch(
-                      Icons.alarm_rounded,
+                      CupertinoIcons.alarm,
                       'Clinic reminders',
                       notif.reminders,
                       _savingNotif
@@ -536,9 +525,9 @@ class _SettingsScreenState extends State<SettingsScreen>
                     ),
                   ],
                 ]),
-                _section('Appearance', Icons.text_fields_rounded, [
+                _section('Appearance', CupertinoIcons.textformat_size, [
                   _choice<ThemeMode>(
-                    Icons.dark_mode_outlined,
+                    CupertinoIcons.moon,
                     'Theme',
                     s.themeMode,
                     {
@@ -549,16 +538,16 @@ class _SettingsScreenState extends State<SettingsScreen>
                     _logged('themeMode', s.setThemeMode),
                   ),
                   _choice<double>(
-                    Icons.format_size_rounded,
+                    CupertinoIcons.textformat_size,
                     'Text size',
                     s.textScale,
                     {1.0: 'Normal', 1.15: 'Large', 1.3: 'Larger'},
                     _logged('textScale', s.setTextScale),
                   ),
                 ]),
-                _section('Account', Icons.person_outline_rounded, [
+                _section('Account', CupertinoIcons.person, [
                   _tile(
-                    Icons.lock_outline_rounded,
+                    CupertinoIcons.lock,
                     'App lock',
                     subtitle: !AppLockService.I.isEnabled
                         ? 'Off'
@@ -573,12 +562,12 @@ class _SettingsScreenState extends State<SettingsScreen>
                     ),
                   ),
                   _tile(
-                    Icons.lock_reset_rounded,
+                    CupertinoIcons.lock_rotation,
                     'Change password',
                     onTap: _changePassword,
                   ),
                   _tile(
-                    Icons.photo_camera_outlined,
+                    CupertinoIcons.camera,
                     'Camera access',
                     trailing: Text(
                       switch (_camera) {
@@ -598,9 +587,9 @@ class _SettingsScreenState extends State<SettingsScreen>
                         : _cameraAccess,
                   ),
                 ]),
-                _section('Support', Icons.support_agent_rounded, [
+                _section('Support', CupertinoIcons.chat_bubble_2, [
                   _tile(
-                    Icons.help_outline_rounded,
+                    CupertinoIcons.question_circle,
                     'Help & Support',
                     subtitle: 'Message the clinic',
                     onTap: () => Navigator.push(
@@ -612,19 +601,19 @@ class _SettingsScreenState extends State<SettingsScreen>
                     ),
                   ),
                   _tile(
-                    Icons.call_outlined,
+                    CupertinoIcons.phone,
                     'Call the clinic',
                     onTap: () => callClinic(context),
                   ),
                   _tile(
-                    Icons.bug_report_outlined,
+                    CupertinoIcons.ant,
                     'Report a problem',
                     onTap: _reportProblem,
                   ),
                 ]),
-                _section('About', Icons.info_outline_rounded, [
+                _section('About', CupertinoIcons.info_circle, [
                   _tile(
-                    Icons.apps_rounded,
+                    CupertinoIcons.square_grid_2x2,
                     'App version',
                     trailing: Text(
                       _version,
@@ -643,11 +632,7 @@ class _SettingsScreenState extends State<SettingsScreen>
   Widget _header() {
     return Container(
       decoration: const BoxDecoration(
-        gradient: LinearGradient(
-          colors: AppPalette.headerGradient,
-          begin: Alignment.topLeft,
-          end: Alignment.bottomRight,
-        ),
+        color: AppPalette.midTeal,
         borderRadius: BorderRadius.vertical(bottom: Radius.circular(32)),
       ),
       child: SafeArea(
@@ -658,7 +643,7 @@ class _SettingsScreenState extends State<SettingsScreen>
             children: [
               IconButton(
                 icon: const Icon(
-                  Icons.arrow_back_ios,
+                  CupertinoIcons.chevron_left,
                   color: Colors.white,
                   size: 20,
                 ),
@@ -672,7 +657,7 @@ class _SettingsScreenState extends State<SettingsScreen>
                   borderRadius: BorderRadius.circular(10),
                 ),
                 child: const Icon(
-                  Icons.settings_outlined,
+                  CupertinoIcons.gear,
                   color: Colors.white,
                   size: 20,
                 ),
@@ -700,13 +685,6 @@ class _SettingsScreenState extends State<SettingsScreen>
       decoration: BoxDecoration(
         color: palette.surface,
         borderRadius: BorderRadius.circular(20),
-        boxShadow: [
-          BoxShadow(
-            color: palette.shadow.withValues(alpha: 0.05),
-            blurRadius: 12,
-            offset: const Offset(0, 3),
-          ),
-        ],
       ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.stretch,
@@ -760,7 +738,7 @@ class _SettingsScreenState extends State<SettingsScreen>
     ValueChanged<bool>? onChanged, {
     String? subtitle,
   }) {
-    return SwitchListTile(
+    return SwitchListTile.adaptive(
       value: value,
       onChanged: onChanged,
       activeThumbColor: Colors.white,
@@ -790,7 +768,7 @@ class _SettingsScreenState extends State<SettingsScreen>
           (onTap == null
               ? null
               : Icon(
-                  Icons.chevron_right_rounded,
+                  CupertinoIcons.chevron_right,
                   color: context.palette.textFaint,
                   size: 20,
                 )),
@@ -798,7 +776,7 @@ class _SettingsScreenState extends State<SettingsScreen>
   }
 
   /// A title with a row of options underneath (one selected).
-  Widget _choice<T>(
+  Widget _choice<T extends Object>(
     IconData icon,
     String title,
     T value,
@@ -818,23 +796,10 @@ class _SettingsScreenState extends State<SettingsScreen>
             ],
           ),
           const SizedBox(height: 10),
-          SizedBox(
-            width: double.infinity,
-            child: SegmentedButton<T>(
-              segments: [
-                for (final e in options.entries)
-                  ButtonSegment(value: e.key, label: Text(e.value)),
-              ],
-              selected: {value},
-              showSelectedIcon: false,
-              onSelectionChanged: (sel) => onChanged(sel.first),
-              style: SegmentedButton.styleFrom(
-                selectedBackgroundColor: primaryTeal,
-                selectedForegroundColor: Colors.white,
-                foregroundColor: _valueTeal,
-                side: BorderSide(color: context.palette.divider),
-              ),
-            ),
+          IosSegmentedControl<T>(
+            options: options,
+            value: value,
+            onChanged: onChanged,
           ),
         ],
       ),

@@ -1,3 +1,4 @@
+import 'package:flutter/cupertino.dart' show CupertinoIcons;
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 
@@ -26,7 +27,6 @@ class AccountInfoScreen extends StatefulWidget {
 class _AccountInfoScreenState extends State<AccountInfoScreen> {
   static const String _tag = 'AccountInfo';
   static const Color primaryTeal = AccountInfoScreen.primaryTeal;
-  static const Color darkTeal = AccountInfoScreen.darkTeal;
 
   final DiagnosticLogger _logger = DiagnosticLogger.I;
 
@@ -58,7 +58,7 @@ class _AccountInfoScreenState extends State<AccountInfoScreen> {
       SnackBar(
         content: const Row(
           children: [
-            Icon(Icons.check_circle_outline, color: Colors.white, size: 18),
+            Icon(CupertinoIcons.checkmark_circle, color: Colors.white, size: 18),
             SizedBox(width: 8),
             Text('Account information updated'),
           ],
@@ -96,23 +96,16 @@ class _AccountInfoScreenState extends State<AccountInfoScreen> {
                   decoration: BoxDecoration(
                     color: palette.surface,
                     borderRadius: BorderRadius.circular(20),
-                    boxShadow: [
-                      BoxShadow(
-                        color: palette.shadow.withValues(alpha: 0.05),
-                        blurRadius: 12,
-                        offset: const Offset(0, 3),
-                      ),
-                    ],
                   ),
                   child: Column(
                     children: [
-                      _row(Icons.person_outline, 'Full Name', profile.name),
+                      _row(CupertinoIcons.person, 'Full Name', profile.name),
                       _divider(),
-                      _row(Icons.email_outlined, 'Email', profile.email),
+                      _row(CupertinoIcons.envelope, 'Email', profile.email),
                       _divider(),
-                      _row(Icons.phone_outlined, 'Phone', profile.phone),
+                      _row(CupertinoIcons.phone, 'Phone', profile.phone),
                       _divider(),
-                      _row(Icons.cake_outlined, 'Date of Birth', profile.dob),
+                      _row(CupertinoIcons.gift, 'Date of Birth', profile.dob),
                     ],
                   ),
                 ),
@@ -130,7 +123,7 @@ class _AccountInfoScreenState extends State<AccountInfoScreen> {
                   height: 52,
                   child: FilledButton.icon(
                     onPressed: () => _update(context, profile),
-                    icon: const Icon(Icons.edit_outlined, size: 20),
+                    icon: const Icon(CupertinoIcons.pencil, size: 20),
                     label: const Text(
                       'Update account information',
                       style: TextStyle(
@@ -157,11 +150,7 @@ class _AccountInfoScreenState extends State<AccountInfoScreen> {
   Widget _header(BuildContext context) {
     return Container(
       decoration: const BoxDecoration(
-        gradient: LinearGradient(
-          colors: [darkTeal, Color(0xFF1A8587), primaryTeal],
-          begin: Alignment.topLeft,
-          end: Alignment.bottomRight,
-        ),
+        color: AppPalette.midTeal,
         borderRadius: BorderRadius.vertical(bottom: Radius.circular(32)),
       ),
       child: SafeArea(
@@ -172,7 +161,7 @@ class _AccountInfoScreenState extends State<AccountInfoScreen> {
             children: [
               IconButton(
                 icon: const Icon(
-                  Icons.arrow_back_ios,
+                  CupertinoIcons.chevron_left,
                   color: Colors.white,
                   size: 20,
                 ),

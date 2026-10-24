@@ -1,5 +1,6 @@
 import 'dart:typed_data';
 
+import 'package:flutter/cupertino.dart' show CupertinoIcons;
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart' show PlatformException;
 import 'package:image_picker/image_picker.dart';
@@ -48,7 +49,6 @@ class EditProfileScreen extends StatefulWidget {
 class _EditProfileScreenState extends State<EditProfileScreen>
     with SingleTickerProviderStateMixin {
   static const Color primaryTeal = Color(0xFF23A8AA);
-  static const Color darkTeal = Color(0xFF0D6E71);
   static const String _tag = 'EditProfile';
 
   final DiagnosticLogger _logger = DiagnosticLogger.I;
@@ -101,7 +101,7 @@ class _EditProfileScreenState extends State<EditProfileScreen>
           children: [
             ListTile(
               leading: const Icon(
-                Icons.photo_camera_outlined,
+                CupertinoIcons.camera,
                 color: primaryTeal,
               ),
               title: const Text('Take a photo'),
@@ -109,7 +109,7 @@ class _EditProfileScreenState extends State<EditProfileScreen>
             ),
             ListTile(
               leading: const Icon(
-                Icons.photo_library_outlined,
+                CupertinoIcons.photo_on_rectangle,
                 color: primaryTeal,
               ),
               title: const Text('Choose from gallery'),
@@ -117,7 +117,7 @@ class _EditProfileScreenState extends State<EditProfileScreen>
             ),
             if (_photo != null)
               ListTile(
-                leading: Icon(Icons.delete_outline, color: Colors.red[700]),
+                leading: Icon(CupertinoIcons.trash, color: Colors.red[700]),
                 title: const Text('Remove photo'),
                 onTap: () => Navigator.pop(ctx, 'remove'),
               ),
@@ -290,7 +290,7 @@ class _EditProfileScreenState extends State<EditProfileScreen>
                         const SizedBox(height: 24),
                         _sectionLabel(
                           'Personal Info',
-                          Icons.person_outline_rounded,
+                          CupertinoIcons.person,
                         ),
                         const SizedBox(height: 12),
                         _buildCard([
@@ -298,7 +298,7 @@ class _EditProfileScreenState extends State<EditProfileScreen>
                           _field(
                             _nameCtrl,
                             'Full Name',
-                            Icons.person_outline,
+                            CupertinoIcons.person,
                             keyboardType: TextInputType.name,
                             validator: _requiredName,
                             autofillHints: const [AutofillHints.name],
@@ -308,14 +308,14 @@ class _EditProfileScreenState extends State<EditProfileScreen>
                           _field(
                             _emailCtrl,
                             'Email',
-                            Icons.email_outlined,
+                            CupertinoIcons.envelope,
                             readOnly: true,
                           ),
                           _divider(),
                           _field(
                             _phoneCtrl,
                             'Phone',
-                            Icons.phone_outlined,
+                            CupertinoIcons.phone,
                             keyboardType: TextInputType.phone,
                             validator: _phone,
                             autofillHints: const [AutofillHints.telephoneNumber],
@@ -324,7 +324,7 @@ class _EditProfileScreenState extends State<EditProfileScreen>
                           _field(
                             _dobCtrl,
                             'Date of Birth',
-                            Icons.cake_outlined,
+                            CupertinoIcons.gift,
                             validator: _required,
                             autofillHints: const [AutofillHints.birthday],
                           ),
@@ -332,21 +332,21 @@ class _EditProfileScreenState extends State<EditProfileScreen>
                         const SizedBox(height: 20),
                         _sectionLabel(
                           'Rehab Info',
-                          Icons.medical_services_outlined,
+                          CupertinoIcons.bandage,
                         ),
                         const SizedBox(height: 12),
                         _buildCard([
                           _field(
                             _conditionCtrl,
                             'Condition',
-                            Icons.medical_services_outlined,
+                            CupertinoIcons.bandage,
                             readOnly: true,
                           ),
                           _divider(),
                           _field(
                             _therapistCtrl,
                             'Therapist',
-                            Icons.person_pin_outlined,
+                            CupertinoIcons.person_crop_square,
                             readOnly: true,
                           ),
                         ]),
@@ -367,11 +367,7 @@ class _EditProfileScreenState extends State<EditProfileScreen>
   Widget _buildHeader(BuildContext context) {
     return Container(
       decoration: const BoxDecoration(
-        gradient: LinearGradient(
-          colors: [darkTeal, Color(0xFF1A8587), primaryTeal],
-          begin: Alignment.topLeft,
-          end: Alignment.bottomRight,
-        ),
+        color: AppPalette.midTeal,
         borderRadius: BorderRadius.vertical(bottom: Radius.circular(32)),
       ),
       child: SafeArea(
@@ -390,7 +386,7 @@ class _EditProfileScreenState extends State<EditProfileScreen>
                     borderRadius: BorderRadius.circular(12),
                   ),
                   child: const Icon(
-                    Icons.arrow_back_ios_new_rounded,
+                    CupertinoIcons.chevron_left,
                     color: Colors.white,
                     size: 18,
                   ),
@@ -442,15 +438,9 @@ class _EditProfileScreenState extends State<EditProfileScreen>
                     decoration: BoxDecoration(
                       color: palette.surface,
                       shape: BoxShape.circle,
-                      boxShadow: [
-                        BoxShadow(
-                          color: palette.shadow.withValues(alpha: 0.1),
-                          blurRadius: 6,
-                        ),
-                      ],
                     ),
                     child: const Icon(
-                      Icons.camera_alt_rounded,
+                      CupertinoIcons.camera_fill,
                       size: 17,
                       color: primaryTeal,
                     ),
@@ -497,13 +487,6 @@ class _EditProfileScreenState extends State<EditProfileScreen>
       decoration: BoxDecoration(
         color: palette.surface,
         borderRadius: BorderRadius.circular(20),
-        boxShadow: [
-          BoxShadow(
-            color: palette.shadow.withValues(alpha: 0.05),
-            blurRadius: 12,
-            offset: const Offset(0, 3),
-          ),
-        ],
       ),
       child: Padding(
         padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
@@ -550,7 +533,7 @@ class _EditProfileScreenState extends State<EditProfileScreen>
           ),
           border: InputBorder.none,
           suffixIcon: readOnly
-              ? Icon(Icons.lock_outline, size: 14, color: palette.textFaint)
+              ? Icon(CupertinoIcons.lock, size: 14, color: palette.textFaint)
               : null,
         ),
       ),
@@ -601,8 +584,8 @@ class _EditProfileScreenState extends State<EditProfileScreen>
             ? const SizedBox(
                 width: 20,
                 height: 20,
-                child: CircularProgressIndicator(
-                  color: Colors.white,
+                child: CircularProgressIndicator.adaptive(
+                  valueColor: AlwaysStoppedAnimation(Colors.white),
                   strokeWidth: 2,
                 ),
               )

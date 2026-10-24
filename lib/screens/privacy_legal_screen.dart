@@ -1,3 +1,4 @@
+import 'package:flutter/cupertino.dart' show CupertinoIcons;
 import 'package:flutter/material.dart';
 
 import '../core/app_palette.dart';
@@ -24,7 +25,6 @@ class PrivacyLegalScreen extends StatefulWidget {
 class _PrivacyLegalScreenState extends State<PrivacyLegalScreen> {
   static const String _tag = 'PrivacyLegal';
   static const Color primaryTeal = PrivacyLegalScreen.primaryTeal;
-  static const Color darkTeal = PrivacyLegalScreen.darkTeal;
 
   @override
   void initState() {
@@ -51,25 +51,18 @@ class _PrivacyLegalScreenState extends State<PrivacyLegalScreen> {
                   decoration: BoxDecoration(
                     color: palette.surface,
                     borderRadius: BorderRadius.circular(20),
-                    boxShadow: [
-                      BoxShadow(
-                        color: palette.shadow.withValues(alpha: 0.05),
-                        blurRadius: 12,
-                        offset: const Offset(0, 3),
-                      ),
-                    ],
                   ),
                   child: Column(
                     children: [
                       _choice(
-                        icon: Icons.manage_accounts_outlined,
+                        icon: CupertinoIcons.person_crop_circle,
                         label: 'Account Info',
                         subtitle: 'View and update your personal information',
                         onTap: () => _open(context, const AccountInfoScreen()),
                       ),
                       const Divider(height: 1, indent: 64, endIndent: 16),
                       _choice(
-                        icon: Icons.description_outlined,
+                        icon: CupertinoIcons.doc_text,
                         label: 'Terms and Conditions',
                         subtitle: 'The rules for using RehabPlus',
                         onTap: () =>
@@ -77,7 +70,7 @@ class _PrivacyLegalScreenState extends State<PrivacyLegalScreen> {
                       ),
                       const Divider(height: 1, indent: 64, endIndent: 16),
                       _choice(
-                        icon: Icons.privacy_tip_outlined,
+                        icon: CupertinoIcons.lock_shield,
                         label: 'Privacy Policy',
                         subtitle: 'How your information is used and protected',
                         onTap: () =>
@@ -103,11 +96,7 @@ class _PrivacyLegalScreenState extends State<PrivacyLegalScreen> {
   Widget _header(BuildContext context) {
     return Container(
       decoration: const BoxDecoration(
-        gradient: LinearGradient(
-          colors: [darkTeal, Color(0xFF1A8587), primaryTeal],
-          begin: Alignment.topLeft,
-          end: Alignment.bottomRight,
-        ),
+        color: AppPalette.midTeal,
         borderRadius: BorderRadius.vertical(bottom: Radius.circular(32)),
       ),
       child: SafeArea(
@@ -118,7 +107,7 @@ class _PrivacyLegalScreenState extends State<PrivacyLegalScreen> {
             children: [
               IconButton(
                 icon: const Icon(
-                  Icons.arrow_back_ios,
+                  CupertinoIcons.chevron_left,
                   color: Colors.white,
                   size: 20,
                 ),
@@ -132,7 +121,7 @@ class _PrivacyLegalScreenState extends State<PrivacyLegalScreen> {
                   borderRadius: BorderRadius.circular(10),
                 ),
                 child: const Icon(
-                  Icons.shield_outlined,
+                  CupertinoIcons.shield,
                   color: Colors.white,
                   size: 20,
                 ),
@@ -185,7 +174,7 @@ class _PrivacyLegalScreenState extends State<PrivacyLegalScreen> {
         style: TextStyle(fontSize: 12, color: palette.textMuted),
       ),
       trailing: Icon(
-        Icons.chevron_right_rounded,
+        CupertinoIcons.chevron_right,
         color: palette.textFaint,
         size: 20,
       ),

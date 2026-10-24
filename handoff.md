@@ -52,6 +52,7 @@ The group repo (`paulirichmond/...`) is behind on both branches; push there only
 | Settings > Notifications > Clinic reminders (`reminders` preference, honoured by the dashboard's evening reminder) | ✅ Built, tests pass |
 | Firestore security rules (incl. goals read + `reminders` pref) | ✅ Deployed 24 Oct; live ruleset verified identical to `firestore.rules`. Emulator suite: 26 passing |
 | Tablets and landscape (option A): screen content sits in a centred column at most 600 dp wide (scroll views stay full width and get `readablePadding` so the sides still scroll; non-scrolling parts use `ReadableWidth`; both in `lib/core/responsive.dart`; app bars/headers stay full width, camera screen untouched). Camera frames are rotated for how the device is held (`lib/services/camera_rotation.dart`, Google's ML Kit formula) and the camera restarts when the screen changes orientation (`didChangeMetrics` in the pose screen; the plugin alone kept the old orientation). PIN keypad moves beside the prompt when the screen is short and wide (phone landscape). No portrait lock: Android 16 ignores it on tablets anyway | ✅ Checked on an Honor tablet (NDL-W09, Android 16) in both orientations: every tab, Goals, Settings, Privacy, Terms, Notifications, chat; Bicep Curl counted a rep in landscape with the skeleton aligned. Phone landscape only emulated on the tablet (`wm size 720x1604`, density 320). **Known limits:** in phone landscape the tall teal headers leave little room for lists; with auto-rotate off and the device held the other way, the patient appears sideways (the app can't see the physical orientation). A real tablet layout (nav rail, two columns) was option B, not built |
+| iOS-style look, UI polish steps 1-4 (see section 7): `lib/core/app_theme.dart` (Inter font, Apple type scale, `platform: iOS` so adaptive widgets take iOS form, iOS slide transitions, no ripples), iOS system colours in `AppPalette`, CupertinoIcons everywhere (a few Material body/fingerprint icons kept), most gradients and soft shadows removed, iOS alerts (`lib/widgets/app_dialogs.dart`) and sliding segmented controls (`lib/widgets/ios_segmented_control.dart`) | ✅ Checked on the phone (dark) and the tablet (light and dark) on 24 Oct: Home, Exercises, Profile, Settings, Privacy, the Change password alert |
 | `flutter analyze`: no issues. `flutter test`: 211 passing | ✅ |
 
 ### Clinic dashboard (`laravel-app/`)
@@ -213,3 +214,31 @@ The group repo (`paulirichmond/...`) is behind on both branches; push there only
    - Show the consent status on the dashboard's patient profile (see API_CONTRACT.md).
 8. **Smaller items:**
    - Seed `settings/clinic.phone` with the real clinic number (set the `CLINIC_PHONE` environment variable). The dashboard has no settings page for it yet.
+
+## 7. UI polish roadmap (iOS look on phone and tablet)
+
+The user wants the app to feel like an iPhone app on phones and to use a tablet's space well (the 600 dp column felt "crowded and empty at the same time"). A review against the apple-design, ios-hig-design and swiftui-pro skills on 24 Oct scored it about 3/10 on Apple's guidelines and produced this list. The user chose to build them in order, one commit per step, each checked on the phone and the tablet.
+
+**Done (24 Oct):**
+1. iOS page transitions (slide from the right, swipe back): `pageTransitionsTheme` in `app_theme.dart`.
+2. iOS type scale with Inter (closest free match to SF Pro, which can't legally ship on Android). Nothing under 11 pt. Text size setting still applies on top.
+3. iOS colours: grouped grey `#F2F2F7` / black backgrounds, white / `#1C1C1E` cards, iOS label opacities; teal is the only accent. Gradients kept only on the Home header and the branded full-screen backgrounds (splash, login, forgot password, PIN lock); 32 soft card/glow shadows removed.
+4. Native controls: iOS switches, spinners and pull-to-refresh via `.adaptive`; iOS alerts for yes/no questions; iOS sliding segmented controls; one icon family (CupertinoIcons). Phosphor is now only used for the brand shield logo.
+
+**Next (not started), in the agreed order:**
+5. Inner pages get iOS large-title navigation bars that collapse on scroll, with a back button showing the previous screen's name ("‹ Profile"), replacing the custom teal headers (Settings, Goals, Privacy, Notifications, Account Info, Legal, Progress report, Edit profile). Likely a shared `SliverAppBar.large`-style widget in `lib/widgets/`.
+6. Settings, Profile, Account Info and Privacy as iOS inset grouped lists: small grey uppercase section headers outside the card, 44 pt rows, separators inset past the icon, chevrons.
+7. iOS tab bar: labels always visible under all four icons, filled icon when selected, translucent blurred bar with content scrolling underneath, accessibility labels for every tab (the non-Home tabs have none today).
+8. Press feedback (apple-design rule 1): cards and tiles dim or scale to about 0.97 on touch-down (19 bare GestureDetectors give no feedback today); light haptics only on meaningful moments.
+9. Home details: the weekday circles repeat each letter under the circle (drop one); the red "↓ -2" pills read as failure (neutral grey with words); the header "+" has no clear meaning (label it or remove it).
+10. Fewer snackbars (48 today): confirm inline or with a short banner; save quietly.
+11. Tablet: header content aligned with the content column; column widens to about 840 dp on tablets.
+12. Tablet: two columns where useful (Home cards 2-up, Profile info cards side by side, report charts next to the numbers).
+13. Tablet: iPad-style sidebar instead of the floating bottom bar on wide screens.
+14. Tablet: list and detail side by side (Messages inbox + conversation; Settings sections + open section).
+
+**Left out on purpose:** the camera exercise screen (tuned and working) and the login/splash branding.
+
+**Known small issues after step 4:** Inter is slightly wider than the old font, so long exercise-card lines like "1 Set | 10 Reps" now end in "..." on the phone; this will go away with the card layout in steps 5-10. Many screens still pass explicit font sizes rather than `Theme.of(context).textTheme`; move them onto the scale as each screen is touched.
+
+**How to check UI on the devices:** the phone (OPPO CPH2773) is usually on wireless debugging (`adb mdns services`, then `adb connect <ip:port>` from the `_adb-tls-connect` line); the full 184 MB APK takes several minutes over Wi-Fi, so install it in the background. The tablet (Honor NDL-W09) is on USB. Use `adb -s <serial>` when both are connected.

@@ -1,6 +1,8 @@
+import 'package:flutter/cupertino.dart' show CupertinoIcons;
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 
+import '../widgets/ios_segmented_control.dart';
 import '../core/app_palette.dart';
 import '../core/diagnostic_logger.dart';
 import '../models/prescription.dart';
@@ -40,32 +42,32 @@ Color _warningColor(BuildContext context) =>
     ProgressStatus.great => (
       fg: _goodColor(context),
       bg: tint(_goodColor(context), const Color(0xFFE8F5E9)),
-      icon: Icons.emoji_events_outlined,
+      icon: CupertinoIcons.rosette,
     ),
     ProgressStatus.onTrack => (
       fg: _infoColor(context),
       bg: tint(_infoColor(context), const Color(0xFFE0F4F4)),
-      icon: Icons.trending_up_rounded,
+      icon: CupertinoIcons.arrow_up_right,
     ),
     ProgressStatus.needsAttention => (
       fg: _warningColor(context),
       bg: tint(_warningColor(context), const Color(0xFFFFF3E0)),
-      icon: Icons.error_outline_rounded,
+      icon: CupertinoIcons.exclamationmark_circle,
     ),
     ProgressStatus.noData => (
       fg: palette.textSecondary,
       bg: palette.surfaceMuted,
-      icon: Icons.hourglass_empty_rounded,
+      icon: CupertinoIcons.hourglass,
     ),
   };
 }
 
 Widget _findingRow(BuildContext context, Finding f) {
   final (icon, color) = switch (f.kind) {
-    FindingKind.good => (Icons.check_circle_rounded, _goodColor(context)),
-    FindingKind.info => (Icons.info_outline_rounded, _infoColor(context)),
+    FindingKind.good => (CupertinoIcons.checkmark_circle_fill, _goodColor(context)),
+    FindingKind.info => (CupertinoIcons.info_circle, _infoColor(context)),
     FindingKind.warning => (
-      Icons.warning_amber_rounded,
+      CupertinoIcons.exclamationmark_triangle,
       _warningColor(context),
     ),
   };
@@ -177,7 +179,7 @@ class ProgressSummaryCard extends StatelessWidget {
                   borderRadius: BorderRadius.circular(14),
                 ),
               ),
-              icon: const Icon(Icons.insights_rounded, size: 18),
+              icon: const Icon(CupertinoIcons.graph_square, size: 18),
               label: const Text(
                 'See full report',
                 style: TextStyle(fontWeight: FontWeight.w600),
@@ -205,9 +207,9 @@ class ProgressSummaryLoading extends StatelessWidget {
         child: SizedBox(
           width: 24,
           height: 24,
-          child: CircularProgressIndicator(
+          child: CircularProgressIndicator.adaptive(
             strokeWidth: 2.5,
-            color: _primaryTeal,
+            valueColor: AlwaysStoppedAnimation(_primaryTeal),
           ),
         ),
       ),
@@ -329,19 +331,10 @@ class _ProgressReportScreenState extends State<ProgressReportScreen> {
             child: ListView(
               padding: readablePadding(context, const EdgeInsets.fromLTRB(16, 16, 16, 32)),
               children: [
-                SegmentedButton<int>(
-                  segments: [
-                    for (final d in _periods)
-                      ButtonSegment(value: d, label: Text('$d days')),
-                  ],
-                  selected: {_days},
-                  showSelectedIcon: false,
-                  onSelectionChanged: (s) => _selectPeriod(s.first),
-                  style: SegmentedButton.styleFrom(
-                    selectedBackgroundColor: _primaryTeal,
-                    selectedForegroundColor: Colors.white,
-                    foregroundColor: _infoColor(context),
-                  ),
+                IosSegmentedControl<int>(
+                  options: {for (final d in _periods) d: '$d days'},
+                  value: _days,
+                  onChanged: _selectPeriod,
                 ),
                 const SizedBox(height: 14),
                 if (report == null)
@@ -415,9 +408,9 @@ class _ProgressReportScreenState extends State<ProgressReportScreen> {
             : const SizedBox(
                 width: 28,
                 height: 28,
-                child: CircularProgressIndicator(
+                child: CircularProgressIndicator.adaptive(
                   strokeWidth: 2.5,
-                  color: _primaryTeal,
+                  valueColor: AlwaysStoppedAnimation(_primaryTeal),
                 ),
               ),
       ),
@@ -427,11 +420,7 @@ class _ProgressReportScreenState extends State<ProgressReportScreen> {
   Widget _header() {
     return Container(
       decoration: const BoxDecoration(
-        gradient: LinearGradient(
-          colors: AppPalette.headerGradient,
-          begin: Alignment.topLeft,
-          end: Alignment.bottomRight,
-        ),
+        color: AppPalette.midTeal,
         borderRadius: BorderRadius.vertical(bottom: Radius.circular(32)),
       ),
       child: SafeArea(
@@ -442,7 +431,7 @@ class _ProgressReportScreenState extends State<ProgressReportScreen> {
             children: [
               IconButton(
                 icon: const Icon(
-                  Icons.arrow_back_ios,
+                  CupertinoIcons.chevron_left,
                   color: Colors.white,
                   size: 20,
                 ),
@@ -528,10 +517,10 @@ class _ProgressReportScreenState extends State<ProgressReportScreen> {
     final palette = context.palette;
     String pct(double? v) => v == null ? '—' : '${(v * 100).round()}%';
     final tiles = <(String, String, IconData)>[
-      ('Sessions', '${r.sessions}', Icons.fitness_center_rounded),
-      ('Active days', '${r.activeDays}', Icons.calendar_month_rounded),
-      ('Time', ProgressStats.formatDuration(r.time), Icons.timer_outlined),
-      ('Reps done', pct(r.repCompletion), Icons.repeat_rounded),
+      ('Sessions', '${r.sessions}', CupertinoIcons.flame),
+      ('Active days', '${r.activeDays}', CupertinoIcons.calendar),
+      ('Time', ProgressStats.formatDuration(r.time), CupertinoIcons.timer),
+      ('Reps done', pct(r.repCompletion), CupertinoIcons.repeat),
       (
         'Form score',
         r.formScore == null ? '—' : '${r.formScore!.round()}%',
@@ -543,8 +532,8 @@ class _ProgressReportScreenState extends State<ProgressReportScreen> {
             ? (r.pain == null ? '—' : '${r.pain!.toStringAsFixed(1)}/10')
             : pct(r.adherence),
         r.adherence == null
-            ? Icons.healing_outlined
-            : Icons.assignment_turned_in_outlined,
+            ? CupertinoIcons.bandage
+            : CupertinoIcons.doc_checkmark,
       ),
     ];
     return GridView.count(

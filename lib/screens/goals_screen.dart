@@ -1,3 +1,4 @@
+import 'package:flutter/cupertino.dart' show CupertinoIcons;
 import 'package:flutter/material.dart';
 // `show`: the full intl library also exports a TextDirection that clashes
 // with Flutter's.
@@ -48,18 +49,18 @@ class _GoalsScreenState extends State<GoalsScreen> {
               builder: (context, snap) {
                 if (snap.hasError) {
                   return _message(
-                    icon: Icons.cloud_off_rounded,
+                    icon: CupertinoIcons.wifi_slash,
                     title: 'Could not load your goals',
                     body: 'Check your internet connection and open this page again.',
                   );
                 }
                 if (!snap.hasData) {
-                  return const Center(child: CircularProgressIndicator());
+                  return const Center(child: CircularProgressIndicator.adaptive());
                 }
                 final goals = snap.data!;
                 if (goals.isEmpty) {
                   return _message(
-                    icon: Icons.flag_outlined,
+                    icon: CupertinoIcons.flag,
                     title: 'No goals yet',
                     body: 'Your therapist will add goals for your recovery. '
                         'They will show up here.',
@@ -135,11 +136,7 @@ class _GoalsScreenState extends State<GoalsScreen> {
   Widget _header(BuildContext context) {
     return Container(
       decoration: const BoxDecoration(
-        gradient: LinearGradient(
-          colors: AppPalette.headerGradient,
-          begin: Alignment.topLeft,
-          end: Alignment.bottomRight,
-        ),
+        color: AppPalette.midTeal,
         borderRadius: BorderRadius.vertical(bottom: Radius.circular(32)),
       ),
       child: SafeArea(
@@ -149,7 +146,7 @@ class _GoalsScreenState extends State<GoalsScreen> {
           child: Row(
             children: [
               IconButton(
-                icon: const Icon(Icons.arrow_back_ios, color: Colors.white, size: 20),
+                icon: const Icon(CupertinoIcons.chevron_left, color: Colors.white, size: 20),
                 onPressed: () => Navigator.pop(context),
               ),
               const SizedBox(width: 4),
@@ -159,7 +156,7 @@ class _GoalsScreenState extends State<GoalsScreen> {
                   color: Colors.white.withValues(alpha: 0.15),
                   borderRadius: BorderRadius.circular(10),
                 ),
-                child: const Icon(Icons.flag_outlined, color: Colors.white, size: 20),
+                child: const Icon(CupertinoIcons.flag, color: Colors.white, size: 20),
               ),
               const SizedBox(width: 12),
               const Text(
@@ -200,13 +197,6 @@ class _GoalCard extends StatelessWidget {
         decoration: BoxDecoration(
           color: palette.surface,
           borderRadius: BorderRadius.circular(20),
-          boxShadow: [
-            BoxShadow(
-              color: palette.shadow.withValues(alpha: 0.05),
-              blurRadius: 12,
-              offset: const Offset(0, 3),
-            ),
-          ],
         ),
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
@@ -216,8 +206,8 @@ class _GoalCard extends StatelessWidget {
               children: [
                 Icon(
                   goal.status == GoalStatus.achieved
-                      ? Icons.emoji_events_rounded
-                      : Icons.flag_rounded,
+                      ? CupertinoIcons.rosette
+                      : CupertinoIcons.flag_fill,
                   color: accent,
                   size: 20,
                 ),
@@ -268,7 +258,7 @@ class _GoalCard extends StatelessWidget {
               const SizedBox(height: 10),
               Row(
                 children: [
-                  Icon(Icons.event_outlined, size: 15, color: palette.textMuted),
+                  Icon(CupertinoIcons.calendar, size: 15, color: palette.textMuted),
                   const SizedBox(width: 6),
                   Text(line, style: TextStyle(fontSize: 12, color: palette.textMuted)),
                 ],

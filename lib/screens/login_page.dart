@@ -1,3 +1,4 @@
+import 'package:flutter/cupertino.dart' show CupertinoIcons;
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart'
     show LengthLimitingTextInputFormatter, TextInput;
@@ -331,7 +332,7 @@ class _LoginPageState extends State<LoginPage> with TickerProviderStateMixin {
                                       _RehabTextField(
                                         controller: emailController,
                                         hint: 'Email address',
-                                        icon: PhosphorIcons.envelopeSimple(),
+                                        icon: CupertinoIcons.envelope,
                                         keyboardType: TextInputType.emailAddress,
                                         autofillHints: const [AutofillHints.email, AutofillHints.username],
                                         textInputAction: TextInputAction.next,
@@ -343,7 +344,7 @@ class _LoginPageState extends State<LoginPage> with TickerProviderStateMixin {
                                       _RehabTextField(
                                         controller: passwordController,
                                         hint: 'Password',
-                                        icon: PhosphorIcons.lockSimple(),
+                                        icon: CupertinoIcons.lock,
                                         obscureText: !showPassword,
                                         isPassword: true,
                                         autofillHints: const [AutofillHints.password],
@@ -352,8 +353,8 @@ class _LoginPageState extends State<LoginPage> with TickerProviderStateMixin {
                                         suffix: IconButton(
                                           tooltip: showPassword ? 'Hide password' : 'Show password',
                                           onPressed: () => setState(() => showPassword = !showPassword),
-                                          icon: PhosphorIcon(
-                                            showPassword ? PhosphorIcons.eyeSlash() : PhosphorIcons.eye(),
+                                          icon: Icon(
+                                            showPassword ? CupertinoIcons.eye_slash : CupertinoIcons.eye,
                                             size: 20,
                                             color: palette.textFaint,
                                           ),
@@ -410,8 +411,8 @@ class _LoginPageState extends State<LoginPage> with TickerProviderStateMixin {
                                           ? const SizedBox(
                                               width: 22,
                                               height: 22,
-                                              child: CircularProgressIndicator(
-                                                color: Colors.white,
+                                              child: CircularProgressIndicator.adaptive(
+                                                valueColor: AlwaysStoppedAnimation(Colors.white),
                                                 strokeWidth: 2.5,
                                               ),
                                             )
@@ -436,8 +437,8 @@ class _LoginPageState extends State<LoginPage> with TickerProviderStateMixin {
                                 Row(
                                   mainAxisAlignment: MainAxisAlignment.center,
                                   children: [
-                                    PhosphorIcon(
-                                      PhosphorIcons.shieldCheck(),
+                                    Icon(
+                                      CupertinoIcons.checkmark_shield,
                                       size: 14,
                                       color: palette.textFaint,
                                     ),
@@ -496,7 +497,7 @@ class _RehabLogo extends StatelessWidget {
 class _RehabTextField extends StatelessWidget {
   final TextEditingController controller;
   final String hint;
-  final PhosphorIconData icon;
+  final IconData icon;
   final bool obscureText;
   final Widget? suffix;
   final TextInputType? keyboardType;
@@ -547,7 +548,7 @@ class _RehabTextField extends StatelessWidget {
       decoration: InputDecoration(
         hintText: hint,
         hintStyle: TextStyle(fontSize: 14, color: palette.textFaint),
-        prefixIcon: PhosphorIcon(icon, size: 20, color: palette.textFaint),
+        prefixIcon: Icon(icon, size: 20, color: palette.textFaint),
         suffixIcon: suffix,
         filled: true,
         fillColor: palette.inputFill,

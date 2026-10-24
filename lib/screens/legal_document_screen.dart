@@ -1,3 +1,4 @@
+import 'package:flutter/cupertino.dart' show CupertinoIcons;
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart' show rootBundle;
 
@@ -41,8 +42,6 @@ class LegalDocumentScreen extends StatefulWidget {
 
 class _LegalDocumentScreenState extends State<LegalDocumentScreen> {
   static const String _tag = 'LegalDocument';
-  static const Color primaryTeal = LegalDocumentScreen.primaryTeal;
-  static const Color darkTeal = LegalDocumentScreen.darkTeal;
 
   final DiagnosticLogger _logger = DiagnosticLogger.I;
 
@@ -96,7 +95,7 @@ class _LegalDocumentScreenState extends State<LegalDocumentScreen> {
                   );
                 }
                 if (!snap.hasData) {
-                  return const Center(child: CircularProgressIndicator());
+                  return const Center(child: CircularProgressIndicator.adaptive());
                 }
                 return SingleChildScrollView(
                   padding: readablePadding(context, const EdgeInsets.fromLTRB(20, 20, 20, 32)),
@@ -115,11 +114,7 @@ class _LegalDocumentScreenState extends State<LegalDocumentScreen> {
   Widget _header(BuildContext context) {
     return Container(
       decoration: const BoxDecoration(
-        gradient: LinearGradient(
-          colors: [darkTeal, Color(0xFF1A8587), primaryTeal],
-          begin: Alignment.topLeft,
-          end: Alignment.bottomRight,
-        ),
+        color: AppPalette.midTeal,
         borderRadius: BorderRadius.vertical(bottom: Radius.circular(32)),
       ),
       child: SafeArea(
@@ -130,7 +125,7 @@ class _LegalDocumentScreenState extends State<LegalDocumentScreen> {
             children: [
               IconButton(
                 icon: const Icon(
-                  Icons.arrow_back_ios,
+                  CupertinoIcons.chevron_left,
                   color: Colors.white,
                   size: 20,
                 ),

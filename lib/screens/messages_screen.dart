@@ -1,5 +1,6 @@
 import 'dart:async';
 
+import 'package:flutter/cupertino.dart' show CupertinoIcons;
 import 'package:flutter/material.dart';
 // `show`: the full intl library also exports a TextDirection that clashes
 // with Flutter's.
@@ -50,7 +51,7 @@ Color _avatarBg(BuildContext context) => context.isDarkMode
     : Colors.grey.shade300;
 
 IconData _threadIcon(ChatThread thread) =>
-    thread == ChatThread.clinic ? Icons.groups : Icons.person_outline;
+    thread == ChatThread.clinic ? CupertinoIcons.person_3_fill : CupertinoIcons.person;
 
 /// Opens the phone dialer with the clinic number (settings/clinic.phone).
 ///
@@ -130,7 +131,7 @@ class _MessagesScreenState extends State<MessagesScreen> {
           IconButton(
             tooltip: 'Call the clinic',
             onPressed: () => callClinic(context),
-            icon: const Icon(Icons.call_outlined, color: Colors.white),
+            icon: const Icon(CupertinoIcons.phone, color: Colors.white),
           ),
           const SizedBox(width: 4),
         ],
@@ -253,7 +254,7 @@ class _ThreadTileState extends State<_ThreadTile> {
                     '$unread',
                     style: const TextStyle(
                       color: Colors.white,
-                      fontSize: 10,
+                      fontSize: 11,
                       fontWeight: FontWeight.bold,
                     ),
                   ),
@@ -397,7 +398,7 @@ class _ChatDetailScreenState extends State<ChatDetailScreen> {
         backgroundColor: palette.surface,
         elevation: 1,
         leading: IconButton(
-          icon: Icon(Icons.arrow_back_ios, color: palette.textPrimary),
+          icon: Icon(CupertinoIcons.chevron_left, color: palette.textPrimary),
           onPressed: () => Navigator.pop(context),
         ),
         title: Row(
@@ -438,22 +439,14 @@ class _ChatDetailScreenState extends State<ChatDetailScreen> {
         actions: [
           IconButton(
             tooltip: 'Call the clinic',
-            icon: const Icon(Icons.call_outlined, color: _primaryTeal),
+            icon: const Icon(CupertinoIcons.phone, color: _primaryTeal),
             onPressed: () => callClinic(context),
           ),
         ],
       ),
       body: Container(
         decoration: BoxDecoration(
-          gradient: LinearGradient(
-            begin: Alignment.topCenter,
-            end: Alignment.bottomCenter,
-            // Dark mode: a deep teal fade instead of the bright aqua, so the
-            // surface-coloured bubbles and white captions still stand out.
-            colors: context.isDarkMode
-                ? [palette.background, const Color(0xFF16393A)]
-                : const [Color(0xFF3F7779), Color(0xFF8CE1E4)],
-          ),
+          color: palette.background,
         ),
         child: Column(
           children: [
@@ -471,7 +464,7 @@ class _ChatDetailScreenState extends State<ChatDetailScreen> {
                   }
                   if (!snap.hasData) {
                     return const Center(
-                      child: CircularProgressIndicator(color: Colors.white),
+                      child: CircularProgressIndicator.adaptive(valueColor: AlwaysStoppedAnimation(Colors.white)),
                     );
                   }
                   final msgs = snap.data!;
@@ -547,10 +540,10 @@ class _ChatDetailScreenState extends State<ChatDetailScreen> {
                             children: [
                               Icon(
                                 e.key.contains('problem')
-                                    ? Icons.bug_report
+                                    ? CupertinoIcons.ant
                                     : e.key.contains('home')
-                                    ? Icons.home_outlined
-                                    : Icons.calendar_today,
+                                    ? CupertinoIcons.house
+                                    : CupertinoIcons.calendar,
                                 size: 14,
                                 color: e.key.contains('problem')
                                     ? Colors.redAccent
@@ -617,7 +610,7 @@ class _ChatDetailScreenState extends State<ChatDetailScreen> {
                       IconButton(
                         tooltip: 'Send',
                         onPressed: _send,
-                        icon: const Icon(Icons.send_rounded, color: _primaryTeal),
+                        icon: const Icon(CupertinoIcons.paperplane_fill, color: _primaryTeal),
                       ),
                     ],
                   ),
@@ -650,7 +643,7 @@ class _Bubble extends StatelessWidget {
   /// once it reached the server, two ticks once staff have seen it.
   Widget _receipt(AppPalette palette) {
     final (IconData glyph, String label) = msg.pending
-        ? (Icons.schedule, 'Sending')
+        ? (CupertinoIcons.clock, 'Sending')
         : seen
         ? (Icons.done_all, 'Seen')
         : (Icons.done, 'Sent');
@@ -676,7 +669,7 @@ class _Bubble extends StatelessWidget {
             child: Text(
               DateFormat("EEE 'at' h:mm a").format(msg.sentAt).toUpperCase(),
               style: TextStyle(
-                fontSize: 10,
+                fontSize: 11,
                 fontWeight: FontWeight.bold,
                 color: palette.textMuted,
                 letterSpacing: 0.5,
