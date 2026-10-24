@@ -1,4 +1,4 @@
-import 'package:flutter/cupertino.dart' show CupertinoIcons;
+import 'package:flutter/cupertino.dart' show CupertinoButton, CupertinoIcons;
 import 'package:flutter/material.dart';
 // `show`: the full intl library also exports a TextDirection that clashes
 // with Flutter's.
@@ -10,61 +10,42 @@ import '../models/app_notification.dart';
 import '../models/chat.dart';
 import '../services/notification_service.dart';
 import '../core/responsive.dart';
+import '../widgets/info_content_unavailable.dart';
+import '../widgets/ios_list.dart' show IosColors;
+import '../widgets/ios_page.dart';
+import '../widgets/ios_segmented_control.dart';
+import '../widgets/pressable.dart';
 import 'messages_screen.dart';
 
-/// Icon and colours per notification type.
+/// Icon and tint per notification type. The icon sits on a light wash of
+/// its tint (works in light and dark mode alike).
 class _Visual {
   final IconData icon;
-  final Color bg;
-  final Color fg;
-  const _Visual(this.icon, this.bg, this.fg);
+  final Color tint;
+  const _Visual(this.icon, this.tint);
 }
 
 const _visuals = <String, _Visual>{
-  'session_completed': _Visual(
-    Icons.accessibility_new_rounded,
-    Color(0xFFB3EBF2),
-    Color(0xFF0097A7),
-  ),
-  'exercise_assigned': _Visual(
-    CupertinoIcons.doc_text,
-    Color(0xFFC8E6C9),
-    Color(0xFF388E3C),
-  ),
-  'appointment': _Visual(
-    CupertinoIcons.calendar,
-    Color(0xFFBBDEFB),
-    Color(0xFF1976D2),
-  ),
-  'progress': _Visual(
-    CupertinoIcons.chart_bar,
-    Color(0xFFE1BEE7),
-    Color(0xFF7B1FA2),
-  ),
-  'milestone': _Visual(
-    CupertinoIcons.rosette,
-    Color(0xFFFFF9C4),
-    Color(0xFFFBC02D),
-  ),
-  'message': _Visual(
-    CupertinoIcons.chat_bubble,
-    Color(0xFFB2EBF2),
-    Color(0xFF00838F),
-  ),
-  'reminder': _Visual(
-    CupertinoIcons.alarm,
-    Color(0xFFFFE0B2),
-    Color(0xFFF57C00),
-  ),
+  'session_completed': _Visual(CupertinoIcons.checkmark_seal, IosColors.teal),
+  'exercise_assigned': _Visual(CupertinoIcons.doc_text, IosColors.green),
+  'appointment': _Visual(CupertinoIcons.calendar, IosColors.blue),
+  'progress': _Visual(CupertinoIcons.chart_bar, IosColors.purple),
+  'milestone': _Visual(CupertinoIcons.rosette, IosColors.orange),
+  'message': _Visual(CupertinoIcons.chat_bubble, IosColors.teal),
+  'reminder': _Visual(CupertinoIcons.alarm, IosColors.orange),
 };
-const _defaultVisual = _Visual(
-  CupertinoIcons.bell,
-  Color(0xFFE0E0E0),
-  Color(0xFF616161),
-);
+const _defaultVisual = _Visual(CupertinoIcons.bell, IosColors.gray);
 
+/// Home bell / Exercise bell > Notifications: everything the clinic and the
+/// app sent, newest first, with an All / Read / Unread filter.
+///
+/// Opened from two places, so the back button is a bare chevron (no
+/// previous-page name).
 class NotificationPage extends StatefulWidget {
-  const NotificationPage({super.key});
+  const NotificationPage({super.key, this.notifications});
+
+  /// For tests: a ready-made stream instead of [NotificationService.watch].
+  final Stream<List<AppNotification>>? notifications;
 
   @override
   State<NotificationPage> createState() => _NotificationPageState();
@@ -73,8 +54,12 @@ class NotificationPage extends StatefulWidget {
 class _NotificationPageState extends State<NotificationPage> {
   int _selectedFilterIndex = 0;
 
-  static const Color primaryTeal = Color(0xFF23A8AA);
-  static const Color darkTeal = Color(0xFF0D6E71);
+  /// Filter index -> segment label, in display order.
+  static const Map<int, String> _filterLabels = {
+    0: 'All',
+    1: 'Read',
+    2: 'Unread',
+  };
 
   static const String _tag = 'Notifications';
   final DiagnosticLogger _logger = DiagnosticLogger.I;
@@ -101,7 +86,7 @@ class _NotificationPageState extends State<NotificationPage> {
     _logger.info(_tag, 'Screen opened');
     // NotificationService logs the stream's start, first snapshot and
     // errors.
-    _stream = _service.watch();
+    _stream = widget.notifications ?? _service.watch();
   }
 
   void _derive(List<AppNotification> all) {
@@ -171,125 +156,194 @@ class _NotificationPageState extends State<NotificationPage> {
     );
   }
 
+  void _selectFilter(int index) {
+    if (_selectedFilterIndex == index) return;
+    _logger.verbose(_tag, 'Filter changed', {'filter': _filterLabels[index]});
+    setState(() => _selectedFilterIndex = index);
+  }
+
   Widget _buildPage({required bool loading}) {
     final palette = context.palette;
-    return Scaffold(
-      backgroundColor: palette.background,
-      body: Column(
-        children: [
-          _buildHeader(context),
-          const SizedBox(height: 16),
-          ReadableWidth(
-            child: Padding(
-              padding: const EdgeInsets.symmetric(horizontal: 16),
-              child: _buildFilterRow(palette),
+    return IosPage(
+      title: 'Notifications',
+      // Two parents (Home and Exercise bells): a bare chevron.
+      previousPageTitle: null,
+      trailing: _unreadCount > 0 ? _markAllButton() : null,
+      slivers: [
+        SliverPadding(
+          padding: readablePadding(context, const EdgeInsets.fromLTRB(16, 8, 16, 0)),
+          sliver: SliverToBoxAdapter(
+            child: IosSegmentedControl<int>(
+              options: _filterLabels,
+              value: _selectedFilterIndex,
+              onChanged: _selectFilter,
             ),
           ),
-          const SizedBox(height: 16),
-          ReadableWidth(
-            child: Padding(
-              padding: const EdgeInsets.symmetric(horizontal: 20),
-              child: Row(
-                mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                children: [
-                  Text(
-                    _selectedFilterIndex == 0
-                        ? 'All Notifications'
-                        : _selectedFilterIndex == 1
-                        ? 'Read'
-                        : 'Unread',
-                    style: TextStyle(
-                      fontSize: 15,
-                      fontWeight: FontWeight.bold,
-                      color: palette.textPrimary,
-                    ),
-                  ),
-                  Text(
-                    '${_filtered.length} items',
-                    style: TextStyle(fontSize: 12, color: palette.textMuted),
-                  ),
-                ],
-              ),
-            ),
+        ),
+        if (loading)
+          const SliverFillRemaining(
+            hasScrollBody: false,
+            child: Center(child: CircularProgressIndicator.adaptive()),
+          )
+        else if (_filtered.isEmpty)
+          SliverFillRemaining(hasScrollBody: false, child: _buildEmpty())
+        else ...[
+          SliverPadding(
+            padding: readablePadding(context, const EdgeInsets.fromLTRB(20, 20, 20, 8)),
+            sliver: SliverToBoxAdapter(child: _buildListHeader(palette)),
           ),
-          const SizedBox(height: 10),
-          Expanded(
-            child: loading
-                ? const Center(
-                    child: CircularProgressIndicator.adaptive(valueColor: AlwaysStoppedAnimation(primaryTeal)),
-                  )
-                : _filtered.isEmpty
-                ? _buildEmpty(palette)
-                : ListView.builder(
-                    padding: readablePadding(context, const EdgeInsets.fromLTRB(16, 0, 16, 16)),
-                    itemCount: _filtered.length,
-                    itemBuilder: (_, i) =>
-                        _notificationCard(_filtered[i], palette),
-                  ),
+          SliverPadding(
+            padding: readablePadding(context, const EdgeInsets.fromLTRB(16, 0, 16, 32)),
+            sliver: SliverList.builder(
+              itemCount: _filtered.length,
+              itemBuilder: (_, i) => _notificationCard(_filtered[i], palette),
+            ),
           ),
         ],
+      ],
+    );
+  }
+
+  /// "Mark all read" in the navigation bar, only while something is unread.
+  Widget _markAllButton() {
+    return Tooltip(
+      message: 'Mark all as read',
+      child: CupertinoButton(
+        padding: EdgeInsets.zero,
+        minimumSize: const Size(44, 44),
+        onPressed: _markingAll ? null : _markAllRead,
+        child: const Text(
+          'Mark all read',
+          style: TextStyle(fontSize: 17, color: AppPalette.teal),
+        ),
       ),
     );
   }
 
-  Widget _buildHeader(BuildContext context) {
-    return Container(
-      decoration: const BoxDecoration(
-        color: AppPalette.midTeal,
-        borderRadius: BorderRadius.vertical(bottom: Radius.circular(32)),
-      ),
-      child: SafeArea(
-        bottom: false,
-        child: Padding(
-          padding: const EdgeInsets.fromLTRB(8, 8, 20, 24),
+  /// iOS section header above the list: what is shown, and how many are
+  /// new (the old header's "N new" pill).
+  Widget _buildListHeader(AppPalette palette) {
+    final caption = Theme.of(context).textTheme.bodySmall?.copyWith(
+      color: palette.textMuted,
+    );
+    final heading = switch (_selectedFilterIndex) {
+      1 => 'Read',
+      2 => 'Unread',
+      _ => 'All notifications',
+    };
+    final count = _filtered.length == 1 ? '1 item' : '${_filtered.length} items';
+    return Row(
+      children: [
+        Expanded(child: Text(heading.toUpperCase(), style: caption)),
+        if (_unreadCount > 0) ...[
+          Text(
+            '$_unreadCount new',
+            style: caption?.copyWith(
+              fontWeight: FontWeight.w600,
+              color: palette.textSecondary,
+            ),
+          ),
+          Text(' · ', style: caption),
+        ],
+        Text(count, style: caption),
+      ],
+    );
+  }
+
+  Widget _notificationCard(AppNotification item, AppPalette palette) {
+    final v = _visuals[item.type] ?? _defaultVisual;
+    final isUnread = !item.read;
+    final textTheme = Theme.of(context).textTheme;
+    final time = _time(item.createdAt);
+    return Padding(
+      padding: const EdgeInsets.only(bottom: 8),
+      child: Pressable(
+        onTap: () => _open(item),
+        // Read out the state in words, not only by the dot and weight.
+        semanticLabel: '${isUnread ? 'Unread. ' : ''}${item.title}. $time',
+        child: Container(
+          padding: const EdgeInsets.fromLTRB(8, 12, 14, 12),
+          decoration: BoxDecoration(
+            color: palette.surface,
+            borderRadius: BorderRadius.circular(14),
+          ),
           child: Row(
+            crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              IconButton(
-                icon: const Icon(
-                  CupertinoIcons.chevron_left,
-                  color: Colors.white,
-                  size: 20,
-                ),
-                onPressed: () => Navigator.pop(context),
+              // Unread dot in its own slot (as in Mail), so read and
+              // unread rows keep their icons lined up.
+              SizedBox(
+                width: 14,
+                height: 40,
+                child: isUnread
+                    ? Center(
+                        child: Container(
+                          width: 8,
+                          height: 8,
+                          decoration: const BoxDecoration(
+                            color: AppPalette.teal,
+                            shape: BoxShape.circle,
+                          ),
+                        ),
+                      )
+                    : null,
               ),
-              const Expanded(
-                child: Text(
-                  'Notifications',
-                  style: TextStyle(
-                    fontSize: 22,
-                    fontWeight: FontWeight.bold,
-                    color: Colors.white,
+              const SizedBox(width: 4),
+              Container(
+                width: 40,
+                height: 40,
+                decoration: BoxDecoration(
+                  color: v.tint.withValues(alpha: 0.16),
+                  shape: BoxShape.circle,
+                ),
+                child: Icon(v.icon, color: v.tint, size: 21),
+              ),
+              const SizedBox(width: 12),
+              Expanded(
+                child: ExcludeSemantics(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Row(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Expanded(
+                            child: Text(
+                              item.title,
+                              style: textTheme.titleSmall?.copyWith(
+                                fontWeight: isUnread
+                                    ? FontWeight.w700
+                                    : FontWeight.w500,
+                                color: palette.textPrimary,
+                              ),
+                            ),
+                          ),
+                          const SizedBox(width: 8),
+                          Padding(
+                            padding: const EdgeInsets.only(top: 2),
+                            child: Text(
+                              time,
+                              style: textTheme.labelSmall?.copyWith(
+                                fontWeight: FontWeight.w400,
+                                color: palette.textMuted,
+                              ),
+                            ),
+                          ),
+                        ],
+                      ),
+                      if (item.body.isNotEmpty) ...[
+                        const SizedBox(height: 3),
+                        Text(
+                          item.body,
+                          style: textTheme.bodyMedium?.copyWith(
+                            color: palette.textSecondary,
+                          ),
+                        ),
+                      ],
+                    ],
                   ),
                 ),
               ),
-              if (_unreadCount > 0)
-                Container(
-                  padding: const EdgeInsets.symmetric(
-                    horizontal: 12,
-                    vertical: 6,
-                  ),
-                  decoration: BoxDecoration(
-                    color: Colors.white.withValues(alpha: 0.2),
-                    borderRadius: BorderRadius.circular(20),
-                    border: Border.all(
-                      color: Colors.white.withValues(alpha: 0.3),
-                    ),
-                  ),
-                  child: Text(
-                    '$_unreadCount new',
-                    style: const TextStyle(
-                      color: Colors.white,
-                      fontSize: 12,
-                      fontWeight: FontWeight.w600,
-                    ),
-                  ),
-                ),
-              if (_unreadCount > 0)
-                IconButton(
-                  tooltip: 'Mark all as read',
-                  onPressed: _markingAll ? null : _markAllRead,
-                  icon: const Icon(Icons.done_all_rounded, color: Colors.white),
-                ),
             ],
           ),
         ),
@@ -297,183 +351,21 @@ class _NotificationPageState extends State<NotificationPage> {
     );
   }
 
-  Widget _buildFilterRow(AppPalette palette) {
-    const labels = ['All', 'Read', 'Unread'];
-    return Container(
-      padding: const EdgeInsets.all(4),
-      decoration: BoxDecoration(
-        color: palette.surface,
-        borderRadius: BorderRadius.circular(16),
-      ),
-      child: Row(
-        children: List.generate(3, (i) {
-          final selected = _selectedFilterIndex == i;
-          return Expanded(
-            child: GestureDetector(
-              onTap: () {
-                if (_selectedFilterIndex == i) return;
-                _logger.verbose(_tag, 'Filter changed', {'filter': labels[i]});
-                setState(() => _selectedFilterIndex = i);
-              },
-              child: AnimatedContainer(
-                duration: const Duration(milliseconds: 220),
-                curve: Curves.easeInOut,
-                padding: const EdgeInsets.symmetric(vertical: 10),
-                decoration: BoxDecoration(
-                  gradient: selected
-                      ? const LinearGradient(colors: [primaryTeal, darkTeal])
-                      : null,
-                  borderRadius: BorderRadius.circular(12),
-                  boxShadow: selected
-                      ? [
-                          BoxShadow(
-                            color: primaryTeal.withValues(alpha: 0.3),
-                            blurRadius: 8,
-                            offset: const Offset(0, 3),
-                          ),
-                        ]
-                      : null,
-                ),
-                child: Text(
-                  labels[i],
-                  textAlign: TextAlign.center,
-                  style: TextStyle(
-                    fontWeight: FontWeight.w600,
-                    fontSize: 13,
-                    color: selected ? Colors.white : palette.textMuted,
-                  ),
-                ),
-              ),
-            ),
-          );
-        }),
-      ),
-    );
-  }
-
-  Widget _notificationCard(AppNotification item, AppPalette palette) {
-    final v = _visuals[item.type] ?? _defaultVisual;
-    final isUnread = !item.read;
-    // The pastel circles glare on a dark card; a tint of the icon colour
-    // keeps the same hue there.
-    final iconBg = context.isDarkMode ? v.fg.withValues(alpha: 0.18) : v.bg;
-    return GestureDetector(
-      onTap: () => _open(item),
-      child: Container(
-        margin: const EdgeInsets.only(bottom: 10),
-        padding: const EdgeInsets.all(14),
-        decoration: BoxDecoration(
-          color: palette.surface,
-          borderRadius: BorderRadius.circular(18),
-          border: isUnread
-              ? Border.all(
-                  color: primaryTeal.withValues(alpha: 0.25),
-                  width: 1.2,
-                )
-              : Border.all(color: Colors.transparent),
-        ),
-        child: Row(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Container(
-              width: 48,
-              height: 48,
-              decoration: BoxDecoration(color: iconBg, shape: BoxShape.circle),
-              child: Icon(v.icon, color: v.fg, size: 24),
-            ),
-            const SizedBox(width: 12),
-            Expanded(
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Row(
-                    children: [
-                      Expanded(
-                        child: Text(
-                          item.title,
-                          style: TextStyle(
-                            fontWeight: FontWeight.bold,
-                            fontSize: 14,
-                            color: palette.textPrimary,
-                          ),
-                        ),
-                      ),
-                      const SizedBox(width: 8),
-                      Text(
-                        _time(item.createdAt),
-                        style: TextStyle(
-                          fontSize: 11,
-                          color: palette.textMuted,
-                        ),
-                      ),
-                    ],
-                  ),
-                  const SizedBox(height: 5),
-                  Row(
-                    crossAxisAlignment: CrossAxisAlignment.end,
-                    children: [
-                      Expanded(
-                        child: Text(
-                          item.body,
-                          style: TextStyle(
-                            fontSize: 12,
-                            color: palette.textSecondary,
-                            height: 1.4,
-                          ),
-                        ),
-                      ),
-                      if (isUnread) ...[
-                        const SizedBox(width: 8),
-                        Container(
-                          width: 9,
-                          height: 9,
-                          decoration: const BoxDecoration(
-                            color: primaryTeal,
-                            shape: BoxShape.circle,
-                          ),
-                        ),
-                      ],
-                    ],
-                  ),
-                ],
-              ),
-            ),
-          ],
-        ),
-      ),
-    );
-  }
-
-  Widget _buildEmpty(AppPalette palette) {
-    return Center(
-      child: Column(
-        mainAxisSize: MainAxisSize.min,
-        children: [
-          Container(
-            padding: const EdgeInsets.all(20),
-            decoration: BoxDecoration(
-              color: primaryTeal.withValues(alpha: 0.08),
-              shape: BoxShape.circle,
-            ),
-            child: const Icon(
-              CupertinoIcons.bell_slash,
-              size: 40,
-              color: primaryTeal,
-            ),
-          ),
-          const SizedBox(height: 16),
-          Text(
-            _notifications.isEmpty
-                ? 'No notifications yet'
-                : 'No notifications here',
-            style: TextStyle(
-              fontSize: 15,
-              fontWeight: FontWeight.w600,
-              color: palette.textSecondary,
-            ),
-          ),
-        ],
-      ),
+  Widget _buildEmpty() {
+    if (_notifications.isEmpty) {
+      return const InfoContentUnavailable(
+        icon: CupertinoIcons.bell_slash,
+        title: 'No notifications yet',
+        body: 'Messages, reminders and new exercises will show up here.',
+      );
+    }
+    // There are notifications, just none under this filter.
+    return InfoContentUnavailable(
+      icon: CupertinoIcons.tray,
+      title: 'No notifications here',
+      body: _selectedFilterIndex == 2
+          ? 'You have read everything.'
+          : 'Nothing has been read yet.',
     );
   }
 }

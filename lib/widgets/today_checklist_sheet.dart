@@ -5,11 +5,13 @@ import 'package:intl/intl.dart' show DateFormat;
 import 'package:provider/provider.dart';
 
 import '../core/app_palette.dart';
+import '../core/responsive.dart';
 import '../models/exercise_model.dart';
 import '../models/session.dart';
 import '../screens/pose_detector_screen.dart';
 import '../services/app_provider.dart';
 import '../services/progress_stats.dart';
+import 'ios_list.dart';
 
 const Color _primaryTeal = Color(0xFF23A8AA);
 
@@ -21,13 +23,13 @@ class TodayChecklistSheet extends StatelessWidget {
   const TodayChecklistSheet({super.key, required this.exercises});
 
   static Future<void> show(BuildContext context, List<ExerciseConfig> exercises) {
+    // iOS sheet: grouped grey background with the rows in a white group,
+    // the theme's drag handle, and phone width centred on tablets.
     return showModalBottomSheet(
       context: context,
       isScrollControlled: true,
-      backgroundColor: context.palette.surface,
-      shape: const RoundedRectangleBorder(
-        borderRadius: BorderRadius.vertical(top: Radius.circular(24)),
-      ),
+      backgroundColor: context.palette.background,
+      constraints: const BoxConstraints(maxWidth: kReadableMaxWidth),
       builder: (_) => TodayChecklistSheet(exercises: exercises),
     );
   }
@@ -62,36 +64,53 @@ class TodayChecklistSheet extends StatelessWidget {
     final done = today.where((e) => activity.isDoneToday(e.type.name)).length;
     final palette = context.palette;
 
+    /// One exercise: tick circle, name (struck through when done), reps
+    /// and this week's count, and a Start button until it's done.
     Widget row(ExerciseConfig e, {required bool dueToday}) {
       final isDone = activity.isDoneToday(e.type.name);
       final week = activity.weekCount(e.type.name);
       final goal = e.prescription?.frequencyPerWeek;
-      return ListTile(
-        contentPadding: EdgeInsets.zero,
-        leading: Icon(
-          isDone ? CupertinoIcons.checkmark_circle_fill : CupertinoIcons.circle,
-          color: isDone
-              ? _primaryTeal
-              : dueToday
-              ? palette.textMuted
-              : palette.divider,
-          size: 28,
-        ),
-        title: Text(
-          e.title,
-          style: TextStyle(
-            fontWeight: FontWeight.w600,
-            color: dueToday ? palette.textPrimary : palette.textMuted,
-            decoration: isDone ? TextDecoration.lineThrough : null,
-          ),
-        ),
-        subtitle: Text(
-          '${e.repsText}  ·  $week${goal != null ? '/$goal' : ''} this week',
-          style: TextStyle(fontSize: 12, color: palette.textMuted),
-        ),
-        trailing: isDone
-            ? null
-            : TextButton(
+      return Container(
+        color: palette.surface,
+        constraints: const BoxConstraints(minHeight: 56),
+        padding: const EdgeInsets.fromLTRB(16, 8, 8, 8),
+        child: Row(
+          children: [
+            Icon(
+              isDone
+                  ? CupertinoIcons.checkmark_circle_fill
+                  : CupertinoIcons.circle,
+              color: isDone
+                  ? _primaryTeal
+                  : dueToday
+                  ? palette.textMuted
+                  : palette.textFaint,
+              size: 26,
+              semanticLabel: isDone ? 'Done' : 'Not done',
+            ),
+            const SizedBox(width: 14),
+            Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(
+                    e.title,
+                    style: TextStyle(
+                      fontSize: 17,
+                      color: dueToday ? palette.textPrimary : palette.textMuted,
+                      decoration: isDone ? TextDecoration.lineThrough : null,
+                    ),
+                  ),
+                  const SizedBox(height: 2),
+                  Text(
+                    '${e.repsText}  ·  $week${goal != null ? '/$goal' : ''} this week',
+                    style: TextStyle(fontSize: 13, color: palette.textMuted),
+                  ),
+                ],
+              ),
+            ),
+            if (!isDone)
+              TextButton(
                 onPressed: () {
                   Navigator.pop(context);
                   Navigator.push(
@@ -103,6 +122,8 @@ class TodayChecklistSheet extends StatelessWidget {
                 },
                 child: const Text('Start'),
               ),
+          ],
+        ),
       );
     }
 
@@ -113,19 +134,9 @@ class TodayChecklistSheet extends StatelessWidget {
         ),
         child: ListView(
           shrinkWrap: true,
-          padding: const EdgeInsets.fromLTRB(20, 12, 20, 20),
+          // The drag handle comes from the theme (showDragHandle).
+          padding: const EdgeInsets.fromLTRB(16, 0, 16, 20),
           children: [
-            Center(
-              child: Container(
-                width: 40,
-                height: 4,
-                decoration: BoxDecoration(
-                  color: palette.divider,
-                  borderRadius: BorderRadius.circular(2),
-                ),
-              ),
-            ),
-            const SizedBox(height: 16),
             Text(
               DateFormat('EEEE, d MMMM').format(now).toUpperCase(),
               style: TextStyle(
@@ -138,11 +149,7 @@ class TodayChecklistSheet extends StatelessWidget {
             const SizedBox(height: 4),
             Text(
               "Today's Plan",
-              style: TextStyle(
-                fontSize: 22,
-                fontWeight: FontWeight.bold,
-                color: palette.textPrimary,
-              ),
+              style: Theme.of(context).textTheme.headlineSmall,
             ),
             const SizedBox(height: 12),
             if (exercises.isEmpty)
@@ -172,8 +179,10 @@ class TodayChecklistSheet extends StatelessWidget {
                       : '$done of ${today.length} done today',
                   style: TextStyle(fontSize: 12, color: palette.textSecondary),
                 ),
-                const SizedBox(height: 8),
-                for (final e in today) row(e, dueToday: true),
+                IosSection(
+                  hasLeading: true,
+                  children: [for (final e in today) row(e, dueToday: true)],
+                ),
               ] else
                 Padding(
                   padding: const EdgeInsets.symmetric(vertical: 12),
@@ -182,18 +191,11 @@ class TodayChecklistSheet extends StatelessWidget {
                     style: TextStyle(color: palette.textSecondary),
                   ),
                 ),
-              if (other.isNotEmpty) ...[
-                const Divider(height: 32),
-                Text(
-                  'Not scheduled today',
-                  style: TextStyle(
-                    fontSize: 13,
-                    fontWeight: FontWeight.w600,
-                    color: palette.textSecondary,
-                  ),
+              if (other.isNotEmpty)
+                IosSection(
+                  header: 'Not scheduled today',
+                  children: [for (final e in other) row(e, dueToday: false)],
                 ),
-                for (final e in other) row(e, dueToday: false),
-              ],
             ],
           ],
         ),

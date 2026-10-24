@@ -1,10 +1,10 @@
 import 'package:flutter/cupertino.dart' show CupertinoIcons;
 import 'package:flutter/material.dart';
 
-import '../core/app_palette.dart';
 import '../core/diagnostic_logger.dart';
 import '../services/app_lock_service.dart';
-import '../core/responsive.dart';
+import '../widgets/ios_list.dart';
+import '../widgets/ios_page.dart';
 import 'app_lock_screen.dart';
 
 /// Settings > App lock: turn the PIN on/off, fingerprint/face shortcut,
@@ -22,8 +22,6 @@ class AppLockSettingsScreen extends StatefulWidget {
 }
 
 class _AppLockSettingsScreenState extends State<AppLockSettingsScreen> {
-  static const Color primaryTeal = Color(0xFF23A8AA);
-  static const Color darkTeal = Color(0xFF0D6E71);
   static const String _tag = 'AppLockSettings';
 
   final DiagnosticLogger _logger = DiagnosticLogger.I;
@@ -90,15 +88,14 @@ class _AppLockSettingsScreenState extends State<AppLockSettingsScreen> {
   }
 
   Future<void> _togglePin(bool on) => _guarded(() async {
+    // No "PIN lock is on/off" snackbar: the switch itself shows it.
     if (on) {
-      if (await _chooseNewPin(changing: false)) {
-        _snack('PIN lock is on.');
-      }
+      final saved = await _chooseNewPin(changing: false);
+      _logger.info(_tag, 'PIN lock setup finished', {'saved': saved});
       return;
     }
     if (!await _confirmCurrentPin()) return;
     await _lock.disable();
-    _snack('PIN lock is off.');
   });
 
   Future<void> _changePin() => _guarded(() async {
@@ -118,8 +115,8 @@ class _AppLockSettingsScreenState extends State<AppLockSettingsScreen> {
     );
     switch (result) {
       case BiometricResult.success:
+        // The switch shows it's on; no snackbar needed.
         await _lock.setBiometricsEnabled(true);
-        _snack('Fingerprint unlock is on.');
       case BiometricResult.unavailable:
         _snack('Set up a fingerprint in your phone\'s settings first.');
       case BiometricResult.lockedOut:
@@ -139,67 +136,22 @@ class _AppLockSettingsScreenState extends State<AppLockSettingsScreen> {
       ..showSnackBar(SnackBar(content: Text(text)));
   }
 
+  /// iOS inset grouped list, like the iPhone's "Face ID & Passcode" page:
+  /// the PIN rows with the how-it-works note as their footnote, then the
+  /// fingerprint shortcut in its own group.
   @override
   Widget build(BuildContext context) {
     final enabled = _lock.isEnabled;
     final bioAvailable = _biometricsAvailable == true;
-    final palette = context.palette;
+    final canChangePin = enabled && !_busy;
 
-    return Scaffold(
-      backgroundColor: palette.background,
-      appBar: AppBar(title: const Text('App lock'), backgroundColor: darkTeal),
-      body: ListView(
-        padding: readablePadding(context, const EdgeInsets.all(16)),
-        children: [
-          _card([
-            SwitchListTile.adaptive(
-              value: enabled,
-              onChanged: _busy ? null : _togglePin,
-              activeThumbColor: Colors.white,
-              activeTrackColor: primaryTeal,
-              secondary: _leading(CupertinoIcons.number_square),
-              title: Text('PIN lock', style: _titleStyle),
-              subtitle: Text(
-                'Ask for a ${AppLockService.pinLength}-digit PIN before '
-                'showing your dashboard',
-                style: _subtitleStyle,
-              ),
-            ),
-            SwitchListTile.adaptive(
-              value: _lock.biometricsEnabled,
-              onChanged: (_busy || !enabled || !bioAvailable)
-                  ? null
-                  : _toggleBiometrics,
-              activeThumbColor: Colors.white,
-              activeTrackColor: primaryTeal,
-              secondary: _leading(Icons.fingerprint_rounded),
-              title: Text('Unlock with fingerprint', style: _titleStyle),
-              subtitle: Text(
-                switch (_biometricsAvailable) {
-                  null => 'Checking this phone…',
-                  false => 'Set up a fingerprint or face unlock in your '
-                      'phone\'s settings to use this',
-                  true when !enabled => 'Turn on the PIN lock first',
-                  true => 'A quicker way in; the PIN still works',
-                },
-                style: _subtitleStyle,
-              ),
-            ),
-            ListTile(
-              enabled: enabled && !_busy,
-              onTap: _changePin,
-              leading: _leading(CupertinoIcons.lock_rotation),
-              title: Text('Change PIN', style: _titleStyle),
-              trailing: Icon(
-                CupertinoIcons.chevron_right,
-                color: palette.textFaint,
-                size: 20,
-              ),
-            ),
-          ]),
-          Padding(
-            padding: const EdgeInsets.fromLTRB(8, 4, 8, 0),
-            child: Text(
+    return IosPage(
+      title: 'App Lock',
+      previousPageTitle: 'Settings',
+      children: [
+        IosSection(
+          header: 'PIN',
+          footer:
               'RehabPlus asks for the PIN when you open the app and when you '
               'come back to it after a minute or more. The PIN is kept only '
               'on this phone.\n\n'
@@ -207,44 +159,53 @@ class _AppLockSettingsScreenState extends State<AppLockSettingsScreen> {
               'again with your password. After '
               '${AppLockService.maxAttempts} wrong PINs you are signed out '
               'for safety. Signing out also turns the lock off.',
-              style: TextStyle(
-                fontSize: 12,
-                color: palette.textSecondary,
-                height: 1.4,
+          children: [
+            IosSwitchRow(
+              icon: CupertinoIcons.number_square_fill,
+              iconColor: IosColors.gray,
+              title: 'PIN lock',
+              subtitle:
+                  'Ask for a ${AppLockService.pinLength}-digit PIN before '
+                  'showing your dashboard',
+              value: enabled,
+              onChanged: _busy ? null : _togglePin,
+            ),
+            // Greyed out (not hidden) while there is no PIN, so the patient
+            // can see the option exists.
+            Opacity(
+              opacity: canChangePin ? 1 : 0.4,
+              child: IosRow(
+                icon: CupertinoIcons.lock_rotation,
+                iconColor: IosColors.gray,
+                title: 'Change PIN',
+                showChevron: true,
+                onTap: canChangePin ? _changePin : null,
               ),
             ),
-          ),
-        ],
-      ),
+          ],
+        ),
+        IosSection(
+          header: 'Fingerprint',
+          children: [
+            IosSwitchRow(
+              icon: Icons.fingerprint_rounded,
+              iconColor: IosColors.green,
+              title: 'Unlock with fingerprint',
+              subtitle: switch (_biometricsAvailable) {
+                null => 'Checking this phone…',
+                false => 'Set up a fingerprint or face unlock in your '
+                    'phone\'s settings to use this',
+                true when !enabled => 'Turn on the PIN lock first',
+                true => 'A quicker way in; the PIN still works',
+              },
+              value: _lock.biometricsEnabled,
+              onChanged: (_busy || !enabled || !bioAvailable)
+                  ? null
+                  : _toggleBiometrics,
+            ),
+          ],
+        ),
+      ],
     );
   }
-
-  // Getters (not consts) so they follow the light/dark palette.
-  TextStyle get _titleStyle => TextStyle(
-    fontSize: 14,
-    fontWeight: FontWeight.w500,
-    color: context.palette.textPrimary,
-  );
-  TextStyle get _subtitleStyle =>
-      TextStyle(fontSize: 12, color: context.palette.textMuted);
-
-  Widget _card(List<Widget> children) => Container(
-    margin: const EdgeInsets.only(bottom: 14),
-    padding: const EdgeInsets.symmetric(vertical: 6),
-    decoration: BoxDecoration(
-      color: context.palette.surface,
-      borderRadius: BorderRadius.circular(20),
-    ),
-    child: Column(children: children),
-  );
-
-  Widget _leading(IconData icon) => Container(
-    width: 36,
-    height: 36,
-    decoration: BoxDecoration(
-      color: primaryTeal.withValues(alpha: 0.08),
-      borderRadius: BorderRadius.circular(10),
-    ),
-    child: Icon(icon, size: 18, color: primaryTeal),
-  );
 }

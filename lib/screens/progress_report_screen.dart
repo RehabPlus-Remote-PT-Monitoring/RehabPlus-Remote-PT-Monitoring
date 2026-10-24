@@ -10,7 +10,10 @@ import '../services/app_provider.dart';
 import '../services/progress_report.dart';
 import '../services/progress_report_loader.dart';
 import '../services/progress_stats.dart';
+import '../widgets/ios_page.dart';
+import '../widgets/pressable.dart';
 import '../widgets/progress_charts.dart';
+import '../widgets/report_key_numbers.dart';
 import '../core/responsive.dart';
 
 const _primaryTeal = AppPalette.teal;
@@ -62,7 +65,9 @@ Color _warningColor(BuildContext context) =>
   };
 }
 
-Widget _findingRow(BuildContext context, Finding f) {
+/// One finding: an icon (its shape tells good / info / warning apart, not
+/// only its colour) and the sentence.
+Widget _findingRow(BuildContext context, Finding f, {TextStyle? style}) {
   final (icon, color) = switch (f.kind) {
     FindingKind.good => (CupertinoIcons.checkmark_circle_fill, _goodColor(context)),
     FindingKind.info => (CupertinoIcons.info_circle, _infoColor(context)),
@@ -71,42 +76,34 @@ Widget _findingRow(BuildContext context, Finding f) {
       _warningColor(context),
     ),
   };
+  final textStyle =
+      style ??
+      Theme.of(context).textTheme.bodySmall?.copyWith(
+        color: context.palette.textPrimary,
+      );
   return Padding(
     padding: const EdgeInsets.only(bottom: 8),
     child: Row(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        Icon(icon, size: 17, color: color),
-        const SizedBox(width: 8),
-        Expanded(
-          child: Text(
-            f.text,
-            style: TextStyle(
-              fontSize: 13,
-              height: 1.35,
-              color: context.palette.textPrimary,
-            ),
-          ),
+        Padding(
+          // Lines the icon up with the first line of text.
+          padding: const EdgeInsets.only(top: 1),
+          child: Icon(icon, size: 17, color: color),
         ),
+        const SizedBox(width: 10),
+        Expanded(child: Text(f.text, style: textStyle)),
       ],
     ),
   );
 }
 
+/// The plain iOS card: surface colour, rounded corners, no shadow and no
+/// gradient (Apple Health / Fitness summaries rely on the grey page behind
+/// the white cards for separation, not on shadows).
 BoxDecoration _cardDecoration(BuildContext context) => BoxDecoration(
   color: context.palette.surface,
-  borderRadius: BorderRadius.circular(22),
-  boxShadow: [
-    BoxShadow(
-      // A teal glow in light mode; on the dark page a plain black shadow
-      // (a coloured glow there just looks like a smudge).
-      color: context.isDarkMode
-          ? context.palette.shadow.withValues(alpha: 0.3)
-          : _primaryTeal.withValues(alpha: 0.08),
-      blurRadius: 20,
-      offset: const Offset(0, 6),
-    ),
-  ],
+  borderRadius: BorderRadius.circular(16),
 );
 
 /// Compact "How you're doing" card for the Home screen: verdict, the top
@@ -124,69 +121,74 @@ class ProgressSummaryCard extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final palette = context.palette;
+    final text = Theme.of(context).textTheme;
     final hasForm = report.points.any((p) => p.formScore != null);
-    return Container(
-      padding: const EdgeInsets.all(20),
-      decoration: _cardDecoration(context),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Row(
-            children: [
-              Expanded(
-                child: Text(
-                  "How you're doing",
-                  style: TextStyle(
-                    fontSize: 16,
-                    fontWeight: FontWeight.bold,
-                    color: palette.textPrimary,
+    // The whole card opens the report (a big target, like a Health
+    // summary card); the button at the bottom stays as the obvious way in.
+    // Taps on the chart go to the chart's tooltip, not to the card.
+    return Pressable(
+      onTap: onOpenReport,
+      child: Container(
+        padding: const EdgeInsets.all(16),
+        decoration: _cardDecoration(context),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Row(
+              children: [
+                Expanded(
+                  child: Text(
+                    "How you're doing",
+                    style: text.titleMedium?.copyWith(
+                      color: palette.textPrimary,
+                    ),
                   ),
                 ),
+                _StatusChip(status: report.status),
+              ],
+            ),
+            const SizedBox(height: 12),
+            for (final f in report.findings.take(2)) _findingRow(context, f),
+            if (report.status != ProgressStatus.noData) ...[
+              const SizedBox(height: 6),
+              Text(
+                hasForm ? 'Form score' : 'Sessions',
+                style: text.labelMedium?.copyWith(
+                  fontWeight: FontWeight.w600,
+                  color: palette.textSecondary,
+                ),
               ),
-              _StatusChip(status: report.status),
+              const SizedBox(height: 10),
+              hasForm
+                  ? TrendLineChart.form(points: report.points, height: 120)
+                  : SessionsBarChart(points: report.points, height: 120),
             ],
-          ),
-          const SizedBox(height: 14),
-          for (final f in report.findings.take(2)) _findingRow(context, f),
-          if (report.status != ProgressStatus.noData) ...[
-            const SizedBox(height: 6),
-            Text(
-              hasForm ? 'Form score' : 'Sessions',
-              style: TextStyle(
-                fontSize: 12,
-                fontWeight: FontWeight.w600,
-                color: palette.textSecondary,
+            const SizedBox(height: 12),
+            SizedBox(
+              width: double.infinity,
+              child: TextButton.icon(
+                onPressed: onOpenReport,
+                style: TextButton.styleFrom(
+                  foregroundColor: _infoColor(context),
+                  // Slightly stronger in dark mode so the button still shows.
+                  backgroundColor: _primaryTeal.withValues(
+                    alpha: context.isDarkMode ? 0.16 : 0.08,
+                  ),
+                  minimumSize: const Size.fromHeight(44),
+                  padding: const EdgeInsets.symmetric(vertical: 12),
+                  shape: RoundedRectangleBorder(
+                    borderRadius: BorderRadius.circular(12),
+                  ),
+                ),
+                icon: const Icon(CupertinoIcons.graph_square, size: 18),
+                label: const Text(
+                  'See full report',
+                  style: TextStyle(fontWeight: FontWeight.w600),
+                ),
               ),
             ),
-            const SizedBox(height: 10),
-            hasForm
-                ? TrendLineChart.form(points: report.points, height: 120)
-                : SessionsBarChart(points: report.points, height: 120),
           ],
-          const SizedBox(height: 12),
-          SizedBox(
-            width: double.infinity,
-            child: TextButton.icon(
-              onPressed: onOpenReport,
-              style: TextButton.styleFrom(
-                foregroundColor: _infoColor(context),
-                // Slightly stronger in dark mode so the button still shows.
-                backgroundColor: _primaryTeal.withValues(
-                  alpha: context.isDarkMode ? 0.16 : 0.08,
-                ),
-                padding: const EdgeInsets.symmetric(vertical: 12),
-                shape: RoundedRectangleBorder(
-                  borderRadius: BorderRadius.circular(14),
-                ),
-              ),
-              icon: const Icon(CupertinoIcons.graph_square, size: 18),
-              label: const Text(
-                'See full report',
-                style: TextStyle(fontWeight: FontWeight.w600),
-              ),
-            ),
-          ),
-        ],
+        ),
       ),
     );
   }
@@ -237,8 +239,7 @@ class _StatusChip extends StatelessWidget {
           const SizedBox(width: 5),
           Text(
             status.label,
-            style: TextStyle(
-              fontSize: 11,
+            style: Theme.of(context).textTheme.labelSmall?.copyWith(
               fontWeight: FontWeight.w700,
               color: style.fg,
             ),
@@ -322,72 +323,97 @@ class _ProgressReportScreenState extends State<ProgressReportScreen> {
       final n => 'per $n days',
     };
 
-    return Scaffold(
-      backgroundColor: context.palette.background,
-      body: Column(
-        children: [
-          _header(),
-          Expanded(
-            child: ListView(
-              padding: readablePadding(context, const EdgeInsets.fromLTRB(16, 16, 16, 32)),
-              children: [
-                IosSegmentedControl<int>(
-                  options: {for (final d in _periods) d: '$d days'},
-                  value: _days,
-                  onChanged: _selectPeriod,
-                ),
-                const SizedBox(height: 14),
-                if (report == null)
-                  _placeholder(failed: view.failed)
-                else
-                  // Dimmed only while a long history is rebuilt in the
-                  // background; small histories never see this.
-                  AnimatedOpacity(
-                    opacity: view.isStale ? 0.55 : 1,
-                    duration: const Duration(milliseconds: 200),
-                    child: _reportBody(report, grouping),
-                  ),
-                const SizedBox(height: 8),
-                Text(
-                  'This report is worked out from your exercise sessions. Your '
-                  'therapist sees the same results. It is not a medical '
-                  'assessment; ask your therapist about anything that worries you.',
-                  textAlign: TextAlign.center,
-                  style: TextStyle(fontSize: 11, color: context.palette.textMuted),
-                ),
-              ],
-            ),
+    return IosPage(
+      title: 'Progress',
+      previousPageTitle: 'Home',
+      // Wide enough for the two-column layout on a landscape tablet.
+      maxWidth: adaptiveMaxWidth(context),
+      children: [
+        // The period sits right under the large title, like the D/W/M/Y
+        // control at the top of an Apple Health chart.
+        IosSegmentedControl<int>(
+          options: {for (final d in _periods) d: '$d days'},
+          value: _days,
+          onChanged: _selectPeriod,
+        ),
+        const SizedBox(height: 16),
+        if (report == null)
+          _placeholder(failed: view.failed)
+        else
+          // Dimmed only while a long history is rebuilt in the
+          // background; small histories never see this.
+          AnimatedOpacity(
+            opacity: view.isStale ? 0.55 : 1,
+            duration: const Duration(milliseconds: 200),
+            child: _reportBody(report, grouping),
           ),
-        ],
-      ),
+        const SizedBox(height: 8),
+        Text(
+          'This report is worked out from your exercise sessions. Your '
+          'therapist sees the same results. It is not a medical '
+          'assessment; ask your therapist about anything that worries you.',
+          textAlign: TextAlign.center,
+          style: Theme.of(context).textTheme.labelSmall?.copyWith(
+            fontWeight: FontWeight.w400,
+            color: context.palette.textMuted,
+          ),
+        ),
+      ],
     );
   }
 
+  /// Gap between the cards of the report.
+  static const double _cardGap = 12;
+
+  /// [cards] with a [_cardGap] after each one.
+  List<Widget> _spaced(List<Widget> cards) => [
+    for (final card in cards) ...[card, const SizedBox(height: _cardGap)],
+  ];
+
+  /// Phone: one column, read top to bottom (verdict, findings, numbers,
+  /// then the charts, then the per-exercise details).
+  ///
+  /// Wide (isTwoColumn): the summary on the left (verdict, findings,
+  /// numbers, per-exercise breakdown) and the charts on the right, so the
+  /// trends sit next to the numbers they explain instead of a screen below.
   Widget _reportBody(ProgressReport report, String grouping) {
+    final twoColumns = isTwoColumn(context);
+    // Taller charts when they have half a landscape tablet to themselves.
+    final chartHeight = twoColumns ? 190.0 : 150.0;
+
+    final summary = <Widget>[
+      _verdictCard(report),
+      if (report.findings.isNotEmpty) _findingsCard(report),
+      _numbers(report),
+    ];
+    final charts = <Widget>[
+      _chartCard(
+        'Sessions',
+        'How often you exercised, $grouping',
+        SessionsBarChart(points: report.points, height: chartHeight),
+      ),
+      _chartCard(
+        'Form score',
+        'How closely your reps matched good form (higher is better)',
+        TrendLineChart.form(points: report.points, height: chartHeight),
+      ),
+      _chartCard(
+        'Pain level',
+        'What you reported after sessions, 0 to 10 (lower is better)',
+        TrendLineChart.pain(points: report.points, height: chartHeight),
+      ),
+    ];
+    final breakdown = _exerciseCard(report);
+
+    if (twoColumns) {
+      return AdaptiveColumns(
+        left: _spaced([...summary, breakdown]),
+        right: _spaced(charts),
+      );
+    }
     return Column(
       crossAxisAlignment: CrossAxisAlignment.stretch,
-      children: [
-        _verdictCard(report),
-        const SizedBox(height: 14),
-        _numbers(report),
-        const SizedBox(height: 14),
-        _chartCard(
-          'Sessions',
-          'How often you exercised, $grouping',
-          SessionsBarChart(points: report.points),
-        ),
-        _chartCard(
-          'Form score',
-          'How closely your reps matched good form (higher is better)',
-          TrendLineChart.form(points: report.points),
-        ),
-        _chartCard(
-          'Pain level',
-          'What you reported after sessions, 0 to 10 (lower is better)',
-          TrendLineChart.pain(points: report.points),
-        ),
-        _exerciseCard(report),
-      ],
+      children: _spaced([...summary, ...charts, breakdown]),
     );
   }
 
@@ -403,7 +429,9 @@ class _ProgressReportScreenState extends State<ProgressReportScreen> {
             ? Text(
                 "Couldn't work out your report. Please try again later.",
                 textAlign: TextAlign.center,
-                style: TextStyle(fontSize: 13, color: context.palette.textSecondary),
+                style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                  color: context.palette.textSecondary,
+                ),
               )
             : const SizedBox(
                 width: 28,
@@ -417,189 +445,137 @@ class _ProgressReportScreenState extends State<ProgressReportScreen> {
     );
   }
 
-  Widget _header() {
+  /// The verdict, big: a coloured icon AND the word, so the meaning never
+  /// depends on colour alone.
+  Widget _verdictCard(ProgressReport r) {
+    final style = _statusStyle(context, r.status);
+    final text = Theme.of(context).textTheme;
     return Container(
-      decoration: const BoxDecoration(
-        color: AppPalette.midTeal,
-        borderRadius: BorderRadius.vertical(bottom: Radius.circular(32)),
-      ),
-      child: SafeArea(
-        bottom: false,
-        child: Padding(
-          padding: const EdgeInsets.fromLTRB(8, 8, 20, 24),
-          child: Row(
-            children: [
-              IconButton(
-                icon: const Icon(
-                  CupertinoIcons.chevron_left,
-                  color: Colors.white,
-                  size: 20,
-                ),
-                onPressed: () => Navigator.pop(context),
-              ),
-              const SizedBox(width: 4),
-              const Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Text(
-                    'Progress Report',
-                    style: TextStyle(
-                      fontSize: 20,
-                      fontWeight: FontWeight.bold,
-                      color: Colors.white,
-                    ),
-                  ),
-                  Text(
-                    'How your recovery is going',
-                    style: TextStyle(fontSize: 12, color: Colors.white60),
-                  ),
-                ],
-              ),
-            ],
+      padding: const EdgeInsets.all(16),
+      decoration: _cardDecoration(context),
+      child: Row(
+        children: [
+          Container(
+            width: 52,
+            height: 52,
+            decoration: BoxDecoration(
+              color: style.bg,
+              shape: BoxShape.circle,
+            ),
+            child: Icon(style.icon, color: style.fg, size: 28),
           ),
-        ),
+          const SizedBox(width: 14),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  r.status.label,
+                  style: text.headlineMedium?.copyWith(color: style.fg),
+                ),
+                const SizedBox(height: 2),
+                Text(
+                  'Last ${r.days} days',
+                  style: text.bodySmall?.copyWith(
+                    color: context.palette.textSecondary,
+                  ),
+                ),
+              ],
+            ),
+          ),
+        ],
       ),
     );
   }
 
-  Widget _verdictCard(ProgressReport r) {
-    final style = _statusStyle(context, r.status);
+  /// What the report noticed, as a short list of one-line sentences.
+  Widget _findingsCard(ProgressReport r) {
+    final palette = context.palette;
+    final text = Theme.of(context).textTheme;
     return Container(
-      padding: const EdgeInsets.all(18),
+      padding: const EdgeInsets.fromLTRB(16, 14, 16, 6),
       decoration: _cardDecoration(context),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          Row(
-            children: [
-              Container(
-                width: 44,
-                height: 44,
-                decoration: BoxDecoration(
-                  color: style.bg,
-                  shape: BoxShape.circle,
-                ),
-                child: Icon(style.icon, color: style.fg, size: 24),
-              ),
-              const SizedBox(width: 12),
-              Expanded(
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Text(
-                      r.status.label,
-                      style: TextStyle(
-                        fontSize: 18,
-                        fontWeight: FontWeight.bold,
-                        color: style.fg,
-                      ),
-                    ),
-                    Text(
-                      'Last ${r.days} days',
-                      style: TextStyle(
-                        fontSize: 12,
-                        color: context.palette.textMuted,
-                      ),
-                    ),
-                  ],
-                ),
-              ),
-            ],
+          Text(
+            'Highlights',
+            style: text.titleMedium?.copyWith(color: palette.textPrimary),
           ),
-          const SizedBox(height: 14),
-          for (final f in r.findings) _findingRow(context, f),
+          const SizedBox(height: 10),
+          for (final f in r.findings)
+            _findingRow(
+              context,
+              f,
+              style: text.bodyMedium?.copyWith(color: palette.textPrimary),
+            ),
         ],
       ),
     );
   }
 
   Widget _numbers(ProgressReport r) {
-    final palette = context.palette;
     String pct(double? v) => v == null ? '—' : '${(v * 100).round()}%';
-    final tiles = <(String, String, IconData)>[
-      ('Sessions', '${r.sessions}', CupertinoIcons.flame),
-      ('Active days', '${r.activeDays}', CupertinoIcons.calendar),
-      ('Time', ProgressStats.formatDuration(r.time), CupertinoIcons.timer),
-      ('Reps done', pct(r.repCompletion), CupertinoIcons.repeat),
-      (
-        'Form score',
-        r.formScore == null ? '—' : '${r.formScore!.round()}%',
-        Icons.accessibility_new_rounded,
+    final tiles = <ReportNumber>[
+      ReportNumber(
+        label: 'Sessions',
+        value: '${r.sessions}',
+        icon: CupertinoIcons.flame,
       ),
-      (
-        r.adherence == null ? 'Avg pain' : 'Plan followed',
-        r.adherence == null
-            ? (r.pain == null ? '—' : '${r.pain!.toStringAsFixed(1)}/10')
-            : pct(r.adherence),
-        r.adherence == null
-            ? CupertinoIcons.bandage
-            : CupertinoIcons.doc_checkmark,
+      ReportNumber(
+        label: 'Active days',
+        value: '${r.activeDays}',
+        icon: CupertinoIcons.calendar,
       ),
+      ReportNumber(
+        label: 'Time',
+        value: ProgressStats.formatDuration(r.time),
+        icon: CupertinoIcons.timer,
+      ),
+      ReportNumber(
+        label: 'Reps done',
+        value: pct(r.repCompletion),
+        icon: CupertinoIcons.repeat,
+      ),
+      ReportNumber(
+        label: 'Form score',
+        value: r.formScore == null ? '—' : '${r.formScore!.round()}%',
+        icon: Icons.accessibility_new_rounded,
+      ),
+      // Plan adherence when the patient has a plan, average pain otherwise.
+      if (r.adherence == null)
+        ReportNumber(
+          label: 'Avg pain',
+          value: r.pain == null ? '—' : '${r.pain!.toStringAsFixed(1)}/10',
+          icon: CupertinoIcons.bandage,
+        )
+      else
+        ReportNumber(
+          label: 'Plan followed',
+          value: pct(r.adherence),
+          icon: CupertinoIcons.doc_checkmark,
+        ),
     ];
-    return GridView.count(
-      crossAxisCount: 3,
-      // Without this the grid adds the status-bar height as top padding.
-      padding: EdgeInsets.zero,
-      shrinkWrap: true,
-      physics: const NeverScrollableScrollPhysics(),
-      mainAxisSpacing: 10,
-      crossAxisSpacing: 10,
-      childAspectRatio: 1.05,
-      children: [
-        for (final (label, value, icon) in tiles)
-          Container(
-            padding: const EdgeInsets.all(10),
-            decoration: _cardDecoration(context),
-            child: Column(
-              mainAxisAlignment: MainAxisAlignment.center,
-              children: [
-                Icon(icon, size: 20, color: _primaryTeal),
-                const SizedBox(height: 6),
-                FittedBox(
-                  child: Text(
-                    value,
-                    style: TextStyle(
-                      fontSize: 18,
-                      fontWeight: FontWeight.bold,
-                      color: palette.textPrimary,
-                    ),
-                  ),
-                ),
-                const SizedBox(height: 2),
-                FittedBox(
-                  child: Text(
-                    label,
-                    style: TextStyle(fontSize: 11, color: palette.textMuted),
-                  ),
-                ),
-              ],
-            ),
-          ),
-      ],
-    );
+    return ReportKeyNumbers(tiles: tiles);
   }
 
   Widget _chartCard(String title, String subtitle, Widget chart) {
     final palette = context.palette;
+    final text = Theme.of(context).textTheme;
     return Container(
-      margin: const EdgeInsets.only(bottom: 14),
-      padding: const EdgeInsets.fromLTRB(16, 16, 16, 12),
+      padding: const EdgeInsets.fromLTRB(16, 14, 16, 12),
       decoration: _cardDecoration(context),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           Text(
             title,
-            style: TextStyle(
-              fontSize: 15,
-              fontWeight: FontWeight.bold,
-              color: palette.textPrimary,
-            ),
+            style: text.titleMedium?.copyWith(color: palette.textPrimary),
           ),
           const SizedBox(height: 2),
           Text(
             subtitle,
-            style: TextStyle(fontSize: 12, color: palette.textMuted),
+            style: text.bodySmall?.copyWith(color: palette.textSecondary),
           ),
           const SizedBox(height: 14),
           chart,
@@ -610,28 +586,24 @@ class _ProgressReportScreenState extends State<ProgressReportScreen> {
 
   Widget _exerciseCard(ProgressReport r) {
     final palette = context.palette;
+    final text = Theme.of(context).textTheme;
     return Container(
-      margin: const EdgeInsets.only(bottom: 14),
-      padding: const EdgeInsets.fromLTRB(16, 16, 16, 8),
+      padding: const EdgeInsets.fromLTRB(16, 14, 16, 4),
       decoration: _cardDecoration(context),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           Text(
             'By exercise',
-            style: TextStyle(
-              fontSize: 15,
-              fontWeight: FontWeight.bold,
-              color: palette.textPrimary,
-            ),
+            style: text.titleMedium?.copyWith(color: palette.textPrimary),
           ),
-          const SizedBox(height: 10),
+          const SizedBox(height: 12),
           if (r.exercises.isEmpty)
             Padding(
-              padding: const EdgeInsets.only(bottom: 10),
+              padding: const EdgeInsets.only(bottom: 12),
               child: Text(
                 'No exercises done in this period.',
-                style: TextStyle(fontSize: 12, color: palette.textMuted),
+                style: text.bodySmall?.copyWith(color: palette.textSecondary),
               ),
             ),
           // Keyed by name: the order changes between periods.
@@ -644,7 +616,10 @@ class _ProgressReportScreenState extends State<ProgressReportScreen> {
 
   Widget _exerciseRow(ExerciseSummary e) {
     final palette = context.palette;
+    final text = Theme.of(context).textTheme;
     final form = e.formScore;
+    // The bar's colour follows the score, and the score is always written
+    // next to it, so the colour is never the only signal.
     final formColor = form == null
         ? palette.textFaint
         : form >= 80
@@ -653,35 +628,36 @@ class _ProgressReportScreenState extends State<ProgressReportScreen> {
         ? _cautionColor(context)
         : _warningColor(context);
     return Padding(
-      padding: const EdgeInsets.only(bottom: 12),
+      padding: const EdgeInsets.only(bottom: 14),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           Row(
+            crossAxisAlignment: CrossAxisAlignment.start,
             children: [
               Expanded(
                 child: Text(
                   e.name,
-                  style: TextStyle(
-                    fontSize: 13,
-                    fontWeight: FontWeight.w600,
-                    color: palette.textPrimary,
-                  ),
+                  style: text.titleSmall?.copyWith(color: palette.textPrimary),
                 ),
               ),
+              const SizedBox(width: 8),
               Text(
                 '${e.sessions}× · '
                 '${e.pain == null ? 'no pain logged' : 'pain ${e.pain!.toStringAsFixed(1)}/10'}',
-                style: TextStyle(fontSize: 11, color: palette.textMuted),
+                style: text.labelSmall?.copyWith(
+                  fontWeight: FontWeight.w400,
+                  color: palette.textSecondary,
+                ),
               ),
             ],
           ),
-          const SizedBox(height: 6),
+          const SizedBox(height: 8),
           Row(
             children: [
               Expanded(
                 child: ClipRRect(
-                  borderRadius: BorderRadius.circular(6),
+                  borderRadius: BorderRadius.circular(4),
                   child: LinearProgressIndicator(
                     value: (form ?? 0) / 100,
                     minHeight: 8,
@@ -692,14 +668,13 @@ class _ProgressReportScreenState extends State<ProgressReportScreen> {
               ),
               const SizedBox(width: 10),
               SizedBox(
-                width: 40,
+                width: 44,
                 child: Text(
                   form == null ? '—' : '${form.round()}%',
                   textAlign: TextAlign.right,
-                  style: TextStyle(
-                    fontSize: 12,
+                  style: text.labelMedium?.copyWith(
                     fontWeight: FontWeight.w700,
-                    color: formColor,
+                    color: form == null ? palette.textMuted : palette.textPrimary,
                   ),
                 ),
               ),

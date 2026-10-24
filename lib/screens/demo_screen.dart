@@ -3,6 +3,8 @@ import 'package:flutter/material.dart';
 import 'package:video_player/video_player.dart';
 import 'package:chewie/chewie.dart';
 
+import '../widgets/pressable.dart';
+import '../widgets/ios_page.dart';
 import '../core/app_palette.dart';
 import '../core/diagnostic_logger.dart';
 import '../core/responsive.dart';
@@ -25,14 +27,11 @@ class _DemoScreenState extends State<DemoScreen> with TickerProviderStateMixin {
   late final AnimationController _headerCtrl;
   late final AnimationController _contentCtrl;
   late final Animation<double> _headerFade;
-  late final Animation<Offset> _headerSlide;
   late final Animation<double> _contentFade;
   late final Animation<Offset> _contentSlide;
 
   // Active exercise demo state
   int _activeStep = 0;
-  late final AnimationController _pulseCtrl;
-  late final Animation<double> _pulse;
 
   final List<_DemoFeature> _features = [
     _DemoFeature(
@@ -103,26 +102,12 @@ class _DemoScreenState extends State<DemoScreen> with TickerProviderStateMixin {
       vsync: this,
       duration: const Duration(milliseconds: 800),
     );
-    _pulseCtrl = AnimationController(
-      vsync: this,
-      duration: const Duration(milliseconds: 1000),
-    )..repeat(reverse: true);
-
     _headerFade = CurvedAnimation(parent: _headerCtrl, curve: Curves.easeOut);
-    _headerSlide = Tween<Offset>(
-      begin: const Offset(0, -0.2),
-      end: Offset.zero,
-    ).animate(CurvedAnimation(parent: _headerCtrl, curve: Curves.easeOutCubic));
     _contentFade = CurvedAnimation(parent: _contentCtrl, curve: Curves.easeOut);
     _contentSlide =
         Tween<Offset>(begin: const Offset(0, 0.15), end: Offset.zero).animate(
           CurvedAnimation(parent: _contentCtrl, curve: Curves.easeOutCubic),
         );
-    _pulse = Tween<double>(
-      begin: 1.0,
-      end: 1.08,
-    ).animate(CurvedAnimation(parent: _pulseCtrl, curve: Curves.easeInOut));
-
     _headerCtrl.forward();
     // Skip if the screen was closed during the delay (a disposed
     // controller throws when started).
@@ -137,7 +122,6 @@ class _DemoScreenState extends State<DemoScreen> with TickerProviderStateMixin {
   void dispose() {
     _headerCtrl.dispose();
     _contentCtrl.dispose();
-    _pulseCtrl.dispose();
     _pageCtrl.dispose();
     super.dispose();
   }
@@ -154,141 +138,46 @@ class _DemoScreenState extends State<DemoScreen> with TickerProviderStateMixin {
 
   @override
   Widget build(BuildContext context) {
-    return Scaffold(
-      backgroundColor: context.palette.background,
-      body: Column(
-        children: [
-          SlideTransition(
-            position: _headerSlide,
-            child: FadeTransition(
-              opacity: _headerFade,
-              child: _buildHeader(context),
+    // iOS page with a large title. The cards still ease in (the content
+    // animation); on tablets they sit in two columns.
+    return IosPage(
+      title: 'App Demo',
+      previousPageTitle: 'Home',
+      maxWidth: adaptiveMaxWidth(context),
+      children: [
+        Padding(
+          padding: const EdgeInsets.only(bottom: 16),
+          child: FadeTransition(
+            opacity: _headerFade,
+            child: Text(
+              'Explore what RehabPlus can do',
+              style: TextStyle(fontSize: 15, color: context.palette.textMuted),
             ),
-          ),
-          Expanded(
-            child: SlideTransition(
-              position: _contentSlide,
-              child: FadeTransition(
-                opacity: _contentFade,
-                child: SingleChildScrollView(
-                  padding: readablePadding(context, const EdgeInsets.fromLTRB(16, 20, 16, 24)),
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      _buildFeatureCarousel(),
-                      const SizedBox(height: 24),
-                      _buildVideoSection(),
-                      const SizedBox(height: 24),
-                      _buildExerciseDemo(),
-                      const SizedBox(height: 24),
-                      _buildStatsPreview(),
-                    ],
-                  ),
-                ),
-              ),
-            ),
-          ),
-        ],
-      ),
-    );
-  }
-
-  Widget _buildHeader(BuildContext context) {
-    return Container(
-      decoration: const BoxDecoration(
-        color: AppPalette.midTeal,
-        borderRadius: BorderRadius.vertical(bottom: Radius.circular(32)),
-      ),
-      child: SafeArea(
-        bottom: false,
-        child: Padding(
-          padding: const EdgeInsets.fromLTRB(20, 14, 20, 24),
-          child: Row(
-            children: [
-              GestureDetector(
-                onTap: () => Navigator.pop(context),
-                child: Container(
-                  width: 40,
-                  height: 40,
-                  decoration: BoxDecoration(
-                    color: Colors.white.withValues(alpha: 0.15),
-                    borderRadius: BorderRadius.circular(12),
-                  ),
-                  child: const Icon(
-                    CupertinoIcons.chevron_left,
-                    color: Colors.white,
-                    size: 18,
-                  ),
-                ),
-              ),
-              const SizedBox(width: 14),
-              Expanded(
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    const Text(
-                      'App Demo',
-                      style: TextStyle(
-                        fontSize: 22,
-                        fontWeight: FontWeight.bold,
-                        color: Colors.white,
-                      ),
-                    ),
-                    Text(
-                      'Explore what Rehab+ can do',
-                      style: TextStyle(
-                        fontSize: 13,
-                        color: Colors.white.withValues(alpha: 0.75),
-                      ),
-                    ),
-                  ],
-                ),
-              ),
-              Container(
-                padding: const EdgeInsets.symmetric(
-                  horizontal: 12,
-                  vertical: 6,
-                ),
-                decoration: BoxDecoration(
-                  color: Colors.white.withValues(alpha: 0.18),
-                  borderRadius: BorderRadius.circular(20),
-                  border: Border.all(
-                    color: Colors.white.withValues(alpha: 0.25),
-                  ),
-                ),
-                child: Row(
-                  children: [
-                    ScaleTransition(
-                      scale: _pulse,
-                      child: Container(
-                        width: 7,
-                        height: 7,
-                        decoration: const BoxDecoration(
-                          color: Color(0xFF4CAF50),
-                          shape: BoxShape.circle,
-                        ),
-                      ),
-                    ),
-                    const SizedBox(width: 6),
-                    const Text(
-                      'Live',
-                      style: TextStyle(
-                        fontSize: 11,
-                        color: Colors.white,
-                        fontWeight: FontWeight.w600,
-                      ),
-                    ),
-                  ],
-                ),
-              ),
-            ],
           ),
         ),
-      ),
+        SlideTransition(
+          position: _contentSlide,
+          child: FadeTransition(
+            opacity: _contentFade,
+            child: AdaptiveColumns(
+              left: [
+                _buildFeatureCarousel(),
+                const SizedBox(height: 24),
+                _buildVideoSection(),
+                const SizedBox(height: 24),
+              ],
+              right: [
+                _buildExerciseDemo(),
+                const SizedBox(height: 24),
+                _buildStatsPreview(),
+              ],
+            ),
+          ),
+        ),
+      ],
     );
   }
 
-  // ── FEATURE CAROUSEL ─────────────────────────────────────────────────────────
   Widget _buildFeatureCarousel() {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
@@ -446,8 +335,10 @@ class _DemoScreenState extends State<DemoScreen> with TickerProviderStateMixin {
             children: List.generate(
               _steps.length,
               (i) => Expanded(
-                child: GestureDetector(
+                child: Pressable(
                   onTap: () => setState(() => _activeStep = i),
+                  semanticLabel: 'Step ${i + 1}',
+                  pressedScale: 1,
                   child: AnimatedContainer(
                     duration: const Duration(milliseconds: 300),
                     curve: Curves.easeOutCubic,
@@ -958,8 +849,9 @@ class _VideoCardState extends State<_VideoCard> {
       child: Column(
         children: [
           // Thumbnail / player row
-          GestureDetector(
+          Pressable(
             onTap: _togglePlayer,
+            pressedScale: 0.99,
             child: AnimatedContainer(
               duration: const Duration(milliseconds: 350),
               curve: Curves.easeOutCubic,

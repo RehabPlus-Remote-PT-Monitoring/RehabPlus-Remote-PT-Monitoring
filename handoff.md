@@ -225,20 +225,23 @@ The user wants the app to feel like an iPhone app on phones and to use a tablet'
 3. iOS colours: grouped grey `#F2F2F7` / black backgrounds, white / `#1C1C1E` cards, iOS label opacities; teal is the only accent. Gradients kept only on the Home header and the branded full-screen backgrounds (splash, login, forgot password, PIN lock); 32 soft card/glow shadows removed.
 4. Native controls: iOS switches, spinners and pull-to-refresh via `.adaptive`; iOS alerts for yes/no questions; iOS sliding segmented controls; one icon family (CupertinoIcons). Phosphor is now only used for the brand shield logo.
 
-**Next (not started), in the agreed order:**
-5. Inner pages get iOS large-title navigation bars that collapse on scroll, with a back button showing the previous screen's name ("‹ Profile"), replacing the custom teal headers (Settings, Goals, Privacy, Notifications, Account Info, Legal, Progress report, Edit profile). Likely a shared `SliverAppBar.large`-style widget in `lib/widgets/`.
-6. Settings, Profile, Account Info and Privacy as iOS inset grouped lists: small grey uppercase section headers outside the card, 44 pt rows, separators inset past the icon, chevrons.
-7. iOS tab bar: labels always visible under all four icons, filled icon when selected, translucent blurred bar with content scrolling underneath, accessibility labels for every tab (the non-Home tabs have none today).
-8. Press feedback (apple-design rule 1): cards and tiles dim or scale to about 0.97 on touch-down (19 bare GestureDetectors give no feedback today); light haptics only on meaningful moments.
-9. Home details: the weekday circles repeat each letter under the circle (drop one); the red "↓ -2" pills read as failure (neutral grey with words); the header "+" has no clear meaning (label it or remove it).
-10. Fewer snackbars (48 today): confirm inline or with a short banner; save quietly.
-11. Tablet: header content aligned with the content column; column widens to about 840 dp on tablets.
-12. Tablet: two columns where useful (Home cards 2-up, Profile info cards side by side, report charts next to the numbers).
-13. Tablet: iPad-style sidebar instead of the floating bottom bar on wide screens.
-14. Tablet: list and detail side by side (Messages inbox + conversation; Settings sections + open section).
+**Done (24-25 Oct), steps 5-14:**
+5. Inner pages use `IosPage` (`lib/widgets/ios_page.dart`): iOS large title that collapses on scroll, back button naming the previous screen. Settings, App Lock, Edit Profile, Account Info, Privacy & Legal, legal documents, My Goals, Notifications, Progress, App Demo, and the Profile / Messages tab roots (no back button).
+6. Inset grouped lists (`lib/widgets/ios_list.dart`: `IosSection`, `IosRow`, `IosSwitchRow`, `IosControlRow`, `IosColors` icon squares) on Settings, App Lock, Profile, Account Info, Edit Profile, Privacy & Legal and the Today's plan sheet.
+7. Dashboard shell (`lib/widgets/dashboard_shell.dart`, `dashboard_tab_bar.dart`): full-width translucent iOS tab bar with blur, labels always shown, filled icon when selected, unread-messages badge (`UnreadMessages`/`UnreadCountBadge` in `unread_badge.dart`), semantics per tab; quick cross-fade between tabs.
+8. `Pressable` (`lib/widgets/pressable.dart`) on custom tappables: dims + scales on touch-down, haptic only on meaningful actions, reduced-motion aware.
+9. Home: weekday letter shown once (screen readers get the full day name and state); stat trends are plain grey words ("2 fewer than the 7 days before") instead of red/green pills; the header's bell and "+" removed (the Alerts tile now opens Notifications with a real unread dot instead of opening Messages with a permanent dot; "+" duplicated the Exercise tab); therapist card no longer shows an invented "Available now" status, button says "Message".
+10. Confirmation-only snackbars removed; errors and actions with no visible result keep theirs.
+11. Home header content lines up with the card column (`readableInset`).
+12. Two columns when the page is >= 900 dp wide (`AdaptiveColumns`, up to 1100 dp): Home, Settings, Profile, Progress, Exercise list, Demo. Single column widened to 680 dp.
+13. >= 1000 dp: iPad-style sidebar (`dashboard_sidebar.dart`) replaces the tab bar; the page area gets a narrowed MediaQuery so pages measure their real width.
+14. Messages split view at >= 900 dp (`lib/widgets/chat_split_view.dart`): thread list beside the conversation.
+Also: the app icon was redesigned (centred white shield-plus on softly lit teal, no text, Android 13 themed-icon layer); `tool/make_icon.py` has the design notes.
+
+**Device check status:** the final build was installed on the phone (arm64 split APK over Wi-Fi). The tablet was unplugged before the final build, so the sidebar (13), the two-column layouts (12) and the Messages split view (14) have only been checked by widget tests, not on the tablet yet. Do that next: landscape (sidebar + two columns), portrait (tab bar, one column), rotate while a chat is open.
+
+**Possible follow-ups:** `lib/screens/history_screen.dart` is not referenced anywhere (dead code; delete or wire up). Many screens still pass explicit font sizes instead of `Theme.of(context).textTheme`. The split-per-ABI APK has a higher versionCode than the universal APK, so installing a universal APK afterwards needs `adb install -r -d`.
 
 **Left out on purpose:** the camera exercise screen (tuned and working) and the login/splash branding.
-
-**Known small issues after step 4:** Inter is slightly wider than the old font, so long exercise-card lines like "1 Set | 10 Reps" now end in "..." on the phone; this will go away with the card layout in steps 5-10. Many screens still pass explicit font sizes rather than `Theme.of(context).textTheme`; move them onto the scale as each screen is touched.
 
 **How to check UI on the devices:** the phone (OPPO CPH2773) is usually on wireless debugging (`adb mdns services`, then `adb connect <ip:port>` from the `_adb-tls-connect` line); the full 184 MB APK takes several minutes over Wi-Fi, so install it in the background. The tablet (Honor NDL-W09) is on USB. Use `adb -s <serial>` when both are connected.

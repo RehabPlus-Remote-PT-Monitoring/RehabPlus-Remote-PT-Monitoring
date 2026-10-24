@@ -13,6 +13,9 @@ import '../services/prescription_service.dart';
 import '../services/progress_report_loader.dart';
 import '../services/progress_stats.dart';
 import '../widgets/profile_avatar.dart';
+import '../widgets/dashboard_shell.dart';
+import '../widgets/dashboard_tab_bar.dart' show DashboardDestination;
+import '../widgets/pressable.dart';
 import '../widgets/unread_badge.dart';
 import '../core/responsive.dart';
 import 'messages_screen.dart';
@@ -33,18 +36,22 @@ class _DashboardScreenState extends State<DashboardScreen>
     with TickerProviderStateMixin, WidgetsBindingObserver {
   int _selectedTab = 0;
   int _prevSelectedTab = 0;
-  int _bottomNavIndex = 0;
-  int _prevNavIndex = 0;
+  /// The open tab: 0 Home, 1 Exercise, 2 Messages, 3 Profile.
+  int _tabIndex = 0;
 
   /// Shared by the page slide and the bottom-nav pill so they move in step.
-  static const Duration _navDuration = Duration(milliseconds: 380);
-  static const Curve _navCurve = Curves.easeInOutCubic;
 
   static const Color primaryTeal = Color(0xFF23A8AA);
   static const Color darkTeal = Color(0xFF0D6E71);
   static const Color lightTealBg = Color(0xFFE0F5F5);
 
   static const List<String> _days = ['M', 'T', 'W', 'T', 'F', 'S', 'S'];
+
+  /// Full names for screen readers (the circles only show a letter).
+  static const List<String> _dayNames = [
+    'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday',
+    'Sunday',
+  ];
 
   /// Window sizes for the 7 / 30 / 90 day tabs.
   static const List<int> _tabDays = [7, 30, 90];
@@ -182,10 +189,14 @@ class _DashboardScreenState extends State<DashboardScreen>
     super.dispose();
   }
 
-  Widget _buildDashboardBody() {
+  /// The Home tab. [pageContext] is inside the dashboard shell: its
+  /// MediaQuery width is the page area (beside the tablet sidebar) and its
+  /// bottom padding includes the translucent tab bar.
+  Widget _buildDashboardBody(BuildContext pageContext) {
     // Read once per build; the loader returns cached results unless the
-    // list (or the day, plan or period) actually changed.
-    final sessions = context.watch<AppProvider>().sessionHistory;
+    // list (or the day, plan or period) actually changed. (DashboardScreen's
+    // build watches AppProvider, so this rebuilds when it changes.)
+    final sessions = context.read<AppProvider>().sessionHistory;
     final overview = _progress.overviewFor(sessions, prescriptions: _plan);
     final reportView = _progress.reportFor(
       sessions,
@@ -193,11 +204,39 @@ class _DashboardScreenState extends State<DashboardScreen>
       prescriptions: _plan,
     );
 
+    // Tablets: content up to 1100 dp in two columns; the header's content
+    // lines up with the same column.
+    final maxWidth = adaptiveMaxWidth(pageContext);
+    final inset = readableInset(pageContext, maxWidth);
+    final bottomClearance = MediaQuery.paddingOf(pageContext).bottom;
+
+    const gap = SizedBox(height: 14);
+    // Most used first: on a phone the right column follows the left one.
+    final left = <Widget>[
+      _buildActionChips(),
+      const SizedBox(height: 16),
+      _buildProgressCard(overview.week),
+      gap,
+      _buildStatsRow(overview),
+      gap,
+    ];
+    final right = <Widget>[
+      _buildSummaryCard(reportView),
+      gap,
+      _buildTherapistCard(),
+      gap,
+      _buildQuoteCard(),
+      gap,
+    ];
+
     return Column(
       children: [
         SlideTransition(
           position: _headerSlide,
-          child: FadeTransition(opacity: _headerFade, child: _buildHeader()),
+          child: FadeTransition(
+            opacity: _headerFade,
+            child: _buildHeader(inset),
+          ),
         ),
         Expanded(
           child: SlideTransition(
@@ -205,25 +244,14 @@ class _DashboardScreenState extends State<DashboardScreen>
             child: FadeTransition(
               opacity: _cardsFade,
               child: SingleChildScrollView(
-                padding: readablePadding(context, const EdgeInsets.fromLTRB(16, 0, 16, 16)),
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    const SizedBox(height: 18),
-                    _buildActionChips(),
-                    const SizedBox(height: 16),
-                    _buildProgressCard(overview.week),
-                    const SizedBox(height: 14),
-                    _buildStatsRow(overview),
-                    const SizedBox(height: 14),
-                    _buildSummaryCard(reportView),
-                    const SizedBox(height: 14),
-                    _buildQuoteCard(),
-                    const SizedBox(height: 14),
-                    _buildTherapistCard(),
-                    const SizedBox(height: 8),
-                  ],
+                padding: readablePadding(
+                  pageContext,
+                  EdgeInsets.fromLTRB(16, 18, 16, 16 + bottomClearance),
+                  maxWidth,
                 ),
+                // Measures the page area's MediaQuery (it is built under
+                // the shell), so it goes two-up beside the sidebar too.
+                child: AdaptiveColumns(left: left, right: right),
               ),
             ),
           ),
@@ -254,43 +282,93 @@ class _DashboardScreenState extends State<DashboardScreen>
   /// Builds only the page that is showing. (The list of all four pages used
   /// to be built on every rebuild, including the whole Home body with its
   /// statistics while another tab was open.)
-  Widget _buildPage(int index) => switch (index) {
-    0 => _buildDashboardBody(),
+  Widget _buildPage(BuildContext pageContext, int index) => switch (index) {
+    0 => _buildDashboardBody(pageContext),
     1 => const ExercisePage(),
     2 => const MessagesScreen(),
     _ => const Scaffold(body: ProfileScreen()),
   };
 
+  /// Opens tab [index] (from the tab bar, the sidebar or a shortcut on
+  /// Home), logging the change like the other navigation in the app.
+  void _selectTab(int index) {
+    if (index == _tabIndex) return;
+    DiagnosticLogger.I.info('Dashboard', 'Tab changed', {
+      'from': _tabIndex,
+      'to': index,
+    });
+    setState(() => _tabIndex = index);
+  }
+
+  /// The four top-level destinations, shared by the tab bar and the
+  /// sidebar. Messages carries the unread-messages badge.
+  List<DashboardDestination> get _destinations => [
+    const DashboardDestination(
+      label: 'Home',
+      icon: CupertinoIcons.square_grid_2x2,
+      selectedIcon: CupertinoIcons.square_grid_2x2_fill,
+    ),
+    const DashboardDestination(
+      label: 'Exercise',
+      icon: CupertinoIcons.flame,
+      selectedIcon: CupertinoIcons.flame_fill,
+    ),
+    DashboardDestination(
+      label: 'Messages',
+      icon: CupertinoIcons.chat_bubble_2,
+      selectedIcon: CupertinoIcons.chat_bubble_2_fill,
+      badge: UnreadMessages(
+        builder: (context, unread) => unread > 0
+            ? UnreadCountBadge(count: unread)
+            : const SizedBox.shrink(),
+      ),
+    ),
+    const DashboardDestination(
+      label: 'Profile',
+      icon: CupertinoIcons.person_crop_circle,
+      selectedIcon: CupertinoIcons.person_crop_circle_fill,
+    ),
+  ];
+
   @override
   Widget build(BuildContext context) {
-    return Scaffold(
-      backgroundColor: context.palette.background,
-      // Pages slide sideways like a carousel: tapping a tab to the right pushes
-      // the current page out to the left, and vice versa. Both pages share the
-      // same curve so they move together without a gap.
-      body: ClipRect(
-        child: AnimatedSwitcher(
-          duration: _navDuration,
-          switchInCurve: _navCurve,
-          switchOutCurve: _navCurve,
-          transitionBuilder: (child, anim) {
-            final isIncoming = child.key == ValueKey(_bottomNavIndex);
-            final dir = _bottomNavIndex >= _prevNavIndex ? 1.0 : -1.0;
-            return SlideTransition(
-              position: Tween<Offset>(
-                begin: Offset(isIncoming ? dir : -dir, 0),
-                end: Offset.zero,
-              ).animate(anim),
-              child: child,
-            );
-          },
-          child: KeyedSubtree(
-            key: ValueKey(_bottomNavIndex),
-            child: _buildPage(_bottomNavIndex),
+    // Watched here, once: Home's parts are built inside the shell (a
+    // Builder below), where they read the provider without subscribing.
+    context.watch<AppProvider>();
+    return DashboardShell(
+      destinations: _destinations,
+      selectedIndex: _tabIndex,
+      onSelect: _selectTab,
+      sidebarHeader: _sidebarHeader(),
+      // Built under the shell, so MediaQuery here is the page area: its
+      // width excludes the sidebar and its bottom padding includes the
+      // translucent tab bar.
+      page: Builder(builder: (pageContext) => _buildPage(pageContext, _tabIndex)),
+    );
+  }
+
+  /// App name at the top of the tablet sidebar.
+  Widget _sidebarHeader() {
+    return Row(
+      children: [
+        Container(
+          padding: const EdgeInsets.all(6),
+          decoration: BoxDecoration(
+            color: primaryTeal,
+            borderRadius: BorderRadius.circular(9),
+          ),
+          child: PhosphorIcon(
+            PhosphorIcons.shieldPlus(),
+            color: Colors.white,
+            size: 18,
           ),
         ),
-      ),
-      bottomNavigationBar: ReadableWidth(child: _buildBottomNav()),
+        const SizedBox(width: 10),
+        Text(
+          'RehabPlus',
+          style: Theme.of(context).textTheme.titleLarge,
+        ),
+      ],
     );
   }
 
@@ -302,8 +380,10 @@ class _DashboardScreenState extends State<DashboardScreen>
     return 'Good evening';
   }
 
-  Widget _buildHeader() {
-    final profile = context.watch<AppProvider>().profile;
+  /// The teal Home header (the app's one gradient). [inset] lines its
+  /// content up with the card column below on tablets.
+  Widget _buildHeader(double inset) {
+    final profile = context.read<AppProvider>().profile;
     final name = profile?.name ?? '';
     return Container(
       decoration: const BoxDecoration(
@@ -317,7 +397,7 @@ class _DashboardScreenState extends State<DashboardScreen>
       child: SafeArea(
         bottom: false,
         child: Padding(
-          padding: const EdgeInsets.fromLTRB(20, 14, 16, 24),
+          padding: EdgeInsets.fromLTRB(20 + inset, 14, 16 + inset, 24),
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
@@ -350,30 +430,6 @@ class _DashboardScreenState extends State<DashboardScreen>
                       ),
                     ],
                   ),
-                  Row(
-                    children: [
-                      UnreadNotifications(
-                        builder: (context, unread) => _headerIconBtn(
-                          CupertinoIcons.bell,
-                          badge: unread > 0,
-                          onTap: () => Navigator.push(
-                            context,
-                            MaterialPageRoute(
-                              builder: (_) => const NotificationPage(),
-                            ),
-                          ),
-                        ),
-                      ),
-                      const SizedBox(width: 4),
-                      _headerIconBtn(
-                        CupertinoIcons.plus,
-                        onTap: () => setState(() {
-                          _prevNavIndex = _bottomNavIndex;
-                          _bottomNavIndex = 1;
-                        }),
-                      ),
-                    ],
-                  ),
                 ],
               ),
 
@@ -382,11 +438,10 @@ class _DashboardScreenState extends State<DashboardScreen>
               Row(
                 children: [
                   // The patient's profile picture; tap to open the Profile tab.
-                  GestureDetector(
-                    onTap: () => setState(() {
-                      _prevNavIndex = _bottomNavIndex;
-                      _bottomNavIndex = 3;
-                    }),
+                  Pressable(
+                    onTap: () => _selectTab(3),
+                    semanticLabel: 'Open your profile',
+                    pressedScale: 0.92,
                     child: ProfileAvatar(
                       photo: profile?.photo,
                       size: 50,
@@ -456,74 +511,47 @@ class _DashboardScreenState extends State<DashboardScreen>
     );
   }
 
-  Widget _headerIconBtn(
-    IconData icon, {
-    bool badge = false,
-    VoidCallback? onTap,
-  }) {
-    return Stack(
-      clipBehavior: Clip.none,
-      children: [
-        Container(
-          width: 40,
-          height: 40,
-          decoration: BoxDecoration(
-            color: Colors.white.withValues(alpha: 0.15),
-            borderRadius: BorderRadius.circular(12),
-          ),
-          child: IconButton(
-            padding: EdgeInsets.zero,
-            onPressed: onTap,
-            icon: Icon(icon, color: Colors.white, size: 20),
-          ),
-        ),
-        if (badge)
-          Positioned(
-            right: -2,
-            top: -2,
-            child: Container(
-              width: 10,
-              height: 10,
-              decoration: BoxDecoration(
-                color: Colors.redAccent,
-                shape: BoxShape.circle,
-                border: Border.all(color: darkTeal, width: 1.5),
-              ),
-            ),
-          ),
-      ],
-    );
-  }
-
   // ── ACTION CHIPS ─────────────────────────────────────────────────────────────
   Widget _buildActionChips() {
     return Row(
       children: [
-        _chip(
-          CupertinoIcons.bell,
-          'Alerts',
-          const Color(0xFFFF6B35),
-          hasBadge: true,
-          onTap: () => setState(() {
-            _prevNavIndex = _bottomNavIndex;
-            _bottomNavIndex = 2;
-          }),
+        // Alerts = the Notifications page, with a dot only when something
+        // is unread. (It used to open the Messages tab and always show a
+        // dot.) The header's own bell and "+" were removed: the bell
+        // duplicated this tile and "+" duplicated the Exercise tab.
+        Expanded(
+          child: UnreadNotifications(
+            builder: (context, unread) => _chip(
+              CupertinoIcons.bell,
+              'Alerts',
+              const Color(0xFFFF6B35),
+              hasBadge: unread > 0,
+              onTap: () => Navigator.push(
+                context,
+                MaterialPageRoute(builder: (_) => const NotificationPage()),
+              ),
+            ),
+          ),
         ),
         const SizedBox(width: 10),
-        _chip(
-          CupertinoIcons.graph_square,
-          'Progress',
-          const Color(0xFF4A90D9),
-          onTap: _openReport,
+        Expanded(
+          child: _chip(
+            CupertinoIcons.graph_square,
+            'Progress',
+            const Color(0xFF4A90D9),
+            onTap: _openReport,
+          ),
         ),
         const SizedBox(width: 10),
-        _chip(
-          CupertinoIcons.play_circle,
-          'Demo',
-          const Color(0xFFE53935),
-          onTap: () => Navigator.push(
-            context,
-            MaterialPageRoute(builder: (_) => const DemoScreen()),
+        Expanded(
+          child: _chip(
+            CupertinoIcons.play_circle,
+            'Demo',
+            const Color(0xFFE53935),
+            onTap: () => Navigator.push(
+              context,
+              MaterialPageRoute(builder: (_) => const DemoScreen()),
+            ),
           ),
         ),
       ],
@@ -538,9 +566,10 @@ class _DashboardScreenState extends State<DashboardScreen>
     VoidCallback? onTap,
   }) {
     final palette = context.palette;
-    return Expanded(
-      child: GestureDetector(
+    // The caller wraps it in Expanded (one third of the row each).
+    return Pressable(
         onTap: onTap,
+        semanticLabel: hasBadge ? '$label, new' : label,
         child: Container(
           padding: const EdgeInsets.symmetric(vertical: 14),
           decoration: BoxDecoration(
@@ -589,7 +618,6 @@ class _DashboardScreenState extends State<DashboardScreen>
             ],
           ),
         ),
-      ),
     );
   }
 
@@ -654,7 +682,10 @@ class _DashboardScreenState extends State<DashboardScreen>
               final checked = week[i];
               final isToday = i == todayIndex;
               final isFuture = i > todayIndex;
-              return Opacity(
+              return Semantics(
+                label: '${_dayNames[i]}, ${checked ? 'exercised' : isToday ? 'today, not yet' : 'no exercise'}',
+                excludeSemantics: true,
+                child: Opacity(
                 opacity: isFuture ? 0.45 : 1,
                 child: Column(
                   children: [
@@ -668,15 +699,6 @@ class _DashboardScreenState extends State<DashboardScreen>
                         shape: BoxShape.circle,
                         border: isToday && !checked
                             ? Border.all(color: primaryTeal, width: 2)
-                            : null,
-                        boxShadow: checked
-                            ? [
-                                BoxShadow(
-                                  color: primaryTeal.withValues(alpha: 0.4),
-                                  blurRadius: 10,
-                                  offset: const Offset(0, 4),
-                                ),
-                              ]
                             : null,
                       ),
                       child: Center(
@@ -696,18 +718,8 @@ class _DashboardScreenState extends State<DashboardScreen>
                               ),
                       ),
                     ),
-                    const SizedBox(height: 6),
-                    Text(
-                      _days[i],
-                      style: TextStyle(
-                        fontSize: 11,
-                        fontWeight: checked
-                            ? FontWeight.bold
-                            : FontWeight.normal,
-                        color: checked ? primaryTeal : palette.textMuted,
-                      ),
-                    ),
                   ],
+                ),
                 ),
               );
             }),
@@ -825,121 +837,107 @@ class _DashboardScreenState extends State<DashboardScreen>
   Widget _buildStatCards(PeriodComparison period) {
     final cur = period.current;
     final prev = period.previous;
-    final timeDelta = cur.time.inMinutes - prev.time.inMinutes;
-
-    // Trend badges compare with the previous window of the same length.
-    String signed(int n, [String unit = '']) => n > 0 ? '+$n$unit' : '$n$unit';
+    final days = _tabDays[_selectedTab];
 
     return Row(
+      crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        _buildStatCard(
-          'Active Days',
-          '${cur.activeDays}',
-          cur.activeDays - prev.activeDays,
-          signed(cur.activeDays - prev.activeDays),
-          CupertinoIcons.calendar_badge_plus,
-          const Color(0xFFFF6B35),
+        Expanded(
+          child: _buildStatCard(
+            'Active Days',
+            '${cur.activeDays}',
+            _compare(cur.activeDays - prev.activeDays, days, unit: 'day'),
+            CupertinoIcons.calendar_badge_plus,
+            const Color(0xFFFF6B35),
+          ),
         ),
         const SizedBox(width: 10),
-        _buildStatCard(
-          'Sessions',
-          '${cur.sessions}',
-          cur.sessions - prev.sessions,
-          signed(cur.sessions - prev.sessions),
-          CupertinoIcons.heart,
-          primaryTeal,
+        Expanded(
+          child: _buildStatCard(
+            'Sessions',
+            '${cur.sessions}',
+            _compare(cur.sessions - prev.sessions, days, unit: 'session'),
+            CupertinoIcons.heart,
+            primaryTeal,
+          ),
         ),
         const SizedBox(width: 10),
-        _buildStatCard(
-          'Time',
-          ProgressStats.formatDuration(cur.time),
-          timeDelta,
-          signed(timeDelta, 'm'),
-          CupertinoIcons.timer,
-          const Color(0xFF7C4DFF),
+        Expanded(
+          child: _buildStatCard(
+            'Time',
+            ProgressStats.formatDuration(cur.time),
+            _compare(
+              cur.time.inMinutes - prev.time.inMinutes,
+              days,
+              unit: 'min',
+              countable: false,
+            ),
+            CupertinoIcons.timer,
+            const Color(0xFF7C4DFF),
+          ),
         ),
       ],
     );
   }
 
+  /// Plain words comparing with the previous window of the same length,
+  /// e.g. "2 fewer than the 7 days before". This replaced red/green arrow
+  /// pills: a patient having a slower week should read a fact, not a
+  /// warning, and the meaning must not depend on colour.
+  String _compare(
+    int delta,
+    int days, {
+    required String unit,
+    bool countable = true,
+  }) {
+    final before = 'than the $days days before';
+    if (delta == 0) return 'Same as the $days days before';
+    final n = delta.abs();
+    final noun = countable && n != 1 ? '${unit}s' : unit;
+    if (delta > 0) return '$n $noun more $before';
+    return countable ? '$n $noun fewer $before' : '$n $noun less $before';
+  }
+
   Widget _buildStatCard(
     String label,
     String value,
-    int delta,
-    String sub,
+    String comparison,
     IconData icon,
     Color color,
   ) {
-    final trendColor = delta > 0
-        ? Colors.green
-        : delta < 0
-            ? Colors.red
-            : Colors.grey;
     final palette = context.palette;
-    return Expanded(
-      child: Container(
-        padding: const EdgeInsets.all(16),
-        decoration: BoxDecoration(
-          color: palette.surface,
-          borderRadius: BorderRadius.circular(18),
-        ),
+    return Container(
+      padding: const EdgeInsets.all(14),
+      decoration: BoxDecoration(
+        color: palette.surface,
+        borderRadius: BorderRadius.circular(16),
+      ),
+      child: MergeSemantics(
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            Container(
-              padding: const EdgeInsets.all(8),
-              decoration: BoxDecoration(
-                color: color.withValues(alpha: 0.1),
-                borderRadius: BorderRadius.circular(10),
-              ),
-              child: Icon(icon, size: 18, color: color),
-            ),
-            const SizedBox(height: 12),
+            Icon(icon, size: 20, color: color),
+            const SizedBox(height: 10),
             Text(
               value,
-              style: TextStyle(
+              style: Theme.of(context).textTheme.titleLarge?.copyWith(
                 fontSize: 22,
-                fontWeight: FontWeight.bold,
-                color: palette.textPrimary,
+                fontWeight: FontWeight.w700,
               ),
             ),
-            const SizedBox(height: 2),
             Text(
               label,
-              style: TextStyle(fontSize: 11, color: palette.textMuted),
+              style: TextStyle(fontSize: 13, color: palette.textSecondary),
             ),
             const SizedBox(height: 6),
-            Container(
-              padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
-              decoration: BoxDecoration(
-                // shade50 is a glaring pastel on a dark card: use a tint.
-                color: context.isDarkMode
-                    ? trendColor.withValues(alpha: 0.15)
-                    : trendColor.shade50,
-                borderRadius: BorderRadius.circular(6),
-              ),
-              child: Row(
-                mainAxisSize: MainAxisSize.min,
-                children: [
-                  Icon(
-                    delta > 0
-                        ? CupertinoIcons.arrow_up
-                        : delta < 0
-                            ? CupertinoIcons.arrow_down
-                            : CupertinoIcons.minus,
-                    size: 10,
-                    color: trendColor,
-                  ),
-                  const SizedBox(width: 2),
-                  Text(
-                    sub,
-                    style: TextStyle(
-                      fontSize: 11,
-                      color: trendColor,
-                      fontWeight: FontWeight.w700,
-                    ),
-                  ),
-                ],
+            Text(
+              comparison,
+              maxLines: 3,
+              overflow: TextOverflow.ellipsis,
+              style: TextStyle(
+                fontSize: 11,
+                height: 1.3,
+                color: palette.textMuted,
               ),
             ),
           ],
@@ -1005,7 +1003,7 @@ class _DashboardScreenState extends State<DashboardScreen>
 
   // ── THERAPIST CARD ───────────────────────────────────────────────────────────
   Widget _buildTherapistCard() {
-    final therapist = context.watch<AppProvider>().profile?.therapist ?? '';
+    final therapist = context.read<AppProvider>().profile?.therapist ?? '';
     final palette = context.palette;
     return Container(
       padding: const EdgeInsets.all(18),
@@ -1061,19 +1059,6 @@ class _DashboardScreenState extends State<DashboardScreen>
                       color: primaryTeal,
                     ),
                   ),
-                  Positioned(
-                    bottom: 2,
-                    right: 2,
-                    child: Container(
-                      width: 14,
-                      height: 14,
-                      decoration: BoxDecoration(
-                        color: const Color(0xFF4CAF50),
-                        shape: BoxShape.circle,
-                        border: Border.all(color: palette.surface, width: 2),
-                      ),
-                    ),
-                  ),
                 ],
               ),
               const SizedBox(width: 14),
@@ -1097,36 +1082,11 @@ class _DashboardScreenState extends State<DashboardScreen>
                         color: palette.textMuted,
                       ),
                     ),
-                    const SizedBox(height: 4),
-                    Row(
-                      children: [
-                        Container(
-                          width: 7,
-                          height: 7,
-                          decoration: const BoxDecoration(
-                            color: Color(0xFF4CAF50),
-                            shape: BoxShape.circle,
-                          ),
-                        ),
-                        const SizedBox(width: 5),
-                        const Text(
-                          'Available now',
-                          style: TextStyle(
-                            fontSize: 11,
-                            color: Color(0xFF4CAF50),
-                            fontWeight: FontWeight.w600,
-                          ),
-                        ),
-                      ],
-                    ),
                   ],
                 ),
               ),
               ElevatedButton(
-                onPressed: () => setState(() {
-                  _prevNavIndex = _bottomNavIndex;
-                  _bottomNavIndex = 2;
-                }),
+                onPressed: () => _selectTab(2),
                 style: ElevatedButton.styleFrom(
                   backgroundColor: primaryTeal,
                   elevation: 0,
@@ -1139,7 +1099,7 @@ class _DashboardScreenState extends State<DashboardScreen>
                   ),
                 ),
                 child: const Text(
-                  'Contact',
+                  'Message',
                   style: TextStyle(
                     fontSize: 13,
                     fontWeight: FontWeight.w700,
@@ -1150,164 +1110,6 @@ class _DashboardScreenState extends State<DashboardScreen>
             ],
           ),
         ],
-      ),
-    );
-  }
-
-  // ── BOTTOM NAV ───────────────────────────────────────────────────────────────
-  /// Bottom nav with one highlight pill that slides (and resizes) to the
-  /// selected tab, in step with the page slide.
-  ///
-  /// Each item gets an explicit width (icon, plus the label when selected), and
-  /// the Row spaces them with spaceAround. Item x positions are then a linear
-  /// function of the widths, so animating the widths and the pill's
-  /// left/width with the same duration and curve keeps the pill exactly under
-  /// its item for the whole animation.
-  Widget _buildBottomNav() {
-    final List<(IconData, String)> items = [
-      (CupertinoIcons.square_grid_2x2, 'Home'),
-      (CupertinoIcons.flame, 'Exercise'),
-      (CupertinoIcons.chat_bubble, 'Messages'),
-      (CupertinoIcons.person_crop_circle, 'Profile'),
-    ];
-
-    const iconSize = 22.0;
-    const labelGap = 6.0;
-    const hPad = 16.0;
-    const itemHeight = 38.0;
-    const labelStyle = TextStyle(
-      fontSize: 12,
-      fontWeight: FontWeight.w600,
-      color: Colors.white,
-    );
-    final textScaler = MediaQuery.textScalerOf(context);
-    final palette = context.palette;
-
-    double labelWidth(String label) {
-      final painter = TextPainter(
-        text: TextSpan(text: label, style: labelStyle),
-        textDirection: TextDirection.ltr,
-        textScaler: textScaler,
-        maxLines: 1,
-      )..layout();
-      return painter.width.ceilToDouble();
-    }
-
-    double itemWidth(int i) =>
-        hPad * 2 +
-        iconSize +
-        (i == _bottomNavIndex ? labelGap + labelWidth(items[i].$2) : 0);
-
-    return Container(
-      decoration: BoxDecoration(
-        color: palette.surface,
-        borderRadius: const BorderRadius.vertical(top: Radius.circular(26)),
-      ),
-      child: SafeArea(
-        top: false,
-        child: Padding(
-          padding: const EdgeInsets.symmetric(vertical: 10, horizontal: 8),
-          child: LayoutBuilder(
-            builder: (context, constraints) {
-              final widths = List.generate(items.length, itemWidth);
-              // Where spaceAround puts the selected item once settled.
-              final spacing =
-                  (constraints.maxWidth - widths.reduce((a, b) => a + b)) /
-                  items.length;
-              var pillLeft = spacing / 2 + spacing * _bottomNavIndex;
-              for (var i = 0; i < _bottomNavIndex; i++) {
-                pillLeft += widths[i];
-              }
-
-              return SizedBox(
-                height: itemHeight,
-                child: Stack(
-                  children: [
-                    AnimatedPositioned(
-                      duration: _navDuration,
-                      curve: _navCurve,
-                      left: pillLeft,
-                      width: widths[_bottomNavIndex],
-                      top: 0,
-                      bottom: 0,
-                      child: DecoratedBox(
-                        decoration: BoxDecoration(
-                          color: primaryTeal,
-                          borderRadius: BorderRadius.circular(16),
-                        ),
-                      ),
-                    ),
-                    Row(
-                      mainAxisAlignment: MainAxisAlignment.spaceAround,
-                      children: List.generate(items.length, (i) {
-                        final selected = _bottomNavIndex == i;
-                        return GestureDetector(
-                          behavior: HitTestBehavior.opaque,
-                          onTap: () {
-                            if (i == _bottomNavIndex) return;
-                            setState(() {
-                              _prevNavIndex = _bottomNavIndex;
-                              _bottomNavIndex = i;
-                            });
-                          },
-                          child: AnimatedContainer(
-                            duration: _navDuration,
-                            curve: _navCurve,
-                            width: widths[i],
-                            height: itemHeight,
-                            // The label is clipped while the item shrinks.
-                            child: ClipRect(
-                              child: OverflowBox(
-                                alignment: Alignment.centerLeft,
-                                minWidth: 0,
-                                maxWidth: double.infinity,
-                                child: Padding(
-                                  padding: const EdgeInsets.only(left: hPad),
-                                  child: Row(
-                                    mainAxisSize: MainAxisSize.min,
-                                    children: [
-                                      TweenAnimationBuilder<Color?>(
-                                        tween: ColorTween(
-                                          end: selected
-                                              ? Colors.white
-                                              : palette.textFaint,
-                                        ),
-                                        duration: _navDuration,
-                                        curve: _navCurve,
-                                        builder: (context, color, _) =>
-                                            Icon(
-                                              items[i].$1,
-                                              size: iconSize,
-                                              color: color,
-                                            ),
-                                      ),
-                                      const SizedBox(width: labelGap),
-                                      AnimatedOpacity(
-                                        opacity: selected ? 1 : 0,
-                                        duration: _navDuration,
-                                        curve: _navCurve,
-                                        child: Text(
-                                          items[i].$2,
-                                          style: labelStyle,
-                                          maxLines: 1,
-                                          softWrap: false,
-                                        ),
-                                      ),
-                                    ],
-                                  ),
-                                ),
-                              ),
-                            ),
-                          ),
-                        );
-                      }),
-                    ),
-                  ],
-                ),
-              );
-            },
-          ),
-        ),
       ),
     );
   }

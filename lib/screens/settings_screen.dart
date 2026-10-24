@@ -6,6 +6,8 @@ import 'package:flutter/material.dart' hide DiagnosticLevel;
 import 'package:package_info_plus/package_info_plus.dart';
 import 'package:permission_handler/permission_handler.dart';
 
+import '../widgets/ios_list.dart';
+import '../widgets/ios_page.dart';
 import '../widgets/ios_segmented_control.dart';
 import '../widgets/app_dialogs.dart';
 import '../core/app_palette.dart';
@@ -83,13 +85,7 @@ class SettingsScreen extends StatefulWidget {
 
 class _SettingsScreenState extends State<SettingsScreen>
     with WidgetsBindingObserver {
-  static const Color primaryTeal = Color(0xFF23A8AA);
-  static const Color darkTeal = Color(0xFF0D6E71);
   static const String _tag = 'Settings';
-
-  /// Teal for values and unselected segment labels. Dark teal is too dim on
-  /// a dark card, so dark mode uses the brighter brand teal.
-  Color get _valueTeal => context.isDarkMode ? primaryTeal : darkTeal;
 
   final _settings = AppSettings.I;
   final DiagnosticLogger _logger = DiagnosticLogger.I;
@@ -383,426 +379,330 @@ class _SettingsScreenState extends State<SettingsScreen>
   // UI
   // ---------------------------------------------------------------------
 
+  /// An iOS inset grouped list, like the iPhone Settings app. On a phone the
+  /// sections stay in one column in their usual order. On a wide tablet they
+  /// split into two columns (exercise and camera things on the left,
+  /// notifications, appearance, account and support on the right), so the
+  /// page uses the screen instead of one long narrow strip.
   @override
   Widget build(BuildContext context) {
+    return IosPage(
+      title: 'Settings',
+      previousPageTitle: 'Profile',
+      maxWidth: adaptiveMaxWidth(context),
+      children: [
+        AdaptiveColumns(
+          left: [
+            _exerciseFeedbackSection(),
+            _cameraSection(),
+            _remindersSection(),
+          ],
+          right: [
+            _notificationsSection(),
+            _appearanceSection(),
+            _accountSection(),
+            _supportSection(),
+            _aboutSection(),
+          ],
+        ),
+      ],
+    );
+  }
+
+  Widget _exerciseFeedbackSection() {
     final s = _settings;
-    final notif = _notif;
+    return IosSection(
+      header: 'Exercise feedback',
+      footer:
+          'The countdown gives you time to get into position before your '
+          'reps are counted.',
+      children: [
+        IosSwitchRow(
+          icon: CupertinoIcons.speaker_2_fill,
+          iconColor: IosColors.pink,
+          title: 'Sound on each rep',
+          value: s.repSound,
+          onChanged: _logged('repSound', s.setRepSound),
+        ),
+        IosSwitchRow(
+          icon: CupertinoIcons.device_phone_portrait,
+          iconColor: IosColors.purple,
+          title: 'Vibrate on each rep',
+          subtitle: 'Also a double buzz when a rep isn\'t counted',
+          value: s.repVibration,
+          onChanged: _logged('repVibration', s.setRepVibration),
+        ),
+        IosSwitchRow(
+          icon: CupertinoIcons.waveform,
+          iconColor: IosColors.orange,
+          title: 'Spoken cues',
+          subtitle: 'Reads your rep count and form tips aloud',
+          value: s.voiceCues,
+          onChanged: _logged('voiceCues', s.setVoiceCues),
+        ),
+        IosControlRow(
+          icon: CupertinoIcons.timer,
+          iconColor: IosColors.orange,
+          // Short title (explained in the footer): the control row's title
+          // is on one line and "Countdown before counting" overflowed a
+          // phone at the Larger text size.
+          title: 'Countdown',
+          child: IosSegmentedControl<int>(
+            options: {
+              for (final c in AppSettings.countdownChoices)
+                c: c == 0 ? 'Off' : '$c s',
+            },
+            value: s.countdownSeconds,
+            onChanged: _logged('countdownSeconds', s.setCountdownSeconds),
+          ),
+        ),
+      ],
+    );
+  }
+
+  Widget _cameraSection() {
+    final s = _settings;
+    return IosSection(
+      header: 'Camera',
+      children: [
+        IosControlRow(
+          icon: CupertinoIcons.camera_rotate,
+          iconColor: IosColors.gray,
+          title: 'Start with',
+          child: IosSegmentedControl<bool>(
+            options: const {false: 'Front', true: 'Back'},
+            value: s.useBackCamera,
+            onChanged: _logged('useBackCamera', s.setUseBackCamera),
+          ),
+        ),
+        IosSwitchRow(
+          icon: Icons.accessibility_new_rounded,
+          iconColor: IosColors.teal,
+          title: 'Show skeleton',
+          subtitle: 'The lines drawn over your body',
+          value: s.showSkeleton,
+          onChanged: _logged('showSkeleton', s.setShowSkeleton),
+        ),
+        IosSwitchRow(
+          icon: CupertinoIcons.arrow_right_arrow_left,
+          iconColor: IosColors.teal,
+          title: 'Flip skeleton',
+          subtitle: 'Turn on if it moves opposite to you',
+          value: s.flipSkeleton,
+          onChanged: _logged('flipSkeleton', s.setFlipSkeleton),
+        ),
+      ],
+    );
+  }
+
+  Widget _remindersSection() {
+    final s = _settings;
     final reminderTime = TimeOfDay(
       hour: s.reminderMinutes ~/ 60,
       minute: s.reminderMinutes % 60,
     ).format(context);
-    final palette = context.palette;
-
-    return Scaffold(
-      backgroundColor: palette.background,
-      body: Column(
-        children: [
-          _header(),
-          Expanded(
-            child: ListView(
-              padding: readablePadding(context, const EdgeInsets.fromLTRB(16, 16, 16, 32)),
-              children: [
-                _section('Exercise feedback', CupertinoIcons.flame, [
-                  _switch(
-                    CupertinoIcons.speaker_2,
-                    'Sound on each rep',
-                    s.repSound,
-                    _logged('repSound', s.setRepSound),
-                  ),
-                  _switch(
-                    CupertinoIcons.device_phone_portrait,
-                    'Vibrate on each rep',
-                    s.repVibration,
-                    _logged('repVibration', s.setRepVibration),
-                    subtitle: 'Also a double buzz when a rep isn\'t counted',
-                  ),
-                  _switch(
-                    CupertinoIcons.waveform,
-                    'Spoken cues',
-                    s.voiceCues,
-                    _logged('voiceCues', s.setVoiceCues),
-                    subtitle: 'Reads your rep count and form tips aloud',
-                  ),
-                  _choice<int>(
-                    CupertinoIcons.timer,
-                    'Countdown before counting',
-                    s.countdownSeconds,
-                    {
-                      for (final c in AppSettings.countdownChoices)
-                        c: c == 0 ? 'Off' : '$c s',
-                    },
-                    _logged('countdownSeconds', s.setCountdownSeconds),
-                  ),
-                ]),
-                _section('Camera', CupertinoIcons.videocam, [
-                  _choice<bool>(
-                    CupertinoIcons.camera_rotate,
-                    'Start with',
-                    s.useBackCamera,
-                    const {false: 'Front', true: 'Back'},
-                    _logged('useBackCamera', s.setUseBackCamera),
-                  ),
-                  _switch(
-                    Icons.accessibility_new_rounded,
-                    'Show skeleton',
-                    s.showSkeleton,
-                    _logged('showSkeleton', s.setShowSkeleton),
-                    subtitle: 'The lines drawn over your body',
-                  ),
-                  _switch(
-                    CupertinoIcons.arrow_right_arrow_left,
-                    'Flip skeleton',
-                    s.flipSkeleton,
-                    _logged('flipSkeleton', s.setFlipSkeleton),
-                    subtitle: 'Turn on if it moves opposite to you',
-                  ),
-                ]),
-                _section('Reminders', CupertinoIcons.alarm, [
-                  _switch(
-                    CupertinoIcons.bell,
-                    'Daily exercise reminder',
-                    s.reminderEnabled,
-                    _toggleReminder,
-                  ),
-                  _tile(
-                    CupertinoIcons.clock,
-                    'Reminder time',
-                    trailing: Text(
-                      reminderTime,
-                      style: TextStyle(
-                        fontWeight: FontWeight.w600,
-                        color: s.reminderEnabled ? _valueTeal : palette.textMuted,
-                      ),
-                    ),
-                    onTap: _pickReminderTime,
-                  ),
-                ]),
-                _section('Notifications', CupertinoIcons.bell, [
-                  if (notif == null)
-                    const Padding(
-                      padding: EdgeInsets.all(16),
-                      child: Center(
-                        child: SizedBox(
-                          width: 22,
-                          height: 22,
-                          child: CircularProgressIndicator.adaptive(strokeWidth: 2.5),
-                        ),
-                      ),
-                    )
-                  else ...[
-                    _switch(
-                      CupertinoIcons.chat_bubble,
-                      'New messages',
-                      notif.messages,
-                      _savingNotif
-                          ? null
-                          : (v) => _setNotif(notif.copyWith(messages: v)),
-                    ),
-                    _switch(
-                      CupertinoIcons.doc_text,
-                      'New exercises',
-                      notif.exercises,
-                      _savingNotif
-                          ? null
-                          : (v) => _setNotif(notif.copyWith(exercises: v)),
-                    ),
-                    _switch(
-                      CupertinoIcons.alarm,
-                      'Clinic reminders',
-                      notif.reminders,
-                      _savingNotif
-                          ? null
-                          : (v) => _setNotif(notif.copyWith(reminders: v)),
-                      subtitle: "6 PM, if today's exercises aren't done yet",
-                    ),
-                    Padding(
-                      padding: const EdgeInsets.fromLTRB(16, 0, 16, 12),
-                      child: Text(
-                        'Turning these off stops the phone alerts only. Everything '
-                        'still appears on the Notifications page.',
-                        style: TextStyle(fontSize: 12, color: palette.textMuted),
-                      ),
-                    ),
-                  ],
-                ]),
-                _section('Appearance', CupertinoIcons.textformat_size, [
-                  _choice<ThemeMode>(
-                    CupertinoIcons.moon,
-                    'Theme',
-                    s.themeMode,
-                    {
-                      ThemeMode.system: 'Phone setting',
-                      ThemeMode.light: 'Light',
-                      ThemeMode.dark: 'Dark',
-                    },
-                    _logged('themeMode', s.setThemeMode),
-                  ),
-                  _choice<double>(
-                    CupertinoIcons.textformat_size,
-                    'Text size',
-                    s.textScale,
-                    {1.0: 'Normal', 1.15: 'Large', 1.3: 'Larger'},
-                    _logged('textScale', s.setTextScale),
-                  ),
-                ]),
-                _section('Account', CupertinoIcons.person, [
-                  _tile(
-                    CupertinoIcons.lock,
-                    'App lock',
-                    subtitle: !AppLockService.I.isEnabled
-                        ? 'Off'
-                        : AppLockService.I.biometricsEnabled
-                        ? 'On: PIN and fingerprint'
-                        : 'On: PIN',
-                    onTap: () => Navigator.push(
-                      context,
-                      MaterialPageRoute(
-                        builder: (_) => const AppLockSettingsScreen(),
-                      ),
-                    ),
-                  ),
-                  _tile(
-                    CupertinoIcons.lock_rotation,
-                    'Change password',
-                    onTap: _changePassword,
-                  ),
-                  _tile(
-                    CupertinoIcons.camera,
-                    'Camera access',
-                    trailing: Text(
-                      switch (_camera) {
-                        null => '',
-                        PermissionStatus.granted => 'Allowed',
-                        _ => 'Not allowed',
-                      },
-                      style: TextStyle(
-                        fontWeight: FontWeight.w600,
-                        color: _camera == PermissionStatus.granted
-                            ? _valueTeal
-                            : Colors.red[700],
-                      ),
-                    ),
-                    onTap: _camera == PermissionStatus.granted
-                        ? _openAppSettings
-                        : _cameraAccess,
-                  ),
-                ]),
-                _section('Support', CupertinoIcons.chat_bubble_2, [
-                  _tile(
-                    CupertinoIcons.question_circle,
-                    'Help & Support',
-                    subtitle: 'Message the clinic',
-                    onTap: () => Navigator.push(
-                      context,
-                      MaterialPageRoute(
-                        builder: (_) =>
-                            const ChatDetailScreen(thread: ChatThread.clinic),
-                      ),
-                    ),
-                  ),
-                  _tile(
-                    CupertinoIcons.phone,
-                    'Call the clinic',
-                    onTap: () => callClinic(context),
-                  ),
-                  _tile(
-                    CupertinoIcons.ant,
-                    'Report a problem',
-                    onTap: _reportProblem,
-                  ),
-                ]),
-                _section('About', CupertinoIcons.info_circle, [
-                  _tile(
-                    CupertinoIcons.square_grid_2x2,
-                    'App version',
-                    trailing: Text(
-                      _version,
-                      style: TextStyle(color: palette.textSecondary),
-                    ),
-                  ),
-                ]),
-              ],
-            ),
-          ),
-        ],
-      ),
-    );
-  }
-
-  Widget _header() {
-    return Container(
-      decoration: const BoxDecoration(
-        color: AppPalette.midTeal,
-        borderRadius: BorderRadius.vertical(bottom: Radius.circular(32)),
-      ),
-      child: SafeArea(
-        bottom: false,
-        child: Padding(
-          padding: const EdgeInsets.fromLTRB(8, 8, 20, 24),
-          child: Row(
-            children: [
-              IconButton(
-                icon: const Icon(
-                  CupertinoIcons.chevron_left,
-                  color: Colors.white,
-                  size: 20,
-                ),
-                onPressed: () => Navigator.pop(context),
-              ),
-              const SizedBox(width: 4),
-              Container(
-                padding: const EdgeInsets.all(8),
-                decoration: BoxDecoration(
-                  color: Colors.white.withValues(alpha: 0.15),
-                  borderRadius: BorderRadius.circular(10),
-                ),
-                child: const Icon(
-                  CupertinoIcons.gear,
-                  color: Colors.white,
-                  size: 20,
-                ),
-              ),
-              const SizedBox(width: 12),
-              const Text(
-                'Settings',
-                style: TextStyle(
-                  fontSize: 20,
-                  fontWeight: FontWeight.bold,
-                  color: Colors.white,
-                ),
-              ),
-            ],
-          ),
+    return IosSection(
+      header: 'Reminders',
+      children: [
+        IosSwitchRow(
+          icon: CupertinoIcons.bell_fill,
+          iconColor: IosColors.red,
+          title: 'Daily exercise reminder',
+          value: s.reminderEnabled,
+          onChanged: _toggleReminder,
         ),
-      ),
+        IosRow(
+          icon: CupertinoIcons.clock_fill,
+          iconColor: IosColors.orange,
+          title: 'Reminder time',
+          value: reminderTime,
+          onTap: _pickReminderTime,
+        ),
+      ],
     );
   }
 
-  Widget _section(String title, IconData icon, List<Widget> children) {
-    final palette = context.palette;
-    return Container(
-      margin: const EdgeInsets.only(bottom: 14),
-      decoration: BoxDecoration(
-        color: palette.surface,
-        borderRadius: BorderRadius.circular(20),
-      ),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.stretch,
+  Widget _notificationsSection() {
+    final notif = _notif;
+
+    // Still loading the saved choices: a spinner where the rows will be.
+    if (notif == null) {
+      return const IosSection(
+        header: 'Notifications',
         children: [
           Padding(
-            padding: const EdgeInsets.fromLTRB(16, 14, 16, 6),
-            child: Row(
-              children: [
-                Icon(icon, size: 16, color: primaryTeal),
-                const SizedBox(width: 8),
-                Text(
-                  title,
-                  style: TextStyle(
-                    fontWeight: FontWeight.bold,
-                    fontSize: 14,
-                    color: palette.textPrimary,
-                  ),
-                ),
-              ],
+            padding: EdgeInsets.all(16),
+            child: Center(
+              child: SizedBox(
+                width: 22,
+                height: 22,
+                child: CircularProgressIndicator.adaptive(strokeWidth: 2.5),
+              ),
             ),
           ),
-          ...children,
         ],
-      ),
+      );
+    }
+
+    // Switches are disabled while a change is being saved, so two quick
+    // taps can't race each other to Firestore.
+    ValueChanged<bool>? whenIdle(ValueChanged<bool> change) =>
+        _savingNotif ? null : change;
+
+    return IosSection(
+      header: 'Notifications',
+      footer:
+          'Turning these off stops the phone alerts only. Everything '
+          'still appears on the Notifications page.',
+      children: [
+        IosSwitchRow(
+          icon: CupertinoIcons.chat_bubble_fill,
+          iconColor: IosColors.green,
+          title: 'New messages',
+          value: notif.messages,
+          onChanged: whenIdle((v) => _setNotif(notif.copyWith(messages: v))),
+        ),
+        IosSwitchRow(
+          icon: CupertinoIcons.doc_text_fill,
+          iconColor: IosColors.blue,
+          title: 'New exercises',
+          value: notif.exercises,
+          onChanged: whenIdle((v) => _setNotif(notif.copyWith(exercises: v))),
+        ),
+        IosSwitchRow(
+          icon: CupertinoIcons.alarm_fill,
+          iconColor: IosColors.red,
+          title: 'Clinic reminders',
+          subtitle: "6 PM, if today's exercises aren't done yet",
+          value: notif.reminders,
+          onChanged: whenIdle((v) => _setNotif(notif.copyWith(reminders: v))),
+        ),
+      ],
     );
   }
 
-  Widget _leading(IconData icon) => Container(
-    width: 36,
-    height: 36,
-    decoration: BoxDecoration(
-      color: primaryTeal.withValues(alpha: 0.08),
-      borderRadius: BorderRadius.circular(10),
-    ),
-    child: Icon(icon, size: 18, color: primaryTeal),
-  );
-
-  // Getters (not consts) so they follow the light/dark palette.
-  TextStyle get _titleStyle => TextStyle(
-    fontSize: 14,
-    fontWeight: FontWeight.w500,
-    color: context.palette.textPrimary,
-  );
-  TextStyle get _subtitleStyle =>
-      TextStyle(fontSize: 12, color: context.palette.textMuted);
-
-  Widget _switch(
-    IconData icon,
-    String title,
-    bool value,
-    ValueChanged<bool>? onChanged, {
-    String? subtitle,
-  }) {
-    return SwitchListTile.adaptive(
-      value: value,
-      onChanged: onChanged,
-      activeThumbColor: Colors.white,
-      activeTrackColor: primaryTeal,
-      contentPadding: const EdgeInsets.symmetric(horizontal: 16),
-      secondary: _leading(icon),
-      title: Text(title, style: _titleStyle),
-      subtitle: subtitle == null ? null : Text(subtitle, style: _subtitleStyle),
+  Widget _appearanceSection() {
+    final s = _settings;
+    return IosSection(
+      header: 'Appearance',
+      children: [
+        IosControlRow(
+          icon: CupertinoIcons.moon_fill,
+          iconColor: IosColors.indigo,
+          title: 'Theme',
+          child: IosSegmentedControl<ThemeMode>(
+            options: const {
+              ThemeMode.system: 'Phone setting',
+              ThemeMode.light: 'Light',
+              ThemeMode.dark: 'Dark',
+            },
+            value: s.themeMode,
+            onChanged: _logged('themeMode', s.setThemeMode),
+          ),
+        ),
+        IosControlRow(
+          icon: CupertinoIcons.textformat_size,
+          iconColor: IosColors.blue,
+          title: 'Text size',
+          child: IosSegmentedControl<double>(
+            // Not const: Dart doesn't allow double keys in a const map.
+            options: {1.0: 'Normal', 1.15: 'Large', 1.3: 'Larger'},
+            value: s.textScale,
+            onChanged: _logged('textScale', s.setTextScale),
+          ),
+        ),
+      ],
     );
   }
 
-  Widget _tile(
-    IconData icon,
-    String title, {
-    String? subtitle,
-    Widget? trailing,
-    VoidCallback? onTap,
-  }) {
-    return ListTile(
-      onTap: onTap,
-      contentPadding: const EdgeInsets.symmetric(horizontal: 16),
-      leading: _leading(icon),
-      title: Text(title, style: _titleStyle),
-      subtitle: subtitle == null ? null : Text(subtitle, style: _subtitleStyle),
-      trailing:
-          trailing ??
-          (onTap == null
+  Widget _accountSection() {
+    final lock = AppLockService.I;
+    final cameraAllowed = _camera == PermissionStatus.granted;
+    return IosSection(
+      header: 'Account',
+      children: [
+        IosRow(
+          icon: CupertinoIcons.lock_fill,
+          iconColor: IosColors.gray,
+          title: 'App lock',
+          // Says what kind of lock, so the patient knows if the fingerprint
+          // is set up without opening the page.
+          subtitle: !lock.isEnabled
               ? null
-              : Icon(
-                  CupertinoIcons.chevron_right,
-                  color: context.palette.textFaint,
-                  size: 20,
-                )),
+              : lock.biometricsEnabled
+              ? 'PIN and fingerprint'
+              : 'PIN',
+          value: lock.isEnabled ? 'On' : 'Off',
+          onTap: () => Navigator.push(
+            context,
+            MaterialPageRoute(builder: (_) => const AppLockSettingsScreen()),
+          ),
+        ),
+        IosRow(
+          icon: CupertinoIcons.lock_rotation,
+          iconColor: IosColors.gray,
+          title: 'Change password',
+          onTap: _changePassword,
+        ),
+        IosRow(
+          icon: CupertinoIcons.camera_fill,
+          iconColor: IosColors.gray,
+          title: 'Camera access',
+          // Empty while the permission is still being checked.
+          value: switch (_camera) {
+            null => null,
+            PermissionStatus.granted => 'Allowed',
+            _ => 'Not allowed',
+          },
+          onTap: cameraAllowed ? _openAppSettings : _cameraAccess,
+        ),
+      ],
     );
   }
 
-  /// A title with a row of options underneath (one selected).
-  Widget _choice<T extends Object>(
-    IconData icon,
-    String title,
-    T value,
-    Map<T, String> options,
-    ValueChanged<T> onChanged,
-  ) {
-    return Padding(
-      padding: const EdgeInsets.fromLTRB(16, 6, 16, 12),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Row(
-            children: [
-              _leading(icon),
-              const SizedBox(width: 16),
-              Text(title, style: _titleStyle),
-            ],
+  Widget _supportSection() {
+    return IosSection(
+      header: 'Support',
+      children: [
+        IosRow(
+          icon: CupertinoIcons.question_circle_fill,
+          iconColor: IosColors.green,
+          title: 'Help & Support',
+          subtitle: 'Message the clinic',
+          onTap: () => Navigator.push(
+            context,
+            MaterialPageRoute(
+              builder: (_) => const ChatDetailScreen(thread: ChatThread.clinic),
+            ),
           ),
-          const SizedBox(height: 10),
-          IosSegmentedControl<T>(
-            options: options,
-            value: value,
-            onChanged: onChanged,
-          ),
-        ],
-      ),
+        ),
+        IosRow(
+          icon: CupertinoIcons.phone_fill,
+          iconColor: IosColors.green,
+          title: 'Call the clinic',
+          onTap: () => callClinic(context),
+        ),
+        IosRow(
+          icon: CupertinoIcons.ant_fill,
+          iconColor: IosColors.orange,
+          title: 'Report a problem',
+          onTap: _reportProblem,
+        ),
+      ],
+    );
+  }
+
+  Widget _aboutSection() {
+    return IosSection(
+      header: 'About',
+      children: [
+        IosRow(
+          icon: CupertinoIcons.info_circle_fill,
+          iconColor: IosColors.gray,
+          title: 'App version',
+          value: _version,
+        ),
+      ],
     );
   }
 }

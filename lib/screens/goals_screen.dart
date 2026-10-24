@@ -9,6 +9,8 @@ import '../core/diagnostic_logger.dart';
 import '../models/therapy_goal.dart';
 import '../services/goal_service.dart';
 import '../core/responsive.dart';
+import '../widgets/info_content_unavailable.dart';
+import '../widgets/ios_page.dart';
 
 /// Profile > My Goals: the rehab goals the therapist set on the clinic
 /// dashboard, with their progress. Read-only; the patient is told to ask
@@ -37,136 +39,84 @@ class _GoalsScreenState extends State<GoalsScreen> {
 
   @override
   Widget build(BuildContext context) {
-    final palette = context.palette;
-    return Scaffold(
-      backgroundColor: palette.background,
-      body: Column(
-        children: [
-          _header(context),
-          Expanded(
-            child: StreamBuilder<List<TherapyGoal>>(
-              stream: _goals,
-              builder: (context, snap) {
-                if (snap.hasError) {
-                  return _message(
-                    icon: CupertinoIcons.wifi_slash,
-                    title: 'Could not load your goals',
-                    body: 'Check your internet connection and open this page again.',
-                  );
-                }
-                if (!snap.hasData) {
-                  return const Center(child: CircularProgressIndicator.adaptive());
-                }
-                final goals = snap.data!;
-                if (goals.isEmpty) {
-                  return _message(
-                    icon: CupertinoIcons.flag,
-                    title: 'No goals yet',
-                    body: 'Your therapist will add goals for your recovery. '
-                        'They will show up here.',
-                  );
-                }
-                return _goalList(goals);
-              },
-            ),
-          ),
-        ],
-      ),
-    );
-  }
-
-  Widget _goalList(List<TherapyGoal> goals) {
-    final active = goals.where((g) => g.status == GoalStatus.active).length;
-    final achieved = goals.where((g) => g.status == GoalStatus.achieved).length;
-    return ListView(
-      padding: readablePadding(context, const EdgeInsets.fromLTRB(16, 20, 16, 24)),
-      children: [
-        Text(
-          '$active in progress · $achieved achieved',
-          style: TextStyle(fontSize: 13, color: context.palette.textMuted),
-        ),
-        const SizedBox(height: 12),
-        for (final goal in goals) ...[
-          _GoalCard(goal: goal),
-          const SizedBox(height: 12),
-        ],
-        Text(
-          'Goals are set by your therapist. Message them if you want to '
-          'change one.',
-          textAlign: TextAlign.center,
-          style: TextStyle(fontSize: 12, color: context.palette.textMuted),
+    return IosPage(
+      title: 'My Goals',
+      previousPageTitle: 'Profile',
+      slivers: [
+        StreamBuilder<List<TherapyGoal>>(
+          stream: _goals,
+          builder: (context, snap) {
+            if (snap.hasError) {
+              return _message(
+                icon: CupertinoIcons.wifi_slash,
+                title: 'Could not load your goals',
+                body: 'Check your internet connection and open this page again.',
+              );
+            }
+            if (!snap.hasData) {
+              return const SliverFillRemaining(
+                hasScrollBody: false,
+                child: Center(child: CircularProgressIndicator.adaptive()),
+              );
+            }
+            final goals = snap.data!;
+            if (goals.isEmpty) {
+              return _message(
+                icon: CupertinoIcons.flag,
+                title: 'No goals yet',
+                body: 'Your therapist will add goals for your recovery. '
+                    'They will show up here.',
+              );
+            }
+            return _goalList(goals);
+          },
         ),
       ],
     );
   }
 
-  Widget _message({required IconData icon, required String title, required String body}) {
+  /// The summary line, one card per goal and a footnote, in the readable
+  /// column (a sliver: this sits directly in the page's scroll view).
+  Widget _goalList(List<TherapyGoal> goals) {
     final palette = context.palette;
-    return Center(
-      child: Padding(
-        padding: const EdgeInsets.all(32),
-        child: Column(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            Container(
-              padding: const EdgeInsets.all(18),
-              decoration: BoxDecoration(
-                color: AppPalette.teal.withValues(alpha: 0.1),
-                shape: BoxShape.circle,
-              ),
-              child: Icon(icon, size: 36, color: AppPalette.teal),
+    final textTheme = Theme.of(context).textTheme;
+    final active = goals.where((g) => g.status == GoalStatus.active).length;
+    final achieved = goals.where((g) => g.status == GoalStatus.achieved).length;
+    return SliverPadding(
+      padding: readablePadding(context, const EdgeInsets.fromLTRB(16, 12, 16, 32)),
+      sliver: SliverList.list(
+        children: [
+          // Like an iOS section header: small grey text just above the cards.
+          Padding(
+            padding: const EdgeInsets.only(left: 4, bottom: 8),
+            child: Text(
+              '$active in progress · $achieved achieved',
+              style: textTheme.bodySmall?.copyWith(color: palette.textMuted),
             ),
-            const SizedBox(height: 16),
-            Text(
-              title,
-              style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold, color: palette.textPrimary),
-            ),
-            const SizedBox(height: 6),
-            Text(
-              body,
-              textAlign: TextAlign.center,
-              style: TextStyle(fontSize: 13, color: palette.textSecondary),
-            ),
+          ),
+          for (final goal in goals) ...[
+            _GoalCard(goal: goal),
+            const SizedBox(height: 12),
           ],
-        ),
+          Padding(
+            padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 4),
+            child: Text(
+              'Goals are set by your therapist. Message them if you want to '
+              'change one.',
+              textAlign: TextAlign.center,
+              style: textTheme.bodySmall?.copyWith(color: palette.textMuted),
+            ),
+          ),
+        ],
       ),
     );
   }
 
-  Widget _header(BuildContext context) {
-    return Container(
-      decoration: const BoxDecoration(
-        color: AppPalette.midTeal,
-        borderRadius: BorderRadius.vertical(bottom: Radius.circular(32)),
-      ),
-      child: SafeArea(
-        bottom: false,
-        child: Padding(
-          padding: const EdgeInsets.fromLTRB(8, 8, 20, 24),
-          child: Row(
-            children: [
-              IconButton(
-                icon: const Icon(CupertinoIcons.chevron_left, color: Colors.white, size: 20),
-                onPressed: () => Navigator.pop(context),
-              ),
-              const SizedBox(width: 4),
-              Container(
-                padding: const EdgeInsets.all(8),
-                decoration: BoxDecoration(
-                  color: Colors.white.withValues(alpha: 0.15),
-                  borderRadius: BorderRadius.circular(10),
-                ),
-                child: const Icon(CupertinoIcons.flag, color: Colors.white, size: 20),
-              ),
-              const SizedBox(width: 12),
-              const Text(
-                'My Goals',
-                style: TextStyle(fontSize: 20, fontWeight: FontWeight.bold, color: Colors.white),
-              ),
-            ],
-          ),
-        ),
-      ),
+  /// An empty or error state, centred in the space under the title.
+  Widget _message({required IconData icon, required String title, required String body}) {
+    return SliverFillRemaining(
+      hasScrollBody: false,
+      child: InfoContentUnavailable(icon: icon, title: title, body: body),
     );
   }
 }
@@ -182,6 +132,7 @@ class _GoalCard extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final palette = context.palette;
+    final textTheme = Theme.of(context).textTheme;
     final overdue = goal.isOverdue(DateTime.now());
     final stopped = goal.status == GoalStatus.discontinued;
     final accent = switch (goal.status) {
@@ -194,9 +145,10 @@ class _GoalCard extends StatelessWidget {
       opacity: stopped ? 0.7 : 1,
       child: Container(
         padding: const EdgeInsets.all(16),
+        // iOS card: flat surface on the grouped background, no shadow.
         decoration: BoxDecoration(
           color: palette.surface,
-          borderRadius: BorderRadius.circular(20),
+          borderRadius: BorderRadius.circular(14),
         ),
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
@@ -215,9 +167,7 @@ class _GoalCard extends StatelessWidget {
                 Expanded(
                   child: Text(
                     goal.title,
-                    style: TextStyle(
-                      fontSize: 15,
-                      fontWeight: FontWeight.bold,
+                    style: textTheme.titleMedium?.copyWith(
                       color: palette.textPrimary,
                     ),
                   ),
@@ -230,7 +180,7 @@ class _GoalCard extends StatelessWidget {
               const SizedBox(height: 8),
               Text(
                 goal.details.trim(),
-                style: TextStyle(fontSize: 13, color: palette.textSecondary, height: 1.35),
+                style: textTheme.bodyMedium?.copyWith(color: palette.textSecondary),
               ),
             ],
             const SizedBox(height: 14),
@@ -241,7 +191,7 @@ class _GoalCard extends StatelessWidget {
                     borderRadius: BorderRadius.circular(6),
                     child: LinearProgressIndicator(
                       value: goal.progress / 100,
-                      minHeight: 8,
+                      minHeight: 6,
                       backgroundColor: palette.surfaceMuted,
                       valueColor: AlwaysStoppedAnimation(accent),
                     ),
@@ -250,7 +200,10 @@ class _GoalCard extends StatelessWidget {
                 const SizedBox(width: 10),
                 Text(
                   '${goal.progress}%',
-                  style: TextStyle(fontSize: 13, fontWeight: FontWeight.w600, color: palette.textPrimary),
+                  style: textTheme.bodySmall?.copyWith(
+                    fontWeight: FontWeight.w600,
+                    color: palette.textPrimary,
+                  ),
                 ),
               ],
             ),
@@ -260,7 +213,10 @@ class _GoalCard extends StatelessWidget {
                 children: [
                   Icon(CupertinoIcons.calendar, size: 15, color: palette.textMuted),
                   const SizedBox(width: 6),
-                  Text(line, style: TextStyle(fontSize: 12, color: palette.textMuted)),
+                  Text(
+                    line,
+                    style: textTheme.bodySmall?.copyWith(color: palette.textMuted),
+                  ),
                 ],
               ),
             ],
