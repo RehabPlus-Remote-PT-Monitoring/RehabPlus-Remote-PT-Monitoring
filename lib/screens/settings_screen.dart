@@ -410,231 +410,229 @@ class _SettingsScreenState extends State<SettingsScreen>
         children: [
           _header(),
           Expanded(
-            child: ReadableWidth(
-              child: ListView(
-                padding: const EdgeInsets.fromLTRB(16, 16, 16, 32),
-                children: [
-                  _section('Exercise feedback', Icons.fitness_center_rounded, [
+            child: ListView(
+              padding: readablePadding(context, const EdgeInsets.fromLTRB(16, 16, 16, 32)),
+              children: [
+                _section('Exercise feedback', Icons.fitness_center_rounded, [
+                  _switch(
+                    Icons.volume_up_outlined,
+                    'Sound on each rep',
+                    s.repSound,
+                    _logged('repSound', s.setRepSound),
+                  ),
+                  _switch(
+                    Icons.vibration_rounded,
+                    'Vibrate on each rep',
+                    s.repVibration,
+                    _logged('repVibration', s.setRepVibration),
+                    subtitle: 'Also a double buzz when a rep isn\'t counted',
+                  ),
+                  _switch(
+                    Icons.record_voice_over_outlined,
+                    'Spoken cues',
+                    s.voiceCues,
+                    _logged('voiceCues', s.setVoiceCues),
+                    subtitle: 'Reads your rep count and form tips aloud',
+                  ),
+                  _choice<int>(
+                    Icons.timer_outlined,
+                    'Countdown before counting',
+                    s.countdownSeconds,
+                    {
+                      for (final c in AppSettings.countdownChoices)
+                        c: c == 0 ? 'Off' : '$c s',
+                    },
+                    _logged('countdownSeconds', s.setCountdownSeconds),
+                  ),
+                ]),
+                _section('Camera', Icons.videocam_outlined, [
+                  _choice<bool>(
+                    Icons.cameraswitch_outlined,
+                    'Start with',
+                    s.useBackCamera,
+                    const {false: 'Front', true: 'Back'},
+                    _logged('useBackCamera', s.setUseBackCamera),
+                  ),
+                  _switch(
+                    Icons.accessibility_new_rounded,
+                    'Show skeleton',
+                    s.showSkeleton,
+                    _logged('showSkeleton', s.setShowSkeleton),
+                    subtitle: 'The lines drawn over your body',
+                  ),
+                  _switch(
+                    Icons.flip_rounded,
+                    'Flip skeleton',
+                    s.flipSkeleton,
+                    _logged('flipSkeleton', s.setFlipSkeleton),
+                    subtitle: 'Turn on if it moves opposite to you',
+                  ),
+                ]),
+                _section('Reminders', Icons.alarm_rounded, [
+                  _switch(
+                    Icons.notifications_active_outlined,
+                    'Daily exercise reminder',
+                    s.reminderEnabled,
+                    _toggleReminder,
+                  ),
+                  _tile(
+                    Icons.schedule_rounded,
+                    'Reminder time',
+                    trailing: Text(
+                      reminderTime,
+                      style: TextStyle(
+                        fontWeight: FontWeight.w600,
+                        color: s.reminderEnabled ? _valueTeal : palette.textMuted,
+                      ),
+                    ),
+                    onTap: _pickReminderTime,
+                  ),
+                ]),
+                _section('Notifications', Icons.notifications_none_rounded, [
+                  if (notif == null)
+                    const Padding(
+                      padding: EdgeInsets.all(16),
+                      child: Center(
+                        child: SizedBox(
+                          width: 22,
+                          height: 22,
+                          child: CircularProgressIndicator(strokeWidth: 2.5),
+                        ),
+                      ),
+                    )
+                  else ...[
                     _switch(
-                      Icons.volume_up_outlined,
-                      'Sound on each rep',
-                      s.repSound,
-                      _logged('repSound', s.setRepSound),
+                      Icons.chat_bubble_outline_rounded,
+                      'New messages',
+                      notif.messages,
+                      _savingNotif
+                          ? null
+                          : (v) => _setNotif(notif.copyWith(messages: v)),
                     ),
                     _switch(
-                      Icons.vibration_rounded,
-                      'Vibrate on each rep',
-                      s.repVibration,
-                      _logged('repVibration', s.setRepVibration),
-                      subtitle: 'Also a double buzz when a rep isn\'t counted',
+                      Icons.assignment_outlined,
+                      'New exercises',
+                      notif.exercises,
+                      _savingNotif
+                          ? null
+                          : (v) => _setNotif(notif.copyWith(exercises: v)),
                     ),
                     _switch(
-                      Icons.record_voice_over_outlined,
-                      'Spoken cues',
-                      s.voiceCues,
-                      _logged('voiceCues', s.setVoiceCues),
-                      subtitle: 'Reads your rep count and form tips aloud',
+                      Icons.alarm_rounded,
+                      'Clinic reminders',
+                      notif.reminders,
+                      _savingNotif
+                          ? null
+                          : (v) => _setNotif(notif.copyWith(reminders: v)),
+                      subtitle: "6 PM, if today's exercises aren't done yet",
                     ),
-                    _choice<int>(
-                      Icons.timer_outlined,
-                      'Countdown before counting',
-                      s.countdownSeconds,
-                      {
-                        for (final c in AppSettings.countdownChoices)
-                          c: c == 0 ? 'Off' : '$c s',
+                    Padding(
+                      padding: const EdgeInsets.fromLTRB(16, 0, 16, 12),
+                      child: Text(
+                        'Turning these off stops the phone alerts only. Everything '
+                        'still appears on the Notifications page.',
+                        style: TextStyle(fontSize: 12, color: palette.textMuted),
+                      ),
+                    ),
+                  ],
+                ]),
+                _section('Appearance', Icons.text_fields_rounded, [
+                  _choice<ThemeMode>(
+                    Icons.dark_mode_outlined,
+                    'Theme',
+                    s.themeMode,
+                    {
+                      ThemeMode.system: 'Phone setting',
+                      ThemeMode.light: 'Light',
+                      ThemeMode.dark: 'Dark',
+                    },
+                    _logged('themeMode', s.setThemeMode),
+                  ),
+                  _choice<double>(
+                    Icons.format_size_rounded,
+                    'Text size',
+                    s.textScale,
+                    {1.0: 'Normal', 1.15: 'Large', 1.3: 'Larger'},
+                    _logged('textScale', s.setTextScale),
+                  ),
+                ]),
+                _section('Account', Icons.person_outline_rounded, [
+                  _tile(
+                    Icons.lock_outline_rounded,
+                    'App lock',
+                    subtitle: !AppLockService.I.isEnabled
+                        ? 'Off'
+                        : AppLockService.I.biometricsEnabled
+                        ? 'On: PIN and fingerprint'
+                        : 'On: PIN',
+                    onTap: () => Navigator.push(
+                      context,
+                      MaterialPageRoute(
+                        builder: (_) => const AppLockSettingsScreen(),
+                      ),
+                    ),
+                  ),
+                  _tile(
+                    Icons.lock_reset_rounded,
+                    'Change password',
+                    onTap: _changePassword,
+                  ),
+                  _tile(
+                    Icons.photo_camera_outlined,
+                    'Camera access',
+                    trailing: Text(
+                      switch (_camera) {
+                        null => '',
+                        PermissionStatus.granted => 'Allowed',
+                        _ => 'Not allowed',
                       },
-                      _logged('countdownSeconds', s.setCountdownSeconds),
-                    ),
-                  ]),
-                  _section('Camera', Icons.videocam_outlined, [
-                    _choice<bool>(
-                      Icons.cameraswitch_outlined,
-                      'Start with',
-                      s.useBackCamera,
-                      const {false: 'Front', true: 'Back'},
-                      _logged('useBackCamera', s.setUseBackCamera),
-                    ),
-                    _switch(
-                      Icons.accessibility_new_rounded,
-                      'Show skeleton',
-                      s.showSkeleton,
-                      _logged('showSkeleton', s.setShowSkeleton),
-                      subtitle: 'The lines drawn over your body',
-                    ),
-                    _switch(
-                      Icons.flip_rounded,
-                      'Flip skeleton',
-                      s.flipSkeleton,
-                      _logged('flipSkeleton', s.setFlipSkeleton),
-                      subtitle: 'Turn on if it moves opposite to you',
-                    ),
-                  ]),
-                  _section('Reminders', Icons.alarm_rounded, [
-                    _switch(
-                      Icons.notifications_active_outlined,
-                      'Daily exercise reminder',
-                      s.reminderEnabled,
-                      _toggleReminder,
-                    ),
-                    _tile(
-                      Icons.schedule_rounded,
-                      'Reminder time',
-                      trailing: Text(
-                        reminderTime,
-                        style: TextStyle(
-                          fontWeight: FontWeight.w600,
-                          color: s.reminderEnabled ? _valueTeal : palette.textMuted,
-                        ),
-                      ),
-                      onTap: _pickReminderTime,
-                    ),
-                  ]),
-                  _section('Notifications', Icons.notifications_none_rounded, [
-                    if (notif == null)
-                      const Padding(
-                        padding: EdgeInsets.all(16),
-                        child: Center(
-                          child: SizedBox(
-                            width: 22,
-                            height: 22,
-                            child: CircularProgressIndicator(strokeWidth: 2.5),
-                          ),
-                        ),
-                      )
-                    else ...[
-                      _switch(
-                        Icons.chat_bubble_outline_rounded,
-                        'New messages',
-                        notif.messages,
-                        _savingNotif
-                            ? null
-                            : (v) => _setNotif(notif.copyWith(messages: v)),
-                      ),
-                      _switch(
-                        Icons.assignment_outlined,
-                        'New exercises',
-                        notif.exercises,
-                        _savingNotif
-                            ? null
-                            : (v) => _setNotif(notif.copyWith(exercises: v)),
-                      ),
-                      _switch(
-                        Icons.alarm_rounded,
-                        'Clinic reminders',
-                        notif.reminders,
-                        _savingNotif
-                            ? null
-                            : (v) => _setNotif(notif.copyWith(reminders: v)),
-                        subtitle: "6 PM, if today's exercises aren't done yet",
-                      ),
-                      Padding(
-                        padding: const EdgeInsets.fromLTRB(16, 0, 16, 12),
-                        child: Text(
-                          'Turning these off stops the phone alerts only. Everything '
-                          'still appears on the Notifications page.',
-                          style: TextStyle(fontSize: 12, color: palette.textMuted),
-                        ),
-                      ),
-                    ],
-                  ]),
-                  _section('Appearance', Icons.text_fields_rounded, [
-                    _choice<ThemeMode>(
-                      Icons.dark_mode_outlined,
-                      'Theme',
-                      s.themeMode,
-                      {
-                        ThemeMode.system: 'Phone setting',
-                        ThemeMode.light: 'Light',
-                        ThemeMode.dark: 'Dark',
-                      },
-                      _logged('themeMode', s.setThemeMode),
-                    ),
-                    _choice<double>(
-                      Icons.format_size_rounded,
-                      'Text size',
-                      s.textScale,
-                      {1.0: 'Normal', 1.15: 'Large', 1.3: 'Larger'},
-                      _logged('textScale', s.setTextScale),
-                    ),
-                  ]),
-                  _section('Account', Icons.person_outline_rounded, [
-                    _tile(
-                      Icons.lock_outline_rounded,
-                      'App lock',
-                      subtitle: !AppLockService.I.isEnabled
-                          ? 'Off'
-                          : AppLockService.I.biometricsEnabled
-                          ? 'On: PIN and fingerprint'
-                          : 'On: PIN',
-                      onTap: () => Navigator.push(
-                        context,
-                        MaterialPageRoute(
-                          builder: (_) => const AppLockSettingsScreen(),
-                        ),
+                      style: TextStyle(
+                        fontWeight: FontWeight.w600,
+                        color: _camera == PermissionStatus.granted
+                            ? _valueTeal
+                            : Colors.red[700],
                       ),
                     ),
-                    _tile(
-                      Icons.lock_reset_rounded,
-                      'Change password',
-                      onTap: _changePassword,
-                    ),
-                    _tile(
-                      Icons.photo_camera_outlined,
-                      'Camera access',
-                      trailing: Text(
-                        switch (_camera) {
-                          null => '',
-                          PermissionStatus.granted => 'Allowed',
-                          _ => 'Not allowed',
-                        },
-                        style: TextStyle(
-                          fontWeight: FontWeight.w600,
-                          color: _camera == PermissionStatus.granted
-                              ? _valueTeal
-                              : Colors.red[700],
-                        ),
-                      ),
-                      onTap: _camera == PermissionStatus.granted
-                          ? _openAppSettings
-                          : _cameraAccess,
-                    ),
-                  ]),
-                  _section('Support', Icons.support_agent_rounded, [
-                    _tile(
-                      Icons.help_outline_rounded,
-                      'Help & Support',
-                      subtitle: 'Message the clinic',
-                      onTap: () => Navigator.push(
-                        context,
-                        MaterialPageRoute(
-                          builder: (_) =>
-                              const ChatDetailScreen(thread: ChatThread.clinic),
-                        ),
+                    onTap: _camera == PermissionStatus.granted
+                        ? _openAppSettings
+                        : _cameraAccess,
+                  ),
+                ]),
+                _section('Support', Icons.support_agent_rounded, [
+                  _tile(
+                    Icons.help_outline_rounded,
+                    'Help & Support',
+                    subtitle: 'Message the clinic',
+                    onTap: () => Navigator.push(
+                      context,
+                      MaterialPageRoute(
+                        builder: (_) =>
+                            const ChatDetailScreen(thread: ChatThread.clinic),
                       ),
                     ),
-                    _tile(
-                      Icons.call_outlined,
-                      'Call the clinic',
-                      onTap: () => callClinic(context),
+                  ),
+                  _tile(
+                    Icons.call_outlined,
+                    'Call the clinic',
+                    onTap: () => callClinic(context),
+                  ),
+                  _tile(
+                    Icons.bug_report_outlined,
+                    'Report a problem',
+                    onTap: _reportProblem,
+                  ),
+                ]),
+                _section('About', Icons.info_outline_rounded, [
+                  _tile(
+                    Icons.apps_rounded,
+                    'App version',
+                    trailing: Text(
+                      _version,
+                      style: TextStyle(color: palette.textSecondary),
                     ),
-                    _tile(
-                      Icons.bug_report_outlined,
-                      'Report a problem',
-                      onTap: _reportProblem,
-                    ),
-                  ]),
-                  _section('About', Icons.info_outline_rounded, [
-                    _tile(
-                      Icons.apps_rounded,
-                      'App version',
-                      trailing: Text(
-                        _version,
-                        style: TextStyle(color: palette.textSecondary),
-                      ),
-                    ),
-                  ]),
-                ],
-              ),
+                  ),
+                ]),
+              ],
             ),
           ),
         ],

@@ -213,20 +213,18 @@ class _NotificationPageState extends State<NotificationPage> {
           ),
           const SizedBox(height: 10),
           Expanded(
-            child: ReadableWidth(
-              child: loading
-                  ? const Center(
-                      child: CircularProgressIndicator(color: primaryTeal),
-                    )
-                  : _filtered.isEmpty
-                  ? _buildEmpty(palette)
-                  : ListView.builder(
-                      padding: const EdgeInsets.fromLTRB(16, 0, 16, 16),
-                      itemCount: _filtered.length,
-                      itemBuilder: (_, i) =>
-                          _notificationCard(_filtered[i], palette),
-                    ),
-            ),
+            child: loading
+                ? const Center(
+                    child: CircularProgressIndicator(color: primaryTeal),
+                  )
+                : _filtered.isEmpty
+                ? _buildEmpty(palette)
+                : ListView.builder(
+                    padding: readablePadding(context, const EdgeInsets.fromLTRB(16, 0, 16, 16)),
+                    itemCount: _filtered.length,
+                    itemBuilder: (_, i) =>
+                        _notificationCard(_filtered[i], palette),
+                  ),
           ),
         ],
       ),

@@ -87,26 +87,24 @@ class _LegalDocumentScreenState extends State<LegalDocumentScreen> {
         children: [
           _header(context),
           Expanded(
-            child: ReadableWidth(
-              child: FutureBuilder<String>(
-                future: _document,
-                builder: (context, snap) {
-                  if (snap.hasError) {
-                    return const Center(
-                      child: Text('Could not open this document.'),
-                    );
-                  }
-                  if (!snap.hasData) {
-                    return const Center(child: CircularProgressIndicator());
-                  }
-                  return SingleChildScrollView(
-                    padding: const EdgeInsets.fromLTRB(20, 20, 20, 32),
-                    child: SelectionArea(
-                      child: LegalText(snap.data!),
-                    ),
+            child: FutureBuilder<String>(
+              future: _document,
+              builder: (context, snap) {
+                if (snap.hasError) {
+                  return const Center(
+                    child: Text('Could not open this document.'),
                   );
-                },
-              ),
+                }
+                if (!snap.hasData) {
+                  return const Center(child: CircularProgressIndicator());
+                }
+                return SingleChildScrollView(
+                  padding: readablePadding(context, const EdgeInsets.fromLTRB(20, 20, 20, 32)),
+                  child: SelectionArea(
+                    child: LegalText(snap.data!),
+                  ),
+                );
+              },
             ),
           ),
         ],

@@ -214,66 +214,70 @@ class _HistoryScreenState extends State<HistoryScreen>
             child: FadeTransition(opacity: _headerFade, child: _buildHeader()),
           ),
           Expanded(
-            child: ReadableWidth(
-              child: SlideTransition(
-                position: _listSlide,
-                child: FadeTransition(
-                  opacity: _listFade,
-                  child: Consumer<AppProvider>(
-                    builder: (context, provider, _) {
-                      final sessions = provider.sessionHistory;
-                      // The session history can be long, so its cards are a
-                      // lazy SliverList: only the cards on screen are built.
-                      // The header is a separate sliver, which (unlike a
-                      // ListView item) stays alive when scrolled away, so its
-                      // card animations don't replay. Same look and spacing
-                      // as the old scrolling Column.
-                      final header = Column(
-                        crossAxisAlignment: CrossAxisAlignment.start,
-                        children: [
-                          const SizedBox(height: 18),
-                          _buildSummaryRow(_summaryFor(sessions)),
-                          const SizedBox(height: 18),
-                          _buildCategoryFilter(),
-                          const SizedBox(height: 16),
-                          _buildTodayExercises(),
-                          const SizedBox(height: 18),
-                          if (sessions.isNotEmpty) ...[
-                            _buildSectionTitle('Session History', PhosphorIcons.clockCounterClockwise()),
-                            const SizedBox(height: 12),
-                          ] else ...[
-                            _buildSectionTitle('Recommended', PhosphorIcons.star()),
-                            const SizedBox(height: 12),
-                            _buildRecommendedList(),
-                          ],
+            child: SlideTransition(
+              position: _listSlide,
+              child: FadeTransition(
+                opacity: _listFade,
+                child: Consumer<AppProvider>(
+                  builder: (context, provider, _) {
+                    final sessions = provider.sessionHistory;
+                    // The session history can be long, so its cards are a
+                    // lazy SliverList: only the cards on screen are built.
+                    // The header is a separate sliver, which (unlike a
+                    // ListView item) stays alive when scrolled away, so its
+                    // card animations don't replay. Same look and spacing
+                    // as the old scrolling Column.
+                    final header = Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        const SizedBox(height: 18),
+                        _buildSummaryRow(_summaryFor(sessions)),
+                        const SizedBox(height: 18),
+                        _buildCategoryFilter(),
+                        const SizedBox(height: 16),
+                        _buildTodayExercises(),
+                        const SizedBox(height: 18),
+                        if (sessions.isNotEmpty) ...[
+                          _buildSectionTitle('Session History', PhosphorIcons.clockCounterClockwise()),
+                          const SizedBox(height: 12),
+                        ] else ...[
+                          _buildSectionTitle('Recommended', PhosphorIcons.star()),
+                          const SizedBox(height: 12),
+                          _buildRecommendedList(),
                         ],
-                      );
-                      return CustomScrollView(
-                        slivers: [
-                          SliverPadding(
-                            padding: const EdgeInsets.symmetric(horizontal: 16),
-                            sliver: SliverToBoxAdapter(child: header),
+                      ],
+                    );
+                    return CustomScrollView(
+                      slivers: [
+                        SliverPadding(
+                          padding: readablePadding(
+                            context,
+                            const EdgeInsets.symmetric(horizontal: 16),
                           ),
-                          SliverPadding(
-                            // 16 padding + the old trailing 16 gap.
-                            padding: const EdgeInsets.fromLTRB(16, 0, 16, 32),
-                            sliver: SliverList.builder(
-                              itemCount: sessions.length,
-                              itemBuilder: (context, i) {
-                                final session = sessions[i];
-                                // Keyed by id so an expanded card stays with
-                                // its session when a new one is added on top.
-                                return _SessionCard(
-                                  key: ValueKey(session.id),
-                                  session: session,
-                                );
-                              },
-                            ),
+                          sliver: SliverToBoxAdapter(child: header),
+                        ),
+                        SliverPadding(
+                          // 16 padding + the old trailing 16 gap.
+                          padding: readablePadding(
+                            context,
+                            const EdgeInsets.fromLTRB(16, 0, 16, 32),
                           ),
-                        ],
-                      );
-                    },
-                  ),
+                          sliver: SliverList.builder(
+                            itemCount: sessions.length,
+                            itemBuilder: (context, i) {
+                              final session = sessions[i];
+                              // Keyed by id so an expanded card stays with
+                              // its session when a new one is added on top.
+                              return _SessionCard(
+                                key: ValueKey(session.id),
+                                session: session,
+                              );
+                            },
+                          ),
+                        ),
+                      ],
+                    );
+                  },
                 ),
               ),
             ),

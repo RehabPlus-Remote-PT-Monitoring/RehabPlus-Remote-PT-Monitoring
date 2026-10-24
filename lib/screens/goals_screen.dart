@@ -43,32 +43,30 @@ class _GoalsScreenState extends State<GoalsScreen> {
         children: [
           _header(context),
           Expanded(
-            child: ReadableWidth(
-              child: StreamBuilder<List<TherapyGoal>>(
-                stream: _goals,
-                builder: (context, snap) {
-                  if (snap.hasError) {
-                    return _message(
-                      icon: Icons.cloud_off_rounded,
-                      title: 'Could not load your goals',
-                      body: 'Check your internet connection and open this page again.',
-                    );
-                  }
-                  if (!snap.hasData) {
-                    return const Center(child: CircularProgressIndicator());
-                  }
-                  final goals = snap.data!;
-                  if (goals.isEmpty) {
-                    return _message(
-                      icon: Icons.flag_outlined,
-                      title: 'No goals yet',
-                      body: 'Your therapist will add goals for your recovery. '
-                          'They will show up here.',
-                    );
-                  }
-                  return _goalList(goals);
-                },
-              ),
+            child: StreamBuilder<List<TherapyGoal>>(
+              stream: _goals,
+              builder: (context, snap) {
+                if (snap.hasError) {
+                  return _message(
+                    icon: Icons.cloud_off_rounded,
+                    title: 'Could not load your goals',
+                    body: 'Check your internet connection and open this page again.',
+                  );
+                }
+                if (!snap.hasData) {
+                  return const Center(child: CircularProgressIndicator());
+                }
+                final goals = snap.data!;
+                if (goals.isEmpty) {
+                  return _message(
+                    icon: Icons.flag_outlined,
+                    title: 'No goals yet',
+                    body: 'Your therapist will add goals for your recovery. '
+                        'They will show up here.',
+                  );
+                }
+                return _goalList(goals);
+              },
             ),
           ),
         ],
@@ -80,7 +78,7 @@ class _GoalsScreenState extends State<GoalsScreen> {
     final active = goals.where((g) => g.status == GoalStatus.active).length;
     final achieved = goals.where((g) => g.status == GoalStatus.achieved).length;
     return ListView(
-      padding: const EdgeInsets.fromLTRB(16, 20, 16, 24),
+      padding: readablePadding(context, const EdgeInsets.fromLTRB(16, 20, 16, 24)),
       children: [
         Text(
           '$active in progress · $achieved achieved',

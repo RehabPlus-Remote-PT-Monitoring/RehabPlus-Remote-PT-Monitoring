@@ -4,16 +4,25 @@
 // tablet (or a phone turned sideways) the same layout stretched edge to edge,
 // so cards, lists and buttons became wide strips that are hard to read.
 //
-// `ReadableWidth` keeps a screen's content in a centred column no wider than
-// [kReadableMaxWidth]. On a phone in portrait it does nothing (the screen is
+// Two tools keep content in a centred column no wider than
+// [kReadableMaxWidth]. On a phone in portrait both do nothing (the screen is
 // already narrower than that), so phone layouts are unchanged.
 //
-// How to use it: wrap a Scaffold's `body:` (and a custom bottom bar), e.g.
+// 1. Scrolling content (ListView, SingleChildScrollView, CustomScrollView):
+//    keep the scroll view FULL WIDTH and pad it with [readablePadding].
+//    Wrapping a scroll view in a narrower box makes the empty sides dead:
+//    a swipe there wouldn't scroll.
 //
-//   body: ReadableWidth(child: ListView(...)),
+//      ListView(padding: readablePadding(context, const EdgeInsets.all(16)))
+//
+// 2. Content that doesn't scroll (a header row, a bottom button bar, a
+//    message composer): wrap it in [ReadableWidth].
 //
 // Leave full-bleed screens alone: the camera exercise screen and the splash.
-// App bars stay full width on purpose, like other Android tablet apps.
+// Teal headers and app bars stay full width on purpose, like other Android
+// tablet apps.
+
+import 'dart:math' as math;
 
 import 'package:flutter/widgets.dart';
 
@@ -22,10 +31,24 @@ import 'package:flutter/widgets.dart';
 /// looks the same as on a large phone.
 const double kReadableMaxWidth = 600;
 
-/// Centres [child] in a column at most [maxWidth] wide.
+/// [base] padding for a full-width scroll view, plus the extra left and
+/// right inset that centres its content in a [maxWidth] column.
 ///
-/// The child still gets the full height, so scrolling lists, `Expanded` and
-/// bottom-anchored buttons keep working exactly as they do on a phone.
+/// Uses the screen width, so it is meant for scroll views that span the
+/// screen (all of them in this app). The content ends up exactly as wide as
+/// it would inside a [ReadableWidth] with the same [base] padding.
+EdgeInsets readablePadding(
+  BuildContext context, [
+  EdgeInsets base = EdgeInsets.zero,
+  double maxWidth = kReadableMaxWidth,
+]) {
+  final screenWidth = MediaQuery.sizeOf(context).width;
+  final side = math.max(0.0, (screenWidth - maxWidth) / 2);
+  return base.copyWith(left: base.left + side, right: base.right + side);
+}
+
+/// Centres [child] in a column at most [maxWidth] wide. For content that
+/// does not scroll; scroll views use [readablePadding] instead.
 class ReadableWidth extends StatelessWidget {
   const ReadableWidth({
     super.key,

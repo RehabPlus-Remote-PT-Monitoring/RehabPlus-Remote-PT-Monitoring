@@ -305,19 +305,17 @@ class _ForgotPasswordScreenState extends State<ForgotPasswordScreen>
             Positioned(bottom: -100, left: -60, child: _circle(300, 0.06)),
 
             SafeArea(
-              child: ReadableWidth(
-                child: Center(
-                  child: SingleChildScrollView(
-                    padding: const EdgeInsets.symmetric(horizontal: 28),
-                    child: Column(
-                      children: [
-                        const SizedBox(height: 20),
-                        _buildBrandingHeader(),
-                        const SizedBox(height: 28),
-                        _buildCard(),
-                        const SizedBox(height: 24),
-                      ],
-                    ),
+              child: Center(
+                child: SingleChildScrollView(
+                  padding: readablePadding(context, const EdgeInsets.symmetric(horizontal: 28)),
+                  child: Column(
+                    children: [
+                      const SizedBox(height: 20),
+                      _buildBrandingHeader(),
+                      const SizedBox(height: 28),
+                      _buildCard(),
+                      const SizedBox(height: 24),
+                    ],
                   ),
                 ),
               ),

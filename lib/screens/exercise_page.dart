@@ -104,14 +104,14 @@ class _ExercisePageState extends State<ExercisePage> {
           ),
 
           SafeArea(
-            child: ReadableWidth(
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  const SizedBox(height: 8),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                const SizedBox(height: 8),
 
-                  // Top Bar Header
-                  Padding(
+                // Top Bar Header
+                ReadableWidth(
+                  child: Padding(
                     padding: const EdgeInsets.symmetric(horizontal: 20.0),
                     child: Row(
                       mainAxisAlignment: MainAxisAlignment.spaceBetween,
@@ -168,10 +168,12 @@ class _ExercisePageState extends State<ExercisePage> {
                       ],
                     ),
                   ),
-                  const SizedBox(height: 12),
+                ),
+                const SizedBox(height: 12),
 
-                  // Date & Subtitle
-                  Padding(
+                // Date & Subtitle
+                ReadableWidth(
+                  child: Padding(
                     padding: const EdgeInsets.symmetric(horizontal: 20.0),
                     child: Column(
                       crossAxisAlignment: CrossAxisAlignment.start,
@@ -200,92 +202,95 @@ class _ExercisePageState extends State<ExercisePage> {
                       ],
                     ),
                   ),
-                  const SizedBox(height: 16),
+                ),
+                const SizedBox(height: 16),
 
-                  // Exercise list, driven by the patient's assigned plan.
-                  Expanded(
-                    child: FutureBuilder<List<ExerciseConfig>>(
-                      future: _exercisesFuture,
-                      builder: (context, snapshot) {
-                        if (snapshot.connectionState == ConnectionState.waiting) {
-                          return const Center(
-                            child: CircularProgressIndicator(color: primaryTeal),
-                          );
-                        }
+                // Exercise list, driven by the patient's assigned plan.
+                Expanded(
+                  child: FutureBuilder<List<ExerciseConfig>>(
+                    future: _exercisesFuture,
+                    builder: (context, snapshot) {
+                      if (snapshot.connectionState == ConnectionState.waiting) {
+                        return const Center(
+                          child: CircularProgressIndicator(color: primaryTeal),
+                        );
+                      }
 
-                        if (snapshot.hasError) {
-                          return _buildMessage(
-                            icon: Icons.wifi_off_rounded,
-                            text: "Couldn't load your plan. Check your connection and try again.",
-                            onRetry: _refresh,
-                          );
-                        }
+                      if (snapshot.hasError) {
+                        return _buildMessage(
+                          icon: Icons.wifi_off_rounded,
+                          text: "Couldn't load your plan. Check your connection and try again.",
+                          onRetry: _refresh,
+                        );
+                      }
 
-                        final exercises = snapshot.data ?? const [];
-                        // Rest of the catalog, minus anything already in
-                        // the plan so no exercise appears twice.
-                        final assignedTypes = exercises.map((e) => e.type).toSet();
-                        final others = availableExercises
-                            .where((c) => !assignedTypes.contains(c.type))
-                            .toList();
+                      final exercises = snapshot.data ?? const [];
+                      // Rest of the catalog, minus anything already in
+                      // the plan so no exercise appears twice.
+                      final assignedTypes = exercises.map((e) => e.type).toSet();
+                      final others = availableExercises
+                          .where((c) => !assignedTypes.contains(c.type))
+                          .toList();
 
-                        return RefreshIndicator(
-                          color: primaryTeal,
-                          onRefresh: _refresh,
-                          child: Consumer<AppProvider>(
-                            builder: (context, provider, _) {
-                              final lastWeek =
-                                  ProgressStats.countByExerciseSince(
-                                    provider.sessionHistory,
-                                    DateTime.now().subtract(
-                                      const Duration(days: 7),
-                                    ),
-                                  );
-                              return ListView(
-                              physics: const BouncingScrollPhysics(
-                                parent: AlwaysScrollableScrollPhysics(),
-                              ),
-                              padding: const EdgeInsets.symmetric(
+                      return RefreshIndicator(
+                        color: primaryTeal,
+                        onRefresh: _refresh,
+                        child: Consumer<AppProvider>(
+                          builder: (context, provider, _) {
+                            final lastWeek =
+                                ProgressStats.countByExerciseSince(
+                                  provider.sessionHistory,
+                                  DateTime.now().subtract(
+                                    const Duration(days: 7),
+                                  ),
+                                );
+                            return ListView(
+                            physics: const BouncingScrollPhysics(
+                              parent: AlwaysScrollableScrollPhysics(),
+                            ),
+                            padding: readablePadding(
+                              context,
+                              const EdgeInsets.symmetric(
                                 horizontal: 20,
                                 vertical: 8,
                               ),
-                              children: [
-                                _buildSectionHeader('Your Plan', exercises.length),
-                                if (exercises.isEmpty)
-                                  _buildEmptyPlanNote()
-                                else
-                                  for (var i = 0; i < exercises.length; i++)
-                                    AnimatedExerciseCard(
-                                      // Keys keep each card's animation state
-                                      // with its exercise when a refresh
-                                      // reorders the plan.
-                                      key: ValueKey(
-                                        'plan-${exercises[i].prescription?.id ?? 'i$i'}',
-                                      ),
-                                      index: i,
-                                      config: exercises[i],
-                                      progress: _weeklyProgress(lastWeek, exercises[i]),
+                            ),
+                            children: [
+                              _buildSectionHeader('Your Plan', exercises.length),
+                              if (exercises.isEmpty)
+                                _buildEmptyPlanNote()
+                              else
+                                for (var i = 0; i < exercises.length; i++)
+                                  AnimatedExerciseCard(
+                                    // Keys keep each card's animation state
+                                    // with its exercise when a refresh
+                                    // reorders the plan.
+                                    key: ValueKey(
+                                      'plan-${exercises[i].prescription?.id ?? 'i$i'}',
                                     ),
-                                if (others.isNotEmpty) ...[
-                                  const SizedBox(height: 8),
-                                  _buildSectionHeader('All Exercises', others.length),
-                                  for (var i = 0; i < others.length; i++)
-                                    AnimatedExerciseCard(
-                                      key: ValueKey('catalog-${others[i].type.name}'),
-                                      index: exercises.length + i,
-                                      config: others[i],
-                                    ),
-                                ],
+                                    index: i,
+                                    config: exercises[i],
+                                    progress: _weeklyProgress(lastWeek, exercises[i]),
+                                  ),
+                              if (others.isNotEmpty) ...[
+                                const SizedBox(height: 8),
+                                _buildSectionHeader('All Exercises', others.length),
+                                for (var i = 0; i < others.length; i++)
+                                  AnimatedExerciseCard(
+                                    key: ValueKey('catalog-${others[i].type.name}'),
+                                    index: exercises.length + i,
+                                    config: others[i],
+                                  ),
                               ],
-                            );
-                            },
-                          ),
-                        );
-                      },
-                    ),
+                            ],
+                          );
+                          },
+                        ),
+                      );
+                    },
                   ),
-                ],
-              ),
+                ),
+              ],
             ),
           ),
         ],

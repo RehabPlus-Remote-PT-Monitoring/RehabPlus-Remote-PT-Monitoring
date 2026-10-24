@@ -135,13 +135,12 @@ class _MessagesScreenState extends State<MessagesScreen> {
           const SizedBox(width: 4),
         ],
       ),
-      body: ReadableWidth(
-        child: ListView.separated(
-          itemCount: ChatThread.values.length,
-          separatorBuilder: (_, _) =>
-              const Divider(indent: 72, height: 1, thickness: 0.5),
-          itemBuilder: (context, i) => _ThreadTile(thread: ChatThread.values[i]),
-        ),
+      body: ListView.separated(
+        padding: readablePadding(context),
+        itemCount: ChatThread.values.length,
+        separatorBuilder: (_, _) =>
+            const Divider(indent: 72, height: 1, thickness: 0.5),
+        itemBuilder: (context, i) => _ThreadTile(thread: ChatThread.values[i]),
       ),
     );
   }
@@ -459,66 +458,64 @@ class _ChatDetailScreenState extends State<ChatDetailScreen> {
         child: Column(
           children: [
             Expanded(
-              child: ReadableWidth(
-                child: StreamBuilder<List<ChatMessage>>(
-                  stream: _messages,
-                  builder: (context, snap) {
-                    if (snap.hasError) {
-                      return const Center(
+              child: StreamBuilder<List<ChatMessage>>(
+                stream: _messages,
+                builder: (context, snap) {
+                  if (snap.hasError) {
+                    return const Center(
+                      child: Text(
+                        "Couldn't load messages.",
+                        style: TextStyle(color: Colors.white),
+                      ),
+                    );
+                  }
+                  if (!snap.hasData) {
+                    return const Center(
+                      child: CircularProgressIndicator(color: Colors.white),
+                    );
+                  }
+                  final msgs = snap.data!;
+                  if (msgs.isEmpty) {
+                    return Center(
+                      child: Padding(
+                        padding: const EdgeInsets.all(32),
                         child: Text(
-                          "Couldn't load messages.",
-                          style: TextStyle(color: Colors.white),
-                        ),
-                      );
-                    }
-                    if (!snap.hasData) {
-                      return const Center(
-                        child: CircularProgressIndicator(color: Colors.white),
-                      );
-                    }
-                    final msgs = snap.data!;
-                    if (msgs.isEmpty) {
-                      return Center(
-                        child: Padding(
-                          padding: const EdgeInsets.all(32),
-                          child: Text(
-                            thread == ChatThread.clinic
-                                ? 'Message the clinic to book a visit, request a home visit, or get help with the app.'
-                                : 'Send your therapist a message about your exercises or how you feel.',
-                            textAlign: TextAlign.center,
-                            style: const TextStyle(
-                              color: Colors.white,
-                              fontSize: 13,
-                            ),
+                          thread == ChatThread.clinic
+                              ? 'Message the clinic to book a visit, request a home visit, or get help with the app.'
+                              : 'Send your therapist a message about your exercises or how you feel.',
+                          textAlign: TextAlign.center,
+                          style: const TextStyle(
+                            color: Colors.white,
+                            fontSize: 13,
                           ),
                         ),
-                      );
-                    }
-                    final seen = seenByStaff(msgs, _unreadForStaff);
-                    return ListView.builder(
-                      reverse: true, // newest at the bottom, auto-scrolls
-                      padding: const EdgeInsets.symmetric(
-                        horizontal: 16,
-                        vertical: 12,
                       ),
-                      itemCount: msgs.length,
-                      itemBuilder: (context, i) {
-                        final msg = msgs[i];
-                        // List is newest-first, so the message shown above is i + 1.
-                        final older = i + 1 < msgs.length ? msgs[i + 1] : null;
-                        final showTime =
-                            older == null ||
-                            msg.sentAt.difference(older.sentAt).inMinutes >= 10;
-                        return _Bubble(
-                          msg: msg,
-                          icon: _threadIcon(thread),
-                          showTime: showTime,
-                          seen: seen.contains(msg.id),
-                        );
-                      },
                     );
-                  },
-                ),
+                  }
+                  final seen = seenByStaff(msgs, _unreadForStaff);
+                  return ListView.builder(
+                    reverse: true, // newest at the bottom, auto-scrolls
+                    padding: readablePadding(
+                      context,
+                      const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+                    ),
+                    itemCount: msgs.length,
+                    itemBuilder: (context, i) {
+                      final msg = msgs[i];
+                      // List is newest-first, so the message shown above is i + 1.
+                      final older = i + 1 < msgs.length ? msgs[i + 1] : null;
+                      final showTime =
+                          older == null ||
+                          msg.sentAt.difference(older.sentAt).inMinutes >= 10;
+                      return _Bubble(
+                        msg: msg,
+                        icon: _threadIcon(thread),
+                        showTime: showTime,
+                        seen: seen.contains(msg.id),
+                      );
+                    },
+                  );
+                },
               ),
             ),
 

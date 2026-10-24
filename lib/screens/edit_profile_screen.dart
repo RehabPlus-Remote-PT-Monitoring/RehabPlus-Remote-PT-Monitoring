@@ -275,86 +275,84 @@ class _EditProfileScreenState extends State<EditProfileScreen>
         children: [
           _buildHeader(context),
           Expanded(
-            child: ReadableWidth(
-              child: FadeTransition(
-                opacity: _fade,
-                child: SlideTransition(
-                  position: _slide,
-                  child: Form(
-                    key: _formKey,
-                    child: SingleChildScrollView(
-                      padding: const EdgeInsets.fromLTRB(16, 20, 16, 32),
-                      child: Column(
-                        crossAxisAlignment: CrossAxisAlignment.start,
-                        children: [
-                          _buildAvatarSection(),
-                          const SizedBox(height: 24),
-                          _sectionLabel(
-                            'Personal Info',
-                            Icons.person_outline_rounded,
+            child: FadeTransition(
+              opacity: _fade,
+              child: SlideTransition(
+                position: _slide,
+                child: Form(
+                  key: _formKey,
+                  child: SingleChildScrollView(
+                    padding: readablePadding(context, const EdgeInsets.fromLTRB(16, 20, 16, 32)),
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        _buildAvatarSection(),
+                        const SizedBox(height: 24),
+                        _sectionLabel(
+                          'Personal Info',
+                          Icons.person_outline_rounded,
+                        ),
+                        const SizedBox(height: 12),
+                        _buildCard([
+                          // The email (the login) and rehab info are managed by the clinic.
+                          _field(
+                            _nameCtrl,
+                            'Full Name',
+                            Icons.person_outline,
+                            keyboardType: TextInputType.name,
+                            validator: _requiredName,
+                            autofillHints: const [AutofillHints.name],
+                            capitalization: TextCapitalization.words,
                           ),
-                          const SizedBox(height: 12),
-                          _buildCard([
-                            // The email (the login) and rehab info are managed by the clinic.
-                            _field(
-                              _nameCtrl,
-                              'Full Name',
-                              Icons.person_outline,
-                              keyboardType: TextInputType.name,
-                              validator: _requiredName,
-                              autofillHints: const [AutofillHints.name],
-                              capitalization: TextCapitalization.words,
-                            ),
-                            _divider(),
-                            _field(
-                              _emailCtrl,
-                              'Email',
-                              Icons.email_outlined,
-                              readOnly: true,
-                            ),
-                            _divider(),
-                            _field(
-                              _phoneCtrl,
-                              'Phone',
-                              Icons.phone_outlined,
-                              keyboardType: TextInputType.phone,
-                              validator: _phone,
-                              autofillHints: const [AutofillHints.telephoneNumber],
-                            ),
-                            _divider(),
-                            _field(
-                              _dobCtrl,
-                              'Date of Birth',
-                              Icons.cake_outlined,
-                              validator: _required,
-                              autofillHints: const [AutofillHints.birthday],
-                            ),
-                          ]),
-                          const SizedBox(height: 20),
-                          _sectionLabel(
-                            'Rehab Info',
+                          _divider(),
+                          _field(
+                            _emailCtrl,
+                            'Email',
+                            Icons.email_outlined,
+                            readOnly: true,
+                          ),
+                          _divider(),
+                          _field(
+                            _phoneCtrl,
+                            'Phone',
+                            Icons.phone_outlined,
+                            keyboardType: TextInputType.phone,
+                            validator: _phone,
+                            autofillHints: const [AutofillHints.telephoneNumber],
+                          ),
+                          _divider(),
+                          _field(
+                            _dobCtrl,
+                            'Date of Birth',
+                            Icons.cake_outlined,
+                            validator: _required,
+                            autofillHints: const [AutofillHints.birthday],
+                          ),
+                        ]),
+                        const SizedBox(height: 20),
+                        _sectionLabel(
+                          'Rehab Info',
+                          Icons.medical_services_outlined,
+                        ),
+                        const SizedBox(height: 12),
+                        _buildCard([
+                          _field(
+                            _conditionCtrl,
+                            'Condition',
                             Icons.medical_services_outlined,
+                            readOnly: true,
                           ),
-                          const SizedBox(height: 12),
-                          _buildCard([
-                            _field(
-                              _conditionCtrl,
-                              'Condition',
-                              Icons.medical_services_outlined,
-                              readOnly: true,
-                            ),
-                            _divider(),
-                            _field(
-                              _therapistCtrl,
-                              'Therapist',
-                              Icons.person_pin_outlined,
-                              readOnly: true,
-                            ),
-                          ]),
-                          const SizedBox(height: 28),
-                          _buildSaveButton(),
-                        ],
-                      ),
+                          _divider(),
+                          _field(
+                            _therapistCtrl,
+                            'Therapist',
+                            Icons.person_pin_outlined,
+                            readOnly: true,
+                          ),
+                        ]),
+                        const SizedBox(height: 28),
+                        _buildSaveButton(),
+                      ],
                     ),
                   ),
                 ),

@@ -44,57 +44,55 @@ class _PrivacyLegalScreenState extends State<PrivacyLegalScreen> {
         children: [
           _header(context),
           Expanded(
-            child: ReadableWidth(
-              child: ListView(
-                padding: const EdgeInsets.fromLTRB(16, 20, 16, 24),
-                children: [
-                  Container(
-                    decoration: BoxDecoration(
-                      color: palette.surface,
-                      borderRadius: BorderRadius.circular(20),
-                      boxShadow: [
-                        BoxShadow(
-                          color: palette.shadow.withValues(alpha: 0.05),
-                          blurRadius: 12,
-                          offset: const Offset(0, 3),
-                        ),
-                      ],
-                    ),
-                    child: Column(
-                      children: [
-                        _choice(
-                          icon: Icons.manage_accounts_outlined,
-                          label: 'Account Info',
-                          subtitle: 'View and update your personal information',
-                          onTap: () => _open(context, const AccountInfoScreen()),
-                        ),
-                        const Divider(height: 1, indent: 64, endIndent: 16),
-                        _choice(
-                          icon: Icons.description_outlined,
-                          label: 'Terms and Conditions',
-                          subtitle: 'The rules for using RehabPlus',
-                          onTap: () =>
-                              _open(context, const LegalDocumentScreen.terms()),
-                        ),
-                        const Divider(height: 1, indent: 64, endIndent: 16),
-                        _choice(
-                          icon: Icons.privacy_tip_outlined,
-                          label: 'Privacy Policy',
-                          subtitle: 'How your information is used and protected',
-                          onTap: () =>
-                              _open(context, const LegalDocumentScreen.privacy()),
-                        ),
-                      ],
-                    ),
+            child: ListView(
+              padding: readablePadding(context, const EdgeInsets.fromLTRB(16, 20, 16, 24)),
+              children: [
+                Container(
+                  decoration: BoxDecoration(
+                    color: palette.surface,
+                    borderRadius: BorderRadius.circular(20),
+                    boxShadow: [
+                      BoxShadow(
+                        color: palette.shadow.withValues(alpha: 0.05),
+                        blurRadius: 12,
+                        offset: const Offset(0, 3),
+                      ),
+                    ],
                   ),
-                  const SizedBox(height: 12),
-                  Text(
-                    'Version ${LegalInfo.version} · effective ${LegalInfo.effectiveDate}',
-                    textAlign: TextAlign.center,
-                    style: TextStyle(fontSize: 11, color: palette.textMuted),
+                  child: Column(
+                    children: [
+                      _choice(
+                        icon: Icons.manage_accounts_outlined,
+                        label: 'Account Info',
+                        subtitle: 'View and update your personal information',
+                        onTap: () => _open(context, const AccountInfoScreen()),
+                      ),
+                      const Divider(height: 1, indent: 64, endIndent: 16),
+                      _choice(
+                        icon: Icons.description_outlined,
+                        label: 'Terms and Conditions',
+                        subtitle: 'The rules for using RehabPlus',
+                        onTap: () =>
+                            _open(context, const LegalDocumentScreen.terms()),
+                      ),
+                      const Divider(height: 1, indent: 64, endIndent: 16),
+                      _choice(
+                        icon: Icons.privacy_tip_outlined,
+                        label: 'Privacy Policy',
+                        subtitle: 'How your information is used and protected',
+                        onTap: () =>
+                            _open(context, const LegalDocumentScreen.privacy()),
+                      ),
+                    ],
                   ),
-                ],
-              ),
+                ),
+                const SizedBox(height: 12),
+                Text(
+                  'Version ${LegalInfo.version} · effective ${LegalInfo.effectiveDate}',
+                  textAlign: TextAlign.center,
+                  style: TextStyle(fontSize: 11, color: palette.textMuted),
+                ),
+              ],
             ),
           ),
         ],

@@ -167,25 +167,23 @@ class _DemoScreenState extends State<DemoScreen> with TickerProviderStateMixin {
             ),
           ),
           Expanded(
-            child: ReadableWidth(
-              child: SlideTransition(
-                position: _contentSlide,
-                child: FadeTransition(
-                  opacity: _contentFade,
-                  child: SingleChildScrollView(
-                    padding: const EdgeInsets.fromLTRB(16, 20, 16, 24),
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        _buildFeatureCarousel(),
-                        const SizedBox(height: 24),
-                        _buildVideoSection(),
-                        const SizedBox(height: 24),
-                        _buildExerciseDemo(),
-                        const SizedBox(height: 24),
-                        _buildStatsPreview(),
-                      ],
-                    ),
+            child: SlideTransition(
+              position: _contentSlide,
+              child: FadeTransition(
+                opacity: _contentFade,
+                child: SingleChildScrollView(
+                  padding: readablePadding(context, const EdgeInsets.fromLTRB(16, 20, 16, 24)),
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      _buildFeatureCarousel(),
+                      const SizedBox(height: 24),
+                      _buildVideoSection(),
+                      const SizedBox(height: 24),
+                      _buildExerciseDemo(),
+                      const SizedBox(height: 24),
+                      _buildStatsPreview(),
+                    ],
                   ),
                 ),
               ),

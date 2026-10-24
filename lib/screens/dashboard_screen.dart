@@ -199,31 +199,29 @@ class _DashboardScreenState extends State<DashboardScreen>
           child: FadeTransition(opacity: _headerFade, child: _buildHeader()),
         ),
         Expanded(
-          child: ReadableWidth(
-            child: SlideTransition(
-              position: _cardsSlide,
-              child: FadeTransition(
-                opacity: _cardsFade,
-                child: SingleChildScrollView(
-                  padding: const EdgeInsets.fromLTRB(16, 0, 16, 16),
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      const SizedBox(height: 18),
-                      _buildActionChips(),
-                      const SizedBox(height: 16),
-                      _buildProgressCard(overview.week),
-                      const SizedBox(height: 14),
-                      _buildStatsRow(overview),
-                      const SizedBox(height: 14),
-                      _buildSummaryCard(reportView),
-                      const SizedBox(height: 14),
-                      _buildQuoteCard(),
-                      const SizedBox(height: 14),
-                      _buildTherapistCard(),
-                      const SizedBox(height: 8),
-                    ],
-                  ),
+          child: SlideTransition(
+            position: _cardsSlide,
+            child: FadeTransition(
+              opacity: _cardsFade,
+              child: SingleChildScrollView(
+                padding: readablePadding(context, const EdgeInsets.fromLTRB(16, 0, 16, 16)),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    const SizedBox(height: 18),
+                    _buildActionChips(),
+                    const SizedBox(height: 16),
+                    _buildProgressCard(overview.week),
+                    const SizedBox(height: 14),
+                    _buildStatsRow(overview),
+                    const SizedBox(height: 14),
+                    _buildSummaryCard(reportView),
+                    const SizedBox(height: 14),
+                    _buildQuoteCard(),
+                    const SizedBox(height: 14),
+                    _buildTherapistCard(),
+                    const SizedBox(height: 8),
+                  ],
                 ),
               ),
             ),

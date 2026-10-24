@@ -83,72 +83,70 @@ class _AccountInfoScreenState extends State<AccountInfoScreen> {
         children: [
           _header(context),
           Expanded(
-            child: ReadableWidth(
-              child: ListView(
-                padding: const EdgeInsets.fromLTRB(16, 20, 16, 24),
-                children: [
-                  Center(child: ProfileAvatar(photo: profile.photo, size: 88)),
-                  const SizedBox(height: 20),
-                  Container(
-                    padding: const EdgeInsets.symmetric(
-                      horizontal: 16,
-                      vertical: 6,
-                    ),
-                    decoration: BoxDecoration(
-                      color: palette.surface,
-                      borderRadius: BorderRadius.circular(20),
-                      boxShadow: [
-                        BoxShadow(
-                          color: palette.shadow.withValues(alpha: 0.05),
-                          blurRadius: 12,
-                          offset: const Offset(0, 3),
-                        ),
-                      ],
-                    ),
-                    child: Column(
-                      children: [
-                        _row(Icons.person_outline, 'Full Name', profile.name),
-                        _divider(),
-                        _row(Icons.email_outlined, 'Email', profile.email),
-                        _divider(),
-                        _row(Icons.phone_outlined, 'Phone', profile.phone),
-                        _divider(),
-                        _row(Icons.cake_outlined, 'Date of Birth', profile.dob),
-                      ],
-                    ),
+            child: ListView(
+              padding: readablePadding(context, const EdgeInsets.fromLTRB(16, 20, 16, 24)),
+              children: [
+                Center(child: ProfileAvatar(photo: profile.photo, size: 88)),
+                const SizedBox(height: 20),
+                Container(
+                  padding: const EdgeInsets.symmetric(
+                    horizontal: 16,
+                    vertical: 6,
                   ),
-                  const SizedBox(height: 10),
-                  Padding(
-                    padding: const EdgeInsets.symmetric(horizontal: 4),
-                    child: Text(
-                      'Your email is your login. To change it, contact the clinic '
-                      'through Help & Support.',
-                      style: TextStyle(fontSize: 12, color: palette.textMuted),
-                    ),
-                  ),
-                  const SizedBox(height: 20),
-                  SizedBox(
-                    height: 52,
-                    child: FilledButton.icon(
-                      onPressed: () => _update(context, profile),
-                      icon: const Icon(Icons.edit_outlined, size: 20),
-                      label: const Text(
-                        'Update account information',
-                        style: TextStyle(
-                          fontSize: 15,
-                          fontWeight: FontWeight.bold,
-                        ),
+                  decoration: BoxDecoration(
+                    color: palette.surface,
+                    borderRadius: BorderRadius.circular(20),
+                    boxShadow: [
+                      BoxShadow(
+                        color: palette.shadow.withValues(alpha: 0.05),
+                        blurRadius: 12,
+                        offset: const Offset(0, 3),
                       ),
-                      style: FilledButton.styleFrom(
-                        backgroundColor: primaryTeal,
-                        shape: RoundedRectangleBorder(
-                          borderRadius: BorderRadius.circular(16),
-                        ),
+                    ],
+                  ),
+                  child: Column(
+                    children: [
+                      _row(Icons.person_outline, 'Full Name', profile.name),
+                      _divider(),
+                      _row(Icons.email_outlined, 'Email', profile.email),
+                      _divider(),
+                      _row(Icons.phone_outlined, 'Phone', profile.phone),
+                      _divider(),
+                      _row(Icons.cake_outlined, 'Date of Birth', profile.dob),
+                    ],
+                  ),
+                ),
+                const SizedBox(height: 10),
+                Padding(
+                  padding: const EdgeInsets.symmetric(horizontal: 4),
+                  child: Text(
+                    'Your email is your login. To change it, contact the clinic '
+                    'through Help & Support.',
+                    style: TextStyle(fontSize: 12, color: palette.textMuted),
+                  ),
+                ),
+                const SizedBox(height: 20),
+                SizedBox(
+                  height: 52,
+                  child: FilledButton.icon(
+                    onPressed: () => _update(context, profile),
+                    icon: const Icon(Icons.edit_outlined, size: 20),
+                    label: const Text(
+                      'Update account information',
+                      style: TextStyle(
+                        fontSize: 15,
+                        fontWeight: FontWeight.bold,
+                      ),
+                    ),
+                    style: FilledButton.styleFrom(
+                      backgroundColor: primaryTeal,
+                      shape: RoundedRectangleBorder(
+                        borderRadius: BorderRadius.circular(16),
                       ),
                     ),
                   ),
-                ],
-              ),
+                ),
+              ],
             ),
           ),
         ],
