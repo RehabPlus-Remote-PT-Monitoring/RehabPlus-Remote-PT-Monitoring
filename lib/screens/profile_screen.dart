@@ -98,50 +98,70 @@ class _ProfileScreenState extends State<ProfileScreen> {
             child: Column(
               children: [
                 _buildHeader(),
-                // Header full width; the cards below stay phone-width on tablets.
+                // The header is full width; the cards below are centred.
+                // On wide screens the stats stay one row across the top and
+                // the cards split into two columns: who the patient is on
+                // the left, their activity and the menu entries on the
+                // right. On a phone it is one column in the same order.
                 ReadableWidth(
+                  maxWidth: adaptiveMaxWidth(context),
                   child: Column(
                     children: [
                       const SizedBox(height: 16),
                       _buildStatsRow(sessions.length, totalSets, totalReps, avgCompliance),
                       const SizedBox(height: 14),
-                      _buildInfoCard(
-                        title: 'Personal Info',
-                        icon: Icons.person_outline_rounded,
-                        items: [
-                          _InfoRow(icon: Icons.person_outline, label: 'Full Name', value: _profile.name),
-                          _InfoRow(icon: Icons.email_outlined, label: 'Email', value: _profile.email),
-                          _InfoRow(icon: Icons.phone_outlined, label: 'Phone', value: _profile.phone),
-                          _InfoRow(icon: Icons.cake_outlined, label: 'Date of Birth', value: _profile.dob),
-                        ],
-                      ),
-                      const SizedBox(height: 14),
-                      _buildInfoCard(
-                        title: 'Rehab Info',
-                        icon: Icons.medical_services_outlined,
-                        items: [
-                          _InfoRow(icon: Icons.medical_services_outlined, label: 'Condition', value: _profile.condition),
-                          _InfoRow(icon: Icons.person_pin_outlined, label: 'Therapist', value: _profile.therapist),
-                          _InfoRow(
-                            icon: Icons.calendar_today_outlined,
-                            label: 'Program Start',
-                            value: _profile.programStart == null
-                                ? ''
-                                : DateFormat.yMMMd().format(_profile.programStart!),
+                      AdaptiveColumns(
+                        // Every card already has 16 px of side padding, so
+                        // neighbouring cards are 32 px apart without a gap.
+                        gap: 0,
+                        left: [
+                          _buildInfoCard(
+                            title: 'Personal Info',
+                            icon: Icons.person_outline_rounded,
+                            items: [
+                              _InfoRow(icon: Icons.person_outline, label: 'Full Name', value: _profile.name),
+                              _InfoRow(icon: Icons.email_outlined, label: 'Email', value: _profile.email),
+                              _InfoRow(icon: Icons.phone_outlined, label: 'Phone', value: _profile.phone),
+                              _InfoRow(icon: Icons.cake_outlined, label: 'Date of Birth', value: _profile.dob),
+                            ],
                           ),
+                          const SizedBox(height: 14),
+                          _buildInfoCard(
+                            title: 'Rehab Info',
+                            icon: Icons.medical_services_outlined,
+                            items: [
+                              _InfoRow(icon: Icons.medical_services_outlined, label: 'Condition', value: _profile.condition),
+                              _InfoRow(icon: Icons.person_pin_outlined, label: 'Therapist', value: _profile.therapist),
+                              _InfoRow(
+                                icon: Icons.calendar_today_outlined,
+                                label: 'Program Start',
+                                value: _profile.programStart == null
+                                    ? ''
+                                    : DateFormat.yMMMd().format(_profile.programStart!),
+                              ),
+                            ],
+                          ),
+                          const SizedBox(height: 14),
+                        ],
+                        right: [
+                          // With no sessions the breakdown card is empty.
+                          // On a phone its gap stays, exactly as before; in
+                          // two columns it is dropped so the right column
+                          // starts level with the left one.
+                          if (sessions.isNotEmpty || !isTwoColumn(context)) ...[
+                            _buildExerciseBreakdownCard(sessions),
+                            const SizedBox(height: 14),
+                          ],
+                          _buildGoalsCard(),
+                          const SizedBox(height: 14),
+                          _buildSettingsCard(),
+                          const SizedBox(height: 14),
+                          _buildLegalCard(),
+                          const SizedBox(height: 14),
+                          _buildSignOutButton(),
+                          const SizedBox(height: 28),
                         ],
                       ),
-                      const SizedBox(height: 14),
-                      _buildExerciseBreakdownCard(sessions),
-                      const SizedBox(height: 14),
-                      _buildGoalsCard(),
-                      const SizedBox(height: 14),
-                      _buildSettingsCard(),
-                      const SizedBox(height: 14),
-                      _buildLegalCard(),
-                      const SizedBox(height: 14),
-                      _buildSignOutButton(),
-                      const SizedBox(height: 28),
                     ],
                   ),
                 ),
@@ -153,7 +173,10 @@ class _ProfileScreenState extends State<ProfileScreen> {
     );
   }
 
+  /// The gradient spans the whole width; its content is inset to line up
+  /// with the cards below (no inset on phones).
   Widget _buildHeader() {
+    final inset = readableInset(context, adaptiveMaxWidth(context));
     return Container(
       decoration: const BoxDecoration(
         gradient: LinearGradient(
@@ -166,7 +189,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
       child: SafeArea(
         bottom: false,
         child: Padding(
-          padding: const EdgeInsets.fromLTRB(20, 16, 20, 28),
+          padding: EdgeInsets.fromLTRB(20 + inset, 16, 20 + inset, 28),
           child: Column(
             children: [
               Row(

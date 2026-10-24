@@ -1,4 +1,5 @@
 import 'dart:async';
+import 'dart:math' as math;
 
 import 'package:flutter/material.dart';
 // `show`: the full intl library also exports a TextDirection that clashes
@@ -93,8 +94,146 @@ Future<void> callClinic(BuildContext context) async {
   }
 }
 
+// --- TABLET SPLIT VIEW ---
+
+/// Width of the thread list beside the open conversation: room for the
+/// avatar, the name and a two-line preview, leaving the rest to the chat.
+const double kMessagesListWidth = 340;
+
+/// True when [width] (the space the Messages tab really has, i.e. right of
+/// the dashboard sidebar) fits the thread list and a conversation side by
+/// side. Narrower screens (phones, portrait tablets) keep pushing the chat
+/// as its own page.
+bool showsMessagesSplit(double width) => width >= kTwoColumnBreakpoint;
+
+/// Lays out the Messages tab: just the thread list when narrow, the list on
+/// the left and the [selected] conversation on the right when wide.
+///
+/// Kept free of Firebase (the screens are passed in as builders) so the
+/// layout decision can be widget-tested.
+class MessagesLayout extends StatelessWidget {
+  const MessagesLayout({
+    super.key,
+    required this.selected,
+    required this.listBuilder,
+    required this.detailBuilder,
+  });
+
+  /// The conversation shown in the right pane in the split view, or null
+  /// for none yet (the pane then asks the patient to pick one).
+  final ChatThread? selected;
+
+  /// Builds the thread list. `split` is true when it sits beside the
+  /// conversation, so a tap should switch the right pane instead of
+  /// pushing a page.
+  final Widget Function(BuildContext context, bool split) listBuilder;
+
+  /// Builds the conversation for the right pane.
+  final Widget Function(BuildContext context, ChatThread thread) detailBuilder;
+
+  /// Gives [child] a MediaQuery as wide as its pane, so readablePadding and
+  /// ReadableWidth inside it centre content in the pane, not in the screen.
+  Widget _pane(MediaQueryData media, double width, Widget child) {
+    return MediaQuery(
+      data: media.copyWith(size: Size(width, media.size.height)),
+      child: child,
+    );
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return LayoutBuilder(
+      builder: (context, constraints) {
+        final width = constraints.maxWidth;
+        if (!width.isFinite || !showsMessagesSplit(width)) {
+          return listBuilder(context, false);
+        }
+        final media = MediaQuery.of(context);
+        const dividerWidth = 1.0;
+        final detailWidth = math.max(
+          0.0,
+          width - kMessagesListWidth - dividerWidth,
+        );
+        return Row(
+          crossAxisAlignment: CrossAxisAlignment.stretch,
+          children: [
+            SizedBox(
+              width: kMessagesListWidth,
+              child: _pane(
+                media,
+                kMessagesListWidth,
+                Builder(builder: (context) => listBuilder(context, true)),
+              ),
+            ),
+            VerticalDivider(
+              width: dividerWidth,
+              thickness: dividerWidth,
+              color: context.palette.divider,
+            ),
+            Expanded(
+              child: _pane(
+                media,
+                detailWidth,
+                // Keyed by thread: switching threads disposes the old chat
+                // (cancelling its Firestore listeners) and subscribes anew.
+                selected == null
+                    ? const _NoConversationSelected()
+                    : KeyedSubtree(
+                        key: ValueKey(selected),
+                        child: Builder(
+                          builder: (context) =>
+                              detailBuilder(context, selected!),
+                        ),
+                      ),
+              ),
+            ),
+          ],
+        );
+      },
+    );
+  }
+}
+
+/// Right pane of the split view before any thread is chosen.
+class _NoConversationSelected extends StatelessWidget {
+  const _NoConversationSelected();
+
+  @override
+  Widget build(BuildContext context) {
+    final palette = context.palette;
+    return ColoredBox(
+      color: palette.background,
+      child: Center(
+        child: Padding(
+          padding: const EdgeInsets.all(24),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              Icon(Icons.forum_outlined, size: 48, color: palette.textFaint),
+              const SizedBox(height: 12),
+              Text(
+                'Select a conversation',
+                style: TextStyle(
+                  fontSize: 17,
+                  fontWeight: FontWeight.w600,
+                  color: palette.textPrimary,
+                ),
+              ),
+              const SizedBox(height: 4),
+              Text(
+                'Choose your therapist or the clinic on the left.',
+                textAlign: TextAlign.center,
+                style: TextStyle(fontSize: 14, color: palette.textSecondary),
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+}
+
 // --- CONVERSATION LIST ---
-// Stateful only so "Screen opened" is logged once, not on every rebuild.
 class MessagesScreen extends StatefulWidget {
   const MessagesScreen({super.key});
 
@@ -103,14 +242,37 @@ class MessagesScreen extends StatefulWidget {
 }
 
 class _MessagesScreenState extends State<MessagesScreen> {
+  /// The conversation open in the right pane of the tablet split view;
+  /// phones ignore it. It starts empty on purpose: opening a conversation
+  /// marks it read (the therapist then sees "seen"), so that should only
+  /// happen when the patient actually taps a thread, not just because they
+  /// opened the Messages tab.
+  ChatThread? _selected;
+
   @override
   void initState() {
     super.initState();
     DiagnosticLogger.I.info(_tag, 'Screen opened');
   }
 
+  void _select(ChatThread thread) {
+    if (thread == _selected) return;
+    setState(() => _selected = thread);
+  }
+
   @override
   Widget build(BuildContext context) {
+    return MessagesLayout(
+      selected: _selected,
+      listBuilder: _buildList,
+      detailBuilder: (context, thread) =>
+          ChatDetailScreen(thread: thread, embedded: true),
+    );
+  }
+
+  /// The thread list. In the split view a tap selects the thread for the
+  /// right pane; otherwise it pushes the conversation (phones).
+  Widget _buildList(BuildContext context, bool split) {
     return Scaffold(
       backgroundColor: context.palette.surface,
       appBar: AppBar(
@@ -140,7 +302,14 @@ class _MessagesScreenState extends State<MessagesScreen> {
         itemCount: ChatThread.values.length,
         separatorBuilder: (_, _) =>
             const Divider(indent: 72, height: 1, thickness: 0.5),
-        itemBuilder: (context, i) => _ThreadTile(thread: ChatThread.values[i]),
+        itemBuilder: (context, i) {
+          final thread = ChatThread.values[i];
+          return _ThreadTile(
+            thread: thread,
+            selected: split && thread == _selected,
+            onOpen: split ? _select : null,
+          );
+        },
       ),
     );
   }
@@ -148,7 +317,14 @@ class _MessagesScreenState extends State<MessagesScreen> {
 
 class _ThreadTile extends StatefulWidget {
   final ChatThread thread;
-  const _ThreadTile({required this.thread});
+
+  /// Highlights the tile whose conversation is open beside the list.
+  final bool selected;
+
+  /// Called instead of pushing the conversation (the tablet split view).
+  final ValueChanged<ChatThread>? onOpen;
+
+  const _ThreadTile({required this.thread, this.selected = false, this.onOpen});
 
   @override
   State<_ThreadTile> createState() => _ThreadTileState();
@@ -191,6 +367,8 @@ class _ThreadTileState extends State<_ThreadTile> {
         final s = snap.data ?? ChatThreadSummary.empty;
         final unread = s.unreadForPatient;
         return ListTile(
+          selected: widget.selected,
+          selectedTileColor: palette.surfaceMuted,
           contentPadding: const EdgeInsets.symmetric(
             horizontal: 16,
             vertical: 4,
@@ -200,6 +378,11 @@ class _ThreadTileState extends State<_ThreadTile> {
               'thread': thread.name,
               'unread': unread,
             });
+            final onOpen = widget.onOpen;
+            if (onOpen != null) {
+              onOpen(thread);
+              return;
+            }
             Navigator.push(
               context,
               MaterialPageRoute(builder: (_) => ChatDetailScreen(thread: thread)),
@@ -270,7 +453,16 @@ class _ThreadTileState extends State<_ThreadTile> {
 class ChatDetailScreen extends StatefulWidget {
   final ChatThread thread;
 
-  const ChatDetailScreen({super.key, required this.thread});
+  /// Shown in the right pane of the tablet split view rather than as its
+  /// own page: no back button, and the messages and composer fill the pane
+  /// (it is already narrow enough to read).
+  final bool embedded;
+
+  const ChatDetailScreen({
+    super.key,
+    required this.thread,
+    this.embedded = false,
+  });
 
   @override
   State<ChatDetailScreen> createState() => _ChatDetailScreenState();
@@ -392,14 +584,22 @@ class _ChatDetailScreenState extends State<ChatDetailScreen> {
   Widget build(BuildContext context) {
     final thread = widget.thread;
     final palette = context.palette;
+    // As a page: one readable column. In the split view the pane itself is
+    // the column, so content uses all of it.
+    final contentWidth = widget.embedded
+        ? double.infinity
+        : kReadableMaxWidth;
     return Scaffold(
       appBar: AppBar(
         backgroundColor: palette.surface,
         elevation: 1,
-        leading: IconButton(
-          icon: Icon(Icons.arrow_back_ios, color: palette.textPrimary),
-          onPressed: () => Navigator.pop(context),
-        ),
+        automaticallyImplyLeading: false,
+        leading: widget.embedded
+            ? null
+            : IconButton(
+                icon: Icon(Icons.arrow_back_ios, color: palette.textPrimary),
+                onPressed: () => Navigator.pop(context),
+              ),
         title: Row(
           children: [
             CircleAvatar(
@@ -498,6 +698,7 @@ class _ChatDetailScreenState extends State<ChatDetailScreen> {
                     padding: readablePadding(
                       context,
                       const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+                      contentWidth,
                     ),
                     itemCount: msgs.length,
                     itemBuilder: (context, i) {
@@ -521,6 +722,7 @@ class _ChatDetailScreenState extends State<ChatDetailScreen> {
 
             if (thread == ChatThread.clinic)
               ReadableWidth(
+                maxWidth: contentWidth,
                 child: Container(
                   alignment: Alignment.centerLeft,
                   padding: const EdgeInsets.symmetric(
@@ -576,6 +778,7 @@ class _ChatDetailScreenState extends State<ChatDetailScreen> {
 
             // Input bar
             ReadableWidth(
+              maxWidth: contentWidth,
               child: Container(
                 padding: const EdgeInsets.fromLTRB(12, 8, 8, 8),
                 color: palette.surfaceMuted,

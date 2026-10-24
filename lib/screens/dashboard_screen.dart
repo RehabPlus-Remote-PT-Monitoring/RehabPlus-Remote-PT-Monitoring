@@ -1,4 +1,5 @@
 import 'dart:async';
+import 'dart:math' as math;
 
 import 'package:flutter/material.dart';
 import 'package:intl/intl.dart' show DateFormat;
@@ -11,6 +12,7 @@ import '../models/prescription.dart';
 import '../services/prescription_service.dart';
 import '../services/progress_report_loader.dart';
 import '../services/progress_stats.dart';
+import '../widgets/dashboard_sidebar.dart';
 import '../widgets/profile_avatar.dart';
 import '../widgets/unread_badge.dart';
 import '../core/responsive.dart';
@@ -181,7 +183,13 @@ class _DashboardScreenState extends State<DashboardScreen>
     super.dispose();
   }
 
-  Widget _buildDashboardBody() {
+  /// Home. [pageContext] is from inside the page area, so its MediaQuery
+  /// width excludes the tablet sidebar (this State's own context is above
+  /// that narrowed MediaQuery and would measure the whole screen).
+  Widget _buildDashboardBody(BuildContext pageContext) {
+    // One column width for the header content and the cards below it:
+    // wide when Home shows two columns, the normal reading width otherwise.
+    final columnWidth = adaptiveMaxWidth(pageContext);
     // Read once per build; the loader returns cached results unless the
     // list (or the day, plan or period) actually changed.
     final sessions = context.watch<AppProvider>().sessionHistory;
@@ -196,7 +204,10 @@ class _DashboardScreenState extends State<DashboardScreen>
       children: [
         SlideTransition(
           position: _headerSlide,
-          child: FadeTransition(opacity: _headerFade, child: _buildHeader()),
+          child: FadeTransition(
+            opacity: _headerFade,
+            child: _buildHeader(readableInset(pageContext, columnWidth)),
+          ),
         ),
         Expanded(
           child: SlideTransition(
@@ -204,23 +215,38 @@ class _DashboardScreenState extends State<DashboardScreen>
             child: FadeTransition(
               opacity: _cardsFade,
               child: SingleChildScrollView(
-                padding: readablePadding(context, const EdgeInsets.fromLTRB(16, 0, 16, 16)),
+                // Wide screens (landscape tablets) get two columns of
+                // cards; phones and portrait tablets keep one column in
+                // the same order as before.
+                padding: readablePadding(
+                  pageContext,
+                  const EdgeInsets.fromLTRB(16, 0, 16, 16),
+                  columnWidth,
+                ),
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
                     const SizedBox(height: 18),
                     _buildActionChips(),
                     const SizedBox(height: 16),
-                    _buildProgressCard(overview.week),
-                    const SizedBox(height: 14),
-                    _buildStatsRow(overview),
-                    const SizedBox(height: 14),
-                    _buildSummaryCard(reportView),
-                    const SizedBox(height: 14),
-                    _buildQuoteCard(),
-                    const SizedBox(height: 14),
-                    _buildTherapistCard(),
-                    const SizedBox(height: 8),
+                    AdaptiveColumns(
+                      // Left: this week and the numbers.
+                      left: [
+                        _buildProgressCard(overview.week),
+                        const SizedBox(height: 14),
+                        _buildStatsRow(overview),
+                        const SizedBox(height: 14),
+                        _buildSummaryCard(reportView),
+                        const SizedBox(height: 14),
+                      ],
+                      // Right: the daily quote and the therapist.
+                      right: [
+                        _buildQuoteCard(),
+                        const SizedBox(height: 14),
+                        _buildTherapistCard(),
+                        const SizedBox(height: 8),
+                      ],
+                    ),
                   ],
                 ),
               ),
@@ -253,21 +279,91 @@ class _DashboardScreenState extends State<DashboardScreen>
   /// Builds only the page that is showing. (The list of all four pages used
   /// to be built on every rebuild, including the whole Home body with its
   /// statistics while another tab was open.)
-  Widget _buildPage(int index) => switch (index) {
-    0 => _buildDashboardBody(),
+  Widget _buildPage(BuildContext pageContext, int index) => switch (index) {
+    0 => _buildDashboardBody(pageContext),
     1 => const ExercisePage(),
     2 => const MessagesScreen(),
     _ => const Scaffold(body: ProfileScreen()),
   };
 
+  /// The four tabs, shared by the bottom bar (phones, portrait tablets) and
+  /// the sidebar (landscape tablets).
+  static final List<DashboardDestination> _destinations = [
+    DashboardDestination(label: 'Home', icon: PhosphorIcons.squaresFour()),
+    DashboardDestination(label: 'Exercise', icon: PhosphorIcons.barbell()),
+    DashboardDestination(label: 'Messages', icon: PhosphorIcons.chatCircle()),
+    DashboardDestination(label: 'Profile', icon: PhosphorIcons.userCircle()),
+  ];
+
+  /// Keeps the open page (its scroll position, a half-typed message, ...)
+  /// when rotating moves it between the bottom-bar and the sidebar layout.
+  final GlobalKey _pageAreaKey = GlobalKey(debugLabel: 'dashboard pages');
+
+  void _selectTab(int index) {
+    if (index == _bottomNavIndex) return;
+    setState(() {
+      _prevNavIndex = _bottomNavIndex;
+      _bottomNavIndex = index;
+    });
+  }
+
   @override
   Widget build(BuildContext context) {
+    final media = MediaQuery.of(context);
+    final showSidebar = media.size.width >= kSidebarBreakpoint;
+
+    if (showSidebar) {
+      // Landscape tablet: navigation on the left, no bottom bar. The page
+      // area gets a MediaQuery as wide as the space right of the sidebar,
+      // so readablePadding / isTwoColumn inside the pages measure what
+      // they really have, not the whole screen.
+      return Scaffold(
+        backgroundColor: context.palette.background,
+        body: Row(
+          crossAxisAlignment: CrossAxisAlignment.stretch,
+          children: [
+            DashboardSidebar(
+              destinations: _destinations,
+              selectedIndex: _bottomNavIndex,
+              onSelect: _selectTab,
+            ),
+            Expanded(
+              child: MediaQuery(
+                data: _pageAreaMedia(media),
+                child: _buildPageArea(),
+              ),
+            ),
+          ],
+        ),
+      );
+    }
+
     return Scaffold(
       backgroundColor: context.palette.background,
-      // Pages slide sideways like a carousel: tapping a tab to the right pushes
-      // the current page out to the left, and vice versa. Both pages share the
-      // same curve so they move together without a gap.
-      body: ClipRect(
+      body: _buildPageArea(),
+      bottomNavigationBar: ReadableWidth(child: _buildBottomNav()),
+    );
+  }
+
+  /// The MediaQuery for the area right of the sidebar: narrower by the
+  /// sidebar's width, and without the left safe-area inset, which the
+  /// sidebar already covers.
+  MediaQueryData _pageAreaMedia(MediaQueryData media) {
+    final withoutLeftInset = media
+        .removePadding(removeLeft: true)
+        .removeViewPadding(removeLeft: true);
+    final width = math.max(0.0, media.size.width - DashboardSidebar.width);
+    return withoutLeftInset.copyWith(size: Size(width, media.size.height));
+  }
+
+  /// Pages slide sideways like a carousel: tapping a tab to the right (or
+  /// lower in the sidebar) pushes the current page out to the left, and
+  /// vice versa. Both pages share the same curve so they move together
+  /// without a gap.
+  Widget _buildPageArea() {
+    return KeyedSubtree(
+      key: _pageAreaKey,
+      child: ClipRect(
         child: AnimatedSwitcher(
           duration: _navDuration,
           switchInCurve: _navCurve,
@@ -285,11 +381,13 @@ class _DashboardScreenState extends State<DashboardScreen>
           },
           child: KeyedSubtree(
             key: ValueKey(_bottomNavIndex),
-            child: _buildPage(_bottomNavIndex),
+            // Built under the page area's MediaQuery (see _buildDashboardBody).
+            child: Builder(
+              builder: (pageContext) => _buildPage(pageContext, _bottomNavIndex),
+            ),
           ),
         ),
       ),
-      bottomNavigationBar: ReadableWidth(child: _buildBottomNav()),
     );
   }
 
@@ -301,7 +399,9 @@ class _DashboardScreenState extends State<DashboardScreen>
     return 'Good evening';
   }
 
-  Widget _buildHeader() {
+  /// The teal Home header. [inset] lines its content up with the card
+  /// column below on tablets (0 on phones).
+  Widget _buildHeader(double inset) {
     final profile = context.watch<AppProvider>().profile;
     final name = profile?.name ?? '';
     return Container(
@@ -316,7 +416,10 @@ class _DashboardScreenState extends State<DashboardScreen>
       child: SafeArea(
         bottom: false,
         child: Padding(
-          padding: const EdgeInsets.fromLTRB(20, 14, 16, 24),
+          // On tablets the header's content lines up with the card column
+          // below instead of hugging the screen edges (the teal background
+          // itself stays full width).
+          padding: EdgeInsets.fromLTRB(20 + inset, 14, 16 + inset, 24),
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
@@ -1213,12 +1316,7 @@ class _DashboardScreenState extends State<DashboardScreen>
   /// left/width with the same duration and curve keeps the pill exactly under
   /// its item for the whole animation.
   Widget _buildBottomNav() {
-    final List<(PhosphorIconData, String)> items = [
-      (PhosphorIcons.squaresFour(), 'Home'),
-      (PhosphorIcons.barbell(), 'Exercise'),
-      (PhosphorIcons.chatCircle(), 'Messages'),
-      (PhosphorIcons.userCircle(), 'Profile'),
-    ];
+    final items = [for (final d in _destinations) (d.icon, d.label)];
 
     const iconSize = 22.0;
     const labelGap = 6.0;
@@ -1308,13 +1406,7 @@ class _DashboardScreenState extends State<DashboardScreen>
                         final selected = _bottomNavIndex == i;
                         return GestureDetector(
                           behavior: HitTestBehavior.opaque,
-                          onTap: () {
-                            if (i == _bottomNavIndex) return;
-                            setState(() {
-                              _prevNavIndex = _bottomNavIndex;
-                              _bottomNavIndex = i;
-                            });
-                          },
+                          onTap: () => _selectTab(i),
                           child: AnimatedContainer(
                             duration: _navDuration,
                             curve: _navCurve,

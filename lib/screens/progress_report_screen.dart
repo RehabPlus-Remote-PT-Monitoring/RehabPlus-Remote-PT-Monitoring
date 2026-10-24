@@ -327,7 +327,12 @@ class _ProgressReportScreenState extends State<ProgressReportScreen> {
           _header(),
           Expanded(
             child: ListView(
-              padding: readablePadding(context, const EdgeInsets.fromLTRB(16, 16, 16, 32)),
+              // Wide screens get the two-column width (see _reportBody).
+              padding: readablePadding(
+                context,
+                const EdgeInsets.fromLTRB(16, 16, 16, 32),
+                adaptiveMaxWidth(context),
+              ),
               children: [
                 SegmentedButton<int>(
                   segments: [
@@ -370,30 +375,67 @@ class _ProgressReportScreenState extends State<ProgressReportScreen> {
     );
   }
 
+  /// Phone and portrait tablet: one column, verdict first. Wide screens:
+  /// the key numbers and charts on the left, the verdict with its findings
+  /// and the per-exercise breakdown (the "reading" parts) on the right, so
+  /// neither column ends up much taller than the other.
   Widget _reportBody(ProgressReport report, String grouping) {
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.stretch,
+    final charts = <Widget>[
+      _chartCard(
+        'Sessions',
+        'How often you exercised, $grouping',
+        SessionsBarChart(points: report.points),
+      ),
+      _chartCard(
+        'Form score',
+        'How closely your reps matched good form (higher is better)',
+        TrendLineChart.form(points: report.points),
+      ),
+      _chartCard(
+        'Pain level',
+        'What you reported after sessions, 0 to 10 (lower is better)',
+        TrendLineChart.pain(points: report.points),
+      ),
+    ];
+
+    if (!isTwoColumn(context)) {
+      return Column(
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        children: [
+          _verdictCard(report),
+          const SizedBox(height: 14),
+          _numbers(report),
+          const SizedBox(height: 14),
+          ...charts,
+          _exerciseCard(report),
+        ],
+      );
+    }
+
+    return Row(
+      crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        _verdictCard(report),
-        const SizedBox(height: 14),
-        _numbers(report),
-        const SizedBox(height: 14),
-        _chartCard(
-          'Sessions',
-          'How often you exercised, $grouping',
-          SessionsBarChart(points: report.points),
+        Expanded(
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.stretch,
+            children: [
+              _numbers(report),
+              const SizedBox(height: 14),
+              ...charts,
+            ],
+          ),
         ),
-        _chartCard(
-          'Form score',
-          'How closely your reps matched good form (higher is better)',
-          TrendLineChart.form(points: report.points),
+        const SizedBox(width: kColumnGap),
+        Expanded(
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.stretch,
+            children: [
+              _verdictCard(report),
+              const SizedBox(height: 14),
+              _exerciseCard(report),
+            ],
+          ),
         ),
-        _chartCard(
-          'Pain level',
-          'What you reported after sessions, 0 to 10 (lower is better)',
-          TrendLineChart.pain(points: report.points),
-        ),
-        _exerciseCard(report),
       ],
     );
   }
@@ -437,7 +479,14 @@ class _ProgressReportScreenState extends State<ProgressReportScreen> {
       child: SafeArea(
         bottom: false,
         child: Padding(
-          padding: const EdgeInsets.fromLTRB(8, 8, 20, 24),
+          // The gradient spans the screen; the title lines up with the
+          // report column below it.
+          padding: EdgeInsets.fromLTRB(
+            8 + readableInset(context, adaptiveMaxWidth(context)),
+            8,
+            20 + readableInset(context, adaptiveMaxWidth(context)),
+            24,
+          ),
           child: Row(
             children: [
               IconButton(

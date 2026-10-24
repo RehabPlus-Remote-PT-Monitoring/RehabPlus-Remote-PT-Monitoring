@@ -111,6 +111,8 @@ class _ExercisePageState extends State<ExercisePage> {
 
                 // Top Bar Header
                 ReadableWidth(
+                  // Same width as the exercise list, so the header lines up.
+                  maxWidth: adaptiveMaxWidth(context),
                   child: Padding(
                     padding: const EdgeInsets.symmetric(horizontal: 20.0),
                     child: Row(
@@ -173,6 +175,8 @@ class _ExercisePageState extends State<ExercisePage> {
 
                 // Date & Subtitle
                 ReadableWidth(
+                  // Same width as the exercise list, so the header lines up.
+                  maxWidth: adaptiveMaxWidth(context),
                   child: Padding(
                     padding: const EdgeInsets.symmetric(horizontal: 20.0),
                     child: Column(
@@ -254,33 +258,42 @@ class _ExercisePageState extends State<ExercisePage> {
                                 horizontal: 20,
                                 vertical: 8,
                               ),
+                              adaptiveMaxWidth(context),
                             ),
                             children: [
                               _buildSectionHeader('Your Plan', exercises.length),
                               if (exercises.isEmpty)
                                 _buildEmptyPlanNote()
                               else
-                                for (var i = 0; i < exercises.length; i++)
-                                  AnimatedExerciseCard(
-                                    // Keys keep each card's animation state
-                                    // with its exercise when a refresh
-                                    // reorders the plan.
-                                    key: ValueKey(
-                                      'plan-${exercises[i].prescription?.id ?? 'i$i'}',
-                                    ),
-                                    index: i,
-                                    config: exercises[i],
-                                    progress: _weeklyProgress(lastWeek, exercises[i]),
-                                  ),
+                                ExerciseCardGrid(
+                                  children: [
+                                    for (var i = 0; i < exercises.length; i++)
+                                      AnimatedExerciseCard(
+                                        // Keys keep each card's animation
+                                        // state with its exercise when a
+                                        // refresh reorders the plan.
+                                        key: ValueKey(
+                                          'plan-${exercises[i].prescription?.id ?? 'i$i'}',
+                                        ),
+                                        index: i,
+                                        config: exercises[i],
+                                        progress: _weeklyProgress(lastWeek, exercises[i]),
+                                      ),
+                                  ],
+                                ),
                               if (others.isNotEmpty) ...[
                                 const SizedBox(height: 8),
                                 _buildSectionHeader('All Exercises', others.length),
-                                for (var i = 0; i < others.length; i++)
-                                  AnimatedExerciseCard(
-                                    key: ValueKey('catalog-${others[i].type.name}'),
-                                    index: exercises.length + i,
-                                    config: others[i],
-                                  ),
+                                ExerciseCardGrid(
+                                  children: [
+                                    for (var i = 0; i < others.length; i++)
+                                      AnimatedExerciseCard(
+                                        key: ValueKey('catalog-${others[i].type.name}'),
+                                        index: exercises.length + i,
+                                        config: others[i],
+                                      ),
+                                  ],
+                                ),
                               ],
                             ],
                           );
@@ -430,6 +443,52 @@ class _ExercisePageState extends State<ExercisePage> {
             ),
           ),
       ],
+    );
+  }
+}
+
+/// Exercise cards one per row on phones and portrait tablets, two per row
+/// when the screen is wide (landscape tablet).
+///
+/// Two per row rather than three: each card still has room for its title,
+/// "N min" and the full reps text (e.g. "1 Set | 10 Reps") without cutting
+/// it off. Cards in a row are top-aligned; a plan card with a progress bar
+/// may be a little taller than its neighbour, which is fine.
+class ExerciseCardGrid extends StatelessWidget {
+  const ExerciseCardGrid({super.key, required this.children});
+
+  final List<Widget> children;
+
+  @override
+  Widget build(BuildContext context) {
+    if (!isTwoColumn(context)) {
+      return Column(
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        children: children,
+      );
+    }
+
+    final rows = <Widget>[];
+    for (var i = 0; i < children.length; i += 2) {
+      final hasSecond = i + 1 < children.length;
+      rows.add(
+        Row(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Expanded(child: children[i]),
+            const SizedBox(width: kColumnGap),
+            // An empty slot keeps a lone last card at half width, the same
+            // size as the cards above it.
+            Expanded(
+              child: hasSecond ? children[i + 1] : const SizedBox.shrink(),
+            ),
+          ],
+        ),
+      );
+    }
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.stretch,
+      children: rows,
     );
   }
 }

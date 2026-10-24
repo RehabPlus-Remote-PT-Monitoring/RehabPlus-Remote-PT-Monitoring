@@ -172,14 +172,23 @@ class _DemoScreenState extends State<DemoScreen> with TickerProviderStateMixin {
               child: FadeTransition(
                 opacity: _contentFade,
                 child: SingleChildScrollView(
-                  padding: readablePadding(context, const EdgeInsets.fromLTRB(16, 20, 16, 24)),
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
+                  padding: readablePadding(
+                    context,
+                    const EdgeInsets.fromLTRB(16, 20, 16, 24),
+                    adaptiveMaxWidth(context),
+                  ),
+                  // Wide screens: features and videos on the left, the
+                  // step-by-step demo and sample progress on the right.
+                  // Narrow screens keep the original single-column order.
+                  child: AdaptiveColumns(
+                    left: [
                       _buildFeatureCarousel(),
                       const SizedBox(height: 24),
                       _buildVideoSection(),
-                      const SizedBox(height: 24),
+                      // Only needed when the right column follows below.
+                      if (!isTwoColumn(context)) const SizedBox(height: 24),
+                    ],
+                    right: [
                       _buildExerciseDemo(),
                       const SizedBox(height: 24),
                       _buildStatsPreview(),
@@ -207,7 +216,14 @@ class _DemoScreenState extends State<DemoScreen> with TickerProviderStateMixin {
       child: SafeArea(
         bottom: false,
         child: Padding(
-          padding: const EdgeInsets.fromLTRB(20, 14, 20, 24),
+          // The gradient spans the screen; the content lines up with the
+          // columns below it.
+          padding: EdgeInsets.fromLTRB(
+            20 + readableInset(context, adaptiveMaxWidth(context)),
+            14,
+            20 + readableInset(context, adaptiveMaxWidth(context)),
+            24,
+          ),
           child: Row(
             children: [
               GestureDetector(
