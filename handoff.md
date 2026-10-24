@@ -29,6 +29,8 @@ Everything is **committed and pushed to the org repo**
 
 The group repo (`paulirichmond/...`) is behind on both branches; push there only with the owner's OK. Neither branch is merged into `main`.
 
+`camera/monitoring` on the org repo was rewritten (25 Oct) to drop the rolled-back iOS-style restyle (three commits plus their revert). Any other clone of that branch must run `git fetch && git reset --hard origin/camera/monitoring`; a plain pull would bring the dropped commits back. The old tip is kept locally as `backup/camera-monitoring-before-cleanup`.
+
 `lib/firebase_options.dart` and `android/app/google-services.json` are now committed (public client config, no secrets), so a fresh clone builds.
 
 ### Patient app
@@ -51,8 +53,8 @@ The group repo (`paulirichmond/...`) is behind on both branches; push there only
 | Dark mode: Settings > Appearance > Theme (Phone setting / Light / Dark, default Phone setting). Colours by role in `lib/core/app_palette.dart` (`context.palette`); every screen restyled; camera overlays and splash unchanged | ✅ Analyze clean, tests pass. **Not yet checked on the phone in either mode** |
 | Settings > Notifications > Clinic reminders (`reminders` preference, honoured by the dashboard's evening reminder) | ✅ Built, tests pass |
 | Firestore security rules (incl. goals read + `reminders` pref) | ✅ Deployed 24 Oct; live ruleset verified identical to `firestore.rules`. Emulator suite: 26 passing |
-| Tablets and landscape (option A): screen content sits in a centred column at most 600 dp wide (scroll views stay full width and get `readablePadding` so the sides still scroll; non-scrolling parts use `ReadableWidth`; both in `lib/core/responsive.dart`; app bars/headers stay full width, camera screen untouched). Camera frames are rotated for how the device is held (`lib/services/camera_rotation.dart`, Google's ML Kit formula) and the camera restarts when the screen changes orientation (`didChangeMetrics` in the pose screen; the plugin alone kept the old orientation). PIN keypad moves beside the prompt when the screen is short and wide (phone landscape). No portrait lock: Android 16 ignores it on tablets anyway | ✅ Checked on an Honor tablet (NDL-W09, Android 16) in both orientations: every tab, Goals, Settings, Privacy, Terms, Notifications, chat; Bicep Curl counted a rep in landscape with the skeleton aligned. Phone landscape only emulated on the tablet (`wm size 720x1604`, density 320). **Known limits:** in phone landscape the tall teal headers leave little room for lists; with auto-rotate off and the device held the other way, the patient appears sideways (the app can't see the physical orientation). A real tablet layout (nav rail, two columns) was option B, not built |
-| `flutter analyze`: no issues. `flutter test`: 211 passing | ✅ |
+| Tablets and landscape: layout by available width, never device type (`lib/core/responsive.dart`). Under 900 dp: one centred column at most 680 dp wide (scroll views stay full width with `readablePadding` so the sides still scroll; non-scrolling parts use `ReadableWidth`). From 900 dp: two columns (`AdaptiveColumns`, narrow = left then right, so the phone order is unchanged) on Home, Settings, Profile, Progress Report and App Demo; the exercise list shows two cards per row; Messages shows the thread list beside the open conversation (`MessagesLayout`; nothing opens until the patient taps a thread, because opening marks it read). From 1000 dp: a sidebar (`lib/widgets/dashboard_sidebar.dart`, same look as the bottom bar) replaces the bottom bar, and the page area gets a MediaQuery narrowed by the sidebar's 240 dp. Teal headers keep their full-width background but line their content up with the column (`readableInset`). Same look as on phones: the earlier iOS-style restyle was rolled back and removed from the history. Camera frames are rotated for how the device is held (`lib/services/camera_rotation.dart`) and the camera restarts on orientation change; the PIN keypad moves beside the prompt in phone landscape. No portrait lock: Android 16 ignores it on tablets anyway | ✅ Analyze clean, widget tests at 400x800 and 1280x800 for every changed screen (`test/tablet_*_test.dart`, `test/dashboard_sidebar_test.dart`); Settings, Profile, Report, Demo and the sidebar were rendered at 1280x800 / 800x1280 with real fonts and looked right. **Not yet checked on a real tablet** (the Honor tablet wasn't connected, and the OPPO phone refuses `wm density`). The single-column layout and camera rotation were checked on the Honor tablet earlier. **Known limits:** in phone landscape the tall teal headers leave little room for lists; with auto-rotate off and the device held the other way, the patient appears sideways; rotating while typing in the Messages split view loses the half-typed message |
+| `flutter analyze`: no issues. `flutter test`: 233 passing | ✅ |
 
 ### Clinic dashboard (`laravel-app/`)
 
@@ -61,7 +63,8 @@ The group repo (`paulirichmond/...`) is behind on both branches; push there only
 | Staff login with Firebase Auth; role from `users/{uid}`: `admin`, `therapist` or `staff` (front desk). No SQL users table | ✅ Tests pass. **No staff account exists yet** (see next steps) |
 | Patients: add (also creates the app login with a temporary password), edit, archive (disables the login), reset password. Therapists only see their own patients | ✅ Tests pass. Not yet tried live (would create a real account) |
 | Assign exercises (12 app types, reps/holds, sessions per week, days/hours, instructions), stop/resume; sends an `exercise_assigned` notification and push | ✅ Tests pass. Not yet tried live (would notify Rob's phone) |
-| Patient profile: weekly adherence, accuracy, pain, 14-day pain chart, recent sessions, goals, assessments, notes | ✅ Checked live (read-only) with Rob's data |
+| Patient profile: weekly adherence, accuracy, pain, 14-day pain chart, recent sessions, goals, assessments, notes. All reads run in one parallel round trip (`FirebaseTransport::concurrently`) | ✅ Checked live (read-only) with Rob's data |
+| Consent status on the patient profile, for all staff: "Accepted terms vX on <date>" with the four consents, a notice when it's an older version than `services.legal.consent_version` (env `LEGAL_CONSENT_VERSION`, must match `LegalInfo.version` in the app), "Not yet accepted", or "unavailable" if the read fails (`app/Services/Patient/ConsentService.php`, read-only) | ✅ Tests pass (`PatientConsentTest`); checked in light and dark theme on a rendered page. Not yet seen live |
 | Assessments & Goals and Therapy Notes pages (clinic-only Firestore records) | ✅ Tests pass, pages load live |
 | Staff Accounts page (create, rename, change role, disable) and `php artisan rehab:make-admin` | ✅ Tests pass |
 | Dashboard, analytics and Patient Statistics (CSV/PDF export) computed from Firestore | ✅ Checked live |
@@ -70,7 +73,7 @@ The group repo (`paulirichmond/...`) is behind on both branches; push there only
 | Friendly "can't reach Firebase" page / form error instead of a 500 | ✅ Seen live during a network blip |
 | Appointments, billing, inventory, staff schedule | Still on SQL (SQLite locally; the team uses MySQL/XAMPP). Therapist and staff names come from Firebase |
 | Evening exercise reminders: `ExerciseReminderService`, `POST /cron/exercise-reminders` (bearer `CRON_SECRET`, refuses before 6 PM Manila), `php artisan rehab:send-reminders [--dry-run]`. Triggered daily at 6:05 PM Manila by the org repo's `exercise-reminders.yml` on `main` | ✅ Tests pass. Live: route deployed, auth checked (401 / 409 "too early"); a local dry run against real data found 2 of 5 patients due. **First real run: 24 Oct, 6:05 PM** |
-| `php artisan test`: 172 passing (all against an in-memory Firebase fake, no network); JS: 43 passing | ✅ |
+| `php artisan test`: 186 passing (all against an in-memory Firebase fake, no network); JS: 43 passing | ✅ |
 
 **Test data**
 - Patient `rob@rehabplus.com` (uid `pVRhO9k4pybGItH5IyAJbV0f8aC3`) is seeded. He has 3 prescriptions: kneeExtension, bicepCurl and sideRaise. He has no therapist assigned and no sessions yet.
@@ -204,12 +207,10 @@ The group repo (`paulirichmond/...`) is behind on both branches; push there only
    - Open pull requests for `camera/monitoring` and `web/messaging`.
 5. **Dashboard follow-ups:**
    - Move appointments, billing, inventory and the staff schedule to Firestore too (the user chose "later").
-   - The patient profile takes about 2 s to load (6 sequential Firestore reads). Batch or parallelise them if it matters.
-6. **Check on the phone:** dark mode on every screen (Settings > Appearance > Theme > Dark), My Goals (add a goal from the dashboard first), the Clinic reminders switch, and the first evening reminder (Actions tab of the org repo shows each run's counts).
+6. **Check on the phone and tablet:** the tablet layout on the Honor tablet in landscape (sidebar, two columns, Messages split view) and portrait, dark mode on every screen (Settings > Appearance > Theme > Dark), My Goals (add a goal from the dashboard first), the Clinic reminders switch, and the first evening reminder (Actions tab of the org repo shows each run's counts).
    - `CRON_SECRET` lives only as an org-repo Actions secret; the deploy workflow passes it to Vercel with `vercel deploy --env`. To rotate it: set a new secret, then re-run the deploy workflow.
 7. **Before patients use the app (legal):**
    - Fill in the placeholders in `lib/legal/legal_info.dart`: clinic address, Data Protection Officer name and email, city for disputes, record-retention period.
    - Have a lawyer or the clinic's DPO review both documents. Register with the National Privacy Commission if the clinic's processing requires it.
-   - Show the consent status on the dashboard's patient profile (see API_CONTRACT.md).
 8. **Smaller items:**
    - Seed `settings/clinic.phone` with the real clinic number (set the `CLINIC_PHONE` environment variable). The dashboard has no settings page for it yet.
