@@ -1,4 +1,3 @@
-import 'package:flutter/cupertino.dart' show CupertinoIcons;
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart' show rootBundle;
 
@@ -6,8 +5,6 @@ import '../core/app_palette.dart';
 import '../core/diagnostic_logger.dart';
 import '../legal/legal_info.dart';
 import '../core/responsive.dart';
-import '../widgets/info_content_unavailable.dart';
-import '../widgets/ios_page.dart';
 
 /// Shows one of the legal documents in assets/legal/ (Terms and Conditions or
 /// Privacy Policy), with the clinic details filled in.
@@ -22,23 +19,18 @@ class LegalDocumentScreen extends StatefulWidget {
     super.key,
     required this.title,
     required this.asset,
-    this.previousPageTitle,
   });
 
-  const LegalDocumentScreen.terms({super.key, this.previousPageTitle})
+  const LegalDocumentScreen.terms({super.key})
     : title = 'Terms and Conditions',
       asset = LegalInfo.termsAsset;
 
-  const LegalDocumentScreen.privacy({super.key, this.previousPageTitle})
+  const LegalDocumentScreen.privacy({super.key})
     : title = 'Privacy Policy',
       asset = LegalInfo.privacyAsset;
 
   final String title;
   final String asset;
-
-  /// The back button's label ("‹ Privacy"). Null (e.g. from the consent
-  /// screen) shows a bare chevron.
-  final String? previousPageTitle;
 
   static const Color primaryTeal = Color(0xFF23A8AA);
   static const Color darkTeal = Color(0xFF0D6E71);
@@ -49,6 +41,8 @@ class LegalDocumentScreen extends StatefulWidget {
 
 class _LegalDocumentScreenState extends State<LegalDocumentScreen> {
   static const String _tag = 'LegalDocument';
+  static const Color primaryTeal = LegalDocumentScreen.primaryTeal;
+  static const Color darkTeal = LegalDocumentScreen.darkTeal;
 
   final DiagnosticLogger _logger = DiagnosticLogger.I;
 
@@ -87,47 +81,76 @@ class _LegalDocumentScreenState extends State<LegalDocumentScreen> {
 
   @override
   Widget build(BuildContext context) {
-    return IosPage(
-      title: title,
-      previousPageTitle: widget.previousPageTitle,
-      slivers: [
-        FutureBuilder<String>(
-          future: _document,
-          builder: (context, snap) {
-            if (snap.hasError) {
-              return const SliverFillRemaining(
-                hasScrollBody: false,
-                child: InfoContentUnavailable(
-                  icon: CupertinoIcons.doc_text,
-                  title: 'Could not open this document.',
-                  body: 'Go back and open it again.',
-                ),
-              );
-            }
-            if (!snap.hasData) {
-              return const SliverFillRemaining(
-                hasScrollBody: false,
-                child: Center(child: CircularProgressIndicator.adaptive()),
-              );
-            }
-            return SliverPadding(
-              // Readable line length on tablets too: the text stays in a
-              // [kReadableMaxWidth] column however wide the screen is.
-              padding: readablePadding(
-                context,
-                const EdgeInsets.fromLTRB(20, 8, 20, 40),
-                kReadableMaxWidth,
-              ),
-              sliver: SliverToBoxAdapter(
-                child: SelectionArea(
-                  // The navigation bar already shows the title.
-                  child: LegalText(snap.data!, omitTitle: true),
-                ),
-              ),
-            );
-          },
+    return Scaffold(
+      backgroundColor: context.palette.background,
+      body: Column(
+        children: [
+          _header(context),
+          Expanded(
+            child: FutureBuilder<String>(
+              future: _document,
+              builder: (context, snap) {
+                if (snap.hasError) {
+                  return const Center(
+                    child: Text('Could not open this document.'),
+                  );
+                }
+                if (!snap.hasData) {
+                  return const Center(child: CircularProgressIndicator());
+                }
+                return SingleChildScrollView(
+                  padding: readablePadding(context, const EdgeInsets.fromLTRB(20, 20, 20, 32)),
+                  child: SelectionArea(
+                    child: LegalText(snap.data!),
+                  ),
+                );
+              },
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _header(BuildContext context) {
+    return Container(
+      decoration: const BoxDecoration(
+        gradient: LinearGradient(
+          colors: [darkTeal, Color(0xFF1A8587), primaryTeal],
+          begin: Alignment.topLeft,
+          end: Alignment.bottomRight,
         ),
-      ],
+        borderRadius: BorderRadius.vertical(bottom: Radius.circular(32)),
+      ),
+      child: SafeArea(
+        bottom: false,
+        child: Padding(
+          padding: const EdgeInsets.fromLTRB(8, 8, 20, 20),
+          child: Row(
+            children: [
+              IconButton(
+                icon: const Icon(
+                  Icons.arrow_back_ios,
+                  color: Colors.white,
+                  size: 20,
+                ),
+                onPressed: () => Navigator.pop(context),
+              ),
+              const SizedBox(width: 4),
+              Expanded(
+                child: Text(
+                  title,
+                  style: const TextStyle(
+                    fontSize: 20,
+                    fontWeight: FontWeight.bold,
+                    color: Colors.white,
+                  ),
+                ),
+              ),
+            ],
+          ),
+        ),
+      ),
     );
   }
 }
@@ -136,13 +159,9 @@ class _LegalDocumentScreenState extends State<LegalDocumentScreen> {
 /// headings, `- ` bullets, paragraphs (consecutive lines are joined) and
 /// `**bold**` inline text.
 class LegalText extends StatelessWidget {
-  const LegalText(this.markdown, {super.key, this.omitTitle = false});
+  const LegalText(this.markdown, {super.key});
 
   final String markdown;
-
-  /// Skips the document's first `# ` heading, for pages whose navigation
-  /// bar already shows the title (it would otherwise appear twice).
-  final bool omitTitle;
 
   /// `*italic*` markers (the text is kept, the stars are dropped).
   static final RegExp _italic = RegExp(r'\*([^*]+)\*');
@@ -150,29 +169,22 @@ class LegalText extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final palette = context.palette;
-    final textTheme = Theme.of(context).textTheme;
-    // Body text at iOS Body size (17) with a generous line height, so a
-    // long legal document is comfortable to read.
-    final body = (textTheme.bodyLarge ?? const TextStyle(fontSize: 17))
-        .copyWith(height: 1.45, color: palette.textPrimary);
-    // Headings in the label colour, not teal: colour is kept for meaning.
-    final titleStyle = textTheme.headlineSmall?.copyWith(
-      fontWeight: FontWeight.w700,
+    final body = TextStyle(
+      fontSize: 14,
+      height: 1.55,
       color: palette.textPrimary,
     );
-    final sectionStyle = textTheme.titleLarge?.copyWith(
-      fontWeight: FontWeight.w600,
-      color: palette.textPrimary,
-    );
+    // Dark teal headings are too dim on the dark page; use the brighter teal.
+    final headingColor =
+        context.isDarkMode ? AppPalette.teal : AppPalette.darkTeal;
     final children = <Widget>[];
     final paragraph = <String>[];
-    var titleSkipped = !omitTitle;
 
     void flush() {
       if (paragraph.isEmpty) return;
       children.add(
         Padding(
-          padding: const EdgeInsets.only(bottom: 14),
+          padding: const EdgeInsets.only(bottom: 12),
           child: Text.rich(_inline(paragraph.join(' '), body)),
         ),
       );
@@ -183,22 +195,32 @@ class LegalText extends StatelessWidget {
       final line = raw.trimRight();
       if (line.startsWith('# ')) {
         flush();
-        if (!titleSkipped) {
-          titleSkipped = true;
-          continue;
-        }
         children.add(
           Padding(
-            padding: const EdgeInsets.only(bottom: 8),
-            child: Text(line.substring(2), style: titleStyle),
+            padding: const EdgeInsets.only(bottom: 6),
+            child: Text(
+              line.substring(2),
+              style: TextStyle(
+                fontSize: 22,
+                fontWeight: FontWeight.bold,
+                color: palette.textPrimary,
+              ),
+            ),
           ),
         );
       } else if (line.startsWith('## ')) {
         flush();
         children.add(
           Padding(
-            padding: const EdgeInsets.only(top: 16, bottom: 8),
-            child: Text(line.substring(3), style: sectionStyle),
+            padding: const EdgeInsets.only(top: 12, bottom: 8),
+            child: Text(
+              line.substring(3),
+              style: TextStyle(
+                fontSize: 16,
+                fontWeight: FontWeight.bold,
+                color: headingColor,
+              ),
+            ),
           ),
         );
       } else if (line.startsWith('- ')) {
@@ -217,6 +239,7 @@ class LegalText extends StatelessWidget {
         );
       } else if (line.isEmpty) {
         flush();
+        if (children.isNotEmpty) children.add(const SizedBox(height: 2));
       } else {
         paragraph.add(line);
       }

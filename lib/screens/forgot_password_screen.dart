@@ -1,7 +1,6 @@
 import 'dart:async';
 
 import 'package:firebase_auth/firebase_auth.dart' show PhoneAuthCredential;
-import 'package:flutter/cupertino.dart' show CupertinoIcons;
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart'
     show
@@ -407,7 +406,7 @@ class _ForgotPasswordScreenState extends State<ForgotPasswordScreen>
                       color: palette.surfaceMuted,
                       borderRadius: BorderRadius.circular(10),
                     ),
-                    child: Icon(CupertinoIcons.chevron_left, size: 16, color: palette.textSecondary),
+                    child: Icon(Icons.arrow_back_ios_new_rounded, size: 16, color: palette.textSecondary),
                   ),
                 ),
 
@@ -459,7 +458,7 @@ class _ForgotPasswordScreenState extends State<ForgotPasswordScreen>
                     child: _isLoading
                         ? const SizedBox(
                             width: 22, height: 22,
-                            child: CircularProgressIndicator.adaptive(valueColor: AlwaysStoppedAnimation(Colors.white), strokeWidth: 2.5),
+                            child: CircularProgressIndicator(color: Colors.white, strokeWidth: 2.5),
                           )
                         : Text(
                             _buttonLabel,
@@ -489,7 +488,7 @@ class _ForgotPasswordScreenState extends State<ForgotPasswordScreen>
     return _inputField(
       controller: _phoneCtrl,
       hint: 'Mobile number (e.g. 0917 123 4567)',
-      icon: CupertinoIcons.phone,
+      icon: PhosphorIcons.phone(),
       keyboardType: TextInputType.phone,
       autofillHints: const [AutofillHints.telephoneNumber],
       inputFormatters: [
@@ -505,7 +504,7 @@ class _ForgotPasswordScreenState extends State<ForgotPasswordScreen>
         _inputField(
           controller: _codeCtrl,
           hint: '$resetCodeLength-digit code',
-          icon: CupertinoIcons.chat_bubble_text,
+          icon: PhosphorIcons.chatCircleText(),
           keyboardType: TextInputType.number,
           autofillHints: const [AutofillHints.oneTimeCode],
           inputFormatters: [
@@ -546,7 +545,7 @@ class _ForgotPasswordScreenState extends State<ForgotPasswordScreen>
     final toggle = IconButton(
       tooltip: _showPassword ? 'Hide password' : 'Show password',
       icon: Icon(
-        _showPassword ? CupertinoIcons.eye_slash : CupertinoIcons.eye,
+        _showPassword ? Icons.visibility_off_outlined : Icons.visibility_outlined,
         size: 20,
         color: context.palette.textMuted,
       ),
@@ -557,7 +556,7 @@ class _ForgotPasswordScreenState extends State<ForgotPasswordScreen>
         _inputField(
           controller: _passwordCtrl,
           hint: 'New password',
-          icon: CupertinoIcons.lock,
+          icon: PhosphorIcons.lockSimple(),
           obscureText: !_showPassword,
           suffix: toggle,
           autofillHints: const [AutofillHints.newPassword],
@@ -567,7 +566,7 @@ class _ForgotPasswordScreenState extends State<ForgotPasswordScreen>
         _inputField(
           controller: _confirmCtrl,
           hint: 'Confirm new password',
-          icon: CupertinoIcons.lock,
+          icon: PhosphorIcons.lockSimple(),
           obscureText: !_showPassword,
           autofillHints: const [AutofillHints.newPassword],
         ),
@@ -587,8 +586,11 @@ class _ForgotPasswordScreenState extends State<ForgotPasswordScreen>
               decoration: BoxDecoration(
                 gradient: const LinearGradient(colors: [Color(0xFF23A8AA), Color(0xFF0D6E71)]),
                 shape: BoxShape.circle,
+                boxShadow: [
+                  BoxShadow(color: const Color(0xFF23A8AA).withValues(alpha: 0.4), blurRadius: 20, offset: const Offset(0, 8)),
+                ],
               ),
-              child: const Icon(CupertinoIcons.checkmark, color: Colors.white, size: 40),
+              child: const Icon(Icons.check_rounded, color: Colors.white, size: 40),
             ),
           ),
           const SizedBox(height: 16),
@@ -610,7 +612,7 @@ class _ForgotPasswordScreenState extends State<ForgotPasswordScreen>
   Widget _inputField({
     required TextEditingController controller,
     required String hint,
-    required IconData icon,
+    required PhosphorIconData icon,
     bool obscureText = false,
     Widget? suffix,
     TextInputType? keyboardType,
@@ -636,7 +638,7 @@ class _ForgotPasswordScreenState extends State<ForgotPasswordScreen>
       decoration: InputDecoration(
         hintText: hint,
         hintStyle: TextStyle(fontSize: 14, color: palette.textFaint),
-        prefixIcon: Icon(icon, size: 20, color: palette.textFaint),
+        prefixIcon: PhosphorIcon(icon, size: 20, color: palette.textFaint),
         suffixIcon: suffix,
         filled: true,
         fillColor: palette.inputFill,

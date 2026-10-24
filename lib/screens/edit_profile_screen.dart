@@ -1,6 +1,5 @@
 import 'dart:typed_data';
 
-import 'package:flutter/cupertino.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart' show PlatformException;
 import 'package:image_picker/image_picker.dart';
@@ -9,11 +8,8 @@ import 'package:permission_handler/permission_handler.dart';
 import '../core/app_palette.dart';
 import '../core/diagnostic_logger.dart';
 import '../services/profile_service.dart';
-import '../widgets/ios_list.dart';
-import '../widgets/ios_page.dart';
-import '../widgets/pressable.dart';
 import '../widgets/profile_avatar.dart';
-import '../widgets/profile_parts.dart';
+import '../core/responsive.dart';
 
 class ProfileData {
   final String name;
@@ -41,27 +37,18 @@ class ProfileData {
   });
 }
 
-/// Edit Profile: an iOS form (label + field rows in grouped sections) under
-/// a large title, with Save pinned at the bottom. Pops with the saved
-/// [ProfileData]; the caller shows the new details, so no "saved" message.
 class EditProfileScreen extends StatefulWidget {
   final ProfileData initial;
-
-  /// Name of the screen underneath, shown next to the back chevron
-  /// ("‹ Profile" from the Profile tab, "‹ Account Info" from there).
-  final String previousPageTitle;
-
-  const EditProfileScreen({
-    super.key,
-    required this.initial,
-    this.previousPageTitle = 'Profile',
-  });
+  const EditProfileScreen({super.key, required this.initial});
 
   @override
   State<EditProfileScreen> createState() => _EditProfileScreenState();
 }
 
-class _EditProfileScreenState extends State<EditProfileScreen> {
+class _EditProfileScreenState extends State<EditProfileScreen>
+    with SingleTickerProviderStateMixin {
+  static const Color primaryTeal = Color(0xFF23A8AA);
+  static const Color darkTeal = Color(0xFF0D6E71);
   static const String _tag = 'EditProfile';
 
   final DiagnosticLogger _logger = DiagnosticLogger.I;
@@ -69,6 +56,10 @@ class _EditProfileScreenState extends State<EditProfileScreen> {
   /// True while the photo sheet / camera / gallery is open, so a second tap
   /// can't open two pickers (image_picker throws "already_active").
   bool _pickingPhoto = false;
+
+  late final AnimationController _ctrl;
+  late final Animation<double> _fade;
+  late final Animation<Offset> _slide;
 
   final _formKey = GlobalKey<FormState>();
   late final TextEditingController _nameCtrl;
@@ -99,32 +90,38 @@ class _EditProfileScreenState extends State<EditProfileScreen> {
   }
 
   Future<void> _choosePhotoUnguarded() async {
-    // iOS action sheet. Returns an ImageSource, 'remove', or null when
-    // cancelled (Cancel button or a tap outside).
-    final source = await showCupertinoModalPopup<Object>(
+    final source = await showModalBottomSheet<Object>(
       context: context,
-      builder: (ctx) => CupertinoActionSheet(
-        title: const Text('Profile picture'),
-        actions: [
-          CupertinoActionSheetAction(
-            onPressed: () => Navigator.pop(ctx, ImageSource.camera),
-            child: const Text('Take a photo'),
-          ),
-          CupertinoActionSheetAction(
-            onPressed: () => Navigator.pop(ctx, ImageSource.gallery),
-            child: const Text('Choose from gallery'),
-          ),
-          if (_photo != null)
-            CupertinoActionSheetAction(
-              isDestructiveAction: true,
-              onPressed: () => Navigator.pop(ctx, 'remove'),
-              child: const Text('Remove photo'),
+      showDragHandle: true,
+      // Follows the app theme (light or dark) like the rest of this screen.
+      backgroundColor: context.palette.surface,
+      builder: (ctx) => SafeArea(
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            ListTile(
+              leading: const Icon(
+                Icons.photo_camera_outlined,
+                color: primaryTeal,
+              ),
+              title: const Text('Take a photo'),
+              onTap: () => Navigator.pop(ctx, ImageSource.camera),
             ),
-        ],
-        cancelButton: CupertinoActionSheetAction(
-          isDefaultAction: true,
-          onPressed: () => Navigator.pop(ctx),
-          child: const Text('Cancel'),
+            ListTile(
+              leading: const Icon(
+                Icons.photo_library_outlined,
+                color: primaryTeal,
+              ),
+              title: const Text('Choose from gallery'),
+              onTap: () => Navigator.pop(ctx, ImageSource.gallery),
+            ),
+            if (_photo != null)
+              ListTile(
+                leading: Icon(Icons.delete_outline, color: Colors.red[700]),
+                title: const Text('Remove photo'),
+                onTap: () => Navigator.pop(ctx, 'remove'),
+              ),
+          ],
         ),
       ),
     );
@@ -197,11 +194,23 @@ class _EditProfileScreenState extends State<EditProfileScreen> {
     _conditionCtrl = TextEditingController(text: widget.initial.condition);
     _therapistCtrl = TextEditingController(text: widget.initial.therapist);
 
+    _ctrl = AnimationController(
+      vsync: this,
+      duration: const Duration(milliseconds: 600),
+    );
+    _fade = CurvedAnimation(parent: _ctrl, curve: Curves.easeOut);
+    _slide = Tween<Offset>(
+      begin: const Offset(0, 0.1),
+      end: Offset.zero,
+    ).animate(CurvedAnimation(parent: _ctrl, curve: Curves.easeOutCubic));
+    _ctrl.forward();
+
     _logger.info(_tag, 'Screen opened');
   }
 
   @override
   void dispose() {
+    _ctrl.dispose();
     _nameCtrl.dispose();
     _emailCtrl.dispose();
     _phoneCtrl.dispose();
@@ -260,131 +269,295 @@ class _EditProfileScreenState extends State<EditProfileScreen> {
 
   @override
   Widget build(BuildContext context) {
-    // The Form wraps the whole page so the fields inside the sliver list
-    // and the Save button share one validation state.
-    return Form(
-      key: _formKey,
-      child: IosPage(
-        title: 'Edit Profile',
-        previousPageTitle: widget.previousPageTitle,
-        bottom: _buildSaveButton(),
+    return Scaffold(
+      backgroundColor: context.palette.background,
+      body: Column(
         children: [
-          _buildAvatarSection(),
-          // The email (the login) and rehab info are managed by the clinic.
-          IosSection(
-            header: 'Personal Info',
-            hasLeading: false,
-            children: [
-              ProfileFormRow(
-                label: 'Full Name',
-                controller: _nameCtrl,
-                keyboardType: TextInputType.name,
-                validator: _requiredName,
-                autofillHints: const [AutofillHints.name],
-                capitalization: TextCapitalization.words,
-                textInputAction: TextInputAction.next,
+          _buildHeader(context),
+          Expanded(
+            child: FadeTransition(
+              opacity: _fade,
+              child: SlideTransition(
+                position: _slide,
+                child: Form(
+                  key: _formKey,
+                  child: SingleChildScrollView(
+                    padding: readablePadding(context, const EdgeInsets.fromLTRB(16, 20, 16, 32)),
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        _buildAvatarSection(),
+                        const SizedBox(height: 24),
+                        _sectionLabel(
+                          'Personal Info',
+                          Icons.person_outline_rounded,
+                        ),
+                        const SizedBox(height: 12),
+                        _buildCard([
+                          // The email (the login) and rehab info are managed by the clinic.
+                          _field(
+                            _nameCtrl,
+                            'Full Name',
+                            Icons.person_outline,
+                            keyboardType: TextInputType.name,
+                            validator: _requiredName,
+                            autofillHints: const [AutofillHints.name],
+                            capitalization: TextCapitalization.words,
+                          ),
+                          _divider(),
+                          _field(
+                            _emailCtrl,
+                            'Email',
+                            Icons.email_outlined,
+                            readOnly: true,
+                          ),
+                          _divider(),
+                          _field(
+                            _phoneCtrl,
+                            'Phone',
+                            Icons.phone_outlined,
+                            keyboardType: TextInputType.phone,
+                            validator: _phone,
+                            autofillHints: const [AutofillHints.telephoneNumber],
+                          ),
+                          _divider(),
+                          _field(
+                            _dobCtrl,
+                            'Date of Birth',
+                            Icons.cake_outlined,
+                            validator: _required,
+                            autofillHints: const [AutofillHints.birthday],
+                          ),
+                        ]),
+                        const SizedBox(height: 20),
+                        _sectionLabel(
+                          'Rehab Info',
+                          Icons.medical_services_outlined,
+                        ),
+                        const SizedBox(height: 12),
+                        _buildCard([
+                          _field(
+                            _conditionCtrl,
+                            'Condition',
+                            Icons.medical_services_outlined,
+                            readOnly: true,
+                          ),
+                          _divider(),
+                          _field(
+                            _therapistCtrl,
+                            'Therapist',
+                            Icons.person_pin_outlined,
+                            readOnly: true,
+                          ),
+                        ]),
+                        const SizedBox(height: 28),
+                        _buildSaveButton(),
+                      ],
+                    ),
+                  ),
+                ),
               ),
-              ProfileFormRow(
-                label: 'Email',
-                controller: _emailCtrl,
-                readOnly: true,
-              ),
-              ProfileFormRow(
-                label: 'Phone',
-                controller: _phoneCtrl,
-                keyboardType: TextInputType.phone,
-                validator: _phone,
-                autofillHints: const [AutofillHints.telephoneNumber],
-                textInputAction: TextInputAction.next,
-              ),
-              ProfileFormRow(
-                label: 'Date of Birth',
-                controller: _dobCtrl,
-                validator: _required,
-                autofillHints: const [AutofillHints.birthday],
-                textInputAction: TextInputAction.done,
-              ),
-            ],
-          ),
-          IosSection(
-            header: 'Rehab Info',
-            footer:
-                'Your email, condition and therapist are managed by the '
-                'clinic.',
-            hasLeading: false,
-            children: [
-              ProfileFormRow(
-                label: 'Condition',
-                controller: _conditionCtrl,
-                readOnly: true,
-              ),
-              ProfileFormRow(
-                label: 'Therapist',
-                controller: _therapistCtrl,
-                readOnly: true,
-              ),
-            ],
+            ),
           ),
         ],
       ),
     );
   }
 
-  /// The photo with a camera badge, and a text button under it. Both open
-  /// the photo action sheet.
-  Widget _buildAvatarSection() {
-    final palette = context.palette;
-    final pickPhoto = _isSaving ? null : _choosePhoto;
-    final buttonLabel =
-        _photo == null ? 'Add profile picture' : 'Change profile picture';
-    return Padding(
-      padding: const EdgeInsets.only(top: 8),
-      child: Center(
-        child: Column(
-          children: [
-            Pressable(
-              onTap: pickPhoto,
-              pressedScale: 0.94,
-              semanticLabel: buttonLabel,
-              child: Stack(
-                children: [
-                  ProfileAvatar(photo: _photo, size: 96),
-                  Positioned(
-                    bottom: 0,
-                    right: 0,
-                    child: Container(
-                      width: 32,
-                      height: 32,
-                      decoration: BoxDecoration(
-                        color: palette.surface,
-                        shape: BoxShape.circle,
-                      ),
-                      child: const Icon(
-                        CupertinoIcons.camera_fill,
-                        size: 17,
-                        color: AppPalette.teal,
-                      ),
-                    ),
+  Widget _buildHeader(BuildContext context) {
+    return Container(
+      decoration: const BoxDecoration(
+        gradient: LinearGradient(
+          colors: [darkTeal, Color(0xFF1A8587), primaryTeal],
+          begin: Alignment.topLeft,
+          end: Alignment.bottomRight,
+        ),
+        borderRadius: BorderRadius.vertical(bottom: Radius.circular(32)),
+      ),
+      child: SafeArea(
+        bottom: false,
+        child: Padding(
+          padding: const EdgeInsets.fromLTRB(20, 14, 20, 24),
+          child: Row(
+            children: [
+              GestureDetector(
+                onTap: () => Navigator.pop(context),
+                child: Container(
+                  width: 40,
+                  height: 40,
+                  decoration: BoxDecoration(
+                    color: Colors.white.withValues(alpha: 0.15),
+                    borderRadius: BorderRadius.circular(12),
                   ),
-                ],
-              ),
-            ),
-            CupertinoButton(
-              minimumSize: const Size(44, 44),
-              onPressed: pickPhoto,
-              child: Text(
-                buttonLabel,
-                style: const TextStyle(
-                  fontSize: 17,
-                  color: AppPalette.teal,
+                  child: const Icon(
+                    Icons.arrow_back_ios_new_rounded,
+                    color: Colors.white,
+                    size: 18,
+                  ),
                 ),
               ),
-            ),
-          ],
+              const SizedBox(width: 14),
+              const Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      'Update Account',
+                      style: TextStyle(
+                        fontSize: 22,
+                        fontWeight: FontWeight.bold,
+                        color: Colors.white,
+                      ),
+                    ),
+                    Text(
+                      'Update your personal information',
+                      style: TextStyle(fontSize: 12, color: Colors.white70),
+                    ),
+                  ],
+                ),
+              ),
+            ],
+          ),
         ),
       ),
     );
   }
+
+  Widget _buildAvatarSection() {
+    final palette = context.palette;
+    return Center(
+      child: Column(
+        children: [
+          GestureDetector(
+            onTap: _isSaving ? null : _choosePhoto,
+            child: Stack(
+              children: [
+                ProfileAvatar(photo: _photo, size: 96),
+                Positioned(
+                  bottom: 0,
+                  right: 0,
+                  child: Container(
+                    width: 32,
+                    height: 32,
+                    decoration: BoxDecoration(
+                      color: palette.surface,
+                      shape: BoxShape.circle,
+                      boxShadow: [
+                        BoxShadow(
+                          color: palette.shadow.withValues(alpha: 0.1),
+                          blurRadius: 6,
+                        ),
+                      ],
+                    ),
+                    child: const Icon(
+                      Icons.camera_alt_rounded,
+                      size: 17,
+                      color: primaryTeal,
+                    ),
+                  ),
+                ),
+              ],
+            ),
+          ),
+          TextButton(
+            onPressed: _isSaving ? null : _choosePhoto,
+            child: Text(
+              _photo == null ? 'Add profile picture' : 'Change profile picture',
+              style: const TextStyle(
+                color: primaryTeal,
+                fontWeight: FontWeight.w600,
+              ),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _sectionLabel(String label, IconData icon) {
+    return Row(
+      children: [
+        Icon(icon, size: 16, color: primaryTeal),
+        const SizedBox(width: 8),
+        Text(
+          label,
+          style: TextStyle(
+            fontSize: 14,
+            fontWeight: FontWeight.bold,
+            color: context.palette.textSecondary,
+          ),
+        ),
+      ],
+    );
+  }
+
+  Widget _buildCard(List<Widget> children) {
+    final palette = context.palette;
+    return Container(
+      decoration: BoxDecoration(
+        color: palette.surface,
+        borderRadius: BorderRadius.circular(20),
+        boxShadow: [
+          BoxShadow(
+            color: palette.shadow.withValues(alpha: 0.05),
+            blurRadius: 12,
+            offset: const Offset(0, 3),
+          ),
+        ],
+      ),
+      child: Padding(
+        padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+        child: Column(children: children),
+      ),
+    );
+  }
+
+  Widget _field(
+    TextEditingController ctrl,
+    String label,
+    IconData icon, {
+    TextInputType? keyboardType,
+    String? Function(String?)? validator,
+    bool readOnly = false,
+    Iterable<String>? autofillHints,
+    TextCapitalization capitalization = TextCapitalization.none,
+  }) {
+    final palette = context.palette;
+    return Padding(
+      padding: const EdgeInsets.symmetric(vertical: 4),
+      child: TextFormField(
+        controller: ctrl,
+        keyboardType: keyboardType,
+        readOnly: readOnly,
+        validator: validator,
+        autofillHints: readOnly ? null : autofillHints,
+        textCapitalization: capitalization,
+        style: TextStyle(
+          fontSize: 14,
+          color: palette.textPrimary,
+          fontWeight: FontWeight.w500,
+        ),
+        decoration: InputDecoration(
+          prefixIcon: Icon(
+            icon,
+            size: 18,
+            color: readOnly ? palette.textFaint : primaryTeal,
+          ),
+          labelText: label,
+          labelStyle: TextStyle(
+            fontSize: 13,
+            color: readOnly ? palette.textFaint : palette.textMuted,
+          ),
+          border: InputBorder.none,
+          suffixIcon: readOnly
+              ? Icon(Icons.lock_outline, size: 14, color: palette.textFaint)
+              : null,
+        ),
+      ),
+    );
+  }
+
+  Widget _divider() => Divider(height: 1, color: context.palette.divider);
 
   // Lengths match the Firestore rules (name ≤ 100, phone/date of birth ≤ 30).
   String? _required(String? v) => _check(v, 30);
@@ -410,33 +583,32 @@ class _EditProfileScreenState extends State<EditProfileScreen> {
     return null;
   }
 
-  /// Pinned under the form (IosPage.bottom), so it stays reachable however
-  /// far the form is scrolled.
   Widget _buildSaveButton() {
     return SizedBox(
       width: double.infinity,
-      height: 50,
-      child: FilledButton(
+      child: ElevatedButton(
         onPressed: _isSaving ? null : _save,
-        style: FilledButton.styleFrom(
-          backgroundColor: AppPalette.teal,
+        style: ElevatedButton.styleFrom(
+          backgroundColor: primaryTeal,
           foregroundColor: Colors.white,
+          elevation: 0,
+          padding: const EdgeInsets.symmetric(vertical: 16),
           shape: RoundedRectangleBorder(
-            borderRadius: BorderRadius.circular(12),
+            borderRadius: BorderRadius.circular(16),
           ),
         ),
         child: _isSaving
             ? const SizedBox(
                 width: 20,
                 height: 20,
-                child: CircularProgressIndicator.adaptive(
-                  valueColor: AlwaysStoppedAnimation(Colors.white),
+                child: CircularProgressIndicator(
+                  color: Colors.white,
                   strokeWidth: 2,
                 ),
               )
             : const Text(
                 'Save Changes',
-                style: TextStyle(fontSize: 17, fontWeight: FontWeight.w600),
+                style: TextStyle(fontSize: 15, fontWeight: FontWeight.bold),
               ),
       ),
     );

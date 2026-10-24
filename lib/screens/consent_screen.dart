@@ -1,10 +1,8 @@
 import 'dart:async';
 
-import 'package:flutter/cupertino.dart' show CupertinoIcons;
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 
-import '../widgets/app_dialogs.dart';
 import '../core/app_palette.dart';
 import '../core/diagnostic_logger.dart';
 import '../legal/legal_info.dart';
@@ -127,16 +125,26 @@ class _ConsentScreenState extends State<ConsentScreen> {
 
   Future<void> _decline() async {
     if (_saving) return;
-    final confirmed = await showConfirmDialog(
-      context,
-      title: 'Decline and sign out?',
-      message:
+    final confirmed = await showDialog<bool>(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        title: const Text('Decline and sign out?'),
+        content: const Text(
           'You need to accept the Terms and Conditions and Privacy Policy to '
           'use RehabPlus. If you have questions, contact the clinic before '
           'deciding.',
-      cancelLabel: 'Go back',
-      confirmLabel: 'Sign out',
-      destructive: true,
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(ctx, false),
+            child: const Text('Go back'),
+          ),
+          TextButton(
+            onPressed: () => Navigator.pop(ctx, true),
+            child: const Text('Sign out'),
+          ),
+        ],
+      ),
     );
     if (confirmed != true || !mounted) return;
     _logger.info(_tag, 'Consent declined', {'version': LegalInfo.version});
@@ -192,24 +200,24 @@ class _ConsentScreenState extends State<ConsentScreen> {
                       ),
                       const SizedBox(height: 12),
                       _point(
-                        CupertinoIcons.heart_circle,
+                        Icons.health_and_safety_outlined,
                         'RehabPlus supports your therapist\'s care; it doesn\'t '
                         'replace it. Stop if an exercise hurts, and call 911 '
                         'in an emergency. Messages aren\'t monitored 24/7.',
                       ),
                       _point(
-                        CupertinoIcons.videocam,
+                        Icons.videocam_outlined,
                         'The camera tracks your movements on your phone only. '
                         'Video is never recorded or uploaded.',
                       ),
                       _point(
-                        CupertinoIcons.waveform_path_ecg,
+                        Icons.monitor_heart_outlined,
                         'Your exercise results, pain levels and messages are '
                         'shared with your care team at ${LegalInfo.clinicName} '
                         'and stored securely with Google Firebase.',
                       ),
                       _point(
-                        CupertinoIcons.checkmark_shield,
+                        Icons.verified_user_outlined,
                         'Under the Data Privacy Act you can access, correct or '
                         'request deletion of your information and withdraw '
                         'consent at any time.',
@@ -221,13 +229,13 @@ class _ConsentScreenState extends State<ConsentScreen> {
                     padding: EdgeInsets.zero,
                     children: [
                       _docLink(
-                        CupertinoIcons.doc_text,
+                        Icons.description_outlined,
                         'Read the Terms and Conditions',
                         () => _open(const LegalDocumentScreen.terms()),
                       ),
                       const Divider(height: 1, indent: 56),
                       _docLink(
-                        CupertinoIcons.lock_shield,
+                        Icons.privacy_tip_outlined,
                         'Read the Privacy Policy',
                         () => _open(const LegalDocumentScreen.privacy()),
                       ),
@@ -283,7 +291,11 @@ class _ConsentScreenState extends State<ConsentScreen> {
     return Container(
       width: double.infinity,
       decoration: const BoxDecoration(
-        color: AppPalette.midTeal,
+        gradient: LinearGradient(
+          colors: [darkTeal, Color(0xFF1A8587), primaryTeal],
+          begin: Alignment.topLeft,
+          end: Alignment.bottomRight,
+        ),
         borderRadius: BorderRadius.vertical(bottom: Radius.circular(32)),
       ),
       child: const SafeArea(
@@ -293,7 +305,7 @@ class _ConsentScreenState extends State<ConsentScreen> {
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              Icon(CupertinoIcons.shield, color: Colors.white, size: 30),
+              Icon(Icons.shield_outlined, color: Colors.white, size: 30),
               SizedBox(height: 10),
               Text(
                 'Terms & Privacy',
@@ -324,6 +336,13 @@ class _ConsentScreenState extends State<ConsentScreen> {
       decoration: BoxDecoration(
         color: context.palette.surface,
         borderRadius: BorderRadius.circular(18),
+        boxShadow: [
+          BoxShadow(
+            color: context.palette.shadow.withValues(alpha: 0.05),
+            blurRadius: 10,
+            offset: const Offset(0, 3),
+          ),
+        ],
       ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
@@ -368,7 +387,7 @@ class _ConsentScreenState extends State<ConsentScreen> {
           color: context.isDarkMode ? primaryTeal : darkTeal,
         ),
       ),
-      trailing: Icon(CupertinoIcons.chevron_right, color: context.palette.textFaint),
+      trailing: Icon(Icons.chevron_right_rounded, color: context.palette.textFaint),
     );
   }
 
@@ -414,9 +433,9 @@ class _ConsentScreenState extends State<ConsentScreen> {
                     ? const SizedBox(
                         width: 22,
                         height: 22,
-                        child: CircularProgressIndicator.adaptive(
+                        child: CircularProgressIndicator(
                           strokeWidth: 2.5,
-                          valueColor: AlwaysStoppedAnimation(Colors.white),
+                          color: Colors.white,
                         ),
                       )
                     : const Text(

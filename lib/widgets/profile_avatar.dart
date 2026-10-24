@@ -1,6 +1,5 @@
 import 'dart:typed_data';
 
-import 'package:flutter/cupertino.dart' show CupertinoIcons;
 import 'package:flutter/material.dart';
 
 import '../core/diagnostic_logger.dart';
@@ -24,7 +23,7 @@ class ProfileAvatar extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final image = photo;
-    final placeholder = Icon(CupertinoIcons.person_fill, size: size * 0.52, color: Colors.white);
+    final placeholder = Icon(Icons.person, size: size * 0.52, color: Colors.white);
     return Container(
       width: size,
       height: size,

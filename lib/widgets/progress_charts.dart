@@ -12,13 +12,7 @@ import '../services/progress_report.dart';
 // tab tap, a clock tick, a fade-in) reuses the same data object, and
 // fl_chart sees nothing new to lay out or animate.
 
-// One accent, like Apple Health: every series is the brand teal. The chart
-// titles say what each one measures, so they don't need different hues.
-const _teal = AppPalette.teal;
-
-/// Axis label size. 12 pt (Apple's caption) stays readable on a phone held
-/// at arm's length; never below the app's 11 pt floor.
-const double _axisFontSize = 12;
+const _teal = Color(0xFF23A8AA);
 
 /// The theme-dependent colours the charts bake into their cached data.
 /// Compared by value, so the data is rebuilt only when the theme really
@@ -28,52 +22,43 @@ class _ChartColours {
   const _ChartColours({
     required this.axis,
     required this.grid,
+    required this.track,
     required this.tooltip,
     required this.dotFill,
-    required this.textScale,
   });
 
   factory _ChartColours.of(BuildContext context) {
     final palette = context.palette;
     return _ChartColours(
-      // Secondary label grey: readable, but quieter than the data.
-      axis: palette.textSecondary,
-      // Hairline grey gridlines, as in Health's charts.
+      axis: palette.textMuted,
       grid: palette.divider,
+      track: palette.surfaceMuted,
       // black87 vanishes on a dark card; use the dark snackbar grey there.
       tooltip: context.isDarkMode ? const Color(0xFF2C3A3A) : Colors.black87,
       // Dots look hollow: filled with the card colour.
       dotFill: palette.surface,
-      // The user's text size setting; the axes reserve room for it.
-      textScale: MediaQuery.textScalerOf(context).scale(_axisFontSize) /
-          _axisFontSize,
     );
   }
 
   final Color axis;
   final Color grid;
+  final Color track;
   final Color tooltip;
   final Color dotFill;
-  final double textScale;
 
-  TextStyle get axisStyle => TextStyle(fontSize: _axisFontSize, color: axis);
-
-  /// Room for the axis labels at the current text size, so big text
-  /// settings don't clip "100%" or the dates.
-  double get leftReserved => 36 * textScale;
-  double get bottomReserved => 8 + 18 * textScale;
+  TextStyle get axisStyle => TextStyle(fontSize: 9, color: axis);
 
   @override
   bool operator ==(Object other) =>
       other is _ChartColours &&
       other.axis == axis &&
       other.grid == grid &&
+      other.track == track &&
       other.tooltip == tooltip &&
-      other.dotFill == dotFill &&
-      other.textScale == textScale;
+      other.dotFill == dotFill;
 
   @override
-  int get hashCode => Object.hash(axis, grid, tooltip, dotFill, textScale);
+  int get hashCode => Object.hash(axis, grid, track, tooltip, dotFill);
 }
 
 /// Bottom-axis label for a chart point: weekday letter for daily points,
@@ -97,7 +82,7 @@ FlTitlesData _titles(
     leftTitles: AxisTitles(
       sideTitles: SideTitles(
         showTitles: true,
-        reservedSize: colours.leftReserved,
+        reservedSize: 30,
         interval: leftInterval,
         getTitlesWidget: (v, _) => Text(left(v), style: colours.axisStyle),
       ),
@@ -105,7 +90,7 @@ FlTitlesData _titles(
     bottomTitles: AxisTitles(
       sideTitles: SideTitles(
         showTitles: true,
-        reservedSize: colours.bottomReserved,
+        reservedSize: 22,
         interval: 1,
         getTitlesWidget: (v, _) {
           final i = v.round();
@@ -191,10 +176,11 @@ class _SessionsBarChartState extends State<SessionsBarChart> {
                 toY: points[i].sessions.toDouble(),
                 width: barWidth,
                 color: _teal,
-                // Rounded tops only, sitting flat on the baseline; no grey
-                // track behind the bar (the gridlines already give scale).
-                borderRadius: const BorderRadius.vertical(
-                  top: Radius.circular(4),
+                borderRadius: BorderRadius.circular(5),
+                backDrawRodData: BackgroundBarChartRodData(
+                  show: true,
+                  toY: maxY,
+                  color: colours.track,
                 ),
               ),
             ],
@@ -213,7 +199,7 @@ class _SessionsBarChartState extends State<SessionsBarChart> {
           getTooltipColor: (_) => colours.tooltip,
           getTooltipItem: (group, _, rod, _) => BarTooltipItem(
             '${rod.toY.toInt()} session${rod.toY == 1 ? '' : 's'}',
-            const TextStyle(color: Colors.white, fontSize: 12),
+            const TextStyle(color: Colors.white, fontSize: 11),
           ),
         ),
       ),
@@ -252,7 +238,7 @@ class TrendLineChart extends StatefulWidget {
     this.height = 150,
   }) : value = _painOf,
        maxY = 10,
-       color = _teal,
+       color = const Color(0xFFFF6B35),
        format = _outOfTen,
        interval = 2;
 
@@ -313,9 +299,7 @@ class _TrendLineChartState extends State<TrendLineChart> {
         child: Center(
           child: Text(
             'No data for this period yet',
-            style: Theme.of(context).textTheme.bodySmall?.copyWith(
-              color: context.palette.textSecondary,
-            ),
+            style: TextStyle(fontSize: 12, color: context.palette.textMuted),
           ),
         ),
       );
@@ -363,7 +347,7 @@ class _TrendLineChartState extends State<TrendLineChart> {
               begin: Alignment.topCenter,
               end: Alignment.bottomCenter,
               colors: [
-                color.withValues(alpha: 0.18),
+                color.withValues(alpha: 0.25),
                 color.withValues(alpha: 0.0),
               ],
             ),
@@ -382,7 +366,7 @@ class _TrendLineChartState extends State<TrendLineChart> {
                 maxY == 100
                     ? '${s.y.round()}%'
                     : '${s.y.toStringAsFixed(1)}/10',
-                const TextStyle(color: Colors.white, fontSize: 12),
+                const TextStyle(color: Colors.white, fontSize: 11),
               ),
           ],
         ),

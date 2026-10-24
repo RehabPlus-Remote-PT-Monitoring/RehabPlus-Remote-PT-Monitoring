@@ -1,5 +1,4 @@
 import 'package:firebase_auth/firebase_auth.dart';
-import 'package:flutter/cupertino.dart' show CupertinoIcons;
 import 'package:flutter/material.dart';
 
 import '../core/app_palette.dart';
@@ -169,7 +168,7 @@ class _AppLockOfferScreenState extends State<AppLockOfferScreen> {
                       ),
                       child: Icon(
                         pinStep
-                            ? CupertinoIcons.lock
+                            ? Icons.lock_outline_rounded
                             : Icons.fingerprint_rounded,
                         size: 48,
                         color: _accentTeal,
@@ -210,7 +209,7 @@ class _AppLockOfferScreenState extends State<AppLockOfferScreen> {
                         ? null
                         : (pinStep ? _setUpPin : _useBiometrics),
                     icon: Icon(
-                      pinStep ? CupertinoIcons.number_square : Icons.fingerprint_rounded,
+                      pinStep ? Icons.pin_outlined : Icons.fingerprint_rounded,
                     ),
                     label: Text(pinStep ? 'Set up PIN' : 'Use fingerprint'),
                     style: FilledButton.styleFrom(

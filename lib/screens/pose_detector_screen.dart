@@ -43,7 +43,6 @@ import 'dart:async';
 import 'dart:math';
 import 'dart:typed_data';
 
-import 'package:flutter/cupertino.dart' show CupertinoIcons;
 import 'package:flutter/material.dart';
 // WriteBuffer: only used for multi-plane camera formats (not Android NV21).
 import 'package:flutter/foundation.dart' show WriteBuffer;
@@ -57,7 +56,6 @@ import 'package:provider/provider.dart';
 
 import 'package:google_mlkit_pose_detection/google_mlkit_pose_detection.dart';
 
-import '../widgets/app_dialogs.dart';
 import '../core/app_palette.dart';
 import '../core/diagnostic_logger.dart';
 import '../models/exercise_model.dart';
@@ -2111,15 +2109,26 @@ class _PoseDetectorScreenState extends State<PoseDetectorScreen>
     _endDialogOpen = true;
     final bool? end;
     try {
-      end = await showConfirmDialog(
-        context,
-        title: 'End session early?',
-        message:
+      end = await showDialog<bool>(
+        context: context,
+        builder: (dialogContext) => AlertDialog(
+          backgroundColor: dialogContext.palette.surface,
+          title: const Text('End session early?'),
+          content: Text(
             'You have done $_repCounter of ${widget.selectedExercise.targetReps}. '
             'Your progress will be saved for your therapist.',
-        cancelLabel: 'Keep going',
-        confirmLabel: 'End session',
-        destructive: true,
+          ),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.of(dialogContext).pop(false),
+              child: const Text('Keep going'),
+            ),
+            TextButton(
+              onPressed: () => Navigator.of(dialogContext).pop(true),
+              child: const Text('End session'),
+            ),
+          ],
+        ),
       );
     } finally {
       _endDialogOpen = false;
@@ -2224,8 +2233,8 @@ class _PoseDetectorScreenState extends State<PoseDetectorScreen>
             children: [
               Icon(
                 endedEarly
-                    ? CupertinoIcons.flag_circle_fill
-                    : CupertinoIcons.checkmark_circle_fill,
+                    ? Icons.flag_circle_rounded
+                    : Icons.check_circle_rounded,
                 color: endedEarly ? Colors.orange : Colors.teal,
                 size: 64,
               ),
@@ -2509,7 +2518,7 @@ class _PoseDetectorScreenState extends State<PoseDetectorScreen>
               mainAxisSize: MainAxisSize.min,
               children: [
                 Icon(
-                  CupertinoIcons.videocam,
+                  Icons.videocam_off_rounded,
                   size: 56,
                   color: context.palette.textMuted,
                 ),
@@ -2522,7 +2531,7 @@ class _PoseDetectorScreenState extends State<PoseDetectorScreen>
                 const SizedBox(height: 20),
                 ElevatedButton.icon(
                   onPressed: _initCamera,
-                  icon: const Icon(CupertinoIcons.arrow_clockwise),
+                  icon: const Icon(Icons.refresh_rounded),
                   label: const Text('Try again'),
                 ),
               ],
@@ -2534,7 +2543,7 @@ class _PoseDetectorScreenState extends State<PoseDetectorScreen>
 
     final controller = _cameraController;
     if (controller == null || !controller.value.isInitialized) {
-      return const Scaffold(body: Center(child: CircularProgressIndicator.adaptive()));
+      return const Scaffold(body: Center(child: CircularProgressIndicator()));
     }
 
     final form = _effectiveForm;
@@ -2552,7 +2561,7 @@ class _PoseDetectorScreenState extends State<PoseDetectorScreen>
           actions: [
             IconButton(
               icon: Icon(
-                CupertinoIcons.arrow_right_arrow_left,
+                Icons.flip,
                 color: _mirrorSkeleton ? Colors.white : Colors.white54,
               ),
               tooltip: "Flip skeleton (use if it moves opposite to you)",
@@ -2560,7 +2569,7 @@ class _PoseDetectorScreenState extends State<PoseDetectorScreen>
                   setState(() => _mirrorSkeleton = !_mirrorSkeleton),
             ),
             IconButton(
-              icon: const Icon(CupertinoIcons.camera_rotate),
+              icon: const Icon(Icons.cameraswitch),
               tooltip: "Switch Camera",
               onPressed: _switchCamera,
             ),
@@ -3039,7 +3048,7 @@ class _SetupTip extends StatelessWidget {
       child: Row(
         mainAxisSize: MainAxisSize.min,
         children: [
-          const Icon(CupertinoIcons.videocam, color: Colors.white70, size: 16),
+          const Icon(Icons.videocam_outlined, color: Colors.white70, size: 16),
           const SizedBox(width: 6),
           Flexible(
             child: Text(

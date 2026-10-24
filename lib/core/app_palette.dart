@@ -27,7 +27,7 @@ class AppPalette extends ThemeExtension<AppPalette> {
     required this.inputFill,
   });
 
-  /// Page background behind the cards (iOS grouped grey / black).
+  /// Page background behind the cards (light: 0xFFF0F4F4).
   final Color background;
 
   /// Cards, sheets, dialogs, list tiles (light: white).
@@ -66,35 +66,30 @@ class AppPalette extends ThemeExtension<AppPalette> {
   /// The header gradient used across the app.
   static const List<Color> headerGradient = [darkTeal, midTeal, teal];
 
-  // Values follow Apple's system colours so the app reads like an iPhone
-  // app: grouped grey (light) / black (dark) page backgrounds with white or
-  // dark-grey cards on top, and label colours as the same hue at falling
-  // opacities. Hex comments name the iOS colour each one copies.
-
   static const AppPalette light = AppPalette(
-    background: Color(0xFFF2F2F7), // systemGroupedBackground
-    surface: Colors.white, // secondarySystemGroupedBackground
-    surfaceMuted: Color(0xFFEFEFF4), // tertiarySystemGroupedBackground
-    textPrimary: Color(0xFF000000), // label
-    textSecondary: Color(0xBF3C3C43), // between label and secondaryLabel
-    textMuted: Color(0x993C3C43), // secondaryLabel
-    textFaint: Color(0x4D3C3C43), // tertiaryLabel (chevrons, hints)
-    divider: Color(0x4A3C3C43), // separator
+    background: Color(0xFFF0F4F4),
+    surface: Colors.white,
+    surfaceMuted: Color(0xFFF5F5F5),
+    textPrimary: Color(0xDD000000), // black87
+    textSecondary: Color(0x8A000000), // black54
+    textMuted: Color(0x73000000), // black45
+    textFaint: Color(0x42000000), // black26
+    divider: Color(0xFFEEEEEE), // grey 200
     shadow: Colors.black,
-    inputFill: Color(0x1F767680), // tertiarySystemFill
+    inputFill: Color(0xFFF4F7F8),
   );
 
   static const AppPalette dark = AppPalette(
-    background: Color(0xFF000000), // systemGroupedBackground (dark)
-    surface: Color(0xFF1C1C1E), // secondarySystemGroupedBackground
-    surfaceMuted: Color(0xFF2C2C2E), // tertiarySystemGroupedBackground
-    textPrimary: Color(0xFFFFFFFF), // label
-    textSecondary: Color(0xBFEBEBF5), // between label and secondaryLabel
-    textMuted: Color(0x99EBEBF5), // secondaryLabel
-    textFaint: Color(0x4DEBEBF5), // tertiaryLabel
-    divider: Color(0xFF38383A), // opaqueSeparator
+    background: Color(0xFF0E1717),
+    surface: Color(0xFF182323),
+    surfaceMuted: Color(0xFF223030),
+    textPrimary: Color(0xEBFFFFFF), // white 92%
+    textSecondary: Color(0xB3FFFFFF), // white70
+    textMuted: Color(0x8AFFFFFF), // white54
+    textFaint: Color(0x61FFFFFF), // white38
+    divider: Color(0x1FFFFFFF), // white12
     shadow: Colors.black,
-    inputFill: Color(0x3D767680), // tertiarySystemFill
+    inputFill: Color(0xFF223030),
   );
 
   /// The palette for a brightness (used by the theme and by tests).

@@ -1,5 +1,5 @@
-import 'package:flutter/cupertino.dart' show CupertinoIcons;
 import 'package:flutter/material.dart';
+import 'package:phosphor_flutter/phosphor_flutter.dart';
 import 'package:provider/provider.dart';
 import 'package:fl_chart/fl_chart.dart';
 // `show`: intl also exports a TextDirection that clashes with Flutter's.
@@ -94,7 +94,7 @@ class _HistoryScreenState extends State<HistoryScreen>
       reps: 12,
       duration: '15 min',
       difficulty: 'Moderate',
-      icon: CupertinoIcons.arrow_up_arrow_down,
+      icon: PhosphorIconsRegular.arrowsVertical,
       color: Color(0xFF23A8AA),
       progress: 0.75,
     ),
@@ -105,7 +105,7 @@ class _HistoryScreenState extends State<HistoryScreen>
       reps: 10,
       duration: '10 min',
       difficulty: 'Easy',
-      icon: CupertinoIcons.arrow_clockwise,
+      icon: PhosphorIconsRegular.arrowsClockwise,
       color: Color(0xFF4A90D9),
       progress: 0.5,
     ),
@@ -116,7 +116,7 @@ class _HistoryScreenState extends State<HistoryScreen>
       reps: 15,
       duration: '20 min',
       difficulty: 'Hard',
-      icon: CupertinoIcons.arrow_left_right,
+      icon: PhosphorIconsRegular.arrowsOutLineHorizontal,
       color: Color(0xFFFF6B35),
       progress: 0.3,
     ),
@@ -127,7 +127,7 @@ class _HistoryScreenState extends State<HistoryScreen>
       reps: 8,
       duration: '12 min',
       difficulty: 'Easy',
-      icon: CupertinoIcons.arrow_up_arrow_down,
+      icon: PhosphorIconsRegular.arrowsDownUp,
       color: Color(0xFF7C4DFF),
       progress: 0.9,
     ),
@@ -138,7 +138,7 @@ class _HistoryScreenState extends State<HistoryScreen>
       reps: 10,
       duration: '18 min',
       difficulty: 'Moderate',
-      icon: CupertinoIcons.bolt,
+      icon: PhosphorIconsRegular.lightning,
       color: Color(0xFFE53935),
       progress: 0.6,
     ),
@@ -238,10 +238,10 @@ class _HistoryScreenState extends State<HistoryScreen>
                         _buildTodayExercises(),
                         const SizedBox(height: 18),
                         if (sessions.isNotEmpty) ...[
-                          _buildSectionTitle('Session History', CupertinoIcons.clock),
+                          _buildSectionTitle('Session History', PhosphorIcons.clockCounterClockwise()),
                           const SizedBox(height: 12),
                         ] else ...[
-                          _buildSectionTitle('Recommended', CupertinoIcons.star),
+                          _buildSectionTitle('Recommended', PhosphorIcons.star()),
                           const SizedBox(height: 12),
                           _buildRecommendedList(),
                         ],
@@ -291,7 +291,11 @@ class _HistoryScreenState extends State<HistoryScreen>
   Widget _buildHeader() {
     return Container(
       decoration: const BoxDecoration(
-        color: AppPalette.midTeal,
+        gradient: LinearGradient(
+          colors: AppPalette.headerGradient,
+          begin: Alignment.topLeft,
+          end: Alignment.bottomRight,
+        ),
         borderRadius: BorderRadius.vertical(bottom: Radius.circular(32)),
       ),
       child: SafeArea(
@@ -335,7 +339,7 @@ class _HistoryScreenState extends State<HistoryScreen>
                 child: Row(
                   children: [
                     const SizedBox(width: 12),
-                    Icon(CupertinoIcons.search, color: Colors.white60, size: 18),
+                    PhosphorIcon(PhosphorIcons.magnifyingGlass(), color: Colors.white60, size: 18),
                     const SizedBox(width: 10),
                     const Expanded(
                       child: TextField(
@@ -366,16 +370,16 @@ class _HistoryScreenState extends State<HistoryScreen>
 
     return Row(
       children: [
-        _summaryCard('Sessions', '$totalSessions', CupertinoIcons.calendar, const Color(0xFF23A8AA)),
+        _summaryCard('Sessions', '$totalSessions', PhosphorIcons.calendar(), const Color(0xFF23A8AA)),
         const SizedBox(width: 10),
-        _summaryCard('Total Sets', '$totalSets', CupertinoIcons.repeat, const Color(0xFF4A90D9)),
+        _summaryCard('Total Sets', '$totalSets', PhosphorIcons.repeat(), const Color(0xFF4A90D9)),
         const SizedBox(width: 10),
-        _summaryCard('Avg Score', '$avgScore%', CupertinoIcons.chart_bar, const Color(0xFF7C4DFF)),
+        _summaryCard('Avg Score', '$avgScore%', PhosphorIcons.chartBar(), const Color(0xFF7C4DFF)),
       ],
     );
   }
 
-  Widget _summaryCard(String label, String value, IconData icon, Color color) {
+  Widget _summaryCard(String label, String value, PhosphorIconData icon, Color color) {
     final palette = context.palette;
     return Expanded(
       child: Container(
@@ -394,7 +398,7 @@ class _HistoryScreenState extends State<HistoryScreen>
                 color: color.withValues(alpha: 0.1),
                 borderRadius: BorderRadius.circular(9),
               ),
-              child: Icon(icon, size: 16, color: color),
+              child: PhosphorIcon(icon, size: 16, color: color),
             ),
             const SizedBox(height: 10),
             Text(value, style: TextStyle(fontSize: 20, fontWeight: FontWeight.bold, color: palette.textPrimary)),
@@ -460,7 +464,7 @@ class _HistoryScreenState extends State<HistoryScreen>
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        _buildSectionTitle("Today's Plan", CupertinoIcons.doc_text),
+        _buildSectionTitle("Today's Plan", PhosphorIcons.clipboardText()),
         const SizedBox(height: 12),
         SizedBox(
           height: 170,
@@ -484,10 +488,10 @@ class _HistoryScreenState extends State<HistoryScreen>
     );
   }
 
-  Widget _buildSectionTitle(String title, IconData icon) {
+  Widget _buildSectionTitle(String title, PhosphorIconData icon) {
     return Row(
       children: [
-        Icon(icon, size: 18, color: primaryTeal),
+        PhosphorIcon(icon, size: 18, color: primaryTeal),
         const SizedBox(width: 8),
         Text(
           title,
@@ -539,8 +543,15 @@ class _ExerciseCardState extends State<_ExerciseCard>
         width: 150,
         padding: const EdgeInsets.all(16),
         decoration: BoxDecoration(
-          color: item.color,
+          gradient: LinearGradient(
+            colors: [item.color, item.color.withValues(alpha: 0.7)],
+            begin: Alignment.topLeft,
+            end: Alignment.bottomRight,
+          ),
           borderRadius: BorderRadius.circular(20),
+          boxShadow: [
+            BoxShadow(color: item.color.withValues(alpha: 0.35), blurRadius: 14, offset: const Offset(0, 6)),
+          ],
         ),
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
@@ -551,7 +562,7 @@ class _ExerciseCardState extends State<_ExerciseCard>
                 color: Colors.white.withValues(alpha: 0.2),
                 borderRadius: BorderRadius.circular(10),
               ),
-              child: Icon(item.icon, size: 20, color: Colors.white),
+              child: PhosphorIcon(item.icon, size: 20, color: Colors.white),
             ),
             const Spacer(),
             Text(
@@ -612,7 +623,7 @@ class _ExerciseListTile extends StatelessWidget {
               color: item.color.withValues(alpha: 0.1),
               borderRadius: BorderRadius.circular(14),
             ),
-            child: Icon(item.icon, size: 24, color: item.color),
+            child: PhosphorIcon(item.icon, size: 24, color: item.color),
           ),
           const SizedBox(width: 14),
           Expanded(
@@ -623,11 +634,11 @@ class _ExerciseListTile extends StatelessWidget {
                 const SizedBox(height: 4),
                 Row(
                   children: [
-                    Icon(CupertinoIcons.clock, size: 12, color: palette.textFaint),
+                    PhosphorIcon(PhosphorIcons.clock(), size: 12, color: palette.textFaint),
                     const SizedBox(width: 4),
                     Text(item.duration, style: TextStyle(fontSize: 11, color: palette.textMuted)),
                     const SizedBox(width: 10),
-                    Icon(CupertinoIcons.repeat, size: 12, color: palette.textFaint),
+                    PhosphorIcon(PhosphorIcons.repeat(), size: 12, color: palette.textFaint),
                     const SizedBox(width: 4),
                     Text('${item.sets}×${item.reps}', style: TextStyle(fontSize: 11, color: palette.textMuted)),
                   ],
@@ -657,7 +668,7 @@ class _ExerciseListTile extends StatelessWidget {
                 ),
                 child: Text(
                   item.difficulty,
-                  style: TextStyle(fontSize: 11, fontWeight: FontWeight.w700, color: _difficultyColor),
+                  style: TextStyle(fontSize: 10, fontWeight: FontWeight.w700, color: _difficultyColor),
                 ),
               ),
               const SizedBox(height: 8),
@@ -699,7 +710,7 @@ class _ExerciseListTile extends StatelessWidget {
                     color: item.color,
                     borderRadius: BorderRadius.circular(10),
                   ),
-                  child: const Icon(CupertinoIcons.play_fill, size: 14, color: Colors.white),
+                  child: const PhosphorIcon(PhosphorIconsRegular.play, size: 14, color: Colors.white),
                 ),
               ),
             ],
@@ -762,14 +773,14 @@ class _SessionCard extends StatelessWidget {
             padding: const EdgeInsets.only(top: 4),
             child: Row(
               children: [
-                Icon(CupertinoIcons.calendar, size: 11, color: palette.textFaint),
+                PhosphorIcon(PhosphorIcons.calendar(), size: 11, color: palette.textFaint),
                 const SizedBox(width: 4),
                 Text(
                   DateFormat('MMM d, y').format(session.startTime),
                   style: TextStyle(fontSize: 11, color: palette.textMuted),
                 ),
                 const SizedBox(width: 10),
-                Icon(CupertinoIcons.repeat, size: 11, color: palette.textFaint),
+                PhosphorIcon(PhosphorIcons.repeat(), size: 11, color: palette.textFaint),
                 const SizedBox(width: 4),
                 Text(
                   '${session.completedSets}/${session.targetSets} sets',
@@ -806,11 +817,11 @@ class _SessionCard extends StatelessWidget {
                       leftTitles: AxisTitles(sideTitles: SideTitles(
                         showTitles: true,
                         reservedSize: 32,
-                        getTitlesWidget: (v, _) => Text('${v.toInt()}%', style: TextStyle(fontSize: 11, color: palette.textMuted)),
+                        getTitlesWidget: (v, _) => Text('${v.toInt()}%', style: TextStyle(fontSize: 9, color: palette.textMuted)),
                       )),
                       bottomTitles: AxisTitles(sideTitles: SideTitles(
                         showTitles: true,
-                        getTitlesWidget: (v, _) => Text('R${v.toInt() + 1}', style: TextStyle(fontSize: 11, color: palette.textMuted)),
+                        getTitlesWidget: (v, _) => Text('R${v.toInt() + 1}', style: TextStyle(fontSize: 9, color: palette.textMuted)),
                       )),
                       topTitles: const AxisTitles(sideTitles: SideTitles(showTitles: false)),
                       rightTitles: const AxisTitles(sideTitles: SideTitles(showTitles: false)),
@@ -836,7 +847,7 @@ class _SessionCard extends StatelessWidget {
 class _ExerciseItem {
   final String name, category, duration, difficulty;
   final int sets, reps;
-  final IconData icon;
+  final PhosphorIconData icon;
   final Color color;
   final double progress;
 

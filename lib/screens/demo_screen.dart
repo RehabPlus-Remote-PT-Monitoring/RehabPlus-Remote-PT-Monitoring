@@ -1,10 +1,8 @@
-import 'package:flutter/cupertino.dart' show CupertinoIcons;
 import 'package:flutter/material.dart';
+import 'package:phosphor_flutter/phosphor_flutter.dart';
 import 'package:video_player/video_player.dart';
 import 'package:chewie/chewie.dart';
 
-import '../widgets/pressable.dart';
-import '../widgets/ios_page.dart';
 import '../core/app_palette.dart';
 import '../core/diagnostic_logger.dart';
 import '../core/responsive.dart';
@@ -20,6 +18,7 @@ class DemoScreen extends StatefulWidget {
 
 class _DemoScreenState extends State<DemoScreen> with TickerProviderStateMixin {
   static const Color primaryTeal = Color(0xFF23A8AA);
+  static const Color darkTeal = Color(0xFF0D6E71);
 
   final PageController _pageCtrl = PageController();
   int _currentPage = 0;
@@ -27,15 +26,18 @@ class _DemoScreenState extends State<DemoScreen> with TickerProviderStateMixin {
   late final AnimationController _headerCtrl;
   late final AnimationController _contentCtrl;
   late final Animation<double> _headerFade;
+  late final Animation<Offset> _headerSlide;
   late final Animation<double> _contentFade;
   late final Animation<Offset> _contentSlide;
 
   // Active exercise demo state
   int _activeStep = 0;
+  late final AnimationController _pulseCtrl;
+  late final Animation<double> _pulse;
 
   final List<_DemoFeature> _features = [
     _DemoFeature(
-      icon: CupertinoIcons.graph_square,
+      icon: PhosphorIconsRegular.chartLineUp,
       color: Color(0xFF23A8AA),
       title: 'Track Progress',
       subtitle:
@@ -43,7 +45,7 @@ class _DemoScreenState extends State<DemoScreen> with TickerProviderStateMixin {
       preview: _PreviewType.progress,
     ),
     _DemoFeature(
-      icon: CupertinoIcons.flame,
+      icon: PhosphorIconsRegular.barbell,
       color: Color(0xFF4A90D9),
       title: 'Exercise Plans',
       subtitle:
@@ -51,7 +53,7 @@ class _DemoScreenState extends State<DemoScreen> with TickerProviderStateMixin {
       preview: _PreviewType.exercise,
     ),
     _DemoFeature(
-      icon: CupertinoIcons.chat_bubble,
+      icon: PhosphorIconsRegular.chatCircle,
       color: Color(0xFF7C4DFF),
       title: 'Message Therapist',
       subtitle:
@@ -59,7 +61,7 @@ class _DemoScreenState extends State<DemoScreen> with TickerProviderStateMixin {
       preview: _PreviewType.messages,
     ),
     _DemoFeature(
-      icon: CupertinoIcons.bell,
+      icon: PhosphorIconsRegular.bell,
       color: Color(0xFFFF6B35),
       title: 'Smart Reminders',
       subtitle:
@@ -102,12 +104,26 @@ class _DemoScreenState extends State<DemoScreen> with TickerProviderStateMixin {
       vsync: this,
       duration: const Duration(milliseconds: 800),
     );
+    _pulseCtrl = AnimationController(
+      vsync: this,
+      duration: const Duration(milliseconds: 1000),
+    )..repeat(reverse: true);
+
     _headerFade = CurvedAnimation(parent: _headerCtrl, curve: Curves.easeOut);
+    _headerSlide = Tween<Offset>(
+      begin: const Offset(0, -0.2),
+      end: Offset.zero,
+    ).animate(CurvedAnimation(parent: _headerCtrl, curve: Curves.easeOutCubic));
     _contentFade = CurvedAnimation(parent: _contentCtrl, curve: Curves.easeOut);
     _contentSlide =
         Tween<Offset>(begin: const Offset(0, 0.15), end: Offset.zero).animate(
           CurvedAnimation(parent: _contentCtrl, curve: Curves.easeOutCubic),
         );
+    _pulse = Tween<double>(
+      begin: 1.0,
+      end: 1.08,
+    ).animate(CurvedAnimation(parent: _pulseCtrl, curve: Curves.easeInOut));
+
     _headerCtrl.forward();
     // Skip if the screen was closed during the delay (a disposed
     // controller throws when started).
@@ -122,6 +138,7 @@ class _DemoScreenState extends State<DemoScreen> with TickerProviderStateMixin {
   void dispose() {
     _headerCtrl.dispose();
     _contentCtrl.dispose();
+    _pulseCtrl.dispose();
     _pageCtrl.dispose();
     super.dispose();
   }
@@ -138,54 +155,153 @@ class _DemoScreenState extends State<DemoScreen> with TickerProviderStateMixin {
 
   @override
   Widget build(BuildContext context) {
-    // iOS page with a large title. The cards still ease in (the content
-    // animation); on tablets they sit in two columns.
-    return IosPage(
-      title: 'App Demo',
-      previousPageTitle: 'Home',
-      maxWidth: adaptiveMaxWidth(context),
-      children: [
-        Padding(
-          padding: const EdgeInsets.only(bottom: 16),
-          child: FadeTransition(
-            opacity: _headerFade,
-            child: Text(
-              'Explore what RehabPlus can do',
-              style: TextStyle(fontSize: 15, color: context.palette.textMuted),
+    return Scaffold(
+      backgroundColor: context.palette.background,
+      body: Column(
+        children: [
+          SlideTransition(
+            position: _headerSlide,
+            child: FadeTransition(
+              opacity: _headerFade,
+              child: _buildHeader(context),
             ),
           ),
-        ),
-        SlideTransition(
-          position: _contentSlide,
-          child: FadeTransition(
-            opacity: _contentFade,
-            child: AdaptiveColumns(
-              left: [
-                _buildFeatureCarousel(),
-                const SizedBox(height: 24),
-                _buildVideoSection(),
-                const SizedBox(height: 24),
-              ],
-              right: [
-                _buildExerciseDemo(),
-                const SizedBox(height: 24),
-                _buildStatsPreview(),
-              ],
+          Expanded(
+            child: SlideTransition(
+              position: _contentSlide,
+              child: FadeTransition(
+                opacity: _contentFade,
+                child: SingleChildScrollView(
+                  padding: readablePadding(context, const EdgeInsets.fromLTRB(16, 20, 16, 24)),
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      _buildFeatureCarousel(),
+                      const SizedBox(height: 24),
+                      _buildVideoSection(),
+                      const SizedBox(height: 24),
+                      _buildExerciseDemo(),
+                      const SizedBox(height: 24),
+                      _buildStatsPreview(),
+                    ],
+                  ),
+                ),
+              ),
             ),
           ),
-        ),
-      ],
+        ],
+      ),
     );
   }
 
+  Widget _buildHeader(BuildContext context) {
+    return Container(
+      decoration: const BoxDecoration(
+        gradient: LinearGradient(
+          colors: [darkTeal, Color(0xFF1A8587), primaryTeal],
+          begin: Alignment.topLeft,
+          end: Alignment.bottomRight,
+        ),
+        borderRadius: BorderRadius.vertical(bottom: Radius.circular(32)),
+      ),
+      child: SafeArea(
+        bottom: false,
+        child: Padding(
+          padding: const EdgeInsets.fromLTRB(20, 14, 20, 24),
+          child: Row(
+            children: [
+              GestureDetector(
+                onTap: () => Navigator.pop(context),
+                child: Container(
+                  width: 40,
+                  height: 40,
+                  decoration: BoxDecoration(
+                    color: Colors.white.withValues(alpha: 0.15),
+                    borderRadius: BorderRadius.circular(12),
+                  ),
+                  child: const Icon(
+                    Icons.arrow_back_ios_new_rounded,
+                    color: Colors.white,
+                    size: 18,
+                  ),
+                ),
+              ),
+              const SizedBox(width: 14),
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    const Text(
+                      'App Demo',
+                      style: TextStyle(
+                        fontSize: 22,
+                        fontWeight: FontWeight.bold,
+                        color: Colors.white,
+                      ),
+                    ),
+                    Text(
+                      'Explore what Rehab+ can do',
+                      style: TextStyle(
+                        fontSize: 13,
+                        color: Colors.white.withValues(alpha: 0.75),
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+              Container(
+                padding: const EdgeInsets.symmetric(
+                  horizontal: 12,
+                  vertical: 6,
+                ),
+                decoration: BoxDecoration(
+                  color: Colors.white.withValues(alpha: 0.18),
+                  borderRadius: BorderRadius.circular(20),
+                  border: Border.all(
+                    color: Colors.white.withValues(alpha: 0.25),
+                  ),
+                ),
+                child: Row(
+                  children: [
+                    ScaleTransition(
+                      scale: _pulse,
+                      child: Container(
+                        width: 7,
+                        height: 7,
+                        decoration: const BoxDecoration(
+                          color: Color(0xFF4CAF50),
+                          shape: BoxShape.circle,
+                        ),
+                      ),
+                    ),
+                    const SizedBox(width: 6),
+                    const Text(
+                      'Live',
+                      style: TextStyle(
+                        fontSize: 11,
+                        color: Colors.white,
+                        fontWeight: FontWeight.w600,
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+
+  // ── FEATURE CAROUSEL ─────────────────────────────────────────────────────────
   Widget _buildFeatureCarousel() {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
         Row(
           children: [
-            const Icon(
-              CupertinoIcons.sparkles,
+            const PhosphorIcon(
+              PhosphorIconsRegular.sparkle,
               size: 18,
               color: primaryTeal,
             ),
@@ -241,8 +357,8 @@ class _DemoScreenState extends State<DemoScreen> with TickerProviderStateMixin {
       children: [
         Row(
           children: [
-            const Icon(
-              CupertinoIcons.videocam,
+            const PhosphorIcon(
+              PhosphorIconsRegular.videoCamera,
               size: 18,
               color: primaryTeal,
             ),
@@ -286,14 +402,21 @@ class _DemoScreenState extends State<DemoScreen> with TickerProviderStateMixin {
       decoration: BoxDecoration(
         color: palette.surface,
         borderRadius: BorderRadius.circular(22),
+        boxShadow: [
+          BoxShadow(
+            color: primaryTeal.withValues(alpha: 0.08),
+            blurRadius: 20,
+            offset: const Offset(0, 6),
+          ),
+        ],
       ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           Row(
             children: [
-              const Icon(
-                CupertinoIcons.flame,
+              const PhosphorIcon(
+                PhosphorIconsRegular.barbell,
                 size: 18,
                 color: primaryTeal,
               ),
@@ -335,10 +458,8 @@ class _DemoScreenState extends State<DemoScreen> with TickerProviderStateMixin {
             children: List.generate(
               _steps.length,
               (i) => Expanded(
-                child: Pressable(
+                child: GestureDetector(
                   onTap: () => setState(() => _activeStep = i),
-                  semanticLabel: 'Step ${i + 1}',
-                  pressedScale: 1,
                   child: AnimatedContainer(
                     duration: const Duration(milliseconds: 300),
                     curve: Curves.easeOutCubic,
@@ -392,7 +513,9 @@ class _DemoScreenState extends State<DemoScreen> with TickerProviderStateMixin {
                     width: 52,
                     height: 52,
                     decoration: BoxDecoration(
-                      color: primaryTeal,
+                      gradient: const LinearGradient(
+                        colors: [primaryTeal, darkTeal],
+                      ),
                       borderRadius: BorderRadius.circular(14),
                     ),
                     child: Center(
@@ -431,8 +554,8 @@ class _DemoScreenState extends State<DemoScreen> with TickerProviderStateMixin {
                         const SizedBox(height: 8),
                         Row(
                           children: [
-                            const Icon(
-                              CupertinoIcons.timer,
+                            const PhosphorIcon(
+                              PhosphorIconsRegular.timer,
                               size: 13,
                               color: primaryTeal,
                             ),
@@ -463,7 +586,7 @@ class _DemoScreenState extends State<DemoScreen> with TickerProviderStateMixin {
                   onPressed: _activeStep > 0
                       ? () => setState(() => _activeStep--)
                       : null,
-                  icon: const Icon(CupertinoIcons.chevron_left, size: 14),
+                  icon: const Icon(Icons.arrow_back_ios_new_rounded, size: 14),
                   label: const Text('Prev'),
                   style: OutlinedButton.styleFrom(
                     foregroundColor: primaryTeal,
@@ -482,8 +605,8 @@ class _DemoScreenState extends State<DemoScreen> with TickerProviderStateMixin {
                   onPressed: _nextStep,
                   icon: Icon(
                     _activeStep < _steps.length - 1
-                        ? CupertinoIcons.chevron_right
-                        : CupertinoIcons.arrow_clockwise,
+                        ? Icons.arrow_forward_ios_rounded
+                        : Icons.refresh_rounded,
                     size: 14,
                   ),
                   label: Text(
@@ -512,16 +635,27 @@ class _DemoScreenState extends State<DemoScreen> with TickerProviderStateMixin {
     return Container(
       padding: const EdgeInsets.all(20),
       decoration: BoxDecoration(
-        color: AppPalette.midTeal,
+        gradient: const LinearGradient(
+          colors: [darkTeal, Color(0xFF1A8587), primaryTeal],
+          begin: Alignment.topLeft,
+          end: Alignment.bottomRight,
+        ),
         borderRadius: BorderRadius.circular(22),
+        boxShadow: [
+          BoxShadow(
+            color: primaryTeal.withValues(alpha: 0.3),
+            blurRadius: 20,
+            offset: const Offset(0, 8),
+          ),
+        ],
       ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           const Row(
             children: [
-              Icon(
-                CupertinoIcons.chart_bar,
+              PhosphorIcon(
+                PhosphorIconsRegular.chartBar,
                 size: 18,
                 color: Colors.white,
               ),
@@ -547,11 +681,11 @@ class _DemoScreenState extends State<DemoScreen> with TickerProviderStateMixin {
           const SizedBox(height: 20),
           Row(
             children: [
-              _statPill('Sessions', '12', CupertinoIcons.heart),
+              _statPill('Sessions', '12', PhosphorIconsRegular.heartbeat),
               const SizedBox(width: 10),
-              _statPill('Streak', '5 days', CupertinoIcons.flame_fill),
+              _statPill('Streak', '5 days', PhosphorIconsRegular.flame),
               const SizedBox(width: 10),
-              _statPill('Score', '87%', CupertinoIcons.rosette),
+              _statPill('Score', '87%', PhosphorIconsRegular.trophy),
             ],
           ),
           const SizedBox(height: 20),
@@ -584,7 +718,7 @@ class _DemoScreenState extends State<DemoScreen> with TickerProviderStateMixin {
     );
   }
 
-  Widget _statPill(String label, String value, IconData icon) {
+  Widget _statPill(String label, String value, PhosphorIconData icon) {
     return Expanded(
       child: Container(
         padding: const EdgeInsets.symmetric(vertical: 12, horizontal: 10),
@@ -595,7 +729,7 @@ class _DemoScreenState extends State<DemoScreen> with TickerProviderStateMixin {
         ),
         child: Column(
           children: [
-            Icon(icon, size: 18, color: Colors.white),
+            PhosphorIcon(icon, size: 18, color: Colors.white),
             const SizedBox(height: 6),
             Text(
               value,
@@ -608,7 +742,7 @@ class _DemoScreenState extends State<DemoScreen> with TickerProviderStateMixin {
             Text(
               label,
               style: TextStyle(
-                fontSize: 11,
+                fontSize: 10,
                 color: Colors.white.withValues(alpha: 0.7),
               ),
             ),
@@ -633,7 +767,7 @@ class _DemoScreenState extends State<DemoScreen> with TickerProviderStateMixin {
         Text(
           day,
           style: TextStyle(
-            fontSize: 11,
+            fontSize: 10,
             color: Colors.white.withValues(alpha: 0.7),
           ),
         ),
@@ -656,6 +790,13 @@ class _FeatureCard extends StatelessWidget {
       decoration: BoxDecoration(
         color: palette.surface,
         borderRadius: BorderRadius.circular(22),
+        boxShadow: [
+          BoxShadow(
+            color: feature.color.withValues(alpha: 0.12),
+            blurRadius: 16,
+            offset: const Offset(0, 6),
+          ),
+        ],
       ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
@@ -666,7 +807,7 @@ class _FeatureCard extends StatelessWidget {
               color: feature.color.withValues(alpha: 0.1),
               borderRadius: BorderRadius.circular(16),
             ),
-            child: Icon(feature.icon, size: 28, color: feature.color),
+            child: PhosphorIcon(feature.icon, size: 28, color: feature.color),
           ),
           const SizedBox(height: 16),
           Text(
@@ -696,7 +837,7 @@ class _FeatureCard extends StatelessWidget {
 enum _PreviewType { progress, exercise, messages, notifications }
 
 class _DemoFeature {
-  final IconData icon;
+  final PhosphorIconData icon;
   final Color color;
   final String title, subtitle;
   final _PreviewType preview;
@@ -845,13 +986,19 @@ class _VideoCardState extends State<_VideoCard> {
       decoration: BoxDecoration(
         color: palette.surface,
         borderRadius: BorderRadius.circular(20),
+        boxShadow: [
+          BoxShadow(
+            color: widget.color.withValues(alpha: 0.1),
+            blurRadius: 14,
+            offset: const Offset(0, 5),
+          ),
+        ],
       ),
       child: Column(
         children: [
           // Thumbnail / player row
-          Pressable(
+          GestureDetector(
             onTap: _togglePlayer,
-            pressedScale: 0.99,
             child: AnimatedContainer(
               duration: const Duration(milliseconds: 350),
               curve: Curves.easeOutCubic,
@@ -885,8 +1032,8 @@ class _VideoCardState extends State<_VideoCard> {
                             ),
                           )
                         : const Center(
-                            child: CircularProgressIndicator.adaptive(
-                              valueColor: AlwaysStoppedAnimation(primaryTeal),
+                            child: CircularProgressIndicator(
+                              color: primaryTeal,
                               strokeWidth: 2,
                             ),
                           ))
@@ -902,7 +1049,7 @@ class _VideoCardState extends State<_VideoCard> {
                               borderRadius: BorderRadius.circular(12),
                             ),
                             child: const Icon(
-                              CupertinoIcons.play_fill,
+                              Icons.play_arrow_rounded,
                               color: Colors.white,
                               size: 26,
                             ),
@@ -925,7 +1072,7 @@ class _VideoCardState extends State<_VideoCard> {
                                 Row(
                                   children: [
                                     Icon(
-                                      CupertinoIcons.clock,
+                                      Icons.access_time_rounded,
                                       size: 12,
                                       color: palette.textFaint,
                                     ),
@@ -952,7 +1099,7 @@ class _VideoCardState extends State<_VideoCard> {
                                       child: Text(
                                         widget.level,
                                         style: TextStyle(
-                                          fontSize: 11,
+                                          fontSize: 10,
                                           color: _levelColor,
                                           fontWeight: FontWeight.w700,
                                         ),
@@ -965,8 +1112,8 @@ class _VideoCardState extends State<_VideoCard> {
                           ),
                           Icon(
                             _expanded
-                                ? CupertinoIcons.chevron_up
-                                : CupertinoIcons.play_circle,
+                                ? Icons.keyboard_arrow_up_rounded
+                                : Icons.play_circle_outline_rounded,
                             color: widget.color,
                             size: 28,
                           ),

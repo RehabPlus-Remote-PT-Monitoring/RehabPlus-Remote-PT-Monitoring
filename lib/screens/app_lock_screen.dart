@@ -2,12 +2,10 @@ import 'dart:async';
 import 'dart:math' as math;
 
 import 'package:firebase_auth/firebase_auth.dart';
-import 'package:flutter/cupertino.dart' show CupertinoIcons;
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:provider/provider.dart';
 
-import '../widgets/app_dialogs.dart';
 import '../core/app_keys.dart';
 import '../core/app_palette.dart';
 import '../core/diagnostic_logger.dart';
@@ -236,14 +234,26 @@ class _AppLockScreenState extends State<AppLockScreen> {
   }
 
   Future<void> _forgotPin() async {
-    final ok = await showConfirmDialog(
-      context,
-      title: 'Forgot your PIN?',
-      message:
+    final ok = await showDialog<bool>(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        backgroundColor: ctx.palette.surface,
+        title: const Text('Forgot your PIN?'),
+        content: const Text(
           'You\'ll be signed out. Sign in again with your email and '
           'password, then you can set a new PIN in Settings.',
-      confirmLabel: 'Sign out',
-      destructive: true,
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(ctx, false),
+            child: const Text('Cancel'),
+          ),
+          TextButton(
+            onPressed: () => Navigator.pop(ctx, true),
+            child: const Text('Sign out'),
+          ),
+        ],
+      ),
     );
     if (ok == true) {
       await _signOutToLogin('Signed out. Sign in with your password.');
@@ -274,7 +284,7 @@ class _AppLockScreenState extends State<AppLockScreen> {
               Align(
                 alignment: Alignment.centerLeft,
                 child: IconButton(
-                  icon: const Icon(CupertinoIcons.chevron_left, color: Colors.white),
+                  icon: const Icon(Icons.arrow_back_ios, color: Colors.white),
                   onPressed: () => Navigator.of(context).pop(false),
                 ),
               ),
@@ -282,7 +292,7 @@ class _AppLockScreenState extends State<AppLockScreen> {
               child: ReadableWidth(
                 child: PinEntry(
                   onDark: true,
-                  icon: CupertinoIcons.lock,
+                  icon: Icons.lock_outline_rounded,
                   title: _isConfirm ? 'Enter your current PIN' : 'Enter your PIN',
                   subtitle: _isConfirm ? null : 'RehabPlus is locked',
                   onComplete: _onPin,
@@ -382,7 +392,7 @@ class _PinSetupScreenState extends State<PinSetupScreen> {
           child: PinEntry(
             // A new key resets the dots when moving between the two steps.
             key: ValueKey(confirming),
-            icon: CupertinoIcons.number_square,
+            icon: Icons.pin_outlined,
             title: confirming
                 ? 'Enter the same PIN again'
                 : 'Choose a ${AppLockService.pinLength}-digit PIN',
@@ -717,7 +727,7 @@ class _PinEntryState extends State<PinEntry>
               label: 'Delete',
               onTap: _backspace,
               child: Icon(
-                CupertinoIcons.delete_left,
+                Icons.backspace_outlined,
                 size: size * 0.34,
                 color: _digitColor,
               ),

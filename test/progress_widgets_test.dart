@@ -30,8 +30,7 @@ void main() {
     );
     await tester.pumpAndSettle();
 
-    // Large title (and the collapsed middle title) of the iOS nav bar.
-    expect(find.text('Progress'), findsWidgets);
+    expect(find.text('Progress Report'), findsOneWidget);
     expect(find.text('No sessions yet'), findsOneWidget);
     expect(find.text('Last 30 days'), findsOneWidget);
     expect(
