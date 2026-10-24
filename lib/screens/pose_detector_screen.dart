@@ -46,6 +46,7 @@ import 'dart:typed_data';
 import 'package:flutter/material.dart';
 // WriteBuffer: only used for multi-plane camera formats (not Android NV21).
 import 'package:flutter/foundation.dart' show WriteBuffer;
+import 'package:flutter/services.dart' show DeviceOrientation;
 
 import 'package:camera/camera.dart';
 import 'package:vibration/vibration.dart';
@@ -61,6 +62,7 @@ import '../models/exercise_model.dart';
 import '../models/session.dart';
 import '../services/app_provider.dart';
 import '../services/app_settings.dart';
+import '../services/camera_rotation.dart';
 import '../services/exercise_geometry.dart';
 import '../services/form_checker.dart';
 import '../widgets/pose_painter.dart';
@@ -105,6 +107,10 @@ class _PoseDetectorScreenState extends State<PoseDetectorScreen>
   /// True while a camera switch is tearing down / rebuilding (double-tap
   /// guard: the init flag alone leaves a gap during the dispose).
   bool _switchingCamera = false;
+
+  /// Screen orientation the camera was last started for; a change restarts
+  /// the camera (see didChangeMetrics).
+  Orientation? _uiOrientation;
 
   /// True once dispose() started shutting ML Kit down: no new
   /// processImage call may start after this.
@@ -425,6 +431,10 @@ class _PoseDetectorScreenState extends State<PoseDetectorScreen>
   List<Pose> _detectedPoses = [];
   Size? _imageSize;
   InputImageRotation _rotation = InputImageRotation.rotation0deg;
+
+  /// Last rotation written to the log, so a change of device orientation is
+  /// logged once instead of on every frame.
+  InputImageRotation? _lastLoggedRotation;
   late CameraLensDirection _lensDirection = AppSettings.I.useBackCamera
       ? CameraLensDirection.back
       : CameraLensDirection.front;
@@ -452,6 +462,7 @@ class _PoseDetectorScreenState extends State<PoseDetectorScreen>
   void initState() {
     super.initState();
     WidgetsBinding.instance.addObserver(this);
+    _uiOrientation = _currentUiOrientation();
     _sessionStart = DateTime.now();
     _checker = FormChecker(widget.selectedExercise, thresholds: _thresholds);
     _log.info('PosePipeline', 'Exercise screen opened', {
@@ -712,6 +723,68 @@ class _PoseDetectorScreenState extends State<PoseDetectorScreen>
       _resetTracking();
       if (mounted) setState(() => _detectedPoses = []);
       await _initCamera();
+    } finally {
+      _switchingCamera = false;
+    }
+  }
+
+  @override
+  void didChangeMetrics() {
+    // Rotation check: the camera plugin only learns the new orientation
+    // from the motion sensor, so when the screen turns without the device
+    // moving that way (auto-rotate toggled, a propped-up tablet) the preview
+    // and the frames handed to ML Kit stay in the old orientation and the
+    // patient appears sideways. A fresh camera reads the current display
+    // rotation, so restart it whenever the screen changes orientation.
+    final now = _currentUiOrientation();
+    final before = _uiOrientation;
+    _uiOrientation = now;
+    if (before == null || before == now) return;
+    unawaited(_restartCameraForRotation(before, now));
+  }
+
+  /// Portrait or landscape, from the window size (works outside build).
+  Orientation _currentUiOrientation() {
+    final views = WidgetsBinding.instance.platformDispatcher.views;
+    if (views.isEmpty) return Orientation.portrait;
+    final size = views.first.physicalSize;
+    return size.width > size.height
+        ? Orientation.landscape
+        : Orientation.portrait;
+  }
+
+  Future<void> _restartCameraForRotation(
+    Orientation from,
+    Orientation to,
+  ) async {
+    if (_cameraController == null ||
+        _initializingCamera ||
+        _switchingCamera ||
+        _appInBackground ||
+        _isSessionComplete) {
+      _log.info('PoseCamera', 'Rotation restart skipped', {
+        'from': from.name,
+        'to': to.name,
+        'cameraActive': _cameraController != null,
+        'initializing': _initializingCamera,
+        'switching': _switchingCamera,
+      });
+      return;
+    }
+    // Reuses the switch-camera guard so a rotation and a camera switch
+    // never restart the camera at the same time.
+    _switchingCamera = true;
+    try {
+      _log.info('PoseCamera', 'Restarting camera for rotation', {
+        'from': from.name,
+        'to': to.name,
+      });
+      await _disposeCamera();
+      _resetTracking();
+      if (mounted) setState(() => _detectedPoses = []);
+      await _initCamera();
+    } catch (e, st) {
+      _log.error('PoseCamera', 'Rotation restart failed', null, e, st);
     } finally {
       _switchingCamera = false;
     }
@@ -2317,10 +2390,26 @@ class _PoseDetectorScreenState extends State<PoseDetectorScreen>
   ) {
     if (image.planes.isEmpty) return null;
 
-    final sensorOrientation = camera.sensorOrientation;
-    final rotation =
-        InputImageRotationValue.fromRawValue(sensorOrientation) ??
-        InputImageRotation.rotation0deg;
+    // The frame's rotation depends on how the device is held right now, not
+    // only on how the sensor is mounted, or poses come out sideways when a
+    // tablet/phone is turned to landscape (see camera_rotation.dart).
+    final device =
+        _cameraController?.value.deviceOrientation ??
+        DeviceOrientation.portraitUp;
+    final rotation = mlKitRotation(
+      sensorOrientation: camera.sensorOrientation,
+      isFrontCamera: camera.lensDirection == CameraLensDirection.front,
+      device: device,
+    );
+    if (rotation != _lastLoggedRotation) {
+      _lastLoggedRotation = rotation;
+      _log.info('PoseCamera', 'Frame rotation set', {
+        'device': device.name,
+        'sensorOrientation': camera.sensorOrientation,
+        'lens': camera.lensDirection.name,
+        'rotation': rotation.rawValue,
+      });
+    }
     final format =
         InputImageFormatValue.fromRawValue(image.format.raw) ??
         InputImageFormat.nv21;

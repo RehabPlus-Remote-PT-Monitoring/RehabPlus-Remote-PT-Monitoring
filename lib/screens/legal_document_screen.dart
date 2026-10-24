@@ -4,6 +4,7 @@ import 'package:flutter/services.dart' show rootBundle;
 import '../core/app_palette.dart';
 import '../core/diagnostic_logger.dart';
 import '../legal/legal_info.dart';
+import '../core/responsive.dart';
 
 /// Shows one of the legal documents in assets/legal/ (Terms and Conditions or
 /// Privacy Policy), with the clinic details filled in.
@@ -86,24 +87,26 @@ class _LegalDocumentScreenState extends State<LegalDocumentScreen> {
         children: [
           _header(context),
           Expanded(
-            child: FutureBuilder<String>(
-              future: _document,
-              builder: (context, snap) {
-                if (snap.hasError) {
-                  return const Center(
-                    child: Text('Could not open this document.'),
+            child: ReadableWidth(
+              child: FutureBuilder<String>(
+                future: _document,
+                builder: (context, snap) {
+                  if (snap.hasError) {
+                    return const Center(
+                      child: Text('Could not open this document.'),
+                    );
+                  }
+                  if (!snap.hasData) {
+                    return const Center(child: CircularProgressIndicator());
+                  }
+                  return SingleChildScrollView(
+                    padding: const EdgeInsets.fromLTRB(20, 20, 20, 32),
+                    child: SelectionArea(
+                      child: LegalText(snap.data!),
+                    ),
                   );
-                }
-                if (!snap.hasData) {
-                  return const Center(child: CircularProgressIndicator());
-                }
-                return SingleChildScrollView(
-                  padding: const EdgeInsets.fromLTRB(20, 20, 20, 32),
-                  child: SelectionArea(
-                    child: LegalText(snap.data!),
-                  ),
-                );
-              },
+                },
+              ),
             ),
           ),
         ],

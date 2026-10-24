@@ -11,6 +11,7 @@ import '../core/app_palette.dart';
 import '../core/diagnostic_logger.dart';
 import '../services/app_lock_service.dart';
 import '../services/app_provider.dart';
+import '../core/responsive.dart';
 import 'login_page.dart';
 
 /// The PIN / fingerprint screens of the optional app lock
@@ -288,13 +289,15 @@ class _AppLockScreenState extends State<AppLockScreen> {
                 ),
               ),
             Expanded(
-              child: PinEntry(
-                onDark: true,
-                icon: Icons.lock_outline_rounded,
-                title: _isConfirm ? 'Enter your current PIN' : 'Enter your PIN',
-                subtitle: _isConfirm ? null : 'RehabPlus is locked',
-                onComplete: _onPin,
-                onBiometric: _lock.biometricsEnabled ? _tryBiometrics : null,
+              child: ReadableWidth(
+                child: PinEntry(
+                  onDark: true,
+                  icon: Icons.lock_outline_rounded,
+                  title: _isConfirm ? 'Enter your current PIN' : 'Enter your PIN',
+                  subtitle: _isConfirm ? null : 'RehabPlus is locked',
+                  onComplete: _onPin,
+                  onBiometric: _lock.biometricsEnabled ? _tryBiometrics : null,
+                ),
               ),
             ),
             TextButton(
@@ -385,18 +388,20 @@ class _PinSetupScreenState extends State<PinSetupScreen> {
         backgroundColor: _darkTeal,
       ),
       body: SafeArea(
-        child: PinEntry(
-          // A new key resets the dots when moving between the two steps.
-          key: ValueKey(confirming),
-          icon: Icons.pin_outlined,
-          title: confirming
-              ? 'Enter the same PIN again'
-              : 'Choose a ${AppLockService.pinLength}-digit PIN',
-          subtitle: confirming
-              ? null
-              : 'You\'ll enter it when you open RehabPlus.',
-          initialError: _restartMessage,
-          onComplete: _onPin,
+        child: ReadableWidth(
+          child: PinEntry(
+            // A new key resets the dots when moving between the two steps.
+            key: ValueKey(confirming),
+            icon: Icons.pin_outlined,
+            title: confirming
+                ? 'Enter the same PIN again'
+                : 'Choose a ${AppLockService.pinLength}-digit PIN',
+            subtitle: confirming
+                ? null
+                : 'You\'ll enter it when you open RehabPlus.',
+            initialError: _restartMessage,
+            onComplete: _onPin,
+          ),
         ),
       ),
     );
@@ -531,54 +536,88 @@ class _PinEntryState extends State<PinEntry>
             )
             .clamp(44.0, 72.0);
 
+        // Title, dots and error line, shared by both layouts below.
+        final prompt = <Widget>[
+          if (widget.icon != null) Icon(widget.icon, size: 40, color: _fg),
+          const SizedBox(height: 12),
+          Text(
+            widget.title,
+            textAlign: TextAlign.center,
+            style: TextStyle(
+              fontSize: 20,
+              fontWeight: FontWeight.bold,
+              color: _fg,
+            ),
+          ),
+          if (widget.subtitle != null) ...[
+            const SizedBox(height: 6),
+            Text(
+              widget.subtitle!,
+              textAlign: TextAlign.center,
+              style: TextStyle(fontSize: 14, color: muted),
+            ),
+          ],
+          const SizedBox(height: 24),
+          AnimatedBuilder(
+            animation: _shake,
+            builder: (context, child) => Transform.translate(
+              offset: Offset(
+                math.sin(_shake.value * math.pi * 6) * 10 * (1 - _shake.value),
+                0,
+              ),
+              child: child,
+            ),
+            child: _dots(),
+          ),
+          SizedBox(
+            height: 40,
+            child: Center(
+              child: Text(
+                _error ?? '',
+                textAlign: TextAlign.center,
+                style: TextStyle(
+                  fontSize: 13,
+                  fontWeight: FontWeight.w600,
+                  color: errorColor,
+                ),
+              ),
+            ),
+          ),
+        ];
+
+        // Short and wide (a phone turned sideways): the 4-row keypad can't
+        // fit under the prompt, so put them side by side. The keys are sized
+        // from the height so all four rows always fit.
+        final sideBySide =
+            constraints.maxWidth > constraints.maxHeight &&
+            constraints.maxHeight < 520;
+        if (sideBySide) {
+          final sideKeySize = ((constraints.maxHeight - 12) / 4 - 16).clamp(
+            36.0,
+            72.0,
+          );
+          return Row(
+            children: [
+              Expanded(
+                child: SingleChildScrollView(
+                  child: Column(mainAxisSize: MainAxisSize.min, children: prompt),
+                ),
+              ),
+              Center(
+                child: FittedBox(
+                  fit: BoxFit.scaleDown,
+                  child: _keypad(sideKeySize),
+                ),
+              ),
+              const SizedBox(width: 16),
+            ],
+          );
+        }
+
         return Column(
           children: [
             const Spacer(),
-            if (widget.icon != null) Icon(widget.icon, size: 40, color: _fg),
-            const SizedBox(height: 12),
-            Text(
-              widget.title,
-              textAlign: TextAlign.center,
-              style: TextStyle(
-                fontSize: 20,
-                fontWeight: FontWeight.bold,
-                color: _fg,
-              ),
-            ),
-            if (widget.subtitle != null) ...[
-              const SizedBox(height: 6),
-              Text(
-                widget.subtitle!,
-                textAlign: TextAlign.center,
-                style: TextStyle(fontSize: 14, color: muted),
-              ),
-            ],
-            const SizedBox(height: 24),
-            AnimatedBuilder(
-              animation: _shake,
-              builder: (context, child) => Transform.translate(
-                offset: Offset(
-                  math.sin(_shake.value * math.pi * 6) * 10 * (1 - _shake.value),
-                  0,
-                ),
-                child: child,
-              ),
-              child: _dots(),
-            ),
-            SizedBox(
-              height: 40,
-              child: Center(
-                child: Text(
-                  _error ?? '',
-                  textAlign: TextAlign.center,
-                  style: TextStyle(
-                    fontSize: 13,
-                    fontWeight: FontWeight.w600,
-                    color: errorColor,
-                  ),
-                ),
-              ),
-            ),
+            ...prompt,
             const Spacer(),
             _keypad(keySize),
             const SizedBox(height: 12),

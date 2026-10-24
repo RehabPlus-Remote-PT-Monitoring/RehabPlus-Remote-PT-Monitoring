@@ -7,6 +7,7 @@ import '../core/app_palette.dart';
 import '../core/diagnostic_logger.dart';
 import '../services/app_provider.dart';
 import '../services/auth_service.dart';
+import '../core/responsive.dart';
 import 'consent_screen.dart';
 import 'forgot_password_screen.dart';
 
@@ -228,236 +229,238 @@ class _LoginPageState extends State<LoginPage> with TickerProviderStateMixin {
             ),
 
             SafeArea(
-              child: Center(
-                child: SingleChildScrollView(
-                  padding: const EdgeInsets.symmetric(horizontal: 28),
-                  child: Column(
-                    children: [
-                      const SizedBox(height: 20),
+              child: ReadableWidth(
+                child: Center(
+                  child: SingleChildScrollView(
+                    padding: const EdgeInsets.symmetric(horizontal: 28),
+                    child: Column(
+                      children: [
+                        const SizedBox(height: 20),
 
-                      // Logo with scale animation
-                      ScaleTransition(
-                        scale: _logoScaleAnim,
-                        child: FadeTransition(
-                          opacity: _fadeAnim,
-                          child: const _RehabLogo(),
+                        // Logo with scale animation
+                        ScaleTransition(
+                          scale: _logoScaleAnim,
+                          child: FadeTransition(
+                            opacity: _fadeAnim,
+                            child: const _RehabLogo(),
+                          ),
                         ),
-                      ),
 
-                      const SizedBox(height: 18),
+                        const SizedBox(height: 18),
 
-                      FadeTransition(
-                        opacity: _fadeAnim,
-                        child: const Column(
-                          children: [
-                            Text(
-                              'Rehab +',
-                              style: TextStyle(
-                                color: Colors.white,
-                                fontSize: 28,
-                                fontWeight: FontWeight.bold,
-                                letterSpacing: 1,
-                              ),
-                            ),
-                            Text(
-                              'Physiotherapy',
-                              style: TextStyle(
-                                color: Colors.white70,
-                                fontSize: 16,
-                                fontWeight: FontWeight.w400,
-                                letterSpacing: 2,
-                              ),
-                            ),
-                            SizedBox(height: 6),
-                            Text(
-                              'Your Journey Starts Here',
-                              style: TextStyle(
-                                color: Colors.white54,
-                                fontSize: 12,
-                              ),
-                            ),
-                          ],
-                        ),
-                      ),
-
-                      const SizedBox(height: 36),
-
-                      // Login card with slide animation
-                      SlideTransition(
-                        position: _slideAnim,
-                        child: FadeTransition(
+                        FadeTransition(
                           opacity: _fadeAnim,
-                          child: Container(
-                            padding: const EdgeInsets.all(28),
-                            decoration: BoxDecoration(
-                              color: palette.surface,
-                              borderRadius: BorderRadius.circular(24),
-                              boxShadow: [
-                                BoxShadow(
-                                  color: palette.shadow.withValues(alpha: 0.18),
-                                  blurRadius: 40,
-                                  offset: const Offset(0, 16),
+                          child: const Column(
+                            children: [
+                              Text(
+                                'Rehab +',
+                                style: TextStyle(
+                                  color: Colors.white,
+                                  fontSize: 28,
+                                  fontWeight: FontWeight.bold,
+                                  letterSpacing: 1,
                                 ),
-                              ],
-                            ),
-                            child: Column(
-                              crossAxisAlignment: CrossAxisAlignment.start,
-                              children: [
-                                Text(
-                                  'Welcome',
-                                  style: TextStyle(
-                                    fontSize: 22,
-                                    fontWeight: FontWeight.bold,
-                                    color: palette.textPrimary,
+                              ),
+                              Text(
+                                'Physiotherapy',
+                                style: TextStyle(
+                                  color: Colors.white70,
+                                  fontSize: 16,
+                                  fontWeight: FontWeight.w400,
+                                  letterSpacing: 2,
+                                ),
+                              ),
+                              SizedBox(height: 6),
+                              Text(
+                                'Your Journey Starts Here',
+                                style: TextStyle(
+                                  color: Colors.white54,
+                                  fontSize: 12,
+                                ),
+                              ),
+                            ],
+                          ),
+                        ),
+
+                        const SizedBox(height: 36),
+
+                        // Login card with slide animation
+                        SlideTransition(
+                          position: _slideAnim,
+                          child: FadeTransition(
+                            opacity: _fadeAnim,
+                            child: Container(
+                              padding: const EdgeInsets.all(28),
+                              decoration: BoxDecoration(
+                                color: palette.surface,
+                                borderRadius: BorderRadius.circular(24),
+                                boxShadow: [
+                                  BoxShadow(
+                                    color: palette.shadow.withValues(alpha: 0.18),
+                                    blurRadius: 40,
+                                    offset: const Offset(0, 16),
                                   ),
-                                ),
-                                const SizedBox(height: 4),
-                                Text(
-                                  'Sign in to continue your recovery',
-                                  style: TextStyle(
-                                    fontSize: 13,
-                                    color: palette.textMuted,
+                                ],
+                              ),
+                              child: Column(
+                                crossAxisAlignment: CrossAxisAlignment.start,
+                                children: [
+                                  Text(
+                                    'Welcome',
+                                    style: TextStyle(
+                                      fontSize: 22,
+                                      fontWeight: FontWeight.bold,
+                                      color: palette.textPrimary,
+                                    ),
                                   ),
-                                ),
+                                  const SizedBox(height: 4),
+                                  Text(
+                                    'Sign in to continue your recovery',
+                                    style: TextStyle(
+                                      fontSize: 13,
+                                      color: palette.textMuted,
+                                    ),
+                                  ),
 
-                                const SizedBox(height: 28),
+                                  const SizedBox(height: 28),
 
-                                // One autofill group, so password managers
-                                // fill (and later save) both fields together.
-                                AutofillGroup(
-                                  child: Column(
-                                    children: [
-                                      _RehabTextField(
-                                        controller: emailController,
-                                        hint: 'Email address',
-                                        icon: PhosphorIcons.envelopeSimple(),
-                                        keyboardType: TextInputType.emailAddress,
-                                        autofillHints: const [AutofillHints.email, AutofillHints.username],
-                                        textInputAction: TextInputAction.next,
-                                        maxLength: maxEmailLength,
-                                      ),
+                                  // One autofill group, so password managers
+                                  // fill (and later save) both fields together.
+                                  AutofillGroup(
+                                    child: Column(
+                                      children: [
+                                        _RehabTextField(
+                                          controller: emailController,
+                                          hint: 'Email address',
+                                          icon: PhosphorIcons.envelopeSimple(),
+                                          keyboardType: TextInputType.emailAddress,
+                                          autofillHints: const [AutofillHints.email, AutofillHints.username],
+                                          textInputAction: TextInputAction.next,
+                                          maxLength: maxEmailLength,
+                                        ),
 
-                                      const SizedBox(height: 14),
+                                        const SizedBox(height: 14),
 
-                                      _RehabTextField(
-                                        controller: passwordController,
-                                        hint: 'Password',
-                                        icon: PhosphorIcons.lockSimple(),
-                                        obscureText: !showPassword,
-                                        isPassword: true,
-                                        autofillHints: const [AutofillHints.password],
-                                        textInputAction: TextInputAction.done,
-                                        onSubmitted: (_) => login(),
-                                        suffix: IconButton(
-                                          tooltip: showPassword ? 'Hide password' : 'Show password',
-                                          onPressed: () => setState(() => showPassword = !showPassword),
-                                          icon: PhosphorIcon(
-                                            showPassword ? PhosphorIcons.eyeSlash() : PhosphorIcons.eye(),
-                                            size: 20,
-                                            color: palette.textFaint,
+                                        _RehabTextField(
+                                          controller: passwordController,
+                                          hint: 'Password',
+                                          icon: PhosphorIcons.lockSimple(),
+                                          obscureText: !showPassword,
+                                          isPassword: true,
+                                          autofillHints: const [AutofillHints.password],
+                                          textInputAction: TextInputAction.done,
+                                          onSubmitted: (_) => login(),
+                                          suffix: IconButton(
+                                            tooltip: showPassword ? 'Hide password' : 'Show password',
+                                            onPressed: () => setState(() => showPassword = !showPassword),
+                                            icon: PhosphorIcon(
+                                              showPassword ? PhosphorIcons.eyeSlash() : PhosphorIcons.eye(),
+                                              size: 20,
+                                              color: palette.textFaint,
+                                            ),
                                           ),
+                                        ),
+                                      ],
+                                    ),
+                                  ),
+
+                                  const SizedBox(height: 12),
+
+                                  Align(
+                                    alignment: Alignment.centerRight,
+                                    child: TextButton(
+                                      onPressed: () => Navigator.push(
+                                        context,
+                                        MaterialPageRoute(builder: (_) => const ForgotPasswordScreen()),
+                                      ),
+                                      style: TextButton.styleFrom(
+                                        padding: EdgeInsets.zero,
+                                        minimumSize: Size.zero,
+                                        tapTargetSize: MaterialTapTargetSize.shrinkWrap,
+                                      ),
+                                      child: const Text(
+                                        'Forgot Password?',
+                                        style: TextStyle(
+                                          fontSize: 12,
+                                          color: Color(0xFF2EA9AE),
+                                          fontWeight: FontWeight.w600,
+                                        ),
+                                      ),
+                                    ),
+                                  ),
+
+                                  const SizedBox(height: 22),
+
+                                  // Sign In button
+                                  SizedBox(
+                                    width: double.infinity,
+                                    height: 52,
+                                    child: ElevatedButton(
+                                      onPressed: _isLoading ? null : login,
+                                      style: ElevatedButton.styleFrom(
+                                        backgroundColor: const Color(0xFF1E8E92),
+                                        foregroundColor: Colors.white,
+                                        elevation: 0,
+                                        shape: RoundedRectangleBorder(
+                                          borderRadius: BorderRadius.circular(16),
+                                        ),
+                                      ),
+                                      child: AnimatedSwitcher(
+                                        duration: const Duration(milliseconds: 300),
+                                        child: _isLoading
+                                            ? const SizedBox(
+                                                width: 22,
+                                                height: 22,
+                                                child: CircularProgressIndicator(
+                                                  color: Colors.white,
+                                                  strokeWidth: 2.5,
+                                                ),
+                                              )
+                                            : const Text(
+                                                'Sign In',
+                                                style: TextStyle(
+                                                  fontSize: 16,
+                                                  fontWeight: FontWeight.w700,
+                                                  letterSpacing: 0.5,
+                                                ),
+                                              ),
+                                      ),
+                                    ),
+                                  ),
+
+                                  const SizedBox(height: 22),
+
+                                  Divider(color: palette.divider, thickness: 1.5),
+
+                                  const SizedBox(height: 16),
+
+                                  Row(
+                                    mainAxisAlignment: MainAxisAlignment.center,
+                                    children: [
+                                      PhosphorIcon(
+                                        PhosphorIcons.shieldCheck(),
+                                        size: 14,
+                                        color: palette.textFaint,
+                                      ),
+                                      const SizedBox(width: 6),
+                                      Text(
+                                        'Secured Access · Patients Only',
+                                        style: TextStyle(
+                                          fontSize: 11,
+                                          color: palette.textFaint,
                                         ),
                                       ),
                                     ],
                                   ),
-                                ),
-
-                                const SizedBox(height: 12),
-
-                                Align(
-                                  alignment: Alignment.centerRight,
-                                  child: TextButton(
-                                    onPressed: () => Navigator.push(
-                                      context,
-                                      MaterialPageRoute(builder: (_) => const ForgotPasswordScreen()),
-                                    ),
-                                    style: TextButton.styleFrom(
-                                      padding: EdgeInsets.zero,
-                                      minimumSize: Size.zero,
-                                      tapTargetSize: MaterialTapTargetSize.shrinkWrap,
-                                    ),
-                                    child: const Text(
-                                      'Forgot Password?',
-                                      style: TextStyle(
-                                        fontSize: 12,
-                                        color: Color(0xFF2EA9AE),
-                                        fontWeight: FontWeight.w600,
-                                      ),
-                                    ),
-                                  ),
-                                ),
-
-                                const SizedBox(height: 22),
-
-                                // Sign In button
-                                SizedBox(
-                                  width: double.infinity,
-                                  height: 52,
-                                  child: ElevatedButton(
-                                    onPressed: _isLoading ? null : login,
-                                    style: ElevatedButton.styleFrom(
-                                      backgroundColor: const Color(0xFF1E8E92),
-                                      foregroundColor: Colors.white,
-                                      elevation: 0,
-                                      shape: RoundedRectangleBorder(
-                                        borderRadius: BorderRadius.circular(16),
-                                      ),
-                                    ),
-                                    child: AnimatedSwitcher(
-                                      duration: const Duration(milliseconds: 300),
-                                      child: _isLoading
-                                          ? const SizedBox(
-                                              width: 22,
-                                              height: 22,
-                                              child: CircularProgressIndicator(
-                                                color: Colors.white,
-                                                strokeWidth: 2.5,
-                                              ),
-                                            )
-                                          : const Text(
-                                              'Sign In',
-                                              style: TextStyle(
-                                                fontSize: 16,
-                                                fontWeight: FontWeight.w700,
-                                                letterSpacing: 0.5,
-                                              ),
-                                            ),
-                                    ),
-                                  ),
-                                ),
-
-                                const SizedBox(height: 22),
-
-                                Divider(color: palette.divider, thickness: 1.5),
-
-                                const SizedBox(height: 16),
-
-                                Row(
-                                  mainAxisAlignment: MainAxisAlignment.center,
-                                  children: [
-                                    PhosphorIcon(
-                                      PhosphorIcons.shieldCheck(),
-                                      size: 14,
-                                      color: palette.textFaint,
-                                    ),
-                                    const SizedBox(width: 6),
-                                    Text(
-                                      'Secured Access · Patients Only',
-                                      style: TextStyle(
-                                        fontSize: 11,
-                                        color: palette.textFaint,
-                                      ),
-                                    ),
-                                  ],
-                                ),
-                              ],
+                                ],
+                              ),
                             ),
                           ),
                         ),
-                      ),
 
-                      const SizedBox(height: 30),
-                    ],
+                        const SizedBox(height: 30),
+                      ],
+                    ),
                   ),
                 ),
               ),

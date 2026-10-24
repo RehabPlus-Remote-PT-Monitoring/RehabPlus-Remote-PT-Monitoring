@@ -4,6 +4,7 @@ import 'package:flutter/material.dart';
 import '../core/app_palette.dart';
 import '../core/diagnostic_logger.dart';
 import '../services/app_lock_service.dart';
+import '../core/responsive.dart';
 import 'app_lock_screen.dart';
 import 'dashboard_screen.dart';
 
@@ -150,94 +151,96 @@ class _AppLockOfferScreenState extends State<AppLockOfferScreen> {
       child: Scaffold(
         backgroundColor: palette.background,
         body: SafeArea(
-          child: Padding(
-            padding: const EdgeInsets.fromLTRB(24, 16, 24, 24),
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.stretch,
-              children: [
-                const Spacer(),
-                Center(
-                  child: Container(
-                    width: 96,
-                    height: 96,
-                    decoration: BoxDecoration(
-                      color: primaryTeal.withValues(alpha: 0.12),
-                      shape: BoxShape.circle,
+          child: ReadableWidth(
+            child: Padding(
+              padding: const EdgeInsets.fromLTRB(24, 16, 24, 24),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.stretch,
+                children: [
+                  const Spacer(),
+                  Center(
+                    child: Container(
+                      width: 96,
+                      height: 96,
+                      decoration: BoxDecoration(
+                        color: primaryTeal.withValues(alpha: 0.12),
+                        shape: BoxShape.circle,
+                      ),
+                      child: Icon(
+                        pinStep
+                            ? Icons.lock_outline_rounded
+                            : Icons.fingerprint_rounded,
+                        size: 48,
+                        color: _accentTeal,
+                      ),
                     ),
-                    child: Icon(
-                      pinStep
-                          ? Icons.lock_outline_rounded
-                          : Icons.fingerprint_rounded,
-                      size: 48,
+                  ),
+                  const SizedBox(height: 24),
+                  Text(
+                    pinStep
+                        ? 'Protect your health data'
+                        : 'Unlock with your fingerprint?',
+                    textAlign: TextAlign.center,
+                    style: TextStyle(
+                      fontSize: 22,
+                      fontWeight: FontWeight.bold,
                       color: _accentTeal,
                     ),
                   ),
-                ),
-                const SizedBox(height: 24),
-                Text(
-                  pinStep
-                      ? 'Protect your health data'
-                      : 'Unlock with your fingerprint?',
-                  textAlign: TextAlign.center,
-                  style: TextStyle(
-                    fontSize: 22,
-                    fontWeight: FontWeight.bold,
-                    color: _accentTeal,
-                  ),
-                ),
-                const SizedBox(height: 12),
-                Text(
-                  pinStep
-                      ? 'RehabPlus keeps you signed in. Set a '
-                            '${AppLockService.pinLength}-digit PIN so only '
-                            'you can open your exercises, progress and '
-                            'messages if someone else uses this phone.'
-                      : 'Use your fingerprint or face instead of typing '
-                            'the PIN. Your PIN still works too.',
-                  textAlign: TextAlign.center,
-                  style: TextStyle(
-                    fontSize: 15,
-                    color: palette.textSecondary,
-                    height: 1.4,
-                  ),
-                ),
-                const Spacer(flex: 2),
-                FilledButton.icon(
-                  onPressed: _busy
-                      ? null
-                      : (pinStep ? _setUpPin : _useBiometrics),
-                  icon: Icon(
-                    pinStep ? Icons.pin_outlined : Icons.fingerprint_rounded,
-                  ),
-                  label: Text(pinStep ? 'Set up PIN' : 'Use fingerprint'),
-                  style: FilledButton.styleFrom(
-                    backgroundColor: darkTeal,
-                    minimumSize: const Size.fromHeight(52),
-                  ),
-                ),
-                const SizedBox(height: 8),
-                TextButton(
-                  onPressed: _busy
-                      ? null
-                      : (pinStep
-                            ? _notNow
-                            : () => _finish(
-                                'PIN lock is on. You can add your fingerprint '
-                                'later in Settings.',
-                              )),
-                  style: TextButton.styleFrom(
-                    foregroundColor: _accentTeal,
-                    minimumSize: const Size.fromHeight(48),
-                  ),
-                  child: Text(pinStep ? 'Not now' : 'Skip'),
-                ),
-                if (pinStep)
+                  const SizedBox(height: 12),
                   Text(
-                    'You can turn this on any time in Settings > App lock.',
+                    pinStep
+                        ? 'RehabPlus keeps you signed in. Set a '
+                              '${AppLockService.pinLength}-digit PIN so only '
+                              'you can open your exercises, progress and '
+                              'messages if someone else uses this phone.'
+                        : 'Use your fingerprint or face instead of typing '
+                              'the PIN. Your PIN still works too.',
                     textAlign: TextAlign.center,
-                    style: TextStyle(fontSize: 12, color: palette.textMuted),
+                    style: TextStyle(
+                      fontSize: 15,
+                      color: palette.textSecondary,
+                      height: 1.4,
+                    ),
                   ),
-              ],
+                  const Spacer(flex: 2),
+                  FilledButton.icon(
+                    onPressed: _busy
+                        ? null
+                        : (pinStep ? _setUpPin : _useBiometrics),
+                    icon: Icon(
+                      pinStep ? Icons.pin_outlined : Icons.fingerprint_rounded,
+                    ),
+                    label: Text(pinStep ? 'Set up PIN' : 'Use fingerprint'),
+                    style: FilledButton.styleFrom(
+                      backgroundColor: darkTeal,
+                      minimumSize: const Size.fromHeight(52),
+                    ),
+                  ),
+                  const SizedBox(height: 8),
+                  TextButton(
+                    onPressed: _busy
+                        ? null
+                        : (pinStep
+                              ? _notNow
+                              : () => _finish(
+                                  'PIN lock is on. You can add your fingerprint '
+                                  'later in Settings.',
+                                )),
+                    style: TextButton.styleFrom(
+                      foregroundColor: _accentTeal,
+                      minimumSize: const Size.fromHeight(48),
+                    ),
+                    child: Text(pinStep ? 'Not now' : 'Skip'),
+                  ),
+                  if (pinStep)
+                    Text(
+                      'You can turn this on any time in Settings > App lock.',
+                      textAlign: TextAlign.center,
+                      style: TextStyle(fontSize: 12, color: palette.textMuted),
+                    ),
+                ],
+              ),
             ),
           ),
         ),

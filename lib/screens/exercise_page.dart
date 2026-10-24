@@ -11,6 +11,7 @@ import '../services/prescription_service.dart';
 import '../services/progress_stats.dart';
 import '../widgets/today_checklist_sheet.dart';
 import '../widgets/unread_badge.dart';
+import '../core/responsive.dart';
 import 'notification_page.dart';
 import 'pose_detector_screen.dart';
 
@@ -103,186 +104,188 @@ class _ExercisePageState extends State<ExercisePage> {
           ),
 
           SafeArea(
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                const SizedBox(height: 8),
+            child: ReadableWidth(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  const SizedBox(height: 8),
 
-                // Top Bar Header
-                Padding(
-                  padding: const EdgeInsets.symmetric(horizontal: 20.0),
-                  child: Row(
-                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                    children: [
-                      Row(
-                        children: [
-                          const Text(
-                            'Rehab',
-                            style: TextStyle(
-                              fontSize: 28,
-                              fontWeight: FontWeight.bold,
-                              color: primaryTeal,
+                  // Top Bar Header
+                  Padding(
+                    padding: const EdgeInsets.symmetric(horizontal: 20.0),
+                    child: Row(
+                      mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                      children: [
+                        Row(
+                          children: [
+                            const Text(
+                              'Rehab',
+                              style: TextStyle(
+                                fontSize: 28,
+                                fontWeight: FontWeight.bold,
+                                color: primaryTeal,
+                              ),
                             ),
-                          ),
-                        ],
-                      ),
-                      Row(
-                        children: [
-                          UnreadNotifications(
-                            builder: (context, unread) => _buildTopCircleButton(
-                              Icons.notifications_rounded,
-                              tooltip: 'Notifications',
-                              hasBadge: unread > 0,
-                              onTap: () => Navigator.push(
-                                context,
-                                MaterialPageRoute(
-                                  builder: (_) => const NotificationPage(),
+                          ],
+                        ),
+                        Row(
+                          children: [
+                            UnreadNotifications(
+                              builder: (context, unread) => _buildTopCircleButton(
+                                Icons.notifications_rounded,
+                                tooltip: 'Notifications',
+                                hasBadge: unread > 0,
+                                onTap: () => Navigator.push(
+                                  context,
+                                  MaterialPageRoute(
+                                    builder: (_) => const NotificationPage(),
+                                  ),
                                 ),
                               ),
                             ),
-                          ),
-                          const SizedBox(width: 10),
-                          Consumer<AppProvider>(
-                            builder: (context, provider, _) =>
-                                _buildTopCircleButton(
-                                  Icons.assignment_turned_in_rounded,
-                                  tooltip: "Today's plan",
-                                  // Dot while something due today is not done.
-                                  hasBadge:
-                                      TodayChecklistSheet.remainingToday(
-                                        _assigned,
-                                        provider.sessionHistory,
-                                        DateTime.now(),
-                                      ) >
-                                      0,
-                                  onTap: () => TodayChecklistSheet.show(
-                                    context,
-                                    _assigned,
-                                  ),
-                                ),
-                          ),
-                        ],
-                      ),
-                    ],
-                  ),
-                ),
-                const SizedBox(height: 12),
-
-                // Date & Subtitle
-                Padding(
-                  padding: const EdgeInsets.symmetric(horizontal: 20.0),
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      Text(
-                        DateFormat(
-                          'EEEE, d MMMM',
-                        ).format(DateTime.now()).toUpperCase(),
-                        style: TextStyle(
-                          fontSize: 11,
-                          fontWeight: FontWeight.w600,
-                          color: palette.textSecondary,
-                          letterSpacing: 0.5,
-                        ),
-                      ),
-                      const SizedBox(height: 4),
-                      Text(
-                        'Select an\nExercise',
-                        style: TextStyle(
-                          fontSize: 24,
-                          fontWeight: FontWeight.bold,
-                          height: 1.15,
-                          color: palette.textPrimary,
-                        ),
-                      ),
-                    ],
-                  ),
-                ),
-                const SizedBox(height: 16),
-
-                // Exercise list, driven by the patient's assigned plan.
-                Expanded(
-                  child: FutureBuilder<List<ExerciseConfig>>(
-                    future: _exercisesFuture,
-                    builder: (context, snapshot) {
-                      if (snapshot.connectionState == ConnectionState.waiting) {
-                        return const Center(
-                          child: CircularProgressIndicator(color: primaryTeal),
-                        );
-                      }
-
-                      if (snapshot.hasError) {
-                        return _buildMessage(
-                          icon: Icons.wifi_off_rounded,
-                          text: "Couldn't load your plan. Check your connection and try again.",
-                          onRetry: _refresh,
-                        );
-                      }
-
-                      final exercises = snapshot.data ?? const [];
-                      // Rest of the catalog, minus anything already in
-                      // the plan so no exercise appears twice.
-                      final assignedTypes = exercises.map((e) => e.type).toSet();
-                      final others = availableExercises
-                          .where((c) => !assignedTypes.contains(c.type))
-                          .toList();
-
-                      return RefreshIndicator(
-                        color: primaryTeal,
-                        onRefresh: _refresh,
-                        child: Consumer<AppProvider>(
-                          builder: (context, provider, _) {
-                            final lastWeek =
-                                ProgressStats.countByExerciseSince(
-                                  provider.sessionHistory,
-                                  DateTime.now().subtract(
-                                    const Duration(days: 7),
-                                  ),
-                                );
-                            return ListView(
-                            physics: const BouncingScrollPhysics(
-                              parent: AlwaysScrollableScrollPhysics(),
-                            ),
-                            padding: const EdgeInsets.symmetric(
-                              horizontal: 20,
-                              vertical: 8,
-                            ),
-                            children: [
-                              _buildSectionHeader('Your Plan', exercises.length),
-                              if (exercises.isEmpty)
-                                _buildEmptyPlanNote()
-                              else
-                                for (var i = 0; i < exercises.length; i++)
-                                  AnimatedExerciseCard(
-                                    // Keys keep each card's animation state
-                                    // with its exercise when a refresh
-                                    // reorders the plan.
-                                    key: ValueKey(
-                                      'plan-${exercises[i].prescription?.id ?? 'i$i'}',
+                            const SizedBox(width: 10),
+                            Consumer<AppProvider>(
+                              builder: (context, provider, _) =>
+                                  _buildTopCircleButton(
+                                    Icons.assignment_turned_in_rounded,
+                                    tooltip: "Today's plan",
+                                    // Dot while something due today is not done.
+                                    hasBadge:
+                                        TodayChecklistSheet.remainingToday(
+                                          _assigned,
+                                          provider.sessionHistory,
+                                          DateTime.now(),
+                                        ) >
+                                        0,
+                                    onTap: () => TodayChecklistSheet.show(
+                                      context,
+                                      _assigned,
                                     ),
-                                    index: i,
-                                    config: exercises[i],
-                                    progress: _weeklyProgress(lastWeek, exercises[i]),
                                   ),
-                              if (others.isNotEmpty) ...[
-                                const SizedBox(height: 8),
-                                _buildSectionHeader('All Exercises', others.length),
-                                for (var i = 0; i < others.length; i++)
-                                  AnimatedExerciseCard(
-                                    key: ValueKey('catalog-${others[i].type.name}'),
-                                    index: exercises.length + i,
-                                    config: others[i],
-                                  ),
-                              ],
-                            ],
-                          );
-                          },
+                            ),
+                          ],
                         ),
-                      );
-                    },
+                      ],
+                    ),
                   ),
-                ),
-              ],
+                  const SizedBox(height: 12),
+
+                  // Date & Subtitle
+                  Padding(
+                    padding: const EdgeInsets.symmetric(horizontal: 20.0),
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Text(
+                          DateFormat(
+                            'EEEE, d MMMM',
+                          ).format(DateTime.now()).toUpperCase(),
+                          style: TextStyle(
+                            fontSize: 11,
+                            fontWeight: FontWeight.w600,
+                            color: palette.textSecondary,
+                            letterSpacing: 0.5,
+                          ),
+                        ),
+                        const SizedBox(height: 4),
+                        Text(
+                          'Select an\nExercise',
+                          style: TextStyle(
+                            fontSize: 24,
+                            fontWeight: FontWeight.bold,
+                            height: 1.15,
+                            color: palette.textPrimary,
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+                  const SizedBox(height: 16),
+
+                  // Exercise list, driven by the patient's assigned plan.
+                  Expanded(
+                    child: FutureBuilder<List<ExerciseConfig>>(
+                      future: _exercisesFuture,
+                      builder: (context, snapshot) {
+                        if (snapshot.connectionState == ConnectionState.waiting) {
+                          return const Center(
+                            child: CircularProgressIndicator(color: primaryTeal),
+                          );
+                        }
+
+                        if (snapshot.hasError) {
+                          return _buildMessage(
+                            icon: Icons.wifi_off_rounded,
+                            text: "Couldn't load your plan. Check your connection and try again.",
+                            onRetry: _refresh,
+                          );
+                        }
+
+                        final exercises = snapshot.data ?? const [];
+                        // Rest of the catalog, minus anything already in
+                        // the plan so no exercise appears twice.
+                        final assignedTypes = exercises.map((e) => e.type).toSet();
+                        final others = availableExercises
+                            .where((c) => !assignedTypes.contains(c.type))
+                            .toList();
+
+                        return RefreshIndicator(
+                          color: primaryTeal,
+                          onRefresh: _refresh,
+                          child: Consumer<AppProvider>(
+                            builder: (context, provider, _) {
+                              final lastWeek =
+                                  ProgressStats.countByExerciseSince(
+                                    provider.sessionHistory,
+                                    DateTime.now().subtract(
+                                      const Duration(days: 7),
+                                    ),
+                                  );
+                              return ListView(
+                              physics: const BouncingScrollPhysics(
+                                parent: AlwaysScrollableScrollPhysics(),
+                              ),
+                              padding: const EdgeInsets.symmetric(
+                                horizontal: 20,
+                                vertical: 8,
+                              ),
+                              children: [
+                                _buildSectionHeader('Your Plan', exercises.length),
+                                if (exercises.isEmpty)
+                                  _buildEmptyPlanNote()
+                                else
+                                  for (var i = 0; i < exercises.length; i++)
+                                    AnimatedExerciseCard(
+                                      // Keys keep each card's animation state
+                                      // with its exercise when a refresh
+                                      // reorders the plan.
+                                      key: ValueKey(
+                                        'plan-${exercises[i].prescription?.id ?? 'i$i'}',
+                                      ),
+                                      index: i,
+                                      config: exercises[i],
+                                      progress: _weeklyProgress(lastWeek, exercises[i]),
+                                    ),
+                                if (others.isNotEmpty) ...[
+                                  const SizedBox(height: 8),
+                                  _buildSectionHeader('All Exercises', others.length),
+                                  for (var i = 0; i < others.length; i++)
+                                    AnimatedExerciseCard(
+                                      key: ValueKey('catalog-${others[i].type.name}'),
+                                      index: exercises.length + i,
+                                      config: others[i],
+                                    ),
+                                ],
+                              ],
+                            );
+                            },
+                          ),
+                        );
+                      },
+                    ),
+                  ),
+                ],
+              ),
             ),
           ),
         ],

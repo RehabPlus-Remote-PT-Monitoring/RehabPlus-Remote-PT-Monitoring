@@ -7,6 +7,7 @@ import '../core/app_palette.dart';
 import '../core/diagnostic_logger.dart';
 import '../models/therapy_goal.dart';
 import '../services/goal_service.dart';
+import '../core/responsive.dart';
 
 /// Profile > My Goals: the rehab goals the therapist set on the clinic
 /// dashboard, with their progress. Read-only; the patient is told to ask
@@ -42,30 +43,32 @@ class _GoalsScreenState extends State<GoalsScreen> {
         children: [
           _header(context),
           Expanded(
-            child: StreamBuilder<List<TherapyGoal>>(
-              stream: _goals,
-              builder: (context, snap) {
-                if (snap.hasError) {
-                  return _message(
-                    icon: Icons.cloud_off_rounded,
-                    title: 'Could not load your goals',
-                    body: 'Check your internet connection and open this page again.',
-                  );
-                }
-                if (!snap.hasData) {
-                  return const Center(child: CircularProgressIndicator());
-                }
-                final goals = snap.data!;
-                if (goals.isEmpty) {
-                  return _message(
-                    icon: Icons.flag_outlined,
-                    title: 'No goals yet',
-                    body: 'Your therapist will add goals for your recovery. '
-                        'They will show up here.',
-                  );
-                }
-                return _goalList(goals);
-              },
+            child: ReadableWidth(
+              child: StreamBuilder<List<TherapyGoal>>(
+                stream: _goals,
+                builder: (context, snap) {
+                  if (snap.hasError) {
+                    return _message(
+                      icon: Icons.cloud_off_rounded,
+                      title: 'Could not load your goals',
+                      body: 'Check your internet connection and open this page again.',
+                    );
+                  }
+                  if (!snap.hasData) {
+                    return const Center(child: CircularProgressIndicator());
+                  }
+                  final goals = snap.data!;
+                  if (goals.isEmpty) {
+                    return _message(
+                      icon: Icons.flag_outlined,
+                      title: 'No goals yet',
+                      body: 'Your therapist will add goals for your recovery. '
+                          'They will show up here.',
+                    );
+                  }
+                  return _goalList(goals);
+                },
+              ),
             ),
           ),
         ],

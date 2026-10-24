@@ -47,11 +47,12 @@ The group repo (`paulirichmond/...`) is behind on both branches; push there only
 | Exercises page "Today's Plan" checklist sheet and its badge | ✅ Built. **Not yet tested on the phone** |
 | Exercises page split into "Your Plan" (prescriptions, with weekly progress bar) and "All Exercises" (rest of the 17-exercise catalog, no bar, saved with `prescriptionId: null`) | ✅ Built, analyze clean. **Not yet tested on the phone** |
 | 5 new exercises: Mini Squat, Standing Hip Abduction, Standing Hamstring Curl, Marching in Place, Overhead Arm Raise (geometry in `lib/services/exercise_geometry.dart`, unit-tested; dashboard `ExerciseCatalog` updated) | ✅ Built, tests pass. **Angles not yet tuned on the phone** |
-| Profile > My Goals: read-only goals set by the therapist (`lib/screens/goals_screen.dart`, `GoalService`, `TherapyGoal`) | ✅ Built, tests pass. **Not yet tested on the phone** |
+| Profile > My Goals: read-only goals set by the therapist (`lib/screens/goals_screen.dart`, `GoalService`, `TherapyGoal`) | ✅ Built, tests pass. Opened on the phone and tablet (24 Oct), shows the therapist's goal |
 | Dark mode: Settings > Appearance > Theme (Phone setting / Light / Dark, default Phone setting). Colours by role in `lib/core/app_palette.dart` (`context.palette`); every screen restyled; camera overlays and splash unchanged | ✅ Analyze clean, tests pass. **Not yet checked on the phone in either mode** |
 | Settings > Notifications > Clinic reminders (`reminders` preference, honoured by the dashboard's evening reminder) | ✅ Built, tests pass |
 | Firestore security rules (incl. goals read + `reminders` pref) | ✅ Deployed 24 Oct; live ruleset verified identical to `firestore.rules`. Emulator suite: 26 passing |
-| `flutter analyze`: no issues. `flutter test`: 200 passing | ✅ |
+| Tablets and landscape (option A): screen content sits in a centred column at most 600 dp wide (`ReadableWidth`, `lib/core/responsive.dart`; app bars/headers stay full width, camera screen untouched). Camera frames are rotated for how the device is held (`lib/services/camera_rotation.dart`, Google's ML Kit formula) and the camera restarts when the screen changes orientation (`didChangeMetrics` in the pose screen; the plugin alone kept the old orientation). PIN keypad moves beside the prompt when the screen is short and wide (phone landscape). No portrait lock: Android 16 ignores it on tablets anyway | ✅ Checked on an Honor tablet (NDL-W09, Android 16) in both orientations: every tab, Goals, Settings, Privacy, Terms, Notifications, chat; Bicep Curl counted a rep in landscape with the skeleton aligned. Phone landscape only emulated on the tablet (`wm size 720x1604`, density 320). **Known limits:** in phone landscape the tall teal headers leave little room for lists; with auto-rotate off and the device held the other way, the patient appears sideways (the app can't see the physical orientation). A real tablet layout (nav rail, two columns) was option B, not built |
+| `flutter analyze`: no issues. `flutter test`: 208 passing | ✅ |
 
 ### Clinic dashboard (`laravel-app/`)
 
@@ -76,7 +77,7 @@ The group repo (`paulirichmond/...`) is behind on both branches; push there only
 - A second account, "kenji", exists in Auth but **may not be seeded yet**.
 - Firebase has **no staff accounts**. The only `users` docs are the 2 patients.
 
-**Test phone:** OPPO/OnePlus CPH2773 (ColorOS, Android 14), connected over adb.
+**Test phone:** OPPO/OnePlus CPH2773 (ColorOS, Android 14), connected over adb. **Test tablet:** Honor NDL-W09 (Android 16, 1200x1920, display-size override density 238: restore it with `adb shell wm density 238` after any `wm density reset`). Honor hides app logs by default (`persist.log.tag=S`): run `adb shell setprop log.tag.flutter V` to see RPLOG lines in logcat (resets on reboot).
 
 **Service-account key:** stored at `~/keys/rehabplus-80675-firebase-adminsdk-fbsvc-<id>.json`, **outside the repo**.
 - Never commit it.

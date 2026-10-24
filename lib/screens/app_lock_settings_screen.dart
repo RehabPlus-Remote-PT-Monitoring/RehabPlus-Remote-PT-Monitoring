@@ -3,6 +3,7 @@ import 'package:flutter/material.dart';
 import '../core/app_palette.dart';
 import '../core/diagnostic_logger.dart';
 import '../services/app_lock_service.dart';
+import '../core/responsive.dart';
 import 'app_lock_screen.dart';
 
 /// Settings > App lock: turn the PIN on/off, fingerprint/face shortcut,
@@ -146,73 +147,75 @@ class _AppLockSettingsScreenState extends State<AppLockSettingsScreen> {
     return Scaffold(
       backgroundColor: palette.background,
       appBar: AppBar(title: const Text('App lock'), backgroundColor: darkTeal),
-      body: ListView(
-        padding: const EdgeInsets.all(16),
-        children: [
-          _card([
-            SwitchListTile(
-              value: enabled,
-              onChanged: _busy ? null : _togglePin,
-              activeThumbColor: Colors.white,
-              activeTrackColor: primaryTeal,
-              secondary: _leading(Icons.pin_outlined),
-              title: Text('PIN lock', style: _titleStyle),
-              subtitle: Text(
-                'Ask for a ${AppLockService.pinLength}-digit PIN before '
-                'showing your dashboard',
-                style: _subtitleStyle,
+      body: ReadableWidth(
+        child: ListView(
+          padding: const EdgeInsets.all(16),
+          children: [
+            _card([
+              SwitchListTile(
+                value: enabled,
+                onChanged: _busy ? null : _togglePin,
+                activeThumbColor: Colors.white,
+                activeTrackColor: primaryTeal,
+                secondary: _leading(Icons.pin_outlined),
+                title: Text('PIN lock', style: _titleStyle),
+                subtitle: Text(
+                  'Ask for a ${AppLockService.pinLength}-digit PIN before '
+                  'showing your dashboard',
+                  style: _subtitleStyle,
+                ),
+              ),
+              SwitchListTile(
+                value: _lock.biometricsEnabled,
+                onChanged: (_busy || !enabled || !bioAvailable)
+                    ? null
+                    : _toggleBiometrics,
+                activeThumbColor: Colors.white,
+                activeTrackColor: primaryTeal,
+                secondary: _leading(Icons.fingerprint_rounded),
+                title: Text('Unlock with fingerprint', style: _titleStyle),
+                subtitle: Text(
+                  switch (_biometricsAvailable) {
+                    null => 'Checking this phone…',
+                    false => 'Set up a fingerprint or face unlock in your '
+                        'phone\'s settings to use this',
+                    true when !enabled => 'Turn on the PIN lock first',
+                    true => 'A quicker way in; the PIN still works',
+                  },
+                  style: _subtitleStyle,
+                ),
+              ),
+              ListTile(
+                enabled: enabled && !_busy,
+                onTap: _changePin,
+                leading: _leading(Icons.lock_reset_rounded),
+                title: Text('Change PIN', style: _titleStyle),
+                trailing: Icon(
+                  Icons.chevron_right_rounded,
+                  color: palette.textFaint,
+                  size: 20,
+                ),
+              ),
+            ]),
+            Padding(
+              padding: const EdgeInsets.fromLTRB(8, 4, 8, 0),
+              child: Text(
+                'RehabPlus asks for the PIN when you open the app and when you '
+                'come back to it after a minute or more. The PIN is kept only '
+                'on this phone.\n\n'
+                'Forgot it? Choose "Forgot PIN" on the lock screen to sign in '
+                'again with your password. After '
+                '${AppLockService.maxAttempts} wrong PINs you are signed out '
+                'for safety. Signing out also turns the lock off.',
+                style: TextStyle(
+                  fontSize: 12,
+                  color: palette.textSecondary,
+                  height: 1.4,
+                ),
               ),
             ),
-            SwitchListTile(
-              value: _lock.biometricsEnabled,
-              onChanged: (_busy || !enabled || !bioAvailable)
-                  ? null
-                  : _toggleBiometrics,
-              activeThumbColor: Colors.white,
-              activeTrackColor: primaryTeal,
-              secondary: _leading(Icons.fingerprint_rounded),
-              title: Text('Unlock with fingerprint', style: _titleStyle),
-              subtitle: Text(
-                switch (_biometricsAvailable) {
-                  null => 'Checking this phone…',
-                  false => 'Set up a fingerprint or face unlock in your '
-                      'phone\'s settings to use this',
-                  true when !enabled => 'Turn on the PIN lock first',
-                  true => 'A quicker way in; the PIN still works',
-                },
-                style: _subtitleStyle,
-              ),
-            ),
-            ListTile(
-              enabled: enabled && !_busy,
-              onTap: _changePin,
-              leading: _leading(Icons.lock_reset_rounded),
-              title: Text('Change PIN', style: _titleStyle),
-              trailing: Icon(
-                Icons.chevron_right_rounded,
-                color: palette.textFaint,
-                size: 20,
-              ),
-            ),
-          ]),
-          Padding(
-            padding: const EdgeInsets.fromLTRB(8, 4, 8, 0),
-            child: Text(
-              'RehabPlus asks for the PIN when you open the app and when you '
-              'come back to it after a minute or more. The PIN is kept only '
-              'on this phone.\n\n'
-              'Forgot it? Choose "Forgot PIN" on the lock screen to sign in '
-              'again with your password. After '
-              '${AppLockService.maxAttempts} wrong PINs you are signed out '
-              'for safety. Signing out also turns the lock off.',
-              style: TextStyle(
-                fontSize: 12,
-                color: palette.textSecondary,
-                height: 1.4,
-              ),
-            ),
-          ),
-        ],
+          ],
+        ),
       ),
     );
   }

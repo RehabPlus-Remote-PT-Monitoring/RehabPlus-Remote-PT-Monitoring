@@ -12,6 +12,7 @@ import 'package:phosphor_flutter/phosphor_flutter.dart';
 import '../core/app_palette.dart';
 import '../core/diagnostic_logger.dart';
 import '../services/auth_service.dart';
+import '../core/responsive.dart';
 
 // Reset by text message (see AuthService): the patient types their mobile
 // number, then the 6-digit code Firebase texts them, then a new password.
@@ -304,17 +305,19 @@ class _ForgotPasswordScreenState extends State<ForgotPasswordScreen>
             Positioned(bottom: -100, left: -60, child: _circle(300, 0.06)),
 
             SafeArea(
-              child: Center(
-                child: SingleChildScrollView(
-                  padding: const EdgeInsets.symmetric(horizontal: 28),
-                  child: Column(
-                    children: [
-                      const SizedBox(height: 20),
-                      _buildBrandingHeader(),
-                      const SizedBox(height: 28),
-                      _buildCard(),
-                      const SizedBox(height: 24),
-                    ],
+              child: ReadableWidth(
+                child: Center(
+                  child: SingleChildScrollView(
+                    padding: const EdgeInsets.symmetric(horizontal: 28),
+                    child: Column(
+                      children: [
+                        const SizedBox(height: 20),
+                        _buildBrandingHeader(),
+                        const SizedBox(height: 28),
+                        _buildCard(),
+                        const SizedBox(height: 24),
+                      ],
+                    ),
                   ),
                 ),
               ),

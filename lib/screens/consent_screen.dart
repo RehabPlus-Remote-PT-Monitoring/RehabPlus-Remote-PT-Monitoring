@@ -9,6 +9,7 @@ import '../legal/legal_info.dart';
 import '../services/app_provider.dart';
 import '../services/consent_service.dart';
 import '../services/push_service.dart';
+import '../core/responsive.dart';
 import 'app_lock_offer_screen.dart';
 import 'legal_document_screen.dart';
 import 'login_page.dart';
@@ -184,100 +185,104 @@ class _ConsentScreenState extends State<ConsentScreen> {
           children: [
             _header(),
             Expanded(
-              child: ListView(
-                padding: const EdgeInsets.fromLTRB(16, 20, 16, 16),
-                children: [
-                  _card(
-                    children: [
-                      Text(
-                        'Before you start',
-                        style: TextStyle(
-                          fontSize: 16,
-                          fontWeight: FontWeight.bold,
-                          color: palette.textPrimary,
+              child: ReadableWidth(
+                child: ListView(
+                  padding: const EdgeInsets.fromLTRB(16, 20, 16, 16),
+                  children: [
+                    _card(
+                      children: [
+                        Text(
+                          'Before you start',
+                          style: TextStyle(
+                            fontSize: 16,
+                            fontWeight: FontWeight.bold,
+                            color: palette.textPrimary,
+                          ),
                         ),
-                      ),
-                      const SizedBox(height: 12),
-                      _point(
-                        Icons.health_and_safety_outlined,
-                        'RehabPlus supports your therapist\'s care; it doesn\'t '
-                        'replace it. Stop if an exercise hurts, and call 911 '
-                        'in an emergency. Messages aren\'t monitored 24/7.',
-                      ),
-                      _point(
-                        Icons.videocam_outlined,
-                        'The camera tracks your movements on your phone only. '
-                        'Video is never recorded or uploaded.',
-                      ),
-                      _point(
-                        Icons.monitor_heart_outlined,
-                        'Your exercise results, pain levels and messages are '
-                        'shared with your care team at ${LegalInfo.clinicName} '
-                        'and stored securely with Google Firebase.',
-                      ),
-                      _point(
-                        Icons.verified_user_outlined,
-                        'Under the Data Privacy Act you can access, correct or '
-                        'request deletion of your information and withdraw '
-                        'consent at any time.',
-                      ),
-                    ],
-                  ),
-                  const SizedBox(height: 12),
-                  _card(
-                    padding: EdgeInsets.zero,
-                    children: [
-                      _docLink(
-                        Icons.description_outlined,
-                        'Read the Terms and Conditions',
-                        () => _open(const LegalDocumentScreen.terms()),
-                      ),
-                      const Divider(height: 1, indent: 56),
-                      _docLink(
-                        Icons.privacy_tip_outlined,
-                        'Read the Privacy Policy',
-                        () => _open(const LegalDocumentScreen.privacy()),
-                      ),
-                    ],
-                  ),
-                  const SizedBox(height: 12),
-                  _card(
-                    padding: const EdgeInsets.symmetric(vertical: 6),
-                    children: [
-                      _check(
-                        _terms,
-                        (v) => setState(() => _terms = v),
-                        'I have read and agree to the Terms and Conditions. I '
-                        'am 18 or older, or my parent or guardian agrees on my '
-                        'behalf.',
-                      ),
-                      _check(
-                        _health,
-                        (v) => setState(() => _health = v),
-                        'I have read the Privacy Policy and consent to '
-                        '${LegalInfo.clinicName} collecting and processing my '
-                        'personal and health information for my therapy, as it '
-                        'describes.',
-                      ),
-                      _check(
-                        _camera,
-                        (v) => setState(() => _camera = v),
-                        'I understand the app uses my camera during exercises '
-                        'to track my movements on my phone, without recording '
-                        'or uploading video.',
-                      ),
-                    ],
-                  ),
-                  const SizedBox(height: 8),
-                  Text(
-                    'Version ${LegalInfo.version} · effective ${LegalInfo.effectiveDate}',
-                    textAlign: TextAlign.center,
-                    style: TextStyle(fontSize: 11, color: palette.textMuted),
-                  ),
-                ],
+                        const SizedBox(height: 12),
+                        _point(
+                          Icons.health_and_safety_outlined,
+                          'RehabPlus supports your therapist\'s care; it doesn\'t '
+                          'replace it. Stop if an exercise hurts, and call 911 '
+                          'in an emergency. Messages aren\'t monitored 24/7.',
+                        ),
+                        _point(
+                          Icons.videocam_outlined,
+                          'The camera tracks your movements on your phone only. '
+                          'Video is never recorded or uploaded.',
+                        ),
+                        _point(
+                          Icons.monitor_heart_outlined,
+                          'Your exercise results, pain levels and messages are '
+                          'shared with your care team at ${LegalInfo.clinicName} '
+                          'and stored securely with Google Firebase.',
+                        ),
+                        _point(
+                          Icons.verified_user_outlined,
+                          'Under the Data Privacy Act you can access, correct or '
+                          'request deletion of your information and withdraw '
+                          'consent at any time.',
+                        ),
+                      ],
+                    ),
+                    const SizedBox(height: 12),
+                    _card(
+                      padding: EdgeInsets.zero,
+                      children: [
+                        _docLink(
+                          Icons.description_outlined,
+                          'Read the Terms and Conditions',
+                          () => _open(const LegalDocumentScreen.terms()),
+                        ),
+                        const Divider(height: 1, indent: 56),
+                        _docLink(
+                          Icons.privacy_tip_outlined,
+                          'Read the Privacy Policy',
+                          () => _open(const LegalDocumentScreen.privacy()),
+                        ),
+                      ],
+                    ),
+                    const SizedBox(height: 12),
+                    _card(
+                      padding: const EdgeInsets.symmetric(vertical: 6),
+                      children: [
+                        _check(
+                          _terms,
+                          (v) => setState(() => _terms = v),
+                          'I have read and agree to the Terms and Conditions. I '
+                          'am 18 or older, or my parent or guardian agrees on my '
+                          'behalf.',
+                        ),
+                        _check(
+                          _health,
+                          (v) => setState(() => _health = v),
+                          'I have read the Privacy Policy and consent to '
+                          '${LegalInfo.clinicName} collecting and processing my '
+                          'personal and health information for my therapy, as it '
+                          'describes.',
+                        ),
+                        _check(
+                          _camera,
+                          (v) => setState(() => _camera = v),
+                          'I understand the app uses my camera during exercises '
+                          'to track my movements on my phone, without recording '
+                          'or uploading video.',
+                        ),
+                      ],
+                    ),
+                    const SizedBox(height: 8),
+                    Text(
+                      'Version ${LegalInfo.version} · effective ${LegalInfo.effectiveDate}',
+                      textAlign: TextAlign.center,
+                      style: TextStyle(fontSize: 11, color: palette.textMuted),
+                    ),
+                  ],
+                ),
               ),
             ),
-            _buttons(),
+            ReadableWidth(
+              child: _buttons(),
+            ),
           ],
         ),
       ),

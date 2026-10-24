@@ -462,5 +462,54 @@ void main() {
       await enter(tester, '2580');
       expect(result, isTrue);
     });
+
+    // A phone turned sideways is only ~360 dp tall: the keypad used to sit
+    // under the prompt and its bottom rows were cut off, so the PIN could
+    // not be typed. It now moves beside the prompt.
+    testWidgets('confirm: keypad fits and works on a landscape phone', (
+      tester,
+    ) async {
+      tester.view.physicalSize = const Size(1604, 720);
+      tester.view.devicePixelRatio = 2;
+      addTearDown(tester.view.reset);
+
+      final lock = newService();
+      await tester.runAsync(() => lock.setPin('2580'));
+      bool? result;
+      await tester.pumpWidget(
+        MaterialApp(
+          home: Builder(
+            builder: (context) => TextButton(
+              onPressed: () async {
+                result = await Navigator.push<bool>(
+                  context,
+                  MaterialPageRoute(
+                    builder: (_) => AppLockScreen.confirm(service: lock),
+                  ),
+                );
+              },
+              child: const Text('open'),
+            ),
+          ),
+        ),
+      );
+      await tester.tap(find.text('open'));
+      await tester.pumpAndSettle();
+
+      // Every key, including the bottom row's 0, is on screen and tappable.
+      final screen = Offset.zero & tester.view.physicalSize / 2;
+      for (final d in ['1', '5', '9', '0']) {
+        final rect = tester.getRect(find.text(d));
+        expect(
+          screen.contains(rect.bottomRight - const Offset(1, 1)),
+          isTrue,
+          reason: 'key $d at $rect is off screen',
+        );
+      }
+      expect(tester.takeException(), isNull);
+
+      await enter(tester, '2580');
+      expect(result, isTrue);
+    });
   });
 }

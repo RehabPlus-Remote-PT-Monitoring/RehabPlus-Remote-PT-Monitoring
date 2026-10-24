@@ -12,6 +12,7 @@ import '../core/diagnostic_logger.dart';
 import '../models/chat.dart';
 import '../services/app_provider.dart';
 import '../services/chat_service.dart';
+import '../core/responsive.dart';
 
 const Color _primaryTeal = Color(0xFF23A8AA);
 const String _tag = 'Messages';
@@ -134,11 +135,13 @@ class _MessagesScreenState extends State<MessagesScreen> {
           const SizedBox(width: 4),
         ],
       ),
-      body: ListView.separated(
-        itemCount: ChatThread.values.length,
-        separatorBuilder: (_, _) =>
-            const Divider(indent: 72, height: 1, thickness: 0.5),
-        itemBuilder: (context, i) => _ThreadTile(thread: ChatThread.values[i]),
+      body: ReadableWidth(
+        child: ListView.separated(
+          itemCount: ChatThread.values.length,
+          separatorBuilder: (_, _) =>
+              const Divider(indent: 72, height: 1, thickness: 0.5),
+          itemBuilder: (context, i) => _ThreadTile(thread: ChatThread.values[i]),
+        ),
       ),
     );
   }
@@ -456,165 +459,171 @@ class _ChatDetailScreenState extends State<ChatDetailScreen> {
         child: Column(
           children: [
             Expanded(
-              child: StreamBuilder<List<ChatMessage>>(
-                stream: _messages,
-                builder: (context, snap) {
-                  if (snap.hasError) {
-                    return const Center(
-                      child: Text(
-                        "Couldn't load messages.",
-                        style: TextStyle(color: Colors.white),
-                      ),
-                    );
-                  }
-                  if (!snap.hasData) {
-                    return const Center(
-                      child: CircularProgressIndicator(color: Colors.white),
-                    );
-                  }
-                  final msgs = snap.data!;
-                  if (msgs.isEmpty) {
-                    return Center(
-                      child: Padding(
-                        padding: const EdgeInsets.all(32),
+              child: ReadableWidth(
+                child: StreamBuilder<List<ChatMessage>>(
+                  stream: _messages,
+                  builder: (context, snap) {
+                    if (snap.hasError) {
+                      return const Center(
                         child: Text(
-                          thread == ChatThread.clinic
-                              ? 'Message the clinic to book a visit, request a home visit, or get help with the app.'
-                              : 'Send your therapist a message about your exercises or how you feel.',
-                          textAlign: TextAlign.center,
-                          style: const TextStyle(
-                            color: Colors.white,
-                            fontSize: 13,
+                          "Couldn't load messages.",
+                          style: TextStyle(color: Colors.white),
+                        ),
+                      );
+                    }
+                    if (!snap.hasData) {
+                      return const Center(
+                        child: CircularProgressIndicator(color: Colors.white),
+                      );
+                    }
+                    final msgs = snap.data!;
+                    if (msgs.isEmpty) {
+                      return Center(
+                        child: Padding(
+                          padding: const EdgeInsets.all(32),
+                          child: Text(
+                            thread == ChatThread.clinic
+                                ? 'Message the clinic to book a visit, request a home visit, or get help with the app.'
+                                : 'Send your therapist a message about your exercises or how you feel.',
+                            textAlign: TextAlign.center,
+                            style: const TextStyle(
+                              color: Colors.white,
+                              fontSize: 13,
+                            ),
                           ),
                         ),
-                      ),
-                    );
-                  }
-                  final seen = seenByStaff(msgs, _unreadForStaff);
-                  return ListView.builder(
-                    reverse: true, // newest at the bottom, auto-scrolls
-                    padding: const EdgeInsets.symmetric(
-                      horizontal: 16,
-                      vertical: 12,
-                    ),
-                    itemCount: msgs.length,
-                    itemBuilder: (context, i) {
-                      final msg = msgs[i];
-                      // List is newest-first, so the message shown above is i + 1.
-                      final older = i + 1 < msgs.length ? msgs[i + 1] : null;
-                      final showTime =
-                          older == null ||
-                          msg.sentAt.difference(older.sentAt).inMinutes >= 10;
-                      return _Bubble(
-                        msg: msg,
-                        icon: _threadIcon(thread),
-                        showTime: showTime,
-                        seen: seen.contains(msg.id),
                       );
-                    },
-                  );
-                },
+                    }
+                    final seen = seenByStaff(msgs, _unreadForStaff);
+                    return ListView.builder(
+                      reverse: true, // newest at the bottom, auto-scrolls
+                      padding: const EdgeInsets.symmetric(
+                        horizontal: 16,
+                        vertical: 12,
+                      ),
+                      itemCount: msgs.length,
+                      itemBuilder: (context, i) {
+                        final msg = msgs[i];
+                        // List is newest-first, so the message shown above is i + 1.
+                        final older = i + 1 < msgs.length ? msgs[i + 1] : null;
+                        final showTime =
+                            older == null ||
+                            msg.sentAt.difference(older.sentAt).inMinutes >= 10;
+                        return _Bubble(
+                          msg: msg,
+                          icon: _threadIcon(thread),
+                          showTime: showTime,
+                          seen: seen.contains(msg.id),
+                        );
+                      },
+                    );
+                  },
+                ),
               ),
             ),
 
             if (thread == ChatThread.clinic)
-              Container(
-                alignment: Alignment.centerLeft,
-                padding: const EdgeInsets.symmetric(
-                  horizontal: 12,
-                  vertical: 6,
-                ),
-                child: Wrap(
-                  spacing: 8,
-                  runSpacing: 6,
-                  children: _clinicPrompts.entries.map((e) {
-                    return GestureDetector(
-                      onTap: () => _usePrompt(e.key, e.value),
-                      child: Container(
-                        padding: const EdgeInsets.symmetric(
-                          horizontal: 12,
-                          vertical: 6,
-                        ),
-                        decoration: BoxDecoration(
-                          color: palette.surface.withValues(alpha: 0.9),
-                          borderRadius: BorderRadius.circular(12),
-                        ),
-                        child: Row(
-                          mainAxisSize: MainAxisSize.min,
-                          children: [
-                            Icon(
-                              e.key.contains('problem')
-                                  ? Icons.bug_report
-                                  : e.key.contains('home')
-                                  ? Icons.home_outlined
-                                  : Icons.calendar_today,
-                              size: 14,
-                              color: e.key.contains('problem')
-                                  ? Colors.redAccent
-                                  : _primaryTeal,
-                            ),
-                            const SizedBox(width: 4),
-                            Text(
-                              e.key,
-                              style: TextStyle(
-                                fontSize: 11,
-                                fontWeight: FontWeight.bold,
-                                color: palette.textPrimary,
+              ReadableWidth(
+                child: Container(
+                  alignment: Alignment.centerLeft,
+                  padding: const EdgeInsets.symmetric(
+                    horizontal: 12,
+                    vertical: 6,
+                  ),
+                  child: Wrap(
+                    spacing: 8,
+                    runSpacing: 6,
+                    children: _clinicPrompts.entries.map((e) {
+                      return GestureDetector(
+                        onTap: () => _usePrompt(e.key, e.value),
+                        child: Container(
+                          padding: const EdgeInsets.symmetric(
+                            horizontal: 12,
+                            vertical: 6,
+                          ),
+                          decoration: BoxDecoration(
+                            color: palette.surface.withValues(alpha: 0.9),
+                            borderRadius: BorderRadius.circular(12),
+                          ),
+                          child: Row(
+                            mainAxisSize: MainAxisSize.min,
+                            children: [
+                              Icon(
+                                e.key.contains('problem')
+                                    ? Icons.bug_report
+                                    : e.key.contains('home')
+                                    ? Icons.home_outlined
+                                    : Icons.calendar_today,
+                                size: 14,
+                                color: e.key.contains('problem')
+                                    ? Colors.redAccent
+                                    : _primaryTeal,
                               ),
-                            ),
-                          ],
+                              const SizedBox(width: 4),
+                              Text(
+                                e.key,
+                                style: TextStyle(
+                                  fontSize: 11,
+                                  fontWeight: FontWeight.bold,
+                                  color: palette.textPrimary,
+                                ),
+                              ),
+                            ],
+                          ),
                         ),
-                      ),
-                    );
-                  }).toList(),
+                      );
+                    }).toList(),
+                  ),
                 ),
               ),
 
             // Input bar
-            Container(
-              padding: const EdgeInsets.fromLTRB(12, 8, 8, 8),
-              color: palette.surfaceMuted,
-              child: SafeArea(
-                top: false,
-                child: Row(
-                  children: [
-                    Expanded(
-                      child: Container(
-                        padding: const EdgeInsets.symmetric(horizontal: 12),
-                        decoration: BoxDecoration(
-                          color: palette.surface,
-                          borderRadius: BorderRadius.circular(20),
-                          border: Border.all(color: palette.divider),
-                        ),
-                        child: TextField(
-                          controller: _textController,
-                          minLines: 1,
-                          maxLines: 4,
-                          maxLength: 1000,
-                          textCapitalization: TextCapitalization.sentences,
-                          style: TextStyle(color: palette.textPrimary),
-                          decoration: InputDecoration(
-                            hintText: 'Message',
-                            hintStyle: TextStyle(
-                              fontSize: 13,
-                              color: palette.textFaint,
-                            ),
-                            border: InputBorder.none,
-                            counterText: '',
-                            isDense: true,
-                            contentPadding: const EdgeInsets.symmetric(
-                              vertical: 10,
+            ReadableWidth(
+              child: Container(
+                padding: const EdgeInsets.fromLTRB(12, 8, 8, 8),
+                color: palette.surfaceMuted,
+                child: SafeArea(
+                  top: false,
+                  child: Row(
+                    children: [
+                      Expanded(
+                        child: Container(
+                          padding: const EdgeInsets.symmetric(horizontal: 12),
+                          decoration: BoxDecoration(
+                            color: palette.surface,
+                            borderRadius: BorderRadius.circular(20),
+                            border: Border.all(color: palette.divider),
+                          ),
+                          child: TextField(
+                            controller: _textController,
+                            minLines: 1,
+                            maxLines: 4,
+                            maxLength: 1000,
+                            textCapitalization: TextCapitalization.sentences,
+                            style: TextStyle(color: palette.textPrimary),
+                            decoration: InputDecoration(
+                              hintText: 'Message',
+                              hintStyle: TextStyle(
+                                fontSize: 13,
+                                color: palette.textFaint,
+                              ),
+                              border: InputBorder.none,
+                              counterText: '',
+                              isDense: true,
+                              contentPadding: const EdgeInsets.symmetric(
+                                vertical: 10,
+                              ),
                             ),
                           ),
                         ),
                       ),
-                    ),
-                    IconButton(
-                      tooltip: 'Send',
-                      onPressed: _send,
-                      icon: const Icon(Icons.send_rounded, color: _primaryTeal),
-                    ),
-                  ],
+                      IconButton(
+                        tooltip: 'Send',
+                        onPressed: _send,
+                        icon: const Icon(Icons.send_rounded, color: _primaryTeal),
+                      ),
+                    ],
+                  ),
                 ),
               ),
             ),

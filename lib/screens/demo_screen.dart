@@ -5,6 +5,7 @@ import 'package:chewie/chewie.dart';
 
 import '../core/app_palette.dart';
 import '../core/diagnostic_logger.dart';
+import '../core/responsive.dart';
 
 const String _tag = 'Demo';
 
@@ -166,23 +167,25 @@ class _DemoScreenState extends State<DemoScreen> with TickerProviderStateMixin {
             ),
           ),
           Expanded(
-            child: SlideTransition(
-              position: _contentSlide,
-              child: FadeTransition(
-                opacity: _contentFade,
-                child: SingleChildScrollView(
-                  padding: const EdgeInsets.fromLTRB(16, 20, 16, 24),
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      _buildFeatureCarousel(),
-                      const SizedBox(height: 24),
-                      _buildVideoSection(),
-                      const SizedBox(height: 24),
-                      _buildExerciseDemo(),
-                      const SizedBox(height: 24),
-                      _buildStatsPreview(),
-                    ],
+            child: ReadableWidth(
+              child: SlideTransition(
+                position: _contentSlide,
+                child: FadeTransition(
+                  opacity: _contentFade,
+                  child: SingleChildScrollView(
+                    padding: const EdgeInsets.fromLTRB(16, 20, 16, 24),
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        _buildFeatureCarousel(),
+                        const SizedBox(height: 24),
+                        _buildVideoSection(),
+                        const SizedBox(height: 24),
+                        _buildExerciseDemo(),
+                        const SizedBox(height: 24),
+                        _buildStatsPreview(),
+                      ],
+                    ),
                   ),
                 ),
               ),

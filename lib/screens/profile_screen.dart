@@ -13,6 +13,7 @@ import 'goals_screen.dart';
 import 'privacy_legal_screen.dart';
 import 'settings_screen.dart';
 import '../widgets/profile_avatar.dart';
+import '../core/responsive.dart';
 
 class ProfileScreen extends StatefulWidget {
   const ProfileScreen({super.key});
@@ -97,46 +98,53 @@ class _ProfileScreenState extends State<ProfileScreen> {
             child: Column(
               children: [
                 _buildHeader(),
-                const SizedBox(height: 16),
-                _buildStatsRow(sessions.length, totalSets, totalReps, avgCompliance),
-                const SizedBox(height: 14),
-                _buildInfoCard(
-                  title: 'Personal Info',
-                  icon: Icons.person_outline_rounded,
-                  items: [
-                    _InfoRow(icon: Icons.person_outline, label: 'Full Name', value: _profile.name),
-                    _InfoRow(icon: Icons.email_outlined, label: 'Email', value: _profile.email),
-                    _InfoRow(icon: Icons.phone_outlined, label: 'Phone', value: _profile.phone),
-                    _InfoRow(icon: Icons.cake_outlined, label: 'Date of Birth', value: _profile.dob),
-                  ],
+                // Header full width; the cards below stay phone-width on tablets.
+                ReadableWidth(
+                  child: Column(
+                    children: [
+                      const SizedBox(height: 16),
+                      _buildStatsRow(sessions.length, totalSets, totalReps, avgCompliance),
+                      const SizedBox(height: 14),
+                      _buildInfoCard(
+                        title: 'Personal Info',
+                        icon: Icons.person_outline_rounded,
+                        items: [
+                          _InfoRow(icon: Icons.person_outline, label: 'Full Name', value: _profile.name),
+                          _InfoRow(icon: Icons.email_outlined, label: 'Email', value: _profile.email),
+                          _InfoRow(icon: Icons.phone_outlined, label: 'Phone', value: _profile.phone),
+                          _InfoRow(icon: Icons.cake_outlined, label: 'Date of Birth', value: _profile.dob),
+                        ],
+                      ),
+                      const SizedBox(height: 14),
+                      _buildInfoCard(
+                        title: 'Rehab Info',
+                        icon: Icons.medical_services_outlined,
+                        items: [
+                          _InfoRow(icon: Icons.medical_services_outlined, label: 'Condition', value: _profile.condition),
+                          _InfoRow(icon: Icons.person_pin_outlined, label: 'Therapist', value: _profile.therapist),
+                          _InfoRow(
+                            icon: Icons.calendar_today_outlined,
+                            label: 'Program Start',
+                            value: _profile.programStart == null
+                                ? ''
+                                : DateFormat.yMMMd().format(_profile.programStart!),
+                          ),
+                        ],
+                      ),
+                      const SizedBox(height: 14),
+                      _buildExerciseBreakdownCard(sessions),
+                      const SizedBox(height: 14),
+                      _buildGoalsCard(),
+                      const SizedBox(height: 14),
+                      _buildSettingsCard(),
+                      const SizedBox(height: 14),
+                      _buildLegalCard(),
+                      const SizedBox(height: 14),
+                      _buildSignOutButton(),
+                      const SizedBox(height: 28),
+                    ],
+                  ),
                 ),
-                const SizedBox(height: 14),
-                _buildInfoCard(
-                  title: 'Rehab Info',
-                  icon: Icons.medical_services_outlined,
-                  items: [
-                    _InfoRow(icon: Icons.medical_services_outlined, label: 'Condition', value: _profile.condition),
-                    _InfoRow(icon: Icons.person_pin_outlined, label: 'Therapist', value: _profile.therapist),
-                    _InfoRow(
-                      icon: Icons.calendar_today_outlined,
-                      label: 'Program Start',
-                      value: _profile.programStart == null
-                          ? ''
-                          : DateFormat.yMMMd().format(_profile.programStart!),
-                    ),
-                  ],
-                ),
-                const SizedBox(height: 14),
-                _buildExerciseBreakdownCard(sessions),
-                const SizedBox(height: 14),
-                _buildGoalsCard(),
-                const SizedBox(height: 14),
-                _buildSettingsCard(),
-                const SizedBox(height: 14),
-                _buildLegalCard(),
-                const SizedBox(height: 14),
-                _buildSignOutButton(),
-                const SizedBox(height: 28),
               ],
             ),
           ),

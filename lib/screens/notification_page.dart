@@ -8,6 +8,7 @@ import '../core/diagnostic_logger.dart';
 import '../models/app_notification.dart';
 import '../models/chat.dart';
 import '../services/notification_service.dart';
+import '../core/responsive.dart';
 import 'messages_screen.dart';
 
 /// Icon and colours per notification type.
@@ -177,49 +178,55 @@ class _NotificationPageState extends State<NotificationPage> {
         children: [
           _buildHeader(context),
           const SizedBox(height: 16),
-          Padding(
-            padding: const EdgeInsets.symmetric(horizontal: 16),
-            child: _buildFilterRow(palette),
+          ReadableWidth(
+            child: Padding(
+              padding: const EdgeInsets.symmetric(horizontal: 16),
+              child: _buildFilterRow(palette),
+            ),
           ),
           const SizedBox(height: 16),
-          Padding(
-            padding: const EdgeInsets.symmetric(horizontal: 20),
-            child: Row(
-              mainAxisAlignment: MainAxisAlignment.spaceBetween,
-              children: [
-                Text(
-                  _selectedFilterIndex == 0
-                      ? 'All Notifications'
-                      : _selectedFilterIndex == 1
-                      ? 'Read'
-                      : 'Unread',
-                  style: TextStyle(
-                    fontSize: 15,
-                    fontWeight: FontWeight.bold,
-                    color: palette.textPrimary,
+          ReadableWidth(
+            child: Padding(
+              padding: const EdgeInsets.symmetric(horizontal: 20),
+              child: Row(
+                mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                children: [
+                  Text(
+                    _selectedFilterIndex == 0
+                        ? 'All Notifications'
+                        : _selectedFilterIndex == 1
+                        ? 'Read'
+                        : 'Unread',
+                    style: TextStyle(
+                      fontSize: 15,
+                      fontWeight: FontWeight.bold,
+                      color: palette.textPrimary,
+                    ),
                   ),
-                ),
-                Text(
-                  '${_filtered.length} items',
-                  style: TextStyle(fontSize: 12, color: palette.textMuted),
-                ),
-              ],
+                  Text(
+                    '${_filtered.length} items',
+                    style: TextStyle(fontSize: 12, color: palette.textMuted),
+                  ),
+                ],
+              ),
             ),
           ),
           const SizedBox(height: 10),
           Expanded(
-            child: loading
-                ? const Center(
-                    child: CircularProgressIndicator(color: primaryTeal),
-                  )
-                : _filtered.isEmpty
-                ? _buildEmpty(palette)
-                : ListView.builder(
-                    padding: const EdgeInsets.fromLTRB(16, 0, 16, 16),
-                    itemCount: _filtered.length,
-                    itemBuilder: (_, i) =>
-                        _notificationCard(_filtered[i], palette),
-                  ),
+            child: ReadableWidth(
+              child: loading
+                  ? const Center(
+                      child: CircularProgressIndicator(color: primaryTeal),
+                    )
+                  : _filtered.isEmpty
+                  ? _buildEmpty(palette)
+                  : ListView.builder(
+                      padding: const EdgeInsets.fromLTRB(16, 0, 16, 16),
+                      itemCount: _filtered.length,
+                      itemBuilder: (_, i) =>
+                          _notificationCard(_filtered[i], palette),
+                    ),
+            ),
           ),
         ],
       ),

@@ -9,6 +9,7 @@ import '../services/progress_report.dart';
 import '../services/progress_report_loader.dart';
 import '../services/progress_stats.dart';
 import '../widgets/progress_charts.dart';
+import '../core/responsive.dart';
 
 const _primaryTeal = AppPalette.teal;
 const _darkTeal = AppPalette.darkTeal;
@@ -325,43 +326,45 @@ class _ProgressReportScreenState extends State<ProgressReportScreen> {
         children: [
           _header(),
           Expanded(
-            child: ListView(
-              padding: const EdgeInsets.fromLTRB(16, 16, 16, 32),
-              children: [
-                SegmentedButton<int>(
-                  segments: [
-                    for (final d in _periods)
-                      ButtonSegment(value: d, label: Text('$d days')),
-                  ],
-                  selected: {_days},
-                  showSelectedIcon: false,
-                  onSelectionChanged: (s) => _selectPeriod(s.first),
-                  style: SegmentedButton.styleFrom(
-                    selectedBackgroundColor: _primaryTeal,
-                    selectedForegroundColor: Colors.white,
-                    foregroundColor: _infoColor(context),
+            child: ReadableWidth(
+              child: ListView(
+                padding: const EdgeInsets.fromLTRB(16, 16, 16, 32),
+                children: [
+                  SegmentedButton<int>(
+                    segments: [
+                      for (final d in _periods)
+                        ButtonSegment(value: d, label: Text('$d days')),
+                    ],
+                    selected: {_days},
+                    showSelectedIcon: false,
+                    onSelectionChanged: (s) => _selectPeriod(s.first),
+                    style: SegmentedButton.styleFrom(
+                      selectedBackgroundColor: _primaryTeal,
+                      selectedForegroundColor: Colors.white,
+                      foregroundColor: _infoColor(context),
+                    ),
                   ),
-                ),
-                const SizedBox(height: 14),
-                if (report == null)
-                  _placeholder(failed: view.failed)
-                else
-                  // Dimmed only while a long history is rebuilt in the
-                  // background; small histories never see this.
-                  AnimatedOpacity(
-                    opacity: view.isStale ? 0.55 : 1,
-                    duration: const Duration(milliseconds: 200),
-                    child: _reportBody(report, grouping),
+                  const SizedBox(height: 14),
+                  if (report == null)
+                    _placeholder(failed: view.failed)
+                  else
+                    // Dimmed only while a long history is rebuilt in the
+                    // background; small histories never see this.
+                    AnimatedOpacity(
+                      opacity: view.isStale ? 0.55 : 1,
+                      duration: const Duration(milliseconds: 200),
+                      child: _reportBody(report, grouping),
+                    ),
+                  const SizedBox(height: 8),
+                  Text(
+                    'This report is worked out from your exercise sessions. Your '
+                    'therapist sees the same results. It is not a medical '
+                    'assessment; ask your therapist about anything that worries you.',
+                    textAlign: TextAlign.center,
+                    style: TextStyle(fontSize: 11, color: context.palette.textMuted),
                   ),
-                const SizedBox(height: 8),
-                Text(
-                  'This report is worked out from your exercise sessions. Your '
-                  'therapist sees the same results. It is not a medical '
-                  'assessment; ask your therapist about anything that worries you.',
-                  textAlign: TextAlign.center,
-                  style: TextStyle(fontSize: 11, color: context.palette.textMuted),
-                ),
-              ],
+                ],
+              ),
             ),
           ),
         ],
