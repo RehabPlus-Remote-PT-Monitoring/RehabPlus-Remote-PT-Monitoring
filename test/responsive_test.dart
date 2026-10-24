@@ -44,8 +44,8 @@ void main() {
         },
       ),
     );
-    // (1280 - 600) / 2 = 340 extra on each side; top/bottom untouched.
-    expect(padding, const EdgeInsets.fromLTRB(356, 16, 356, 16));
+    // (1280 - 680) / 2 = 300 extra on each side; top/bottom untouched.
+    expect(padding, const EdgeInsets.fromLTRB(316, 16, 316, 16));
   });
 
   testWidgets('a swipe in the empty side of the list still scrolls it', (
@@ -68,7 +68,7 @@ void main() {
       ),
     );
 
-    // x = 100 is well outside the centred column (340..940).
+    // x = 100 is well outside the centred column (300..980).
     await tester.dragFrom(const Offset(100, 600), const Offset(0, -300));
     await tester.pumpAndSettle();
     expect(controller.offset, greaterThan(0));
