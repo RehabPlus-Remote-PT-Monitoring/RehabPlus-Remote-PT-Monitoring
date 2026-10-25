@@ -63,6 +63,7 @@ import '../models/session.dart';
 import '../services/app_provider.dart';
 import '../services/app_settings.dart';
 import '../services/camera_rotation.dart';
+import '../services/cast_service.dart';
 import '../services/exercise_geometry.dart';
 import '../services/form_checker.dart';
 import '../widgets/pose_painter.dart';
@@ -89,6 +90,7 @@ class _PoseDetectorScreenState extends State<PoseDetectorScreen>
   // ---------------------------------------------------------------------
 
   static final DiagnosticLogger _log = DiagnosticLogger.I;
+  final CastService _castService = CastService();
 
   /// Bumped whenever a camera is created or torn down. Each frame callback
   /// remembers the generation it was registered with, so frames (and
@@ -696,6 +698,48 @@ class _PoseDetectorScreenState extends State<PoseDetectorScreen>
     _xLast.clear();
     _xIssue.clear();
     _cancelCycle();
+  }
+
+  /// "Cast screen" button: opens the phone's cast settings so the patient
+  /// can mirror this screen to a TV or laptop and read it from where they
+  /// stand. Leaving for Settings pauses the app, which releases the camera;
+  /// didChangeAppLifecycleState restarts it when the patient comes back.
+  /// If the phone has no cast settings page, explain how to cast instead.
+  Future<void> _openCastSettings() async {
+    final opened = await _castService.openCastSettings();
+    if (opened || !mounted) return;
+    await _showCastHelp();
+  }
+
+  Future<void> _showCastHelp() {
+    return showDialog<void>(
+      context: context,
+      builder: (dialogContext) => AlertDialog(
+        title: const Text('Show this screen on a TV'),
+        content: SingleChildScrollView(
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              for (var i = 0; i < castInstructions.length; i++)
+                Padding(
+                  padding: const EdgeInsets.only(bottom: 10),
+                  child: Text(
+                    '${i + 1}. ${castInstructions[i]}',
+                    style: const TextStyle(fontSize: 14, height: 1.35),
+                  ),
+                ),
+            ],
+          ),
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.of(dialogContext).pop(),
+            child: const Text('OK'),
+          ),
+        ],
+      ),
+    );
   }
 
   Future<void> _switchCamera() async {
@@ -2560,6 +2604,11 @@ class _PoseDetectorScreenState extends State<PoseDetectorScreen>
           backgroundColor: isCorrect ? Colors.teal : Colors.red,
           actions: [
             IconButton(
+              icon: const Icon(Icons.cast),
+              tooltip: 'Cast screen to a TV or laptop',
+              onPressed: _openCastSettings,
+            ),
+            IconButton(
               icon: Icon(
                 Icons.flip,
                 color: _mirrorSkeleton ? Colors.white : Colors.white54,
@@ -2629,6 +2678,18 @@ class _PoseDetectorScreenState extends State<PoseDetectorScreen>
                         ),
                       ),
                     ),
+                    const Padding(
+                      padding: EdgeInsets.symmetric(horizontal: 32),
+                      child: Text(
+                        castHint,
+                        textAlign: TextAlign.center,
+                        style: TextStyle(
+                          color: Colors.white70,
+                          fontSize: 13,
+                          shadows: [Shadow(blurRadius: 8)],
+                        ),
+                      ),
+                    ),
                     Text(
                       '$_countdownLeft',
                       style: const TextStyle(
@@ -2655,7 +2716,7 @@ class _PoseDetectorScreenState extends State<PoseDetectorScreen>
                   _FormBanner(form: form),
                   if (_showSetupTip) ...[
                     const SizedBox(height: 6),
-                    _SetupTip(text: exercise.setupTip),
+                    _SetupTip(text: exercise.setupTip, hint: castHint),
                   ],
                 ],
               ),
@@ -3035,7 +3096,10 @@ class _FormBanner extends StatelessWidget {
 /// "Where to stand" reminder under the form banner (see [_showSetupTip]).
 class _SetupTip extends StatelessWidget {
   final String text;
-  const _SetupTip({required this.text});
+
+  /// Smaller second line under the tip (the "tap cast" hint).
+  final String? hint;
+  const _SetupTip({required this.text, this.hint});
 
   @override
   Widget build(BuildContext context) {
@@ -3051,10 +3115,23 @@ class _SetupTip extends StatelessWidget {
           const Icon(Icons.videocam_outlined, color: Colors.white70, size: 16),
           const SizedBox(width: 6),
           Flexible(
-            child: Text(
-              text,
-              textAlign: TextAlign.center,
-              style: const TextStyle(color: Colors.white, fontSize: 13),
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                Text(
+                  text,
+                  textAlign: TextAlign.center,
+                  style: const TextStyle(color: Colors.white, fontSize: 13),
+                ),
+                if (hint != null) ...[
+                  const SizedBox(height: 2),
+                  Text(
+                    hint!,
+                    textAlign: TextAlign.center,
+                    style: const TextStyle(color: Colors.white70, fontSize: 12),
+                  ),
+                ],
+              ],
             ),
           ),
         ],
