@@ -490,7 +490,8 @@ class PinHasher {
     final parsed = _parse(record);
     if (parsed == null) return false;
     final actual = _hash(pin, parsed.salt, parsed.iterations);
-    return _constantTimeEquals(actual, parsed.hash);
+    // Digest's == compares in constant time, so timing leaks nothing.
+    return Digest(actual) == Digest(parsed.hash);
   }
 
   static List<int> _hash(String pin, List<int> salt, int rounds) {
@@ -517,15 +518,6 @@ class PinHasher {
     } on FormatException {
       return null;
     }
-  }
-
-  static bool _constantTimeEquals(List<int> a, List<int> b) {
-    if (a.length != b.length) return false;
-    var diff = 0;
-    for (var i = 0; i < a.length; i++) {
-      diff |= a[i] ^ b[i];
-    }
-    return diff == 0;
   }
 }
 

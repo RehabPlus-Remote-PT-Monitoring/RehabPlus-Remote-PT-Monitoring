@@ -49,6 +49,7 @@ import 'package:flutter/foundation.dart' show WriteBuffer;
 import 'package:flutter/services.dart' show DeviceOrientation;
 
 import 'package:camera/camera.dart';
+import 'package:collection/collection.dart' show IterableDoubleExtension;
 import 'package:vibration/vibration.dart';
 import 'package:audioplayers/audioplayers.dart';
 import 'package:flutter_tts/flutter_tts.dart';
@@ -1099,7 +1100,7 @@ class _PoseDetectorScreenState extends State<PoseDetectorScreen>
     final p2 = lm[b];
     final p3 = lm[c];
     if (p1 == null || p2 == null || p3 == null) return null;
-    return _calculateAngle(p1, p2, p3);
+    return ExerciseGeometry.jointAngle(p1, p2, p3);
   }
 
   /// Like [_jointAngle] but also requires every landmark to be confidently
@@ -1114,11 +1115,10 @@ class _PoseDetectorScreenState extends State<PoseDetectorScreen>
     final p2 = lm[b];
     final p3 = lm[c];
     if (!_vis(p1) || !_vis(p2) || !_vis(p3)) return null;
-    return _calculateAngle(p1!, p2!, p3!);
+    return ExerciseGeometry.jointAngle(p1!, p2!, p3!);
   }
 
-  double _average(List<double> values) =>
-      values.reduce((a, b) => a + b) / values.length;
+  double _average(List<double> values) => values.sum / values.length;
 
   double _distance(PoseLandmark a, PoseLandmark b) {
     final dx = a.x - b.x;
@@ -1137,10 +1137,10 @@ class _PoseDetectorScreenState extends State<PoseDetectorScreen>
       lm[PoseLandmarkType.rightHip],
     ].where(_vis).cast<PoseLandmark>().toList();
     if (s.isEmpty || h.isEmpty) return null;
-    final sx = s.map((p) => p.x).reduce((a, b) => a + b) / s.length;
-    final sy = s.map((p) => p.y).reduce((a, b) => a + b) / s.length;
-    final hx = h.map((p) => p.x).reduce((a, b) => a + b) / h.length;
-    final hy = h.map((p) => p.y).reduce((a, b) => a + b) / h.length;
+    final sx = s.map((p) => p.x).sum / s.length;
+    final sy = s.map((p) => p.y).sum / s.length;
+    final hx = h.map((p) => p.x).sum / h.length;
+    final hy = h.map((p) => p.y).sum / h.length;
     return sqrt((sx - hx) * (sx - hx) + (sy - hy) * (sy - hy));
   }
 
@@ -1289,16 +1289,10 @@ class _PoseDetectorScreenState extends State<PoseDetectorScreen>
           final shoulders = [ls, rs].where(_vis).cast<PoseLandmark>().toList();
           final hips = [lh, rh].where(_vis).cast<PoseLandmark>().toList();
           if (shoulders.isNotEmpty && hips.isNotEmpty) {
-            final sx =
-                shoulders.map((p) => p.x).reduce((a, b) => a + b) /
-                shoulders.length;
-            final sy =
-                shoulders.map((p) => p.y).reduce((a, b) => a + b) /
-                shoulders.length;
-            final hx =
-                hips.map((p) => p.x).reduce((a, b) => a + b) / hips.length;
-            final hy =
-                hips.map((p) => p.y).reduce((a, b) => a + b) / hips.length;
+            final sx = shoulders.map((p) => p.x).sum / shoulders.length;
+            final sy = shoulders.map((p) => p.y).sum / shoulders.length;
+            final hx = hips.map((p) => p.x).sum / hips.length;
+            final hy = hips.map((p) => p.y).sum / hips.length;
             final lean = atan2((sx - hx).abs(), hy - sy) * 180 / pi;
             if (lean > _sitToStandMaxLeanDeg) {
               out.add(
@@ -1515,8 +1509,8 @@ class _PoseDetectorScreenState extends State<PoseDetectorScreen>
 
       case ExerciseType.straightLegRaise:
         if (shoulder != null && hip != null && knee != null && ankle != null) {
-          final kneeAngle = _calculateAngle(hip, knee, ankle);
-          final hipAngle = _calculateAngle(shoulder, hip, knee);
+          final kneeAngle = ExerciseGeometry.jointAngle(hip, knee, ankle);
+          final hipAngle = ExerciseGeometry.jointAngle(shoulder, hip, knee);
           calculatedAngle = hipAngle;
 
           if (kneeAngle >= 150.0) {
@@ -1529,7 +1523,7 @@ class _PoseDetectorScreenState extends State<PoseDetectorScreen>
       case ExerciseType.kneeFlexion:
       case ExerciseType.heelSlide:
         if (hip != null && knee != null && ankle != null) {
-          calculatedAngle = _calculateAngle(hip, knee, ankle);
+          calculatedAngle = ExerciseGeometry.jointAngle(hip, knee, ankle);
           isValidRep = calculatedAngle <= exercise.targetAngle;
           isRestPosition = calculatedAngle >= exercise.restAngle;
         }
@@ -1553,7 +1547,7 @@ class _PoseDetectorScreenState extends State<PoseDetectorScreen>
             ),
           ].whereType<double>().toList();
           if (raised.isNotEmpty) {
-            calculatedAngle = raised.reduce(max);
+            calculatedAngle = raised.max;
             isValidRep = calculatedAngle >= exercise.targetAngle;
             isRestPosition = calculatedAngle <= _restAngle;
           }
@@ -1577,7 +1571,7 @@ class _PoseDetectorScreenState extends State<PoseDetectorScreen>
             ),
           ].whereType<double>().toList();
           if (extended.isNotEmpty) {
-            calculatedAngle = extended.reduce(max);
+            calculatedAngle = extended.max;
             isValidRep = calculatedAngle >= exercise.targetAngle;
             isRestPosition = calculatedAngle <= exercise.restAngle;
           }
@@ -2025,7 +2019,7 @@ class _PoseDetectorScreenState extends State<PoseDetectorScreen>
             final standKnee = leftIsStanding ? lKnee : rKnee;
             final standAnkle = leftIsStanding ? lAnkle : rAnkle;
 
-            final standingKneeAngle = _calculateAngle(
+            final standingKneeAngle = ExerciseGeometry.jointAngle(
               standHip,
               standKnee,
               standAnkle,
@@ -2418,14 +2412,6 @@ class _PoseDetectorScreenState extends State<PoseDetectorScreen>
         ),
       ),
     ).whenComplete(noteController.dispose);
-  }
-
-  double _calculateAngle(PoseLandmark p1, PoseLandmark p2, PoseLandmark p3) {
-    double radians =
-        atan2(p3.y - p2.y, p3.x - p2.x) - atan2(p1.y - p2.y, p1.x - p2.x);
-    double angle = (radians * 180.0 / pi).abs();
-    if (angle > 180.0) angle = 360.0 - angle;
-    return angle;
   }
 
   InputImage? _inputImageFromCameraImage(

@@ -315,10 +315,7 @@ class DiagnosticLogger {
 
   static DiagnosticLevel _levelFromEnvironment() {
     const name = String.fromEnvironment('RP_LOG_LEVEL', defaultValue: 'info');
-    return DiagnosticLevel.values.firstWhere(
-      (level) => level.name == name,
-      orElse: () => DiagnosticLevel.info,
-    );
+    return DiagnosticLevel.values.asNameMap()[name] ?? DiagnosticLevel.info;
   }
 
   static String _newRunId() {

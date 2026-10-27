@@ -5,6 +5,7 @@
 // check-in; never updated or deleted (see firestore.rules: validSession).
 
 import 'package:cloud_firestore/cloud_firestore.dart';
+import 'package:collection/collection.dart';
 
 import 'firestore_fields.dart';
 
@@ -78,8 +79,7 @@ class ExerciseSession {
 
   double get overallCompliance {
     if (repComplianceScores.isEmpty) return 0;
-    return repComplianceScores.reduce((a, b) => a + b) /
-        repComplianceScores.length;
+    return repComplianceScores.sum / repComplianceScores.length;
   }
 
   double get repCompletionRate =>

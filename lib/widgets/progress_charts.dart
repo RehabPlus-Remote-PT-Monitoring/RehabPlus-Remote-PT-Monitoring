@@ -1,3 +1,4 @@
+import 'package:collection/collection.dart' show IterableIntegerExtension;
 import 'package:fl_chart/fl_chart.dart';
 import 'package:flutter/material.dart';
 import 'package:intl/intl.dart' show DateFormat;
@@ -159,7 +160,7 @@ class _SessionsBarChartState extends State<SessionsBarChart> {
     List<ProgressPoint> points,
     _ChartColours colours,
   ) {
-    final most = points.fold(0, (m, p) => p.sessions > m ? p.sessions : m);
+    final most = points.map((p) => p.sessions).maxOrNull ?? 0;
     final maxY = (most < 3 ? 3 : most + 1).toDouble();
     final barWidth = points.length <= 7
         ? 16.0

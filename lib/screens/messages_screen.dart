@@ -349,8 +349,8 @@ class _ThreadTileState extends State<_ThreadTile> {
 
   String _time(DateTime t) {
     final now = DateTime.now();
-    final today = DateTime(now.year, now.month, now.day);
-    final day = DateTime(t.year, t.month, t.day);
+    final today = DateUtils.dateOnly(now);
+    final day = DateUtils.dateOnly(t);
     if (day == today) return DateFormat.jm().format(t);
     if (today.difference(day).inDays == 1) return 'Yesterday';
     if (today.difference(day).inDays < 7) return DateFormat.E().format(t);

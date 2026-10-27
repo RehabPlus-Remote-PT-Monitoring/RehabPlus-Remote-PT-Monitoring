@@ -136,8 +136,8 @@ class _NotificationPageState extends State<NotificationPage> {
 
   String _time(DateTime t) {
     final now = DateTime.now();
-    final today = DateTime(now.year, now.month, now.day);
-    final days = today.difference(DateTime(t.year, t.month, t.day)).inDays;
+    final today = DateUtils.dateOnly(now);
+    final days = today.difference(DateUtils.dateOnly(t)).inDays;
     if (days == 0) return DateFormat.jm().format(t);
     if (days == 1) return 'Yesterday';
     if (days < 7) return DateFormat.EEEE().format(t);

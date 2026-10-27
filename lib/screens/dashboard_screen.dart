@@ -1,6 +1,7 @@
 import 'dart:async';
 import 'dart:math' as math;
 
+import 'package:collection/collection.dart';
 import 'package:flutter/material.dart';
 import 'package:intl/intl.dart' show DateFormat;
 import 'package:phosphor_flutter/phosphor_flutter.dart';
@@ -150,7 +151,7 @@ class _DashboardScreenState extends State<DashboardScreen>
   void _scheduleClockRefresh() {
     _clockTimer?.cancel();
     final now = DateTime.now();
-    final today = DateTime(now.year, now.month, now.day);
+    final today = DateUtils.dateOnly(now);
     final next = [
       today.add(const Duration(hours: 12)),
       today.add(const Duration(hours: 18)),
@@ -1366,7 +1367,7 @@ class _DashboardScreenState extends State<DashboardScreen>
               final widths = List.generate(items.length, itemWidth);
               // Where spaceAround puts the selected item once settled.
               final spacing =
-                  (constraints.maxWidth - widths.reduce((a, b) => a + b)) /
+                  (constraints.maxWidth - widths.sum) /
                   items.length;
               var pillLeft = spacing / 2 + spacing * _bottomNavIndex;
               for (var i = 0; i < _bottomNavIndex; i++) {

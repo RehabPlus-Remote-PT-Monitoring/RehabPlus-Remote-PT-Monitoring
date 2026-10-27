@@ -32,6 +32,7 @@
 
 import 'dart:math';
 
+import 'package:collection/collection.dart' show IterableDoubleExtension;
 import 'package:google_mlkit_pose_detection/google_mlkit_pose_detection.dart';
 
 import '../models/exercise_model.dart';
@@ -128,29 +129,29 @@ class ExerciseGeometry {
 
       // Degrees the leg is out from the line of the body (front view),
       // taking the leg that is further out.
-      ExerciseType.hipAbduction => _max([
+      ExerciseType.hipAbduction => [
         _abduction(lm, _left),
         _abduction(lm, _right),
-      ]),
+      ].nonNulls.maxOrNull,
 
       // Knee bend of the working leg, which is the more bent one (side view).
-      ExerciseType.hamstringCurl => _min([
+      ExerciseType.hamstringCurl => [
         _angle(lm, _left.hip, _left.knee, _left.ankle),
         _angle(lm, _right.hip, _right.knee, _right.ankle),
-      ]),
+      ].nonNulls.minOrNull,
 
       // Hip angle (shoulder-hip-knee) of the lifted leg, the smaller one
       // (side view). Legs alternate, and each lift is one rep.
-      ExerciseType.marching => _min([
+      ExerciseType.marching => [
         _angle(lm, _left.shoulder, _left.hip, _left.knee),
         _angle(lm, _right.shoulder, _right.hip, _right.knee),
-      ]),
+      ].nonNulls.minOrNull,
 
       // Arm against the body (hip-shoulder-wrist), the higher arm (side view).
-      ExerciseType.overheadRaise => _max([
+      ExerciseType.overheadRaise => [
         _angle(lm, _left.hip, _left.shoulder, _left.wrist),
         _angle(lm, _right.hip, _right.shoulder, _right.wrist),
-      ]),
+      ].nonNulls.maxOrNull,
 
       _ => null,
     };
@@ -216,10 +217,10 @@ class ExerciseGeometry {
     // counting doesn't stall in poor light (same as the other exercises).
     final visible = leftSure ?? rightSure;
     if (visible != null) return (working: visible, resting: null);
-    final guessed = _max([
+    final guessed = [
       _angle(lm, _left.hip, _left.knee, _left.ankle),
       _angle(lm, _right.hip, _right.knee, _right.ankle),
-    ]);
+    ].nonNulls.maxOrNull;
     return guessed == null ? null : (working: guessed, resting: null);
   }
 
@@ -246,10 +247,8 @@ class ExerciseGeometry {
       lm[_right.hip],
     ].whereType<PoseLandmark>().toList();
     if (shoulders.isEmpty || hips.isEmpty) return null;
-    double meanX(List<PoseLandmark> ps) =>
-        ps.map((p) => p.x).reduce((a, b) => a + b) / ps.length;
-    double meanY(List<PoseLandmark> ps) =>
-        ps.map((p) => p.y).reduce((a, b) => a + b) / ps.length;
+    double meanX(List<PoseLandmark> ps) => ps.map((p) => p.x).sum / ps.length;
+    double meanY(List<PoseLandmark> ps) => ps.map((p) => p.y).sum / ps.length;
     final dx = meanX(shoulders) - meanX(hips);
     final dy = meanY(shoulders) - meanY(hips);
     final length = sqrt(dx * dx + dy * dy);
@@ -412,6 +411,21 @@ class ExerciseGeometry {
   // Helpers
   // ---------------------------------------------------------------------
 
+  /// Joint angle at [b] between the limbs going to [a] and [c], in degrees
+  /// (0..180). For example hip-knee-ankle gives the knee bend: 180 is a
+  /// straight leg. Pure math, no visibility checks: callers decide which
+  /// landmarks are confident enough to use.
+  ///
+  /// This is the one shared copy of the formula; ExerciseGeometry,
+  /// FormChecker and the exercise screen all call it.
+  static double jointAngle(PoseLandmark a, PoseLandmark b, PoseLandmark c) {
+    final radians =
+        atan2(c.y - b.y, c.x - b.x) - atan2(a.y - b.y, a.x - b.x);
+    var degrees = (radians * 180 / pi).abs();
+    if (degrees > 180) degrees = 360 - degrees;
+    return degrees;
+  }
+
   /// Angle at [b] between [a] and [c], in degrees (0..180). Null if a
   /// landmark is missing, or below [minLikelihood] when one is given.
   static double? _angle(
@@ -429,11 +443,7 @@ class ExerciseGeometry {
             p3.likelihood < minLikelihood)) {
       return null;
     }
-    final radians =
-        atan2(p3.y - p2.y, p3.x - p2.x) - atan2(p1.y - p2.y, p1.x - p2.x);
-    var degrees = (radians * 180 / pi).abs();
-    if (degrees > 180) degrees = 360 - degrees;
-    return degrees;
+    return jointAngle(p1, p2, p3);
   }
 
   /// How far (degrees) the thigh on [side] is out from the line of the
@@ -496,10 +506,8 @@ class ExerciseGeometry {
     ], minLikelihood);
     final hips = _confident(lm, [_left.hip, _right.hip], minLikelihood);
     if (shoulders.isEmpty || hips.isEmpty) return null;
-    double meanX(List<PoseLandmark> ps) =>
-        ps.map((p) => p.x).reduce((a, b) => a + b) / ps.length;
-    double meanY(List<PoseLandmark> ps) =>
-        ps.map((p) => p.y).reduce((a, b) => a + b) / ps.length;
+    double meanX(List<PoseLandmark> ps) => ps.map((p) => p.x).sum / ps.length;
+    double meanY(List<PoseLandmark> ps) => ps.map((p) => p.y).sum / ps.length;
     final dx = (meanX(shoulders) - meanX(hips)).abs();
     final up = meanY(hips) - meanY(shoulders); // y grows downward
     return atan2(dx, up) * 180 / pi;
@@ -529,20 +537,13 @@ class ExerciseGeometry {
     anchor: side.knee,
   );
 
+  /// Mean of the values that are present, or null when none are.
+  /// (Not collection's `.average`: that uses a running mean, whose rounding
+  /// can differ in the last digit from sum / count.)
   static double? _mean(List<double?> values) {
-    final present = values.whereType<double>().toList();
+    final present = values.nonNulls.toList();
     if (present.isEmpty) return null;
-    return present.reduce((a, b) => a + b) / present.length;
-  }
-
-  static double? _max(List<double?> values) {
-    final present = values.whereType<double>().toList();
-    return present.isEmpty ? null : present.reduce(max);
-  }
-
-  static double? _min(List<double?> values) {
-    final present = values.whereType<double>().toList();
-    return present.isEmpty ? null : present.reduce(min);
+    return present.sum / present.length;
   }
 }
 

@@ -25,6 +25,10 @@
 // compare instants against precomputed window boundaries and use integer
 // day keys instead of building a DateTime per session.
 
+import 'dart:math';
+
+import 'package:collection/collection.dart';
+
 import '../models/session.dart';
 
 /// Calendar-day helpers (local time, daylight-saving safe).
@@ -88,8 +92,8 @@ extension ProgressSessionValues on ExerciseSession {
   /// Reported pain clamped to 0–10, or null when none was reported.
   double? get safePain => painLevel?.clamp(0, 10).toDouble();
 
-  int get safeTargetReps => targetReps < 0 ? 0 : targetReps;
-  int get safeCompletedReps => completedReps < 0 ? 0 : completedReps;
+  int get safeTargetReps => max(0, targetReps);
+  int get safeCompletedReps => max(0, completedReps);
 }
 
 /// Totals for one time window.
@@ -227,7 +231,7 @@ class ProgressStats {
       for (final w in windows)
         if (w >= 1) w,
     ];
-    final longest = valid.fold(0, (m, w) => w > m ? w : m);
+    final longest = valid.maxOrNull ?? 0;
     // Oldest instant any window looks at (two back-to-back windows).
     final oldest = CalendarDays.addDays(tomorrow, -2 * longest);
     final earliest = oldest.isBefore(monday) ? oldest : monday;

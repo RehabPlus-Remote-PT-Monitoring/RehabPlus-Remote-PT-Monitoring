@@ -1,3 +1,5 @@
+import 'dart:math' as math;
+
 import 'package:flutter/material.dart';
 import 'package:phosphor_flutter/phosphor_flutter.dart';
 import 'package:provider/provider.dart';
@@ -38,7 +40,7 @@ class _HistorySummary {
     var sets = 0;
     var compliance = 0.0;
     for (final s in sessions) {
-      sets += s.completedSets < 0 ? 0 : s.completedSets;
+      sets += math.max(0, s.completedSets);
       // NaN-safe: a NaN here used to throw in toInt() and break the screen.
       compliance += s.safeCompliance;
     }

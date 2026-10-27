@@ -106,6 +106,39 @@ void main() {
     expect(reading.atTarget, isFalse);
   });
 
+  group('jointAngle (shared by geometry, form checker and the screen)', () {
+    PoseLandmark at(double x, double y) => PoseLandmark(
+      type: PoseLandmarkType.nose,
+      x: x,
+      y: y,
+      z: 0,
+      likelihood: 1,
+    );
+
+    test('straight limb is 180, right angle is 90', () {
+      expect(
+        ExerciseGeometry.jointAngle(at(0, 0), at(0, 100), at(0, 200)),
+        closeTo(180, 1e-9),
+      );
+      expect(
+        ExerciseGeometry.jointAngle(at(0, 0), at(0, 100), at(100, 100)),
+        closeTo(90, 1e-9),
+      );
+    });
+
+    test('never goes above 180, whichever way the limb bends', () {
+      // 45 degrees, bent to the left and to the right of the joint.
+      expect(
+        ExerciseGeometry.jointAngle(at(0, 0), at(0, 100), at(100, 0)),
+        closeTo(45, 1e-9),
+      );
+      expect(
+        ExerciseGeometry.jointAngle(at(0, 0), at(0, 100), at(-100, 0)),
+        closeTo(45, 1e-9),
+      );
+    });
+  });
+
   group('Mini Squat', () {
     const type = ExerciseType.miniSquat;
 

@@ -772,11 +772,7 @@ class FormChecker {
   ) {
     final p1 = lm[a], p2 = lm[b], p3 = lm[c];
     if (!_ok(p1) || !_ok(p2) || !_ok(p3)) return null;
-    final rad =
-        atan2(p3!.y - p2!.y, p3.x - p2.x) - atan2(p1!.y - p2.y, p1.x - p2.x);
-    var deg = (rad * 180 / pi).abs();
-    if (deg > 180) deg = 360 - deg;
-    return deg;
+    return ExerciseGeometry.jointAngle(p1!, p2!, p3!);
   }
 
   void _checkExerciseSpecific(

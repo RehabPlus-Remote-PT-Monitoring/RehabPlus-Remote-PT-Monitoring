@@ -1,3 +1,4 @@
+import 'package:collection/collection.dart';
 import 'package:flutter/material.dart';
 // `show`: the full intl library also exports a TextDirection that clashes
 // with Flutter's.
@@ -88,9 +89,9 @@ class _ProfileScreenState extends State<ProfileScreen> {
         final sessions = provider.sessionHistory;
         final avgCompliance = sessions.isEmpty
             ? 0.0
-            : sessions.map((s) => s.overallCompliance).reduce((a, b) => a + b) / sessions.length;
-        final totalSets = sessions.fold(0, (sum, s) => sum + s.completedSets);
-        final totalReps = sessions.fold(0, (sum, s) => sum + s.completedReps);
+            : sessions.map((s) => s.overallCompliance).sum / sessions.length;
+        final totalSets = sessions.map((s) => s.completedSets).sum;
+        final totalReps = sessions.map((s) => s.completedReps).sum;
 
         return Scaffold(
           backgroundColor: context.palette.background,
@@ -337,10 +338,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
 
   // Groups sessions by exercise name, most-performed first.
   Map<String, List<ExerciseSession>> _groupByExercise(List<ExerciseSession> sessions) {
-    final grouped = <String, List<ExerciseSession>>{};
-    for (final s in sessions) {
-      grouped.putIfAbsent(s.exerciseName, () => []).add(s);
-    }
+    final grouped = groupBy(sessions, (ExerciseSession s) => s.exerciseName);
     return Map.fromEntries(
       grouped.entries.toList()..sort((a, b) => b.value.length.compareTo(a.value.length)),
     );
@@ -399,7 +397,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
     // "10 reps each"; if they varied, fall back to a total instead.
     final repsLabel = repCounts.length == 1
         ? '${repCounts.first} reps each'
-        : '${sessions.fold(0, (sum, s) => sum + s.completedReps)} reps total';
+        : '${sessions.map((s) => s.completedReps).sum} reps total';
     final palette = context.palette;
 
     return Padding(
