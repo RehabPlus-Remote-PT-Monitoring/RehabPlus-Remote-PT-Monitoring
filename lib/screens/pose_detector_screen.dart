@@ -67,6 +67,7 @@ import '../services/camera_rotation.dart';
 import '../services/cast_service.dart';
 import '../services/exercise_geometry.dart';
 import '../services/form_checker.dart';
+import '../services/tracking_health.dart';
 import '../widgets/pose_painter.dart';
 
 class PoseDetectorScreen extends StatefulWidget {
@@ -158,6 +159,34 @@ class _PoseDetectorScreenState extends State<PoseDetectorScreen>
 
   /// Pose analysis cap (ms between processed frames). ~15 fps.
   static const int _minFrameIntervalMs = 66;
+
+  /// Camera frame rate requested from the camera. Analysis is capped at
+  /// ~15 fps above, so frames beyond 15 per second are thrown away; asking
+  /// the camera for 15 saves CPU on phones that would otherwise run at 30.
+  /// Most Android cameras support a fixed 15 fps range; if this one rejects
+  /// it, [_useFpsCap] turns off and the camera is restarted without it.
+  static const int _cameraFps = 15;
+  bool _useFpsCap = true;
+
+  /// Slow-tracking helpers (lib/services/tracking_health.dart): rep timing by
+  /// capture time, the "tracking is slow" warning, and hiding stale
+  /// skeletons. All timestamps come from [_frameClock].
+  final RepClock _repClock = RepClock();
+  final TrackingHealth _trackingHealth = TrackingHealth();
+
+  /// Capture time of the frame whose result is being analysed right now.
+  int _frameCapturedMs = 0;
+
+  /// Capture time of the pose currently on screen, and whether it is too old
+  /// to draw (see [maxPoseAgeMs]).
+  int? _poseCapturedMs;
+  bool _skeletonStale = false;
+  Timer? _staleSkeletonTimer;
+
+  /// Screen casting state, polled while this screen is open (casting slows
+  /// ML Kit down a lot on low-end phones; the slow-tracking banner says so).
+  bool _isCasting = false;
+  Timer? _castPollTimer;
 
   /// false = whole frame visible (letterboxed). true = fill and crop.
   static const bool _coverPreview = false;
@@ -408,7 +437,6 @@ class _PoseDetectorScreenState extends State<PoseDetectorScreen>
   // ---- Rep cycle (a rep = leave rest, reach target, come back) ----
   bool _cycleActive = false;
   bool _awaitRest = false; // rep already judged; wait until fully at rest
-  DateTime? _cycleStart;
   FormIssue? _cycleViolation; // first debounced form fault seen during the rep
   FormIssue? _cycleFaultIssue; // first raw (instant) fault seen during the rep
   int _cycleFaultFrames = 0; // frames with a raw fault during the rep
@@ -493,7 +521,32 @@ class _PoseDetectorScreenState extends State<PoseDetectorScreen>
     unawaited(_initVoice());
     _initPoseDetector();
     unawaited(_initCamera());
+    _startCastPolling();
   }
+
+  /// Checks every few seconds whether the screen is being cast, so the
+  /// slow-tracking banner can name casting as the likely cause.
+  void _startCastPolling() {
+    unawaited(_pollCasting());
+    _castPollTimer = Timer.periodic(
+      const Duration(seconds: 3),
+      (_) => unawaited(_pollCasting()),
+    );
+  }
+
+  Future<void> _pollCasting() async {
+    if (_appInBackground || _isSessionComplete) return;
+    final casting = await _castService.isCasting();
+    if (!mounted || casting == _isCasting) return;
+    _log.info('Cast', casting ? 'Casting started' : 'Casting stopped', {
+      'trackingFps': _round1(
+        _trackingHealth.fps(_frameClock.elapsedMilliseconds),
+      ),
+    });
+    setState(() => _isCasting = casting);
+  }
+
+  static double _round1(double v) => (v * 10).roundToDouble() / 10;
 
   void _initPoseDetector() {
     // "base" is the lightweight model: same 33 landmarks as "accurate" at a
@@ -551,6 +604,7 @@ class _PoseDetectorScreenState extends State<PoseDetectorScreen>
         camera,
         ResolutionPreset.low,
         enableAudio: false,
+        fps: _useFpsCap ? _cameraFps : null,
         imageFormatGroup: ImageFormatGroup.nv21,
       );
       _cameraController = controller;
@@ -586,6 +640,7 @@ class _PoseDetectorScreenState extends State<PoseDetectorScreen>
         'sensorOrientation': camera.sensorOrientation,
         'preset': 'low',
         'requestedFormat': 'nv21',
+        'requestedFps': _useFpsCap ? _cameraFps : null,
         'preview': _resolutionLabel,
         'cameras': _availableCameras.length,
         'gen': generation,
@@ -603,6 +658,22 @@ class _PoseDetectorScreenState extends State<PoseDetectorScreen>
           'gen': generation,
         });
         if (controller != null) await _releaseController(controller);
+        return;
+      }
+      final isPermissionError = e.code.startsWith('CameraAccess');
+      if (_useFpsCap && !isPermissionError && e.code != 'NoCamera') {
+        // This camera may not support a fixed 15 fps range. Retry once
+        // without the cap before showing an error.
+        _useFpsCap = false;
+        _log.warn(
+          'PoseCamera',
+          'Camera init failed with fps cap; retrying without it',
+          {'code': e.code, 'fps': _cameraFps, 'lens': _lensDirection.name},
+          e,
+          st,
+        );
+        await _disposeCamera();
+        _reinitCameraWhenDone = true; // picked up by the finally block
         return;
       }
       _log.error(
@@ -694,6 +765,11 @@ class _PoseDetectorScreenState extends State<PoseDetectorScreen>
   }
 
   void _resetTracking() {
+    // A camera pause/restart is not a slow frame: start the timing over.
+    _repClock.reset();
+    _trackingHealth.reset();
+    _staleSkeletonTimer?.cancel();
+    _skeletonStale = false;
     _checker.reset();
     _xFirst.clear();
     _xLast.clear();
@@ -879,6 +955,7 @@ class _PoseDetectorScreenState extends State<PoseDetectorScreen>
     _stats.onReceived();
     final nowMs = _frameClock.elapsedMilliseconds;
     if (_stats.isWindowDue(nowMs)) _logPipelineWindow(nowMs);
+    _updateTrackingHealth(nowMs);
 
     if (!mounted ||
         _isSessionComplete ||
@@ -920,7 +997,39 @@ class _PoseDetectorScreenState extends State<PoseDetectorScreen>
       });
     }
 
-    unawaited(_processFrame(image, camera, gen));
+    unawaited(_processFrame(image, camera, gen, nowMs));
+  }
+
+  /// Re-checks the analysed-frame rate on every camera frame (cheap), so the
+  /// slow-tracking banner also appears while ML Kit is stuck on one frame
+  /// and no results are arriving at all.
+  void _updateTrackingHealth(int nowMs) {
+    if (!mounted || _isSessionComplete) return;
+    if (!_trackingHealth.update(nowMs)) return;
+    _log.info(
+      'PosePipeline',
+      _trackingHealth.isSlow ? 'Tracking is slow' : 'Tracking recovered',
+      {
+        'trackingFps': _round1(_trackingHealth.fps(nowMs)),
+        'casting': _isCasting,
+      },
+    );
+    setState(() {});
+  }
+
+  /// Hides the skeleton once it is older than [maxPoseAgeMs], so a slow
+  /// phone never draws it trailing behind the patient.
+  void _scheduleSkeletonExpiry(int capturedMs) {
+    _staleSkeletonTimer?.cancel();
+    final ageMs = _frameClock.elapsedMilliseconds - capturedMs;
+    if (ageMs > maxPoseAgeMs) return; // already stale
+    _staleSkeletonTimer = Timer(
+      Duration(milliseconds: maxPoseAgeMs - ageMs + 1),
+      () {
+        if (!mounted || _poseCapturedMs != capturedMs) return;
+        setState(() => _skeletonStale = true);
+      },
+    );
   }
 
   void _logPipelineWindow(int nowMs) {
@@ -930,13 +1039,21 @@ class _PoseDetectorScreenState extends State<PoseDetectorScreen>
     window['reps'] = _repCounter;
     window['rejected'] = _rejectedReps;
     window['countingDown'] = _countingDown;
+    window['trackingFps'] = _round1(_trackingHealth.fps(nowMs));
+    window['trackingSlow'] = _trackingHealth.isSlow;
+    window['casting'] = _isCasting;
+    window['skeletonStale'] = _skeletonStale;
     _log.info('PosePipeline', 'Pipeline window', window);
   }
 
+  /// [capturedMs] is when the camera delivered this frame ([_frameClock]).
+  /// Rep timing and skeleton age use it instead of the time the result
+  /// arrives, because ML Kit's latency varies a lot on slow phones.
   Future<void> _processFrame(
     CameraImage image,
     CameraDescription camera,
     int gen,
+    int capturedMs,
   ) async {
     _isProcessing = true;
     _stallReported = false;
@@ -962,6 +1079,10 @@ class _PoseDetectorScreenState extends State<PoseDetectorScreen>
         _stats.onResultDiscarded();
         return;
       }
+
+      _frameCapturedMs = capturedMs;
+      _repClock.onFrame(capturedMs);
+      _trackingHealth.onProcessed(capturedMs);
 
       // Judge the form first so the overlay and the rep logic agree.
       final FormResult form;
@@ -1008,12 +1129,19 @@ class _PoseDetectorScreenState extends State<PoseDetectorScreen>
       }
 
       if (!mounted) return;
+      final skeletonStale = isPoseStale(
+        capturedMs: capturedMs,
+        nowMs: _frameClock.elapsedMilliseconds,
+      );
       setState(() {
         _detectedPoses = poses;
+        _poseCapturedMs = capturedMs;
+        _skeletonStale = skeletonStale;
         _imageSize = swap ? Size(h, w) : Size(w, h);
         _rotation = rotation;
         _form = form;
       });
+      _scheduleSkeletonExpiry(capturedMs);
       if (_settings.voiceCues) {
         final tip = _effectiveForm.primary?.message;
         if (tip != null && tip.isNotEmpty) _speak(tip);
@@ -1765,7 +1893,7 @@ class _PoseDetectorScreenState extends State<PoseDetectorScreen>
 
     if (!_cycleActive) {
       _cycleActive = true;
-      _cycleStart = DateTime.now();
+      _repClock.startCycle(_frameCapturedMs);
       _cycleViolation = null;
       _cycleFaultIssue = null;
       _cycleFaultFrames = 0;
@@ -1830,9 +1958,11 @@ class _PoseDetectorScreenState extends State<PoseDetectorScreen>
 
   void _finishCycle() {
     final exercise = widget.selectedExercise;
-    final ms = DateTime.now()
-        .difference(_cycleStart ?? DateTime.now())
-        .inMilliseconds;
+    // Timed by frame capture, not result arrival (see RepClock). When the
+    // frames were too far apart, the duration is too uncertain to call the
+    // rep "too fast", so that one rule is skipped for this rep.
+    final ms = _repClock.durationMs(_frameCapturedMs);
+    final speedMeasurable = _repClock.speedMeasurable;
 
     if (_stage == "up") {
       final bad =
@@ -1856,7 +1986,7 @@ class _PoseDetectorScreenState extends State<PoseDetectorScreen>
           rule: 'backAndForth',
           ms: ms,
         );
-      } else if (ms < _minRepMs) {
+      } else if (ms < _minRepMs && speedMeasurable) {
         _rejectRep(
           const FormIssue(
             code: FormIssueCode.tooFast,
@@ -1873,6 +2003,8 @@ class _PoseDetectorScreenState extends State<PoseDetectorScreen>
           'rep': _repCounter,
           'target': exercise.targetReps,
           'ms': ms,
+          'speedChecked': speedMeasurable,
+          'maxGapMs': _repClock.maxGapMs,
           'targetHits': _targetHits,
           'faultFrames': _cycleFaultFrames,
           'maxProgress': _round2(_maxProgress),
@@ -1908,6 +2040,7 @@ class _PoseDetectorScreenState extends State<PoseDetectorScreen>
       'code': issue.code.name,
       'ms': ms,
       'minRepMs': _minRepMs,
+      'maxGapMs': _repClock.maxGapMs,
       'targetHits': _targetHits,
       'faultFrames': _cycleFaultFrames,
       'faultFrameLimit': _faultFrameLimit,
@@ -1924,7 +2057,7 @@ class _PoseDetectorScreenState extends State<PoseDetectorScreen>
   void _cancelCycle() {
     _cycleActive = false;
     _awaitRest = false;
-    _cycleStart = null;
+    _repClock.cancel();
     _cycleViolation = null;
     _cycleFaultIssue = null;
     _cycleFaultFrames = 0;
@@ -2474,6 +2607,8 @@ class _PoseDetectorScreenState extends State<PoseDetectorScreen>
   void dispose() {
     WidgetsBinding.instance.removeObserver(this);
     _countdownTimer?.cancel();
+    _staleSkeletonTimer?.cancel();
+    _castPollTimer?.cancel();
     _logSessionSummary('closed');
     unawaited(
       _audioPlayer.dispose().catchError(
@@ -2618,7 +2753,8 @@ class _PoseDetectorScreenState extends State<PoseDetectorScreen>
 
             if (_settings.showSkeleton &&
                 _imageSize != null &&
-                _detectedPoses.isNotEmpty)
+                _detectedPoses.isNotEmpty &&
+                !_skeletonStale)
               RepaintBoundary(
                 child: CustomPaint(
                   painter: PosePainter(
@@ -2703,6 +2839,10 @@ class _PoseDetectorScreenState extends State<PoseDetectorScreen>
                   if (_showSetupTip) ...[
                     const SizedBox(height: 6),
                     _SetupTip(text: exercise.setupTip, hint: castHint),
+                  ],
+                  if (_trackingHealth.isSlow && !_countingDown) ...[
+                    const SizedBox(height: 6),
+                    _SlowTrackingBanner(casting: _isCasting),
                   ],
                 ],
               ),
@@ -3080,6 +3220,49 @@ class _FormBanner extends StatelessWidget {
 }
 
 /// "Where to stand" reminder under the form banner (see [_showSetupTip]).
+/// Amber note shown while pose tracking runs slowly (see TrackingHealth):
+/// the skeleton may disappear and reps may count late. Names casting as the
+/// likely cause when the screen is being cast, since on low-end phones that
+/// can make tracking 3-10x slower.
+class _SlowTrackingBanner extends StatelessWidget {
+  final bool casting;
+  const _SlowTrackingBanner({required this.casting});
+
+  @override
+  Widget build(BuildContext context) {
+    final message = casting
+        ? 'Tracking is slow while casting. Close other apps, or stop casting '
+              'if reps are not counting.'
+        : 'Tracking is slow on this phone right now. Close other apps to '
+              'speed it up.';
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+      decoration: BoxDecoration(
+        color: Colors.amber.shade800.withValues(alpha: 0.9),
+        borderRadius: BorderRadius.circular(12),
+      ),
+      child: Row(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          Icon(
+            casting ? Icons.cast_connected : Icons.speed,
+            color: Colors.white,
+            size: 16,
+          ),
+          const SizedBox(width: 6),
+          Flexible(
+            child: Text(
+              message,
+              textAlign: TextAlign.center,
+              style: const TextStyle(color: Colors.white, fontSize: 13),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
 class _SetupTip extends StatelessWidget {
   final String text;
 

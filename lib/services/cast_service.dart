@@ -32,6 +32,10 @@ class CastService {
   final bool _isAndroid;
   final DiagnosticLogger _log = DiagnosticLogger.I;
 
+  /// [isCasting] is polled every few seconds, so its failure is logged once,
+  /// not on every poll.
+  bool _isCastingFailureLogged = false;
+
   /// Tries to open the system cast settings.
   ///
   /// Returns true if a settings page opened. Returns false (never throws)
@@ -58,6 +62,22 @@ class CastService {
       return false;
     } on PlatformException catch (e, st) {
       _log.warn('Cast', 'Opening cast settings failed', null, e, st);
+      return false;
+    }
+  }
+
+  /// Whether the screen is currently being cast to a TV or external display.
+  /// False (never throws) when unknown, e.g. off Android or on failure.
+  Future<bool> isCasting() async {
+    if (!_isAndroid) return false;
+    try {
+      return await _channel.invokeMethod<bool>('isCasting') ?? false;
+    } on Exception catch (e, st) {
+      // MissingPluginException / PlatformException: treat as not casting.
+      if (!_isCastingFailureLogged) {
+        _isCastingFailureLogged = true;
+        _log.warn('Cast', 'Could not check casting state', null, e, st);
+      }
       return false;
     }
   }

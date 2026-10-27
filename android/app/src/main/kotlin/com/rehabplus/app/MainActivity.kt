@@ -4,9 +4,11 @@ import android.app.NotificationChannel
 import android.app.NotificationManager
 import android.content.ActivityNotFoundException
 import android.content.Intent
+import android.hardware.display.DisplayManager
 import android.os.Bundle
 import android.provider.Settings
 import android.util.Log
+import android.view.Display
 import io.flutter.embedding.android.FlutterFragmentActivity
 import io.flutter.embedding.engine.FlutterEngine
 import io.flutter.plugin.common.MethodChannel
@@ -45,6 +47,7 @@ class MainActivity : FlutterFragmentActivity() {
             .setMethodCallHandler { call, result ->
                 when (call.method) {
                     "openCastSettings" -> result.success(openCastSettings())
+                    "isCasting" -> result.success(isCasting())
                     else -> result.notImplemented()
                 }
             }
@@ -67,6 +70,19 @@ class MainActivity : FlutterFragmentActivity() {
             }
         }
         return null
+    }
+
+    // True while the screen is being sent to a TV or other external display
+    // (Miracast / Screen Cast, HDMI). Those show up as an extra display in the
+    // PRESENTATION category; the phone's own screen is DEFAULT_DISPLAY. Used
+    // to explain slow pose tracking while casting (casting competes with ML
+    // Kit for the CPU on low-end phones).
+    private fun isCasting(): Boolean {
+        val displayManager = getSystemService(DisplayManager::class.java)
+            ?: return false
+        return displayManager
+            .getDisplays(DisplayManager.DISPLAY_CATEGORY_PRESENTATION)
+            .any { it.displayId != Display.DEFAULT_DISPLAY }
     }
 
     private companion object {

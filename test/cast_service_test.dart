@@ -52,4 +52,32 @@ void main() {
     expect(await CastService(isAndroid: false).openCastSettings(), isFalse);
     expect(called, isFalse);
   });
+
+  group('isCasting', () {
+    test('passes through the native answer', () async {
+      answerWith((call) async => call.method == 'isCasting');
+      expect(await CastService(isAndroid: true).isCasting(), isTrue);
+    });
+
+    test('is false on a platform error or a missing handler', () async {
+      answerWith((_) async => throw PlatformException(code: 'boom'));
+      final service = CastService(isAndroid: true);
+      expect(await service.isCasting(), isFalse);
+      // Polled every few seconds: repeated failures must not throw either.
+      expect(await service.isCasting(), isFalse);
+
+      messenger.setMockMethodCallHandler(channel, null);
+      expect(await CastService(isAndroid: true).isCasting(), isFalse);
+    });
+
+    test('is false off Android without calling the channel', () async {
+      var called = false;
+      answerWith((_) async {
+        called = true;
+        return true;
+      });
+      expect(await CastService(isAndroid: false).isCasting(), isFalse);
+      expect(called, isFalse);
+    });
+  });
 }
