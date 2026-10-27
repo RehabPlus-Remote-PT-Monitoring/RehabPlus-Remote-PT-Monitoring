@@ -41,9 +41,6 @@ rehabplus/
 ├── android/                 # Android platform files
 ├── ios/                     # iOS platform files
 ├── web/                     # Web platform files
-├── linux/                   # Linux desktop config
-├── macos/                   # macOS desktop config
-├── windows/                 # Windows desktop config
 ├── test/                    # Unit/widget tests
 ├── assets/                  # Images, fonts, models
 ├── pubspec.yaml             # Flutter dependencies
