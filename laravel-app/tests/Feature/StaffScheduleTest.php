@@ -27,7 +27,7 @@ class StaffScheduleTest extends TestCase
 
         $this->get('/schedule')
             ->assertOk()
-            ->assertSee('Dr. Real Therapist')
+            ->assertSee('Dr. Real Therapist (Physical Therapist)')
             ->assertDontSee('Some Patient')
             ->assertDontSee('Former Staffer')
             ->assertDontSee('Dr. Sarah Mitchell');
@@ -38,8 +38,7 @@ class StaffScheduleTest extends TestCase
         $today = Carbon::today()->format('l');
 
         $this->post('/schedule/save', [
-            'staff' => 'Dr. Real Therapist',
-            'role' => 'Therapist',
+            'staff_id' => 'th1',
             'day' => $today,
             'shift' => '08:00 - 15:00',
             'room' => 'Room 3',
@@ -47,22 +46,36 @@ class StaffScheduleTest extends TestCase
 
         $shifts = array_values($this->docsLike('staffShifts/*'));
         $this->assertCount(1, $shifts);
-        $this->assertSame(['staff' => 'Dr. Real Therapist', 'role' => 'Therapist', 'day' => $today, 'shift' => '08:00 - 15:00', 'room' => 'Room 3'],
-            array_intersect_key($shifts[0], array_flip(['staff', 'role', 'day', 'shift', 'room'])));
+        $this->assertSame(['staffId' => 'th1', 'staff' => 'Dr. Real Therapist', 'role' => 'therapist', 'day' => $today, 'shift' => '08:00 - 15:00', 'room' => 'Room 3'],
+            array_intersect_key($shifts[0], array_flip(['staffId', 'staff', 'role', 'day', 'shift', 'room'])));
         $this->assertArrayHasKey('createdAt', $shifts[0]);
 
         $this->get('/schedule')->assertOk()->assertSee('08:00 - 15:00')->assertSee('Available');
+    }
+
+    public function test_role_comes_from_the_account_not_from_the_form(): void
+    {
+        // A client that sends its own role is ignored: the stored role is the account's.
+        $this->post('/schedule/save', [
+            'staff_id' => 'th1',
+            'role' => 'admin',
+            'day' => 'Monday',
+            'shift' => '08:00 - 12:00',
+            'room' => 'Room 4',
+        ])->assertRedirect('/schedule');
+
+        $shift = array_values($this->docsLike('staffShifts/*'))[0];
+        $this->assertSame('therapist', $shift['role']);
     }
 
     public function test_overlapping_shift_in_same_room_is_rejected(): void
     {
         $this->staff('therapist', 'thA', 'A');
         $this->staff('staff', 'stB', 'B');
-        $this->docs['staffShifts/s1'] = ['staff' => 'A', 'role' => 'Therapist', 'day' => 'Monday', 'shift' => '08:00 - 12:00', 'room' => 'Room 1'];
+        $this->docs['staffShifts/s1'] = ['staffId' => 'thA', 'staff' => 'A', 'role' => 'therapist', 'day' => 'Monday', 'shift' => '08:00 - 12:00', 'room' => 'Room 1'];
 
         $this->post('/schedule/save', [
-            'staff' => 'B',
-            'role' => 'Therapist',
+            'staff_id' => 'stB',
             'day' => 'Monday',
             'shift' => '10:00 - 14:00',
             'room' => 'Room 1',
@@ -87,21 +100,20 @@ class StaffScheduleTest extends TestCase
             ->assertViewHas('todayShifts', 0);
     }
 
-    public function test_admins_and_unknown_names_cannot_be_given_shifts_or_time_off(): void
+    public function test_admins_and_unknown_accounts_cannot_be_given_shifts_or_time_off(): void
     {
         $this->staff('admin', 'adm2', 'Second Clinic Admin');
 
-        foreach (['Second Clinic Admin', 'Admin', 'Nobody At All'] as $name) {
+        foreach (['adm2', 'adm', 'nobody-at-all'] as $uid) {
             $this->post('/schedule/save', [
-                'staff' => $name,
-                'role' => 'Therapist',
+                'staff_id' => $uid,
                 'day' => 'Monday',
                 'shift' => '08:00 - 12:00',
                 'room' => 'Room 1',
             ])->assertRedirect('/schedule')->assertSessionHas('error', fn (string $e) => str_contains($e, 'Only active therapists'));
 
             $this->post('/schedule/time-off/save', [
-                'staff' => $name,
+                'staff_id' => $uid,
                 'date' => Carbon::today()->toDateString(),
                 'reason' => 'Leave',
             ])->assertRedirect('/schedule')->assertSessionHas('error');
@@ -111,41 +123,23 @@ class StaffScheduleTest extends TestCase
         $this->assertCount(0, $this->docsLike('staffTimeOff/*'));
     }
 
-    public function test_person_with_therapist_and_front_desk_accounts_is_one_row_with_both_roles(): void
+    public function test_two_accounts_with_the_same_name_are_two_rows_with_one_role_each(): void
     {
         $this->staff('staff', 'fd2', 'Dr. Real Therapist');
 
         $this->get('/schedule')
             ->assertOk()
-            ->assertViewHas('staffDirectory', fn (array $dir) => collect($dir)->where('name', 'Dr. Real Therapist')->values()->all()
-                === [['name' => 'Dr. Real Therapist', 'role' => 'Therapist & Front Desk Staff']])
-            ->assertSee('Therapist &amp; Front Desk Staff', false);
+            ->assertViewHas('staffDirectory', fn (array $dir) => collect($dir)->pluck('roleLabel', 'uid')->sortKeys()->all()
+                === ['fd2' => 'Front Desk Staff', 'th1' => 'Physical Therapist']);
     }
 
-    public function test_any_difference_in_the_full_name_means_different_people(): void
+    public function test_staff_member_dropdown_and_time_off_dropdown_show_the_same_name_and_role(): void
     {
-        $this->staff('staff', 'fd2', 'dr. real therapist');
-        $this->staff('staff', 'fd3', 'Dr. Real  Therapist');
-        $this->docs['staffShifts/s1'] = ['staff' => 'dr. real therapist', 'role' => 'Front Desk Staff', 'day' => Carbon::today()->format('l'), 'shift' => '08:00 - 12:00', 'room' => 'Reception'];
-
         $this->get('/schedule')
             ->assertOk()
-            ->assertViewHas('staffDirectory', fn (array $dir) => collect($dir)->pluck('role', 'name')->sortKeys()->all() === collect([
-                'Dr. Real Therapist' => 'Therapist',
-                'dr. real therapist' => 'Front Desk Staff',
-                'Dr. Real  Therapist' => 'Front Desk Staff',
-            ])->sortKeys()->all())
-            ->assertViewHas('staffAvailability', fn (array $a) => $a['dr. real therapist'] === 'Available'
-                && $a['Dr. Real Therapist'] === 'Unavailable' && $a['Dr. Real  Therapist'] === 'Unavailable');
-
-        // The same time slot for the other "Dr. Real Therapist" isn't a clash with the lower-case one.
-        $this->post('/schedule/save', [
-            'staff' => 'Dr. Real Therapist',
-            'role' => 'Therapist',
-            'day' => Carbon::today()->format('l'),
-            'shift' => '08:00 - 12:00',
-            'room' => 'Room 2',
-        ])->assertRedirect('/schedule')->assertSessionMissing('error');
+            ->assertSee('value="th1"', false)
+            ->assertSee('Dr. Real Therapist (Physical Therapist)')
+            ->assertDontSee('name="role"', false);
     }
 
     public function test_front_desk_staff_can_be_given_a_shift(): void
@@ -153,29 +147,42 @@ class StaffScheduleTest extends TestCase
         $this->staff('staff', 'fd1', 'Front Desk Person');
 
         $this->post('/schedule/save', [
-            'staff' => 'Front Desk Person',
-            'role' => 'Front desk',
+            'staff_id' => 'fd1',
             'day' => 'Tuesday',
             'shift' => '09:00 - 17:00',
             'room' => 'Reception',
         ])->assertRedirect('/schedule')->assertSessionMissing('error');
 
+        $shift = array_values($this->docsLike('staffShifts/*'))[0];
+        $this->assertSame('staff', $shift['role']);
         $this->assertCount(1, $this->docsLike('staffShifts/*'));
     }
 
     public function test_time_off_marks_staff_on_leave(): void
     {
         $this->post('/schedule/time-off/save', [
-            'staff' => 'Dr. Real Therapist',
+            'staff_id' => 'th1',
             'date' => Carbon::today()->toDateString(),
             'time_off_type' => 'Full day',
             'reason' => 'Medical leave',
         ])->assertRedirect('/schedule');
 
         $off = array_values($this->docsLike('staffTimeOff/*'))[0];
+        $this->assertSame('th1', $off['staffId']);
         $this->assertSame('Dr. Real Therapist', $off['staff']);
         $this->assertSame('Medical leave', $off['reason']);
         $this->assertSame(Carbon::today()->toDateString(), $off['date']);
         $this->get('/schedule')->assertOk()->assertSee('On Leave');
+    }
+
+    public function test_older_entries_saved_by_name_count_only_for_a_unique_name(): void
+    {
+        $this->docs['staffShifts/legacy'] = ['staff' => 'Dr. Real Therapist', 'day' => Carbon::today()->format('l'), 'shift' => '08:00 - 12:00', 'room' => 'Room 5'];
+
+        $this->get('/schedule')->assertOk()->assertSee('Room 5')->assertViewHas('staffAvailability', fn (array $a) => $a['th1'] === 'Available');
+
+        // With a second account under the same name the old entry can't be tied to either one.
+        $this->staff('staff', 'fd2', 'Dr. Real Therapist');
+        $this->get('/schedule')->assertOk()->assertViewHas('staffAvailability', fn (array $a) => $a['th1'] === 'Unavailable' && $a['fd2'] === 'Unavailable');
     }
 }

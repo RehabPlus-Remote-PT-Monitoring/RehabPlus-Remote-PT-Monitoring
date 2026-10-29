@@ -4,6 +4,7 @@ namespace App\Services\User;
 
 use App\Auth\FirebaseUserProvider;
 use App\Auth\StaffUser;
+use App\Rules\OfficialEmailDomain;
 use App\Services\Firebase\FirebaseAdmin;
 use App\Services\Firebase\FirebaseException;
 use App\Services\Firebase\FirestoreClient;
@@ -69,6 +70,10 @@ class UserService
      */
     public function create(array $data): string
     {
+        if (! OfficialEmailDomain::allows($data['email'])) {
+            throw new \InvalidArgumentException(OfficialEmailDomain::MESSAGE);
+        }
+
         $uid = $this->admin->createUser($data['email'], $data['password'], $data['name']);
 
         $this->commitOrRollBack($uid, [

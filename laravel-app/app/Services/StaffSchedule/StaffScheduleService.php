@@ -16,9 +16,6 @@ class StaffScheduleService
     /** Roles that work shifts: therapists and front desk staff. Admins don't. */
     public const SCHEDULABLE_ROLES = [StaffUser::THERAPIST, StaffUser::STAFF];
 
-    /** Labels on the schedule page, in the order above when someone holds both roles. */
-    private const ROLE_LABELS = [StaffUser::THERAPIST => 'Therapist', StaffUser::STAFF => 'Front Desk Staff'];
-
     public function __construct(
         private ClinicStore $store,
         private ShiftConflictService $shifts,
@@ -45,40 +42,42 @@ class StaffScheduleService
 
         $staffDirectory = $this->staffDirectory($staffAccounts);
 
-        // Only people in the directory are on the schedule, so an old entry under an
-        // admin's (or a removed account's) name doesn't count towards today's numbers.
-        // Names are matched exactly: any difference in the full name is a different person.
-        $scheduledNames = collect($staffDirectory)->pluck('name');
-        $schedules = $schedules
-            ->filter(fn (ClinicRecord $s) => $scheduledNames->containsStrict((string) $s->staff))
-            ->sortBy(fn (ClinicRecord $s) => (string) $s->shift)
+        // Only entries that belong to someone in the directory count. An admin's (or a
+        // removed account's) old entry is dropped, so it doesn't count towards today's numbers.
+        $shifts = $schedules
+            ->map(fn (ClinicRecord $s) => ['uid' => $this->accountUid($s, $staffDirectory), 'day' => (string) $s->day, 'shift' => (string) $s->shift, 'room' => (string) $s->room])
+            ->filter(fn (array $s) => $s['uid'] !== null)
+            ->sortBy('shift')
             ->values();
 
         $today = CarbonImmutable::today();
-        $todayEntries = $schedules->where('day', $today->format('l'));
-        $timeOffToday = $timeOff
+        $todayShifts = $shifts->where('day', $today->format('l'));
+        $onLeave = $timeOff
             ->where('date', $today->toDateString())
-            ->map(fn (ClinicRecord $off) => (string) $off->staff);
+            ->map(fn (ClinicRecord $off) => $this->accountUid($off, $staffDirectory))
+            ->filter()
+            ->unique()
+            ->values()
+            ->all();
 
         $staffAvailability = [];
         $todayStaffList = [];
         foreach ($staffDirectory as $staff) {
-            $name = $staff['name'];
-            $entries = $todayEntries->filter(fn (ClinicRecord $entry) => (string) $entry->staff === $name);
-            $status = $this->availability($entries, $timeOffToday->containsStrict($name));
-            $staffAvailability[$staff['name']] = $status;
+            $entries = $todayShifts->where('uid', $staff['uid'])->values();
+            $status = $this->availability($entries, in_array($staff['uid'], $onLeave, true));
+            $staffAvailability[$staff['uid']] = $status;
             $todayStaffList[] = [
                 'name' => $staff['name'],
-                'role' => $staff['role'],
-                'shift' => $entries->first()?->shift ?? 'Off',
-                'room' => $entries->first()?->room ?? 'Not assigned',
+                'role' => $staff['roleLabel'],
+                'shift' => $entries->first()['shift'] ?? 'Off',
+                'room' => $entries->first()['room'] ?? 'Not assigned',
                 'status' => $status,
             ];
         }
 
         $weeklySchedule = [];
-        foreach ($schedules as $entry) {
-            $weeklySchedule[$entry->staff][$entry->day] ??= ['shift' => $entry->shift, 'room' => $entry->room];
+        foreach ($shifts as $entry) {
+            $weeklySchedule[$entry['uid']][$entry['day']] ??= ['shift' => $entry['shift'], 'room' => $entry['room']];
         }
 
         return [
@@ -88,15 +87,22 @@ class StaffScheduleService
             'staffAvailability' => $staffAvailability,
             'weeklySchedule' => $weeklySchedule,
             'todayStaffList' => $todayStaffList,
-            'staffCount' => $todayEntries->pluck('staff')->unique()->count(),
-            'todayShifts' => $todayEntries->count(),
-            'activeRooms' => $todayEntries->pluck('room')->filter()->unique()->count(),
+            'staffCount' => $todayShifts->pluck('uid')->unique()->count(),
+            'todayShifts' => $todayShifts->count(),
+            'activeRooms' => $todayShifts->pluck('room')->filter()->unique()->count(),
         ];
+    }
+
+    /** The schedulable account with this uid (therapist or front desk, active), or null. */
+    public function schedulableAccount(string $uid): ?array
+    {
+        return collect($this->staffDirectory($this->users->staff()))->firstWhere('uid', $uid);
     }
 
     public function addShift(array $shift): string
     {
         return $this->store->create(ClinicStore::SHIFTS, [
+            'staffId' => $shift['staffId'],
             'staff' => $shift['staff'],
             'role' => $shift['role'],
             'day' => $shift['day'],
@@ -108,6 +114,7 @@ class StaffScheduleService
     public function addTimeOff(array $timeOff): string
     {
         return $this->store->create(ClinicStore::TIME_OFF, [
+            'staffId' => $timeOff['staffId'],
             'staff' => $timeOff['staff'],
             'date' => CarbonImmutable::parse($timeOff['date'])->toDateString(),
             'type' => $timeOff['type'],
@@ -116,34 +123,40 @@ class StaffScheduleService
         ]);
     }
 
-    /** Whether shifts / time off may be saved for this name (an active therapist or front desk account). */
-    public function isSchedulable(string $name): bool
-    {
-        return collect($this->staffDirectory($this->users->staff()))->pluck('name')->containsStrict($name);
-    }
-
     /**
-     * Active therapist and front desk accounts from Firebase. Roles are an allow-list, so
-     * admins (including any admin created later) and any future role never appear here.
-     * The schedule is keyed by the exact full name, so one person with both a therapist and
-     * a front desk account under the same name is a single row labelled with both roles
-     * ("Therapist & Front Desk Staff"). Any difference in the name (case, spacing, spelling)
-     * keeps them as separate people.
+     * Active therapist and front desk accounts, one row per account. Each account has exactly
+     * one role, the one it was created with, so two accounts with the same name are two rows.
+     * Roles are an allow-list, so admins and any future role never appear here.
      */
     private function staffDirectory(array $staffAccounts): array
     {
         return collect($staffAccounts)
             ->filter(fn (array $user) => $user['active'] && in_array($user['role'], self::SCHEDULABLE_ROLES, true))
-            ->groupBy(fn (array $user) => $user['name'])
-            ->map(fn (Collection $accounts) => [
-                'name' => $accounts->first()['name'],
-                'role' => collect(self::SCHEDULABLE_ROLES)
-                    ->filter(fn (string $role) => $accounts->contains('role', $role))
-                    ->map(fn (string $role) => self::ROLE_LABELS[$role])
-                    ->implode(' & '),
+            ->sortBy(fn (array $user) => strtolower($user['name']))
+            ->map(fn (array $user) => [
+                'uid' => $user['uid'],
+                'name' => $user['name'],
+                'role' => $user['role'],
+                'roleLabel' => StaffUser::ROLE_LABELS[$user['role']],
             ])
             ->values()
             ->all();
+    }
+
+    /**
+     * The account a shift or time-off entry belongs to. Entries saved since accounts were
+     * linked carry the account's uid. Older entries only have a name, so they count for an
+     * account only when that name belongs to exactly one schedulable account.
+     */
+    private function accountUid(ClinicRecord $entry, array $staffDirectory): ?string
+    {
+        if ($entry->staffId) {
+            return collect($staffDirectory)->contains('uid', (string) $entry->staffId) ? (string) $entry->staffId : null;
+        }
+
+        $sameName = collect($staffDirectory)->where('name', (string) $entry->staff);
+
+        return $sameName->count() === 1 ? $sameName->first()['uid'] : null;
     }
 
     private function availability(Collection $entries, bool $onLeave): string
@@ -156,7 +169,7 @@ class StaffScheduleService
             return 'Unavailable';
         }
 
-        $ranges = $entries->map(fn (ClinicRecord $entry) => $this->shifts->shiftRange((string) $entry->shift))->filter()->values();
+        $ranges = $entries->map(fn (array $entry) => $this->shifts->shiftRange($entry['shift']))->filter()->values();
         foreach ($ranges as $i => $first) {
             foreach ($ranges->slice($i + 1) as $second) {
                 if ($this->shifts->overlaps($first, $second)) {

@@ -7,7 +7,7 @@
     <div class="d-flex justify-content-between align-items-start mb-4">
         <div>
             <p class="page-title mb-1">Staff Accounts</p>
-            <p class="page-subtitle mb-0">Dashboard logins (Firebase). Patients get their app login when they're added on the <a href="{{ route('patients.index') }}">Patients</a> page.</p>
+            <p class="page-subtitle mb-0">Dashboard logins for clinic staff. Patients get their app login when they're added on the <a href="{{ route('patients.index') }}">Patients</a> page.</p>
         </div>
         <a href="{{ route('users.create') }}" class="btn btn-primary">
             <i class="bi bi-person-plus-fill me-2"></i>Add Staff Account
@@ -46,7 +46,7 @@
                             </td>
                             <td>
                                 @if (in_array($user['uid'], $noLogin, true))
-                                    <span class="badge bg-warning text-dark" title="This account's Firebase login was deleted. Delete the leftover record here.">No login</span>
+                                    <span class="badge bg-warning text-dark" title="This account's login was deleted. Delete the leftover record here.">No login</span>
                                 @else
                                     {!! $user['active'] ? '<span class="badge bg-success">Active</span>' : '<span class="badge bg-secondary">Disabled</span>' !!}
                                 @endif

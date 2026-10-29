@@ -3,6 +3,7 @@
 namespace App\Services\Patient;
 
 use App\Auth\StaffUser;
+use App\Rules\OfficialEmailDomain;
 use App\Services\Firebase\FirebaseAdmin;
 use App\Services\Firebase\FirebaseException;
 use App\Services\Firebase\FirestoreClient;
@@ -107,6 +108,10 @@ class PatientService
      */
     public function create(StaffUser $by, array $data): string
     {
+        if (! OfficialEmailDomain::allows($data['email'])) {
+            throw new \InvalidArgumentException(OfficialEmailDomain::MESSAGE);
+        }
+
         [$therapistId, $therapistName] = $this->therapistFor($by, $data['therapist_id'] ?? null);
 
         $uid = $this->admin->createUser($data['email'], $data['password'], $data['name']);

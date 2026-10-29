@@ -4,6 +4,7 @@ namespace App\Console\Commands;
 
 use App\Auth\FirebaseUserProvider;
 use App\Auth\StaffUser;
+use App\Rules\OfficialEmailDomain;
 use App\Services\Firebase\FirebaseAdmin;
 use App\Services\Firebase\FirebaseException;
 use App\Services\Firebase\FirestoreClient;
@@ -28,6 +29,11 @@ class MakeAdmin extends Command
 
         if (! filter_var($email, FILTER_VALIDATE_EMAIL) || $name === '') {
             $this->error('Give a valid email and a name, e.g. rehab:make-admin admin@clinic.com "Clinic Admin"');
+
+            return self::FAILURE;
+        }
+        if (! OfficialEmailDomain::allows($email)) {
+            $this->error(OfficialEmailDomain::MESSAGE);
 
             return self::FAILURE;
         }

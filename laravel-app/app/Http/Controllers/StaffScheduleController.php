@@ -26,11 +26,21 @@ class StaffScheduleController extends Controller
 
     public function store(Request $request): RedirectResponse
     {
-        $shift = StaffScheduleValidation::shift($request);
+        $input = StaffScheduleValidation::shift($request);
 
-        if (! $this->schedule->isSchedulable($shift['staff'])) {
+        $account = $this->schedule->schedulableAccount($input['staff_id']);
+        if (! $account) {
             return redirect()->route('schedule')->withInput()->with('error', self::NOT_SCHEDULABLE);
         }
+
+        $shift = [
+            'staffId' => $account['uid'],
+            'staff' => $account['name'],
+            'role' => $account['role'],
+            'day' => $input['day'],
+            'shift' => $input['shift'],
+            'room' => $input['room'],
+        ];
 
         if ($this->shifts->hasConflict($shift)) {
             return redirect()->route('schedule')->withInput()->with('error', 'Schedule conflict detected: this staff member already has a shift at that time, or the room is already assigned to another staff member.');
@@ -43,13 +53,14 @@ class StaffScheduleController extends Controller
 
     public function storeTimeOff(Request $request): RedirectResponse
     {
-        $timeOff = StaffScheduleValidation::timeOff($request);
+        $input = StaffScheduleValidation::timeOff($request);
 
-        if (! $this->schedule->isSchedulable($timeOff['staff'])) {
+        $account = $this->schedule->schedulableAccount($input['staff_id']);
+        if (! $account) {
             return redirect()->route('schedule')->withInput()->with('error', self::NOT_SCHEDULABLE);
         }
 
-        $this->schedule->addTimeOff($timeOff);
+        $this->schedule->addTimeOff($input + ['staffId' => $account['uid'], 'staff' => $account['name']]);
 
         return redirect()->route('schedule')->with('success', 'Time off entry added successfully.');
     }

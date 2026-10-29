@@ -3,6 +3,7 @@
 namespace App\Helpers;
 
 use App\Auth\StaffUser;
+use App\Rules\OfficialEmailDomain;
 use App\Services\Firebase\FirebaseAdmin;
 use Illuminate\Http\Request;
 use Illuminate\Validation\Rule;
@@ -19,7 +20,7 @@ class UserValidation
     {
         $data = $request->validate([
             'name' => 'required|string|min:2|max:100',
-            'email' => 'required|email|max:150',
+            'email' => ['required', 'email', 'max:150', new OfficialEmailDomain],
             'password' => 'required|string|min:'.FirebaseAdmin::MIN_PASSWORD.'|max:100',
             'role' => ['nullable', Rule::in(self::STAFF_ROLES)],
         ]);

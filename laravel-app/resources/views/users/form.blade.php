@@ -10,7 +10,7 @@
     <div class="mb-3">
         <a href="{{ route('users.index') }}" class="text-decoration-none small"><i class="bi bi-arrow-left me-1"></i>Back to staff accounts</a>
         <p class="page-title mb-1 mt-1">{{ $user ? 'Edit '.$user['name'] : 'New Staff Account' }}</p>
-        <p class="page-subtitle mb-0">{{ $user ? $user['email'] : 'Creates a Firebase login for the clinic dashboard.' }}</p>
+        <p class="page-subtitle mb-0">{{ $user ? $user['email'] : 'Creates a login for the clinic dashboard.' }}</p>
     </div>
 
     @include('partials.flash')
@@ -48,7 +48,10 @@
                 @unless ($user)
                     <div class="col-md-6">
                         <label for="email" class="form-label small fw-semibold">Email</label>
-                        <input id="email" type="email" name="email" class="form-control" value="{{ old('email') }}" required maxlength="150" autocomplete="off">
+                        <input id="email" type="email" name="email" class="form-control @error('email') is-invalid @enderror" value="{{ old('email') }}" required maxlength="150" autocomplete="off">
+                        @error('email')
+                            <div class="invalid-feedback">{{ $message }}</div>
+                        @enderror
                     </div>
                 @endunless
                 <div class="col-md-6">

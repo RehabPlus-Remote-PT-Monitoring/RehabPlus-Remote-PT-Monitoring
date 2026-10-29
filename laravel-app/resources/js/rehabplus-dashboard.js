@@ -1,4 +1,5 @@
 import { confirmSubmit, needsConfirmation } from './confirm.js';
+import { keepDigitsOnly } from './input-masks.js';
 import { dragOffset, swipeCloses, swipeGesture } from './swipe.js';
 
 const searchInput = document.getElementById('patientSearch');
@@ -258,6 +259,12 @@ document.addEventListener('submit', async (event) => {
     if (await confirmSubmit(form)) {
         form.dataset.confirmed = '1';
         form.requestSubmit(submitter);
+    }
+});
+
+document.addEventListener('input', (event) => {
+    if (event.target.matches?.('[data-digits-only]')) {
+        keepDigitsOnly(event.target);
     }
 });
 

@@ -12,7 +12,8 @@ class ShiftConflictService
     }
 
     /**
-     * True when the shift overlaps another shift for the same staff member or in the same room on that day.
+     * True when the shift overlaps another shift for the same staff account or in the same room on that day.
+     * Shifts saved before accounts were linked have no staffId, so those are matched by name.
      */
     public function hasConflict(array $candidate): bool
     {
@@ -23,7 +24,9 @@ class ShiftConflictService
 
         return $this->store->all(ClinicStore::SHIFTS)->where('day', $candidate['day'])->contains(function (ClinicRecord $existing) use ($candidate, $range) {
             $existingRange = $this->shiftRange((string) $existing->shift);
-            $sameStaff = (string) $existing->staff === $candidate['staff'];
+            $sameStaff = $existing->staffId
+                ? (string) $existing->staffId === $candidate['staffId']
+                : (string) $existing->staff === $candidate['staff'];
             $sameRoom = $this->normalize($existing->room) === $this->normalize($candidate['room']);
 
             return $existingRange && ($sameStaff || $sameRoom) && $this->overlaps($range, $existingRange);

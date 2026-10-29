@@ -2,6 +2,7 @@
 
 namespace Tests\Feature;
 
+use App\Rules\OfficialEmailDomain;
 use App\Services\Patient\PatientProgress;
 use Carbon\CarbonImmutable;
 use Tests\Support\FakeFirebase;
@@ -25,9 +26,9 @@ class PatientTest extends TestCase
     private function newPatient(array $overrides = []): array
     {
         return $overrides + [
-            'name' => 'Nina New', 'condition' => 'Ankle sprain', 'email' => 'Nina@Mail.com',
+            'name' => 'Nina New', 'condition' => 'Ankle sprain', 'email' => 'Nina@RehabPlus.com',
             'password' => 'temp-pass-1', 'password_confirmation' => 'temp-pass-1',
-            'phone' => '0917 555 0101', 'dob' => '1990-05-14',
+            'phone' => '09175550101', 'dob' => '1990-05-14',
             'medical_summary' => 'Inversion sprain', 'therapy_plan' => 'Balance work',
         ];
     }
@@ -58,15 +59,15 @@ class PatientTest extends TestCase
             ->post('/patients', $this->newPatient());
 
         // Firebase Auth login with the temporary password; its uid keys everything else.
-        $uid = $this->authUsers['nina@mail.com']['uid'];
-        $this->assertSame(['uid' => $uid, 'password' => 'temp-pass-1', 'disabled' => false, 'displayName' => 'Nina New'], $this->authUsers['nina@mail.com']);
+        $uid = $this->authUsers['nina@rehabplus.com']['uid'];
+        $this->assertSame(['uid' => $uid, 'password' => 'temp-pass-1', 'disabled' => false, 'displayName' => 'Nina New'], $this->authUsers['nina@rehabplus.com']);
         $response->assertRedirect("/patients/{$uid}")->assertSessionHas('success');
 
         // users/{uid} + patients/{uid} created together, never overwriting.
         [$user, $patient] = $this->commits[0];
         $this->assertSame(self::ROOT."/users/{$uid}", $user['update']['name']);
         $this->assertSame(['exists' => false], $patient['currentDocument']);
-        $this->assertSame(['role' => 'patient', 'name' => 'Nina New', 'email' => 'nina@mail.com', 'active' => true], array_diff_key($this->docs["users/{$uid}"], ['createdAt' => 1]));
+        $this->assertSame(['role' => 'patient', 'name' => 'Nina New', 'email' => 'nina@rehabplus.com', 'active' => true], array_diff_key($this->docs["users/{$uid}"], ['createdAt' => 1]));
 
         $doc = $this->docs["patients/{$uid}"];
         $this->assertSame('thA', $doc['therapistId']);
@@ -74,11 +75,43 @@ class PatientTest extends TestCase
         $this->assertSame('Ankle sprain', $doc['condition']);
         $this->assertSame('Inversion sprain', $doc['medicalSummary']);
         $this->assertSame('Balance work', $doc['therapyPlan']);
-        $this->assertSame('0917 555 0101', $doc['phone']);
+        $this->assertSame('09175550101', $doc['phone']);
         $this->assertSame('1990-05-14', $doc['dob']);
-        $this->assertSame('nina@mail.com', $doc['email']);
+        $this->assertSame('nina@rehabplus.com', $doc['email']);
         $this->assertFalse($doc['archived']);
         $this->assertInstanceOf(CarbonImmutable::class, $doc['createdAt']);
+    }
+
+    public function test_patient_login_must_use_the_clinic_domain(): void
+    {
+        $this->actingAs($this->staff('admin'))->from('/patients/create')
+            ->post('/patients', $this->newPatient(['email' => 'nina@yahoo.com']))
+            ->assertRedirect('/patients/create')
+            ->assertSessionHasErrors(['email' => OfficialEmailDomain::MESSAGE]);
+
+        $this->get('/patients/create')->assertOk()->assertSee('invalid-feedback', false)->assertSee(OfficialEmailDomain::MESSAGE);
+        $this->assertArrayNotHasKey('nina@yahoo.com', $this->authUsers);
+        $this->assertSame([], $this->commits);
+    }
+
+    public function test_phone_and_birth_date_are_checked(): void
+    {
+        $user = $this->staff('admin');
+
+        $this->actingAs($user)->from('/patients/create')
+            ->post('/patients', $this->newPatient(['phone' => '0917abc']))
+            ->assertSessionHasErrors(['phone' => 'Phone number can only contain numbers.']);
+
+        $this->actingAs($user)->from('/patients/create')
+            ->post('/patients', $this->newPatient(['dob' => 'January 14, 2000']))
+            ->assertSessionHasErrors(['dob' => 'Pick the date of birth from the calendar.']);
+
+        $this->actingAs($user)->from('/patients/create')
+            ->post('/patients', $this->newPatient(['dob' => now()->addDay()->toDateString()]))
+            ->assertSessionHasErrors(['dob' => "Date of birth can't be in the future."]);
+
+        $this->assertArrayNotHasKey('nina@rehabplus.com', $this->authUsers);
+        $this->assertSame([], $this->commits);
     }
 
     public function test_admin_picks_the_therapist(): void
@@ -106,7 +139,7 @@ class PatientTest extends TestCase
         $this->actingAs($user)->post('/patients', $this->newPatient(['password' => 'short', 'password_confirmation' => 'short']))
             ->assertSessionHasErrors('password');
 
-        $this->authUsers['nina@mail.com'] = ['uid' => 'existing', 'password' => 'x', 'disabled' => false, 'displayName' => 'x'];
+        $this->authUsers['nina@rehabplus.com'] = ['uid' => 'existing', 'password' => 'x', 'disabled' => false, 'displayName' => 'x'];
         $this->actingAs($user)->from('/patients/create')->post('/patients', $this->newPatient())
             ->assertRedirect('/patients/create')
             ->assertSessionHas('error', 'That email address already has an account.')
@@ -123,7 +156,7 @@ class PatientTest extends TestCase
             ->assertRedirect('/patients/create')
             ->assertSessionHas('error');
 
-        $this->assertArrayNotHasKey('nina@mail.com', $this->authUsers);
+        $this->assertArrayNotHasKey('nina@rehabplus.com', $this->authUsers);
         $this->assertStringEndsWith('accounts:delete', end($this->authCalls)['url']);
     }
 

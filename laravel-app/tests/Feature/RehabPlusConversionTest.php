@@ -112,22 +112,23 @@ class RehabPlusConversionTest extends TestCase
         $this->actingAs($this->staff('admin'));
 
         $this->post('/inventory', [
-            'item' => 'Resistance Band', 'category' => 'Equipment', 'stock' => 20, 'reorder' => 10, 'status' => 'Healthy',
+            'item' => 'Resistance Band', 'category' => 'Equipment', 'stock' => 20, 'reorder' => 10, 'status' => 'In Stock',
         ])->assertRedirect('/inventory');
         $path = array_key_first($this->docsLike('inventory/*'));
         $id = explode('/', $path)[1];
         $this->assertSame(20, $this->docs[$path]['stock']);
 
-        $this->patch("/inventory/{$id}/status", ['status' => 'Critical'])->assertRedirect('/inventory');
-        $this->assertSame('Critical', $this->docs[$path]['status']);
+        $this->patch("/inventory/{$id}/status", ['status' => 'Out of Stock'])->assertRedirect('/inventory');
+        $this->assertSame('Out of Stock', $this->docs[$path]['status']);
         $this->assertSame(20, $this->docs[$path]['stock']);
         $this->patch("/inventory/{$id}/status", ['status' => 'Unknown'])->assertSessionHasErrors('status');
+        $this->patch("/inventory/{$id}/status", ['status' => 'Healthy'])->assertSessionHasErrors('status');
 
         $this->get('/inventory')->assertOk()->assertSee('Resistance Band');
         $this->get("/inventory/{$id}/edit")->assertOk()->assertSee('Save changes');
 
         $this->put("/inventory/{$id}", [
-            'item' => 'Resistance Band (heavy)', 'category' => 'Equipment', 'stock' => 5, 'reorder' => 10, 'status' => 'Low',
+            'item' => 'Resistance Band (heavy)', 'category' => 'Equipment', 'stock' => 5, 'reorder' => 10, 'status' => 'Low Stock',
         ])->assertRedirect('/inventory');
         $this->assertSame('Resistance Band (heavy)', $this->docs[$path]['item']);
         $this->get('/inventory')->assertOk()->assertSee('1 orders'); // stock 5 <= reorder 10
@@ -135,5 +136,23 @@ class RehabPlusConversionTest extends TestCase
         $this->delete("/inventory/{$id}")->assertRedirect('/inventory');
         $this->assertSame([], $this->docsLike('inventory/*'));
         $this->get('/inventory/missing/edit')->assertNotFound();
+    }
+
+    public function test_status_list_is_the_same_in_the_form_and_each_item_and_old_health_words_are_shown_as_stock_status(): void
+    {
+        $this->actingAs($this->staff('admin'));
+        $this->docs['inventory/old1'] = ['item' => 'Gauze', 'category' => 'Supplies', 'stock' => 3, 'reorder' => 5, 'status' => 'Critical'];
+
+        $html = $this->get('/inventory')->assertOk()
+            ->assertSee('Out of Stock')
+            ->assertSee('1 items')
+            ->assertDontSee('>Critical<', false)
+            ->assertDontSee('>Healthy<', false)
+            ->getContent();
+
+        // One option per status in the Add item form and one in the Actions list of the single item.
+        foreach (['In Stock', 'Low Stock', 'Out of Stock'] as $status) {
+            $this->assertSame(2, substr_count($html, '<option value="'.$status.'"'), $status);
+        }
     }
 }

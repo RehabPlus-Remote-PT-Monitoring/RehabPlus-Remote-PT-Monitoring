@@ -43,7 +43,10 @@
                         <p class="text-muted small mb-0">Give the patient this email and temporary password. They can set their own password from the app's "Forgot password" link.</p></div>
                     <div class="col-md-4">
                         <label for="email" class="form-label small fw-semibold">Email</label>
-                        <input id="email" type="email" name="email" class="form-control" value="{{ old('email') }}" required maxlength="150" autocomplete="off">
+                        <input id="email" type="email" name="email" class="form-control @error('email') is-invalid @enderror" value="{{ old('email') }}" required maxlength="150" autocomplete="off">
+                        @error('email')
+                            <div class="invalid-feedback">{{ $message }}</div>
+                        @enderror
                     </div>
                     <div class="col-md-4">
                         <label for="password" class="form-label small fw-semibold">Temporary password</label>
@@ -63,11 +66,17 @@
 
                 <div class="col-md-3">
                     <label for="phone" class="form-label small fw-semibold">Phone</label>
-                    <input id="phone" type="text" name="phone" class="form-control" @if ($patient) data-initial="{{ $patient['phone'] ?? '' }}" @endif value="{{ old('phone', $patient['phone'] ?? '') }}" maxlength="30">
+                    <input id="phone" type="text" name="phone" class="form-control @error('phone') is-invalid @enderror" inputmode="numeric" data-digits-only @if ($patient) data-initial="{{ $patient['phone'] ?? '' }}" @endif value="{{ old('phone', $patient['phone'] ?? '') }}" maxlength="30">
+                    @error('phone')
+                        <div class="invalid-feedback">{{ $message }}</div>
+                    @enderror
                 </div>
                 <div class="col-md-3">
                     <label for="dob" class="form-label small fw-semibold">Date of birth</label>
-                    <input id="dob" type="text" name="dob" class="form-control" @if ($patient) data-initial="{{ $patient['dob'] ?? '' }}" @endif value="{{ old('dob', $patient['dob'] ?? '') }}" maxlength="30" placeholder="e.g. 1990-05-14">
+                    <input id="dob" type="date" name="dob" class="form-control @error('dob') is-invalid @enderror" max="{{ now()->toDateString() }}" @if ($patient) data-initial="{{ $patient['dob'] ?? '' }}" @endif value="{{ old('dob', $patient['dob'] ?? '') }}">
+                    @error('dob')
+                        <div class="invalid-feedback">{{ $message }}</div>
+                    @enderror
                 </div>
 
                 @if ($me->isAdmin())

@@ -2,6 +2,7 @@
 
 namespace Tests\Feature;
 
+use App\Rules\OfficialEmailDomain;
 use Tests\Support\FakeFirebase;
 use Tests\TestCase;
 
@@ -29,27 +30,38 @@ class UserManagementTest extends TestCase
     public function test_create_staff_account(): void
     {
         $this->actingAs($this->staff('admin'))->post('/users', [
-            'name' => 'Dr. New', 'email' => 'New@Clinic.com', 'password' => 'long-enough', 'role' => 'therapist',
+            'name' => 'Dr. New', 'email' => 'New@RehabPlus.com', 'password' => 'long-enough', 'role' => 'therapist',
         ])->assertRedirect('/users');
 
-        $uid = $this->authUsers['new@clinic.com']['uid'];
-        $this->assertSame('long-enough', $this->authUsers['new@clinic.com']['password']);
-        $this->assertSame(['role' => 'therapist', 'name' => 'Dr. New', 'email' => 'new@clinic.com', 'active' => true], array_diff_key($this->docs["users/{$uid}"], ['createdAt' => 1]));
+        $uid = $this->authUsers['new@rehabplus.com']['uid'];
+        $this->assertSame('long-enough', $this->authUsers['new@rehabplus.com']['password']);
+        $this->assertSame(['role' => 'therapist', 'name' => 'Dr. New', 'email' => 'new@rehabplus.com', 'active' => true], array_diff_key($this->docs["users/{$uid}"], ['createdAt' => 1]));
+    }
+
+    public function test_staff_account_must_use_the_clinic_domain(): void
+    {
+        $this->actingAs($this->staff('admin'))->from('/users/create')->post('/users', [
+            'name' => 'Gmail User', 'email' => 'someone@gmail.com', 'password' => 'long-enough', 'role' => 'staff',
+        ])->assertRedirect('/users/create')->assertSessionHasErrors(['email' => OfficialEmailDomain::MESSAGE]);
+
+        $this->get('/users/create')->assertOk()->assertSee('invalid-feedback', false)->assertSee(OfficialEmailDomain::MESSAGE);
+        $this->assertArrayNotHasKey('someone@gmail.com', $this->authUsers);
+        $this->assertSame([], $this->commits);
     }
 
     public function test_patient_role_cannot_be_given_here(): void
     {
         $this->actingAs($this->staff('admin'))->post('/users', [
-            'name' => 'X', 'email' => 'x@clinic.com', 'password' => 'long-enough', 'role' => 'patient',
+            'name' => 'X', 'email' => 'x@rehabplus.com', 'password' => 'long-enough', 'role' => 'patient',
         ])->assertSessionHasErrors('role');
-        $this->assertArrayNotHasKey('x@clinic.com', $this->authUsers);
+        $this->assertArrayNotHasKey('x@rehabplus.com', $this->authUsers);
     }
 
     public function test_role_defaults_to_front_desk_staff(): void
     {
-        $this->actingAs($this->staff('admin'))->post('/users', ['name' => 'Fran', 'email' => 'fran@clinic.com', 'password' => 'long-enough']);
+        $this->actingAs($this->staff('admin'))->post('/users', ['name' => 'Fran', 'email' => 'fran@rehabplus.com', 'password' => 'long-enough']);
 
-        $this->assertSame('staff', $this->docs['users/'.$this->authUsers['fran@clinic.com']['uid']]['role']);
+        $this->assertSame('staff', $this->docs['users/'.$this->authUsers['fran@rehabplus.com']['uid']]['role']);
     }
 
     public function test_therapist_role_is_locked_and_rename_reaches_their_patients(): void
@@ -151,18 +163,27 @@ class UserManagementTest extends TestCase
 
     public function test_make_admin_command_creates_the_first_admin(): void
     {
-        $this->artisan('rehab:make-admin', ['email' => 'Boss@Clinic.com', 'name' => 'Clinic Boss'])
+        $this->artisan('rehab:make-admin', ['email' => 'Boss@RehabPlus.com', 'name' => 'Clinic Boss'])
             ->expectsQuestion('Password for the new admin (min 8 characters)', 'boss-password')
             ->expectsQuestion('Repeat the password', 'boss-password')
             ->assertSuccessful();
 
-        $uid = $this->authUsers['boss@clinic.com']['uid'];
+        $uid = $this->authUsers['boss@rehabplus.com']['uid'];
         $this->assertSame('admin', $this->docs["users/{$uid}"]['role']);
 
         // Running it for an existing staff login promotes it without touching the password.
-        $this->staff('staff', 'st1', 'Sam', 'sam@clinic.com');
-        $this->artisan('rehab:make-admin', ['email' => 'sam@clinic.com', 'name' => 'Sam'])->assertSuccessful();
+        $this->staff('staff', 'st1', 'Sam', 'sam@rehabplus.com');
+        $this->artisan('rehab:make-admin', ['email' => 'sam@rehabplus.com', 'name' => 'Sam'])->assertSuccessful();
         $this->assertSame('admin', $this->docs['users/st1']['role']);
-        $this->assertSame('secret-pass', $this->authUsers['sam@clinic.com']['password']);
+        $this->assertSame('secret-pass', $this->authUsers['sam@rehabplus.com']['password']);
+    }
+
+    public function test_make_admin_command_rejects_other_domains(): void
+    {
+        $this->artisan('rehab:make-admin', ['email' => 'boss@yahoo.com', 'name' => 'Boss'])
+            ->assertFailed();
+
+        $this->assertArrayNotHasKey('boss@yahoo.com', $this->authUsers);
+        $this->assertSame([], $this->commits);
     }
 }
