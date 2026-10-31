@@ -55,7 +55,8 @@ class UserManagementTest extends TestCase
             ->assertOk()
             ->assertSee('placeholder="Front Desk Staff"', false)
             ->assertSee('placeholder="staff@rehabplus.com"', false)
-            ->assertSee('data-email="admin@rehabplus.com"', false);
+            ->assertSee('data-email="admin@rehabplus.com"', false)
+            ->assertSee('placeholder="**********"', false);
     }
 
     public function test_patient_role_cannot_be_given_here(): void

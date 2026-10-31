@@ -57,7 +57,7 @@
                 @endunless
                 <div class="col-md-6">
                     <label for="password" class="form-label small fw-semibold">{{ $user ? 'New password (optional)' : 'Password' }}</label>
-                    <input id="password" type="password" name="password" class="form-control" minlength="{{ \App\Services\Firebase\FirebaseAdmin::MIN_PASSWORD }}" @required(! $user) autocomplete="new-password">
+                    <input id="password" type="password" name="password" class="form-control" minlength="{{ \App\Services\Firebase\FirebaseAdmin::MIN_PASSWORD }}" @required(! $user) @unless ($user) placeholder="**********" @endunless autocomplete="new-password">
                 </div>
             </div>
         </div>

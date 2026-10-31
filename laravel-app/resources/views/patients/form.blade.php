@@ -50,11 +50,11 @@
                     </div>
                     <div class="col-md-4">
                         <label for="password" class="form-label small fw-semibold">Temporary password</label>
-                        <input id="password" type="password" name="password" class="form-control" required minlength="{{ \App\Services\Firebase\FirebaseAdmin::MIN_PASSWORD }}" autocomplete="new-password">
+                        <input id="password" type="password" name="password" class="form-control" required minlength="{{ \App\Services\Firebase\FirebaseAdmin::MIN_PASSWORD }}" placeholder="**********" autocomplete="new-password">
                     </div>
                     <div class="col-md-4">
                         <label for="password_confirmation" class="form-label small fw-semibold">Repeat password</label>
-                        <input id="password_confirmation" type="password" name="password_confirmation" class="form-control" required autocomplete="new-password">
+                        <input id="password_confirmation" type="password" name="password_confirmation" class="form-control" required placeholder="**********" autocomplete="new-password">
                     </div>
                     <div class="col-12"><hr class="my-1"></div>
                 @else

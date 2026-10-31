@@ -157,7 +157,8 @@ class PatientTest extends TestCase
 
         $this->actingAs($this->staff('admin'))->get('/patients/create')
             ->assertSee('placeholder="Patient"', false)
-            ->assertSee('placeholder="patient@rehabplus.com"', false);
+            ->assertSee('placeholder="patient@rehabplus.com"', false)
+            ->assertSee('placeholder="**********"', false);
         $this->actingAs($this->staff('staff'))->post('/patients', $this->newPatient())->assertForbidden();
     }
 
