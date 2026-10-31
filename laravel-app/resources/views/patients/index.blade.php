@@ -65,7 +65,7 @@
             <div class="table-responsive">
                 <table class="table table-hover mb-0 align-middle">
                     <thead class="table-light">
-                        <tr><th>Patient</th><th>Condition</th><th>Therapist</th><th>Added</th><th class="text-end">Actions</th></tr>
+                        <tr><th>Patient</th><th>Condition</th><th>Therapist</th><th>Added</th>@if ($showArchived)<th>Archived</th>@endif<th class="text-end">Actions</th></tr>
                     </thead>
                     <tbody>
                         @forelse ($data as $patient)
@@ -82,15 +82,26 @@
                                 <td class="text-muted small">{{ $patient['condition'] }}</td>
                                 <td class="text-muted small">{{ $patient['therapistName'] ?: 'Unassigned' }}</td>
                                 <td class="text-muted small">{{ $patient['createdAt']?->setTimezone(config('app.timezone'))->format('M j, Y') ?? '—' }}</td>
+                                @if ($showArchived)
+                                    <td class="text-muted small">
+                                        {{ $patient['archivedAt']?->setTimezone(config('app.timezone'))->format('M j, Y') ?? '—' }}
+                                        @if ($patient['archivedByName'] !== '')
+                                            <div>by {{ $patient['archivedByName'] }}</div>
+                                        @endif
+                                    </td>
+                                @endif
                                 <td class="text-end">
                                     <a href="{{ route('patients.show', $patient['uid']) }}" class="btn btn-sm btn-outline-secondary">View</a>
+                                    @if (! $showArchived && ($me->isAdmin() || $patient['therapistId'] === $me->id))
+                                        <form method="POST" action="{{ route('patients.archive', $patient['uid']) }}" class="d-inline ms-1" data-confirm="Archive {{ $patient['name'] }}? Their app login is disabled; their records are kept and you can restore them later." data-confirm-danger>@csrf<button type="submit" class="btn btn-sm btn-outline-danger"><i class="bi bi-archive me-1"></i>Archive</button></form>
+                                    @endif
                                     @if ($me->isAdmin() || $patient['therapistId'] === $me->id)
                                         <a href="{{ route('patients.edit', $patient['uid']) }}" class="btn btn-sm btn-outline-primary ms-1">Edit</a>
                                     @endif
                                 </td>
                             </tr>
                         @empty
-                            <tr><td colspan="5" class="text-center text-muted py-5"><i class="bi bi-people fs-3 d-block mb-2 opacity-50"></i>No patients found.</td></tr>
+                            <tr><td colspan="{{ $showArchived ? 6 : 5 }}" class="text-center text-muted py-5"><i class="bi bi-people fs-3 d-block mb-2 opacity-50"></i>No patients found.</td></tr>
                         @endforelse
                     </tbody>
                 </table>

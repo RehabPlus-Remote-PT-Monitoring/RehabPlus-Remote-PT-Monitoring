@@ -33,6 +33,42 @@ class PatientTest extends TestCase
         ];
     }
 
+    public function test_list_has_an_archive_button_with_confirmation_for_patients_you_manage(): void
+    {
+        $this->actingAs($this->staff('admin'))->get('/patients')
+            ->assertOk()
+            ->assertSee('action="http://localhost/patients/pOne/archive"', false)
+            ->assertSee('action="http://localhost/patients/pTwo/archive"', false)
+            ->assertDontSee('action="http://localhost/patients/pOld/archive"', false)
+            ->assertSee('data-confirm="Archive Olive One?', false);
+
+        $this->actingAs($this->staff('therapist', 'thA', 'Dr. Ana'))->get('/patients')
+            ->assertOk()
+            ->assertSee('action="http://localhost/patients/pOne/archive"', false)
+            ->assertDontSee('action="http://localhost/patients/pTwo/archive"', false);
+
+        $this->actingAs($this->staff('admin'))->get('/patients?archived=1')
+            ->assertOk()
+            ->assertDontSee('/patients/pOld/archive', false);
+    }
+
+    public function test_archived_list_shows_when_and_by_whom_a_patient_was_archived(): void
+    {
+        $this->actingAs($this->staff('admin', 'adm1', 'Dr. Admin'))->post('/patients/pTwo/archive')->assertRedirect('/patients');
+
+        $this->assertSame('Dr. Admin', $this->docs['patients/pTwo']['archivedByName']);
+        $this->assertInstanceOf(CarbonImmutable::class, $this->docs['patients/pTwo']['archivedAt']);
+
+        $this->get('/patients?archived=1')->assertOk()
+            ->assertSee('Archived')
+            ->assertSee('by Dr. Admin')
+            ->assertSee(now()->format('M j, Y'));
+
+        $this->post('/patients/pTwo/restore')->assertRedirect();
+        $this->assertNull($this->docs['patients/pTwo']['archivedAt']);
+        $this->assertNull($this->docs['patients/pTwo']['archivedByName']);
+    }
+
     public function test_archived_toggle_sits_in_the_header_beside_add_patient(): void
     {
         $this->actingAs($this->staff('admin'));

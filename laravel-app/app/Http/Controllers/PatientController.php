@@ -123,7 +123,7 @@ class PatientController extends Controller
 
     public function archive(Request $request, string $uid): RedirectResponse
     {
-        $this->patients->setArchived($this->manageableOr403($request, $uid), true);
+        $this->patients->setArchived($this->manageableOr403($request, $uid), true, $request->user());
 
         return redirect()->route('patients.index')->with('success', 'Patient archived. Their app login is disabled; their records are kept.');
     }

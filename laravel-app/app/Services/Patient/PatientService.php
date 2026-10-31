@@ -164,11 +164,22 @@ class PatientService
      * Archive (disable the app login and hide from lists) or restore. Nothing
      * is deleted: sessions and records stay for the clinic's history.
      */
-    public function setArchived(array $patient, bool $archived): void
+    public function setArchived(array $patient, bool $archived, ?StaffUser $by = null): void
     {
         $this->admin->updateUser($patient['uid'], ['disabled' => $archived]);
+
+        // The archive list shows when and by whom; restoring clears both.
+        $change = ['archived' => $archived];
+        $serverTimestamps = ['updatedAt'];
+        if ($archived) {
+            $change['archivedByName'] = $by?->name ?? '';
+            $serverTimestamps[] = 'archivedAt';
+        } else {
+            $change += ['archivedAt' => null, 'archivedByName' => null];
+        }
+
         $this->db->commit([
-            $this->db->mergeWrite("patients/{$patient['uid']}", ['archived' => $archived], serverTimestamps: ['updatedAt']),
+            $this->db->mergeWrite("patients/{$patient['uid']}", $change, serverTimestamps: $serverTimestamps),
             $this->db->mergeWrite("users/{$patient['uid']}", ['active' => ! $archived]),
         ]);
     }
@@ -194,6 +205,8 @@ class PatientService
             'dob' => (string) ($doc['dob'] ?? ''),
             'createdAt' => $doc['createdAt'] ?? null,
             'archived' => (bool) ($doc['archived'] ?? false),
+            'archivedAt' => $doc['archivedAt'] ?? null,
+            'archivedByName' => (string) ($doc['archivedByName'] ?? ''),
         ];
     }
 
