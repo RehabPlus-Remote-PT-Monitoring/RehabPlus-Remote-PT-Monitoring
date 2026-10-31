@@ -187,6 +187,56 @@ class FirestoreClient
         $this->ok($this->send(FirebaseRequest::POST, $this->url('').':commit', ['writes' => $writes], 'firestore.commit', $target, idempotent: false), 'save');
     }
 
+    /**
+     * Permanently delete a document and everything stored under it. Firestore
+     * doesn't remove subcollections with their parent, so the tree is found one
+     * level at a time (in parallel) and then deleted in batches of 500 writes,
+     * the commit limit.
+     */
+    public function deleteTree(string $path): void
+    {
+        $found = [$path];
+        $level = [$path];
+
+        while ($level !== []) {
+            $children = $this->concurrently(array_map(fn (string $parent) => fn () => $this->childPaths($parent), $level));
+            $level = array_merge([], ...array_values($children));
+            $found = array_merge($found, $level);
+        }
+
+        foreach (array_chunk($found, 500) as $batch) {
+            $this->commit(array_map(fn (string $p) => ['delete' => $this->name($p)], $batch));
+        }
+    }
+
+    /** Ids of the subcollections directly under a document. */
+    public function collectionIds(string $path): array
+    {
+        $response = $this->ok($this->send(
+            FirebaseRequest::POST,
+            $this->url($path).':listCollectionIds',
+            ['pageSize' => 300],
+            'firestore.listCollectionIds',
+            $path,
+            idempotent: true,
+        ), 'list collections');
+
+        return $response->json('collectionIds') ?? [];
+    }
+
+    /** Paths of every document directly under the subcollections of $parent. */
+    private function childPaths(string $parent): array
+    {
+        $paths = [];
+        foreach ($this->collectionIds($parent) as $collection) {
+            foreach ($this->query($parent, $collection) as $doc) {
+                $paths[] = "{$parent}/{$collection}/{$doc['_id']}";
+            }
+        }
+
+        return $paths;
+    }
+
     /** Delete a document (deleting a missing document is not an error). */
     public function delete(string $path): void
     {

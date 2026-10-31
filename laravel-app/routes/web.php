@@ -82,6 +82,7 @@ Route::middleware(['auth.rehab'])->group(function () {
     Route::put('/patients/{uid}', [PatientController::class, 'update'])->name('patients.update');
     Route::post('/patients/{uid}/archive', [PatientController::class, 'archive'])->name('patients.archive');
     Route::post('/patients/{uid}/restore', [PatientController::class, 'restore'])->name('patients.restore');
+    Route::post('/patients/{uid}/delete', [PatientController::class, 'destroy'])->name('patients.destroy');
     Route::post('/patients/{uid}/password', [PatientController::class, 'password'])->name('patients.password');
 
     // Clinical records: admins and therapists only.

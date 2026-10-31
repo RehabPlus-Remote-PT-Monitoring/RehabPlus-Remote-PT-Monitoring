@@ -132,7 +132,23 @@ class PatientController extends Controller
     {
         $this->patients->setArchived($this->manageableOr403($request, $uid), false);
 
-        return redirect()->route('patients.show', $uid)->with('success', 'Patient restored. They can sign in to the app again.');
+        // Back to the page the button was pressed on: the archived list or the patient's page.
+        return redirect()->back(fallback: route('patients.show', $uid))->with('success', 'Patient restored. They can sign in to the app again.');
+    }
+
+    /** Permanent delete: admins only, and only once the patient is archived. */
+    public function destroy(Request $request, string $uid): RedirectResponse
+    {
+        abort_unless($request->user()->isAdmin(), 403);
+        $patient = $this->manageableOr403($request, $uid);
+
+        if (! $patient['archived']) {
+            return redirect()->route('patients.show', $uid)->with('error', 'Archive the patient before deleting them permanently.');
+        }
+
+        $this->patients->deletePermanently($patient);
+
+        return redirect()->route('patients.index', ['archived' => 1])->with('success', 'Patient permanently deleted. Their login and records are gone.');
     }
 
     public function password(Request $request, string $uid): RedirectResponse

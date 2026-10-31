@@ -2,12 +2,14 @@
 
 namespace App\Services\Patient;
 
+use App\Auth\FirebaseUserProvider;
 use App\Auth\StaffUser;
 use App\Rules\OfficialEmailDomain;
 use App\Services\Firebase\FirebaseAdmin;
 use App\Services\Firebase\FirebaseException;
 use App\Services\Firebase\FirestoreClient;
 use App\Services\User\UserService;
+use Illuminate\Support\Facades\Cache;
 use Illuminate\Support\Facades\Log;
 
 /**
@@ -182,6 +184,21 @@ class PatientService
             $this->db->mergeWrite("patients/{$patient['uid']}", $change, serverTimestamps: $serverTimestamps),
             $this->db->mergeWrite("users/{$patient['uid']}", ['active' => ! $archived]),
         ]);
+    }
+
+    /**
+     * Permanently delete an archived patient: their record with everything
+     * stored under it (sessions, prescriptions, notes, messages...), then their
+     * login. The login is already disabled by archiving, so if this stops part
+     * way the patient can't sign in and the delete can simply be run again.
+     */
+    public function deletePermanently(array $patient): void
+    {
+        $this->db->deleteTree("patients/{$patient['uid']}");
+        $this->db->delete("users/{$patient['uid']}");
+        $this->admin->deleteUser($patient['uid']);
+        FirebaseUserProvider::forget($patient['uid']);
+        Cache::forget(FirebaseAdmin::uidCacheKey($patient['email']));
     }
 
     /** Set a new temporary app password (the patient can change it via "Forgot password"). */

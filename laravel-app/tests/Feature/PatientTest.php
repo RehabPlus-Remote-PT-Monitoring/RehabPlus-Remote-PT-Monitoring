@@ -52,6 +52,62 @@ class PatientTest extends TestCase
             ->assertDontSee('/patients/pOld/archive', false);
     }
 
+    public function test_permanent_delete_removes_the_record_everything_under_it_and_the_login(): void
+    {
+        $this->patientDoc('pGone', ['name' => 'Gina Gone', 'therapistId' => 'thB', 'archived' => true]);
+        $this->docs['patients/pGone/sessions/s1'] = ['startTime' => CarbonImmutable::now()];
+        $this->docs['patients/pGone/prescriptions/rx1'] = ['active' => true];
+        $this->docs['patients/pGone/threads/t1'] = ['unreadForStaff' => 0];
+        $this->docs['patients/pGone/threads/t1/messages/m1'] = ['text' => 'hello'];
+
+        $this->actingAs($this->staff('admin'))->post('/patients/pGone/delete')
+            ->assertRedirect('/patients?archived=1')
+            ->assertSessionHas('success');
+
+        $this->assertSame([], array_values(array_filter(array_keys($this->docs), fn ($k) => str_starts_with($k, 'patients/pGone'))));
+        $this->assertArrayNotHasKey('users/pGone', $this->docs);
+        $this->assertArrayNotHasKey('pGone@mail.com', $this->authUsers);
+        $this->assertArrayHasKey('patients/pOne', $this->docs);
+    }
+
+    public function test_only_archived_patients_can_be_deleted_permanently(): void
+    {
+        $this->actingAs($this->staff('admin'))->post('/patients/pOne/delete')
+            ->assertRedirect('/patients/pOne')
+            ->assertSessionHas('error');
+
+        $this->assertArrayHasKey('patients/pOne', $this->docs);
+        $this->assertArrayHasKey('pOne@mail.com', $this->authUsers);
+    }
+
+    public function test_therapists_cannot_delete_permanently(): void
+    {
+        $this->actingAs($this->staff('therapist', 'thA', 'Dr. Ana'))->post('/patients/pOld/delete')->assertForbidden();
+
+        $this->assertArrayHasKey('patients/pOld', $this->docs);
+    }
+
+    public function test_restore_returns_to_the_page_the_button_was_on(): void
+    {
+        $this->actingAs($this->staff('admin'))
+            ->withHeader('referer', 'http://localhost/patients?archived=1')
+            ->post('/patients/pOld/restore')
+            ->assertRedirect('http://localhost/patients?archived=1');
+    }
+
+    public function test_archived_list_offers_restore_and_delete_only_to_the_right_roles(): void
+    {
+        $this->actingAs($this->staff('admin'))->get('/patients?archived=1')
+            ->assertOk()
+            ->assertSee('/patients/pOld/restore', false)
+            ->assertSee('Delete permanently');
+
+        $this->actingAs($this->staff('therapist', 'thA', 'Dr. Ana'))->get('/patients?archived=1')
+            ->assertOk()
+            ->assertSee('/patients/pOld/restore', false)
+            ->assertDontSee('Delete permanently');
+    }
+
     public function test_archived_list_shows_when_and_by_whom_a_patient_was_archived(): void
     {
         $this->actingAs($this->staff('admin', 'adm1', 'Dr. Admin'))->post('/patients/pTwo/archive')->assertRedirect('/patients');

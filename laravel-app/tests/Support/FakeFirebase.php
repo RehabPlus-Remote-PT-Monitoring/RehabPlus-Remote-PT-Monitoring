@@ -154,6 +154,10 @@ trait FakeFirebase
             }, $body['documents']));
         }
 
+        if (str_ends_with($path, ':listCollectionIds')) {
+            return Http::response(['collectionIds' => $this->collectionIdsUnder(trim(Str::before($path, ':listCollectionIds'), '/'))]);
+        }
+
         if (str_ends_with($path, ':runQuery')) {
             return Http::response($this->runQuery(Str::before($path, ':runQuery'), $body['structuredQuery']));
         }
@@ -245,7 +249,7 @@ trait FakeFirebase
         }
 
         foreach ($writes as $w) {
-            $path = Str::after($w['update']['name'], self::ROOT.'/');
+            $path = Str::after($w['update']['name'] ?? $w['delete'], self::ROOT.'/');
             if (($w['currentDocument']['exists'] ?? null) === false && isset($this->docs[$path])) {
                 return Http::response(['error' => ['message' => 'ALREADY_EXISTS: '.$path]], 409);
             }
@@ -257,7 +261,13 @@ trait FakeFirebase
         $this->commits[] = $writes;
 
         foreach ($writes as $w) {
-            $path = Str::after($w['update']['name'], self::ROOT.'/');
+            $path = Str::after($w['update']['name'] ?? $w['delete'], self::ROOT.'/');
+            if (isset($w['delete'])) {
+                $this->deleted[] = $path;
+                unset($this->docs[$path]);
+
+                continue;
+            }
             $fields = array_map(fn ($v) => $db->decode($v), $w['update']['fields'] ?? []);
             $doc = isset($w['updateMask']) ? array_merge($this->docs[$path] ?? [], $fields) : $fields;
 
@@ -270,6 +280,20 @@ trait FakeFirebase
         }
 
         return Http::response(['writeResults' => []]);
+    }
+
+    /** Names of the subcollections that have documents under $parent. */
+    private function collectionIdsUnder(string $parent): array
+    {
+        $prefix = $parent.'/';
+        $ids = [];
+        foreach (array_keys($this->docs) as $path) {
+            if (str_starts_with($path, $prefix) && count(explode('/', substr($path, strlen($prefix)))) >= 2) {
+                $ids[explode('/', substr($path, strlen($prefix)))[0]] = true;
+            }
+        }
+
+        return array_keys($ids);
     }
 
     private function runQuery(string $parent, array $q): array
