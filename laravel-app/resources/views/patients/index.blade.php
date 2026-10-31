@@ -4,7 +4,7 @@
 
 @section('content')
     @php($me = auth()->user())
-    <div class="d-flex justify-content-between align-items-center mb-4">
+    <div class="d-flex flex-wrap justify-content-between align-items-center gap-3 mb-4">
         <div>
             <p class="page-title mb-1">{{ $showArchived ? 'Archived Patients' : 'Patients' }}</p>
             <p class="page-subtitle mb-0">
@@ -15,11 +15,22 @@
                 @endif
             </p>
         </div>
-        @if ($me->isClinician())
-            <a href="{{ route('patients.create') }}" class="btn btn-primary">
-                <i class="bi bi-plus-lg me-1"></i>Add Patient
-            </a>
-        @endif
+        <div class="d-flex flex-wrap gap-2">
+            @if ($showArchived)
+                <a href="{{ route('patients.index') }}" class="btn btn-outline-secondary">
+                    <i class="bi bi-arrow-left me-1"></i>Back to current patients
+                </a>
+            @else
+                <a href="{{ route('patients.index', ['archived' => 1]) }}" class="btn btn-outline-secondary">
+                    <i class="bi bi-archive me-1"></i>Show archived patients
+                </a>
+            @endif
+            @if ($me->isClinician())
+                <a href="{{ route('patients.create') }}" class="btn btn-primary">
+                    <i class="bi bi-plus-lg me-1"></i>Add Patient
+                </a>
+            @endif
+        </div>
     </div>
 
     @include('partials.flash')
@@ -87,11 +98,4 @@
         </div>
     </div>
 
-    <div class="mt-3 small">
-        @if ($showArchived)
-            <a href="{{ route('patients.index') }}"><i class="bi bi-arrow-left me-1"></i>Back to current patients</a>
-        @else
-            <a href="{{ route('patients.index', ['archived' => 1]) }}" class="text-muted"><i class="bi bi-archive me-1"></i>Show archived patients</a>
-        @endif
-    </div>
 @endsection

@@ -33,6 +33,20 @@ class PatientTest extends TestCase
         ];
     }
 
+    public function test_archived_toggle_sits_in_the_header_beside_add_patient(): void
+    {
+        $this->actingAs($this->staff('admin'));
+
+        $this->get('/patients')->assertOk()
+            ->assertSee('Show archived patients')
+            ->assertSee('Add Patient')
+            ->assertDontSee('Back to current patients');
+
+        $this->get('/patients?archived=1')->assertOk()
+            ->assertSee('Back to current patients')
+            ->assertSee('Add Patient');
+    }
+
     public function test_list_is_scoped_by_role(): void
     {
         $this->actingAs($this->staff('therapist', 'thA', 'Dr. Ana'))->get('/patients')
