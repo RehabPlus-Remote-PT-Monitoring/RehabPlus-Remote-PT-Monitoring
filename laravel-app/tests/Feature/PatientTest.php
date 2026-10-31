@@ -38,7 +38,7 @@ class PatientTest extends TestCase
         $this->actingAs($this->staff('admin'));
 
         $this->get('/patients')->assertOk()
-            ->assertSee('Show archived patients')
+            ->assertSee('Archived Patients')
             ->assertSee('Add Patient')
             ->assertDontSee('Back to current patients');
 

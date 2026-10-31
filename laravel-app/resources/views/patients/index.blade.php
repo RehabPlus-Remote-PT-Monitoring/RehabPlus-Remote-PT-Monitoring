@@ -22,7 +22,7 @@
                 </a>
             @else
                 <a href="{{ route('patients.index', ['archived' => 1]) }}" class="btn btn-outline-secondary">
-                    <i class="bi bi-archive me-1"></i>Show archived patients
+                    <i class="bi bi-archive me-1"></i>Archived Patients
                 </a>
             @endif
             @if ($me->isClinician())
