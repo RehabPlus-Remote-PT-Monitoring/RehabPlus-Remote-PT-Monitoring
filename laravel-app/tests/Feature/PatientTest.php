@@ -28,7 +28,7 @@ class PatientTest extends TestCase
         return $overrides + [
             'name' => 'Nina New', 'condition' => 'Ankle sprain', 'email' => 'Nina@RehabPlus.com',
             'password' => 'temp-pass-1', 'password_confirmation' => 'temp-pass-1',
-            'phone' => '09175550101', 'dob' => '1990-05-14',
+            'phone_country' => 'PH', 'phone' => '9175550101', 'dob' => '1990-05-14',
             'medical_summary' => 'Inversion sprain', 'therapy_plan' => 'Balance work',
         ];
     }
@@ -75,7 +75,7 @@ class PatientTest extends TestCase
         $this->assertSame('Ankle sprain', $doc['condition']);
         $this->assertSame('Inversion sprain', $doc['medicalSummary']);
         $this->assertSame('Balance work', $doc['therapyPlan']);
-        $this->assertSame('09175550101', $doc['phone']);
+        $this->assertSame('+639175550101', $doc['phone']);
         $this->assertSame('1990-05-14', $doc['dob']);
         $this->assertSame('nina@rehabplus.com', $doc['email']);
         $this->assertFalse($doc['archived']);
@@ -94,13 +94,39 @@ class PatientTest extends TestCase
         $this->assertSame([], $this->commits);
     }
 
-    public function test_phone_and_birth_date_are_checked(): void
+    public function test_phone_number_must_have_the_digits_of_the_chosen_country(): void
     {
         $user = $this->staff('admin');
 
         $this->actingAs($user)->from('/patients/create')
+            ->post('/patients', $this->newPatient(['phone' => '917555010']))
+            ->assertSessionHasErrors(['phone' => 'Enter exactly 10 digits for the phone number in Philippines.']);
+
+        $this->actingAs($user)->from('/patients/create')
             ->post('/patients', $this->newPatient(['phone' => '0917abc']))
             ->assertSessionHasErrors(['phone' => 'Phone number can only contain numbers.']);
+
+        // The same length check follows the country picked, not a fixed one.
+        $this->actingAs($user)->from('/patients/create')
+            ->post('/patients', $this->newPatient(['phone_country' => 'AU', 'phone' => '412345678']))
+            ->assertSessionHasNoErrors();
+        $uid = $this->authUsers['nina@rehabplus.com']['uid'];
+        $this->assertSame('+61412345678', $this->docs["patients/{$uid}"]['phone']);
+    }
+
+    public function test_editing_shows_the_saved_country_and_number(): void
+    {
+        $this->docs['patients/pOne']['phone'] = '+12025550123';
+
+        $this->actingAs($this->staff('admin'))->get('/patients/pOne/edit')
+            ->assertOk()
+            ->assertSee('<option value="US" data-dial="1" data-min="10" data-max="10" data-digits="10 digits" data-example="2025550123" selected>', false)
+            ->assertSee('value="2025550123"', false);
+    }
+
+    public function test_birth_date_is_checked(): void
+    {
+        $user = $this->staff('admin');
 
         $this->actingAs($user)->from('/patients/create')
             ->post('/patients', $this->newPatient(['dob' => 'January 14, 2000']))
@@ -181,7 +207,7 @@ class PatientTest extends TestCase
     public function test_update_profile_and_admin_reassignment(): void
     {
         $this->actingAs($this->staff('therapist', 'thA', 'Dr. Ana'))
-            ->put('/patients/pOne', ['name' => 'Olive Renamed', 'condition' => 'ACL reconstruction', 'phone' => '123', 'therapist_id' => 'thB'])
+            ->put('/patients/pOne', ['name' => 'Olive Renamed', 'condition' => 'ACL reconstruction', 'phone' => '9175550101', 'therapist_id' => 'thB'])
             ->assertRedirect('/patients/pOne');
 
         $doc = $this->docs['patients/pOne'];

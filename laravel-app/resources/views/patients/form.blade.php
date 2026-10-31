@@ -64,14 +64,27 @@
                     </div>
                 @endif
 
-                <div class="col-md-3">
+                @php($phone = \App\Helpers\PhoneNumber::parse($patient['phone'] ?? ''))
+                @php($phoneCountry = old('phone_country', $phone['iso']))
+                @php($phoneNumber = old('phone', $phone['national']))
+                @php($phoneCountries = \App\Helpers\PhoneNumber::countries())
+                @php($selectedCountry = collect($phoneCountries)->firstWhere('iso', $phoneCountry) ?? $phoneCountries[0])
+                <div class="col-md-6">
                     <label for="phone" class="form-label small fw-semibold">Phone</label>
-                    <input id="phone" type="text" name="phone" class="form-control @error('phone') is-invalid @enderror" inputmode="numeric" data-digits-only @if ($patient) data-initial="{{ $patient['phone'] ?? '' }}" @endif value="{{ old('phone', $patient['phone'] ?? '') }}" maxlength="30">
-                    @error('phone')
-                        <div class="invalid-feedback">{{ $message }}</div>
-                    @enderror
+                    <div class="input-group" data-phone-field>
+                        <select name="phone_country" class="form-select flex-grow-0" style="max-width: 11rem;" data-phone-country aria-label="Country code">
+                            @foreach ($phoneCountries as $country)
+                                <option value="{{ $country['iso'] }}" data-dial="{{ $country['dial'] }}" data-min="{{ $country['min'] }}" data-max="{{ $country['max'] }}" data-digits="{{ $country['digits'] }}" data-example="{{ $country['example'] }}" @selected($phoneCountry === $country['iso'])>{{ $country['name'] }} (+{{ $country['dial'] }})</option>
+                            @endforeach
+                        </select>
+                        <input id="phone" type="text" name="phone" class="form-control @error('phone') is-invalid @enderror" inputmode="numeric" data-digits-only data-phone-number placeholder="{{ $selectedCountry['example'] }}" maxlength="{{ $selectedCountry['max'] }}" @if ($patient) data-initial="{{ $phoneNumber }}" @endif value="{{ $phoneNumber }}">
+                        @error('phone')
+                            <div class="invalid-feedback">{{ $message }}</div>
+                        @enderror
+                    </div>
+                    <div class="form-text" data-phone-hint>Enter {{ $selectedCountry['digits'] }} without the country code.</div>
                 </div>
-                <div class="col-md-3">
+                <div class="col-md-6">
                     <label for="dob" class="form-label small fw-semibold">Date of birth</label>
                     <input id="dob" type="date" name="dob" class="form-control @error('dob') is-invalid @enderror" max="{{ now()->toDateString() }}" @if ($patient) data-initial="{{ $patient['dob'] ?? '' }}" @endif value="{{ old('dob', $patient['dob'] ?? '') }}">
                     @error('dob')

@@ -19,3 +19,26 @@ export function keepDigitsOnly(input) {
         input.value = digits;
     }
 }
+
+/*
+ * Phone fields: the country <select> decides how many digits the number has.
+ * The option's data-max, data-digits and data-example come from App\Helpers\PhoneNumber.
+ *
+ *   <div data-phone-field>
+ *     <select data-phone-country>...</select>
+ *     <input data-phone-number data-digits-only>
+ *     <div data-phone-hint></div>
+ *   </div>
+ */
+
+/** Limits the number to the selected country's length and updates the placeholder and hint. */
+export function applyPhoneLimits(select, input, hint) {
+    const option = select.selectedOptions[0];
+
+    input.maxLength = Number(option.dataset.max);
+    input.placeholder = option.dataset.example;
+
+    if (hint) {
+        hint.textContent = `Enter ${option.dataset.digits} without the country code.`;
+    }
+}

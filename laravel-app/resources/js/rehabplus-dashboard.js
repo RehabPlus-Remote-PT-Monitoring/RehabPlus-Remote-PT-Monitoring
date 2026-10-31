@@ -1,5 +1,5 @@
 import { confirmSubmit, needsConfirmation } from './confirm.js';
-import { keepDigitsOnly } from './input-masks.js';
+import { applyPhoneLimits, keepDigitsOnly } from './input-masks.js';
 import { dragOffset, swipeCloses, swipeGesture } from './swipe.js';
 
 const searchInput = document.getElementById('patientSearch');
@@ -268,7 +268,19 @@ document.addEventListener('input', (event) => {
     }
 });
 
+// Phone fields: the country picked sets the length limit, placeholder and hint.
+function applyPhoneField(select) {
+    const field = select.closest('[data-phone-field]');
+    applyPhoneLimits(select, field.querySelector('[data-phone-number]'), field.querySelector('[data-phone-hint]'));
+}
+
+document.querySelectorAll('[data-phone-country]').forEach(applyPhoneField);
+
 document.addEventListener('change', (event) => {
+    if (event.target.matches?.('[data-phone-country]')) {
+        applyPhoneField(event.target);
+    }
+
     if (event.target.matches?.('[data-autosubmit]') && event.target.form) {
         event.target.form.requestSubmit(); // runs data-confirm and validation, unlike form.submit()
     }
