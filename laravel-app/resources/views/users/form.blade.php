@@ -6,6 +6,7 @@
     @php
         $me = auth()->user();
         $roleLocked = $user && ($user['role'] === 'therapist' || $user['uid'] === $me->id);
+        $selectedRole = old('role', $user['role'] ?? 'staff');
     @endphp
     <div class="mb-3">
         <a href="{{ route('users.index') }}" class="text-decoration-none small"><i class="bi bi-arrow-left me-1"></i>Back to staff accounts</a>
@@ -25,7 +26,7 @@
             <div class="row g-3">
                 <div class="col-md-6">
                     <label for="name" class="form-label small fw-semibold">Full name</label>
-                    <input id="name" type="text" name="name" class="form-control" value="{{ old('name', $user['name'] ?? '') }}" required maxlength="100">
+                    <input id="name" type="text" name="name" class="form-control" value="{{ old('name', $user['name'] ?? '') }}" required maxlength="100" @unless ($user) placeholder="{{ \App\Auth\StaffUser::ROLE_LABELS[$selectedRole] ?? '' }}" @endunless>
                     @if ($user && $user['role'] === 'therapist')
                         <div class="form-text">Their patients see this name in the app.</div>
                     @endif
@@ -36,9 +37,9 @@
                         <input type="text" class="form-control" value="{{ \App\Auth\StaffUser::ROLE_LABELS[$user['role']] }} (locked)" disabled>
                         <div class="form-text">{{ $user['role'] === 'therapist' ? 'Therapist accounts keep their role because patients are assigned to them.' : 'You can\'t change your own role.' }}</div>
                     @else
-                        <select id="role" name="role" class="form-select">
+                        <select id="role" name="role" class="form-select" @unless ($user) data-role-defaults @endunless>
                             @foreach (\App\Auth\StaffUser::ROLE_LABELS as $value => $label)
-                                <option value="{{ $value }}" @selected(old('role', $user['role'] ?? 'staff') === $value)>{{ $label }}</option>
+                                <option value="{{ $value }}" data-name="{{ $label }}" data-email="{{ $value }}@rehabplus.com" @selected($selectedRole === $value)>{{ $label }}</option>
                             @endforeach
                         </select>
                         <div class="form-text">Therapists manage their own patients; front desk staff see patient contact details and the clinic inbox; administrators can do everything.</div>
@@ -48,7 +49,7 @@
                 @unless ($user)
                     <div class="col-md-6">
                         <label for="email" class="form-label small fw-semibold">Email</label>
-                        <input id="email" type="email" name="email" class="form-control @error('email') is-invalid @enderror" value="{{ old('email') }}" required maxlength="150" autocomplete="off">
+                        <input id="email" type="email" name="email" class="form-control @error('email') is-invalid @enderror" value="{{ old('email') }}" placeholder="{{ $selectedRole }}@rehabplus.com" required maxlength="150" autocomplete="off">
                         @error('email')
                             <div class="invalid-feedback">{{ $message }}</div>
                         @enderror

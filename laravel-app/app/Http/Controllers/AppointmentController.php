@@ -18,12 +18,12 @@ class AppointmentController extends Controller
         return view('appointments.index', $this->appointments->overview($request->user()));
     }
 
-    public function create(): View
+    public function create(Request $request): View
     {
         return view('appointments.create', [
             'appointment' => null,
             'therapists' => $this->appointments->therapists(),
-            'errors' => [],
+            'patients' => $this->appointments->activePatients($request->user()),
         ]);
     }
 
@@ -39,12 +39,12 @@ class AppointmentController extends Controller
         return redirect()->route('appointments.index')->with('success', 'Appointment scheduled successfully.');
     }
 
-    public function edit(string $id)
+    public function edit(Request $request, string $id)
     {
         return view('appointments.create', [
             'appointment' => $this->appointments->find($id),
             'therapists' => $this->appointments->therapists(),
-            'errors' => [],
+            'patients' => $this->appointments->activePatients($request->user()),
         ]);
     }
 

@@ -1,5 +1,7 @@
 import { confirmSubmit, needsConfirmation } from './confirm.js';
 import { applyPhoneLimits, keepDigitsOnly } from './input-masks.js';
+import { initPatientPickers } from './patient-picker.js';
+import { applyRoleDefaults } from './role-defaults.js';
 import { dragOffset, swipeCloses, swipeGesture } from './swipe.js';
 
 const searchInput = document.getElementById('patientSearch');
@@ -276,9 +278,15 @@ function applyPhoneField(select) {
 
 document.querySelectorAll('[data-phone-country]').forEach(applyPhoneField);
 
+initPatientPickers();
+
 document.addEventListener('change', (event) => {
     if (event.target.matches?.('[data-phone-country]')) {
         applyPhoneField(event.target);
+    }
+
+    if (event.target.matches?.('[data-role-defaults]')) {
+        applyRoleDefaults(event.target);
     }
 
     if (event.target.matches?.('[data-autosubmit]') && event.target.form) {

@@ -44,6 +44,12 @@ class AppointmentService
         ];
     }
 
+    /** Active patients this user can see, for the patient name picker. */
+    public function activePatients(StaffUser $user): array
+    {
+        return $this->patients->visible($user);
+    }
+
     /** Active therapists from Firebase (appointments store the therapist's name). */
     public function therapists(): array
     {

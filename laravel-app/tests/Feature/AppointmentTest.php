@@ -18,7 +18,8 @@ class AppointmentTest extends TestCase
             'patient' => 'Emily Johnson',
             'therapist' => 'Dr. Lee',
             'patient_condition' => 'Knee rehab',
-            'contact' => '555-1201',
+            'contact_country' => 'PH',
+            'contact' => '9175550101',
             'date' => '2026-10-20',
             'time' => '09:30',
             'session' => 'Mobility Session',
@@ -39,12 +40,58 @@ class AppointmentTest extends TestCase
         $this->assertSame('Emily Johnson', $doc['patient']);
         $this->assertSame('2026-10-20', $doc['date']);
         $this->assertSame('09:30', $doc['time']);
+        $this->assertSame('+639175550101', $doc['contact']);
         $this->assertNull($doc['completed_at']);
         $this->assertArrayHasKey('createdAt', $doc);
 
         $this->get('/appointments')->assertOk()->assertSee('Emily Johnson')->assertSee('Oct 20, 2026');
         $this->get("/appointments/{$id}")->assertOk()->assertSee('Knee rehab')->assertSee('9:30 AM');
-        $this->get("/appointments/{$id}/edit")->assertOk()->assertSee('Update Appointment')->assertSee('555-1201');
+        $this->get("/appointments/{$id}/edit")->assertOk()->assertSee('Update Appointment')->assertSee('9175550101');
+    }
+
+    public function test_patient_name_offers_active_patients_and_still_accepts_typing(): void
+    {
+        $this->patientDoc('pOne', ['name' => 'Olive One', 'condition' => 'ACL', 'therapistId' => 'thA']);
+        $this->patientDoc('pOld', ['name' => 'Otto Archived', 'therapistId' => 'thA', 'archived' => true]);
+        $this->patientDoc('pTwo', ['name' => 'Tom Two', 'therapistId' => 'thB']);
+        $this->staff('therapist', 'thA', 'Dr. Ana');
+
+        $this->actingAs($this->staff('admin'))->get('/appointments/create')
+            ->assertOk()
+            ->assertSee('data-patient-picker', false)
+            ->assertSee('data-patient-option data-name="Olive One"', false)
+            ->assertSee('data-patient-option data-name="Tom Two"', false)
+            ->assertDontSee('Otto Archived')
+            ->assertSee('name="patient"', false);
+
+        $this->actingAs($this->staff('therapist', 'thA'))->get('/appointments/create')
+            ->assertOk()
+            ->assertSee('Olive One')
+            ->assertDontSee('Tom Two');
+    }
+
+    public function test_cancelled_is_only_offered_when_editing(): void
+    {
+        $this->actingAs($this->staff('admin'));
+        $this->get('/appointments/create')->assertOk()->assertDontSee('value="Cancelled"', false);
+
+        $this->docs['appointments/ap1'] = $this->form(['status' => 'Upcoming']);
+        $this->get('/appointments/ap1/edit')->assertOk()->assertSee('value="Cancelled"', false);
+    }
+
+    public function test_contact_is_checked_against_the_chosen_country(): void
+    {
+        $this->actingAs($this->staff('admin'));
+
+        $this->post('/appointments', $this->form(['contact' => 'call mom']))
+            ->assertSessionHasErrors('contact');
+        $this->post('/appointments', $this->form(['contact_country' => 'AU', 'contact' => '1234']))
+            ->assertSessionHasErrors('contact');
+        $this->assertSame([], $this->commits);
+
+        $this->post('/appointments', $this->form(['contact_country' => 'AU', 'contact' => '412345678']))
+            ->assertRedirect('/appointments');
+        $this->assertSame('+61412345678', $this->docs[array_key_first($this->docsLike('appointments/*'))]['contact']);
     }
 
     public function test_status_change_stamps_completion_and_counts_today(): void

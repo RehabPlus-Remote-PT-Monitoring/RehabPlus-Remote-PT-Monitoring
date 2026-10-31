@@ -49,6 +49,15 @@ class UserManagementTest extends TestCase
         $this->assertSame([], $this->commits);
     }
 
+    public function test_new_account_form_shows_the_role_name_and_email_as_placeholders(): void
+    {
+        $this->actingAs($this->staff('admin'))->get('/users/create')
+            ->assertOk()
+            ->assertSee('placeholder="Front Desk Staff"', false)
+            ->assertSee('placeholder="staff@rehabplus.com"', false)
+            ->assertSee('data-email="admin@rehabplus.com"', false);
+    }
+
     public function test_patient_role_cannot_be_given_here(): void
     {
         $this->actingAs($this->staff('admin'))->post('/users', [

@@ -154,6 +154,10 @@ class PatientTest extends TestCase
     public function test_front_desk_staff_cannot_add_patients(): void
     {
         $this->actingAs($this->staff('staff'))->get('/patients/create')->assertForbidden();
+
+        $this->actingAs($this->staff('admin'))->get('/patients/create')
+            ->assertSee('placeholder="Patient"', false)
+            ->assertSee('placeholder="patient@rehabplus.com"', false);
         $this->actingAs($this->staff('staff'))->post('/patients', $this->newPatient())->assertForbidden();
     }
 
