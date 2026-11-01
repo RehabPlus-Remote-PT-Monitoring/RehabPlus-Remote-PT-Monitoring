@@ -6,6 +6,7 @@ use App\Auth\StaffUser;
 use App\Services\Clinic\ClinicRecord;
 use App\Services\Clinic\ClinicStore;
 use App\Services\Firebase\FirebaseTransport;
+use App\Services\User\StaffDirectory;
 use App\Services\User\UserService;
 use Carbon\CarbonImmutable;
 use Illuminate\Support\Collection;
@@ -20,6 +21,7 @@ class StaffScheduleService
         private ClinicStore $store,
         private ShiftConflictService $shifts,
         private UserService $users,
+        private StaffDirectory $directory,
         private FirebaseTransport $firebase,
     ) {
     }
@@ -103,7 +105,7 @@ class StaffScheduleService
     {
         return $this->store->create(ClinicStore::SHIFTS, [
             'staffId' => $shift['staffId'],
-            'staff' => $shift['staff'],
+            'staff' => $this->directory->name($shift['staffId'] ?? null, $shift['staff']),
             'role' => $shift['role'],
             'day' => $shift['day'],
             'shift' => $shift['shift'],
@@ -115,7 +117,7 @@ class StaffScheduleService
     {
         return $this->store->create(ClinicStore::TIME_OFF, [
             'staffId' => $timeOff['staffId'],
-            'staff' => $timeOff['staff'],
+            'staff' => $this->directory->name($timeOff['staffId'] ?? null, $timeOff['staff']),
             'date' => CarbonImmutable::parse($timeOff['date'])->toDateString(),
             'type' => $timeOff['type'],
             'time' => $timeOff['time'],

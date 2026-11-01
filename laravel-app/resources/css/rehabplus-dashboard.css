@@ -414,6 +414,11 @@ html.dark-mode{
             font-weight:700;
         }
 
+        .user-avatar-photo{
+            object-fit:cover;
+            background:none;
+        }
+
         /* SIDEBAR: sits below the top bar and scrolls on its own if the
            menu is taller than the window. */
 
@@ -1391,4 +1396,204 @@ html.dark-mode{
 
         html.dark-mode body .consent-outdated{
             color:#fbbf24;
+        }
+
+        /* Home page: cover photo with the clinic logo overlapping its bottom edge. */
+        .home-hero{
+            overflow:hidden;
+        }
+
+        .home-cover{
+            height:240px;
+            background:#0f172a;
+        }
+
+        .home-cover img{
+            object-fit:cover;
+        }
+
+        .home-profile{
+            display:flex;
+            flex-wrap:wrap;
+            align-items:flex-end;
+            gap:1rem 1.25rem;
+            padding:0 1.5rem 1.5rem;
+        }
+
+        .home-logo{
+            width:120px;
+            height:120px;
+            margin-top:-60px;
+            flex-shrink:0;
+            border-radius:50%;
+            border:5px solid var(--card);
+            background:#fff;
+            object-fit:cover;
+            box-shadow:var(--shadow);
+        }
+
+        .home-identity{
+            flex:1 1 220px;
+            min-width:0;
+            padding-top:.5rem;
+        }
+
+        .home-name{
+            margin:0;
+            font-size:1.5rem;
+            font-weight:800;
+            color:var(--text);
+        }
+
+        .home-subtitle{
+            margin:0;
+            font-weight:500;
+            color:var(--muted);
+        }
+
+        .home-facebook{
+            align-self:center;
+        }
+
+        .home-icon{
+            display:grid;
+            place-items:center;
+            width:42px;
+            height:42px;
+            flex-shrink:0;
+            border-radius:50%;
+            background:var(--primary-light);
+            color:var(--primary-dark);
+            font-size:1.15rem;
+        }
+
+        .home-label{
+            margin:0 0 .15rem;
+            font-size:.72rem;
+            font-weight:700;
+            letter-spacing:.07em;
+            text-transform:uppercase;
+            color:var(--muted);
+        }
+
+        /* Clinic details: one card split into columns by thin dividers, not separate boxes. */
+        .home-info{
+            overflow:hidden;
+        }
+
+        .home-info-item{
+            display:flex;
+            align-items:flex-start;
+            gap:.875rem;
+            min-width:0;
+            padding:1.25rem 1.5rem;
+        }
+
+        .home-info-item + .home-info-item{
+            border-top:1px solid var(--border);
+        }
+
+        .home-value{
+            margin:0;
+            font-weight:600;
+            line-height:1.45;
+            color:var(--text);
+            overflow-wrap:anywhere;
+        }
+
+        .home-value span{
+            display:block;
+            font-size:.875rem;
+            font-weight:400;
+            color:var(--muted);
+        }
+
+        a.home-value{
+            text-decoration:none;
+        }
+
+        a.home-value:hover{
+            color:var(--primary-dark);
+            text-decoration:underline;
+        }
+
+        /* Tablet: two per row, with a divider between the columns and above the second row. */
+        @media (min-width:768px){
+            .home-info-item + .home-info-item{
+                border-top:0;
+            }
+
+            .home-info-item:nth-child(even){
+                border-left:1px solid var(--border);
+            }
+
+            .home-info-item:nth-child(n+3){
+                border-top:1px solid var(--border);
+            }
+        }
+
+        /* Desktop: one row of four, divided by vertical lines. */
+        @media (min-width:1200px){
+            .home-info-item:nth-child(n){
+                border-top:0;
+            }
+
+            .home-info-item:nth-child(even){
+                border-left:0;
+            }
+
+            .home-info-item + .home-info-item{
+                border-left:1px solid var(--border);
+            }
+        }
+
+        html.dark-mode body .home-value a,
+        html.dark-mode body a.home-value:hover{
+            color:#5eead4;
+        }
+
+        .home-staff-photo,
+        .home-staff-initials{
+            width:88px;
+            height:88px;
+            border-radius:50%;
+            object-fit:cover;
+        }
+
+        .home-staff-initials{
+            display:grid;
+            place-items:center;
+            background:var(--primary-light);
+            color:var(--primary-dark);
+            font-size:1.75rem;
+            font-weight:700;
+        }
+
+        .section-title{
+            margin:1.5rem 0 .75rem;
+            font-size:1.125rem;
+            font-weight:700;
+            color:var(--text);
+        }
+
+        html.dark-mode body .home-icon,
+        html.dark-mode body .home-staff-initials{
+            background:rgba(20,184,166,.15);
+            color:#5eead4;
+        }
+
+        @media (max-width:575.98px){
+            .home-cover{
+                height:160px;
+            }
+
+            .home-logo{
+                width:96px;
+                height:96px;
+                margin-top:-48px;
+            }
+
+            .home-facebook{
+                width:100%;
+            }
         }

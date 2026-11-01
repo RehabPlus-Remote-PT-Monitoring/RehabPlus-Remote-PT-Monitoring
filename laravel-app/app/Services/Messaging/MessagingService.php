@@ -6,6 +6,7 @@ use App\Auth\StaffUser;
 use App\Services\Firebase\FirebaseException;
 use App\Services\Firebase\FirestoreClient;
 use App\Services\Firebase\PatientNotifier;
+use App\Services\User\StaffDirectory;
 use Carbon\CarbonImmutable;
 use Illuminate\Support\Str;
 
@@ -39,7 +40,7 @@ class MessagingService
      */
     public const CLOCK_SKEW_MINUTES = 60;
 
-    public function __construct(private FirestoreClient $db, private PatientNotifier $notifier)
+    public function __construct(private FirestoreClient $db, private PatientNotifier $notifier, private StaffDirectory $directory)
     {
     }
 
@@ -147,7 +148,7 @@ class MessagingService
                 'id' => $m['_id'],
                 'text' => $m['text'] ?? '',
                 'fromPatient' => $fromPatient,
-                'senderName' => $fromPatient ? $patientName : (($m['senderName'] ?? '') ?: $staffFallback),
+                'senderName' => $fromPatient ? $patientName : $this->directory->name($m['senderId'] ?? null, ($m['senderName'] ?? '') ?: $staffFallback),
                 'sentAt' => $m['sentAt'] ?? $m['createdAt'] ?? null,
             ];
         }, $messages));

@@ -14,7 +14,7 @@ class AppointmentValidation
     {
         $data = $request->validate([
             'patient' => 'required|min:2|max:100',
-            'therapist' => 'required|min:2|max:100',
+            'therapist_id' => 'required|string|max:128',
             'patient_condition' => 'required|min:2|max:150',
             'contact_country' => ['nullable', Rule::in(PhoneNumber::isoCodes())],
             'contact' => 'required|string|max:20',

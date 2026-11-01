@@ -59,7 +59,7 @@ class ContentSecurityPolicy
             'script-src' => ["'self'", "'nonce-{$nonce}'", ...$devServer],
             'style-src' => ["'self'", "'unsafe-inline'", 'https://cdn.jsdelivr.net', 'https://fonts.googleapis.com', ...$devServer],
             'font-src' => ["'self'", 'https://cdn.jsdelivr.net', 'https://fonts.gstatic.com', 'data:'],
-            'img-src' => ["'self'", 'data:', 'blob:'],
+            'img-src' => ["'self'", 'data:', 'blob:', 'https://firebasestorage.googleapis.com', 'https://storage.googleapis.com'],
             'connect-src' => ["'self'", ...$devServer, ...array_map(fn ($url) => preg_replace('/^http/', 'ws', $url), $devServer)],
             'object-src' => ["'none'"],
             'base-uri' => ["'self'"],

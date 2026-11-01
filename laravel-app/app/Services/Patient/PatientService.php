@@ -8,6 +8,7 @@ use App\Rules\OfficialEmailDomain;
 use App\Services\Firebase\FirebaseAdmin;
 use App\Services\Firebase\FirebaseException;
 use App\Services\Firebase\FirestoreClient;
+use App\Services\User\StaffDirectory;
 use App\Services\User\UserService;
 use Illuminate\Support\Facades\Cache;
 use Illuminate\Support\Facades\Log;
@@ -27,6 +28,7 @@ class PatientService
         private FirestoreClient $db,
         private FirebaseAdmin $admin,
         private UserService $users,
+        private StaffDirectory $directory,
     ) {
     }
 
@@ -215,7 +217,7 @@ class PatientService
             'email' => (string) ($doc['email'] ?? ''),
             'condition' => (string) ($doc['condition'] ?? ''),
             'therapistId' => $doc['therapistId'] ?? null,
-            'therapistName' => (string) ($doc['therapistName'] ?? ''),
+            'therapistName' => $this->directory->name($doc['therapistId'] ?? null, (string) ($doc['therapistName'] ?? '')),
             'medicalSummary' => (string) ($doc['medicalSummary'] ?? ''),
             'therapyPlan' => (string) ($doc['therapyPlan'] ?? ''),
             'phone' => (string) ($doc['phone'] ?? ''),

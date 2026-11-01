@@ -63,13 +63,13 @@
                 </div>
                 <div class="col-md-6">
                     <label for="therapist" class="form-label small fw-semibold">Therapist</label>
-                    <select id="therapist" name="therapist" class="form-select @error('therapist') is-invalid @enderror" required>
+                    <select id="therapist" name="therapist_id" class="form-select @error('therapist_id') is-invalid @enderror" required>
                         <option value="">Select therapist</option>
                         @foreach ($therapists as $therapist)
-                            <option value="{{ $therapist['name'] ?? $therapist['email'] ?? '' }}" @selected(old('therapist', $appointment->therapist ?? '') === ($therapist['name'] ?? $therapist['email'] ?? ''))>{{ $therapist['name'] ?? 'Therapist' }}</option>
+                            <option value="{{ $therapist['uid'] }}" @selected(old('therapist_id', $appointment->therapistId ?? '') === $therapist['uid'])>{{ $therapist['name'] }}</option>
                         @endforeach
                     </select>
-                    @error('therapist')
+                    @error('therapist_id')
                         <div class="invalid-feedback">{{ $message }}</div>
                     @enderror
                 </div>

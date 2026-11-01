@@ -18,7 +18,7 @@ use Illuminate\Support\Facades\Log;
  */
 class UserService
 {
-    public function __construct(private FirestoreClient $db, private FirebaseAdmin $admin)
+    public function __construct(private FirestoreClient $db, private FirebaseAdmin $admin, private StaffDirectory $directory)
     {
     }
 
@@ -35,6 +35,23 @@ class UserService
     public function staff(): array
     {
         return array_values(array_filter($this->all(), fn ($u) => in_array($u['role'], StaffUser::ROLES, true)));
+    }
+
+    /**
+     * Active staff for the Home page's board: administrators, then therapists,
+     * then front desk, each group by name. Only what the page shows.
+     */
+    public function board(): array
+    {
+        $order = array_flip(StaffUser::ROLES);
+        $active = array_filter($this->staff(), fn ($u) => $u['active']);
+        usort($active, fn ($a, $b) => [$order[$a['role']], $a['name']] <=> [$order[$b['role']], $b['name']]);
+
+        return array_values(array_map(fn ($u) => [
+            'name' => $u['name'],
+            'role' => StaffUser::ROLE_LABELS[$u['role']] ?? ucfirst($u['role']),
+            'photoUrl' => $u['photoUrl'],
+        ], $active));
     }
 
     /** Active therapists, for "assigned therapist" pickers. */
@@ -89,12 +106,16 @@ class UserService
     }
 
     /**
-     * Update name/role (and optionally the password). A therapist's new name is
-     * copied to their patients' therapistName, which the app shows.
+     * Update name/role (and optionally the password and photoUrl). A therapist's
+     * new name is copied to their patients' therapistName, which the app shows.
      */
     public function update(array $user, array $data): void
     {
-        $writes = [$this->db->mergeWrite("users/{$user['uid']}", ['name' => $data['name'], 'role' => $data['role']])];
+        $fields = ['name' => $data['name'], 'role' => $data['role']];
+        if (array_key_exists('photoUrl', $data)) {
+            $fields['photoUrl'] = $data['photoUrl'];
+        }
+        $writes = [$this->db->mergeWrite("users/{$user['uid']}", $fields)];
 
         if ($user['role'] === StaffUser::THERAPIST && $data['name'] !== $user['name']) {
             foreach ($this->db->query('', 'patients', [['therapistId', 'EQUAL', $user['uid']]]) as $patient) {
@@ -104,6 +125,7 @@ class UserService
 
         $this->db->commit($writes);
         FirebaseUserProvider::forget($user['uid']);
+        $this->directory->forget();
 
         $this->admin->updateUser($user['uid'], array_filter([
             'displayName' => $data['name'],
@@ -186,6 +208,7 @@ class UserService
             'role' => (string) ($doc['role'] ?? ''),
             'active' => ($doc['active'] ?? true) !== false,
             'createdAt' => $doc['createdAt'] ?? null,
+            'photoUrl' => StaffDirectory::safePhotoUrl($doc['photoUrl'] ?? null),
         ];
     }
 }

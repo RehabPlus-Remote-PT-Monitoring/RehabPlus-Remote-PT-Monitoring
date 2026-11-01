@@ -6,12 +6,14 @@ use App\Http\Controllers\ClinicalRecordController;
 use App\Http\Controllers\CronController;
 use App\Http\Controllers\CspReportController;
 use App\Http\Controllers\DashboardController;
+use App\Http\Controllers\HomeController;
 use App\Http\Controllers\InventoryController;
 use App\Http\Controllers\MessageController;
 use App\Http\Controllers\PasswordResetController;
 use App\Http\Controllers\PatientController;
 use App\Http\Controllers\PaymentController;
 use App\Http\Controllers\PrescriptionController;
+use App\Http\Controllers\ProfileController;
 use App\Http\Controllers\ReportController;
 use App\Http\Controllers\StaffScheduleController;
 use App\Http\Controllers\UserController;
@@ -51,6 +53,11 @@ Route::post('/cron/exercise-reminders', [CronController::class, 'exerciseReminde
 
 // Signed-in staff: admin, therapist or front-desk staff (see App\Auth\StaffUser).
 Route::middleware(['auth.rehab'])->group(function () {
+    Route::get('/home', [HomeController::class, 'index'])->name('home');
+
+    // My profile: every signed-in staff member edits only their own name and picture.
+    Route::get('/profile', [ProfileController::class, 'edit'])->name('profile.edit');
+    Route::put('/profile', [ProfileController::class, 'update'])->name('profile.update');
     Route::get('/dashboard', [DashboardController::class, 'index'])->name('dashboard');
 
     // Reports & Analytics: one page, sections by role (see ReportService).

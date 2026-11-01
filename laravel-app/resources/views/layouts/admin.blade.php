@@ -40,10 +40,14 @@
                 <i class="bi bi-moon-fill"></i>
             </button>
 
-            <div class="user-chip" title="{{ auth()->user()->name ?? '' }}">
-                <div class="user-avatar">{{ strtoupper(substr(auth()->user()->name ?? 'U', 0, 1)) }}</div>
+            <div class="user-chip" title="{{ $viewer['name'] ?? '' }}">
+                @if (($viewer['photoUrl'] ?? '') !== '')
+                    <img src="{{ $viewer['photoUrl'] }}" alt="" class="user-avatar user-avatar-photo">
+                @else
+                    <div class="user-avatar">{{ strtoupper(substr($viewer['name'] ?? 'U', 0, 1)) }}</div>
+                @endif
                 <div class="user-chip-text">
-                    <div class="fw-bold">{{ auth()->user()->name ?? '' }}</div>
+                    <div class="fw-bold">{{ $viewer['name'] ?? '' }}</div>
                     <small class="text-muted">{{ auth()->user()?->roleLabel() }}</small>
                 </div>
             </div>
@@ -74,6 +78,12 @@
 
             <div class="nav-section">Overview</div>
             <ul class="nav flex-column">
+                <li class="nav-item">
+                    <a class="nav-link {{ request()->routeIs('home') ? 'active' : '' }}" href="{{ route('home') }}">
+                        <i class="bi bi-house-door-fill"></i>
+                        Home
+                    </a>
+                </li>
                 <li class="nav-item">
                     <a class="nav-link {{ request()->routeIs('dashboard') ? 'active' : '' }}" href="{{ route('dashboard') }}">
                         <i class="bi bi-speedometer2"></i>
@@ -153,6 +163,16 @@
                     </li>
                 </ul>
             @endif
+
+            <div class="nav-section mt-4">Account</div>
+            <ul class="nav flex-column">
+                <li class="nav-item">
+                    <a class="nav-link {{ request()->routeIs('profile.*') ? 'active' : '' }}" href="{{ route('profile.edit') }}">
+                        <i class="bi bi-person-circle"></i>
+                        My Profile
+                    </a>
+                </li>
+            </ul>
         </nav>
 
         <main class="main-content" id="mainContent">

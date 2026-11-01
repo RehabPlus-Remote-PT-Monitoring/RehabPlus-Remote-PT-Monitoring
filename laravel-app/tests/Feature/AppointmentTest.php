@@ -12,11 +12,18 @@ class AppointmentTest extends TestCase
 {
     use FakeFirebase;
 
+    protected function setUp(): void
+    {
+        parent::setUp();
+
+        $this->staff('therapist', 'thA', 'Dr. Lee');
+    }
+
     private function form(array $overrides = []): array
     {
         return $overrides + [
             'patient' => 'Emily Johnson',
-            'therapist' => 'Dr. Lee',
+            'therapist_id' => 'thA',
             'patient_condition' => 'Knee rehab',
             'contact_country' => 'PH',
             'contact' => '9175550101',
@@ -121,6 +128,33 @@ class AppointmentTest extends TestCase
 
         $this->assertSame('Edited', $this->docs['appointments/ap1']['notes']);
         $this->assertTrue($done->equalTo($this->docs['appointments/ap1']['completed_at']));
+    }
+
+    public function test_therapist_is_stored_by_account_and_must_be_an_active_therapist(): void
+    {
+        $this->staff('staff', 'st1', 'Sam Front');
+        $this->actingAs($this->staff('admin'));
+
+        $this->post('/appointments', $this->form(['therapist_id' => 'nobody']))->assertSessionHasErrors('therapist_id');
+        $this->post('/appointments', $this->form(['therapist_id' => 'st1']))->assertSessionHasErrors('therapist_id');
+
+        $this->post('/appointments', $this->form())->assertRedirect('/appointments');
+        $doc = $this->docs[array_key_first($this->docsLike('appointments/*'))];
+        $this->assertSame('thA', $doc['therapistId']);
+        $this->assertSame('Dr. Lee', $doc['therapist']);
+    }
+
+    public function test_therapist_name_shows_the_current_name_after_a_rename(): void
+    {
+        $this->actingAs($this->staff('admin'));
+        $this->post('/appointments', $this->form())->assertRedirect('/appointments');
+
+        $this->actingAs($this->staff('therapist', 'thA', 'Dr. Lee'))
+            ->put('/profile', ['name' => 'Dr. Lee Renamed'])
+            ->assertRedirect('/profile');
+
+        $this->actingAs($this->staff('admin'))->get('/appointments')->assertOk()
+            ->assertSee('Dr. Lee Renamed');
     }
 
     public function test_delete_and_missing_ids(): void

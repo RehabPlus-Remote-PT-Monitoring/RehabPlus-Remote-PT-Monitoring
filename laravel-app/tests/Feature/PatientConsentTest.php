@@ -128,6 +128,8 @@ class PatientConsentTest extends TestCase
     {
         Log::spy();
         $this->consent('2026-10-18', CarbonImmutable::parse('2026-10-19'));
+        // Load the staff directory first (top bar), so its query doesn't take the failure.
+        $this->actingAs($this->staff('admin'))->get('/profile');
         // Front desk: the consent query is the only runQuery on this page.
         $this->injectedFailures[':runQuery'] = [403];
 
@@ -146,6 +148,7 @@ class PatientConsentTest extends TestCase
         // One non-retried failure on the first runQuery sent. The consent task
         // is listed first in the controller's concurrently() batch, so it's
         // the one that fails; sessions/prescriptions etc. still answer.
+        $this->actingAs($this->staff('admin'))->get('/profile');   // loads the staff directory first
         $this->injectedFailures[':runQuery'] = [403];
 
         $this->actingAs($this->therapist())->get('/patients/pOne')

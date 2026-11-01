@@ -4,6 +4,7 @@ namespace App\Services\Patient;
 
 use App\Auth\StaffUser;
 use App\Services\Firebase\FirestoreClient;
+use App\Services\User\StaffDirectory;
 use Carbon\CarbonImmutable;
 
 /**
@@ -34,7 +35,7 @@ class ClinicalRecordService
      */
     public const PER_PATIENT_READ_LIMIT = 15;
 
-    public function __construct(private FirestoreClient $db)
+    public function __construct(private FirestoreClient $db, private StaffDirectory $directory)
     {
     }
 
@@ -177,7 +178,7 @@ class ClinicalRecordService
         $common = [
             'id' => $doc['_id'],
             'therapistId' => $doc['therapistId'] ?? null,
-            'therapistName' => (string) ($doc['therapistName'] ?? ''),
+            'therapistName' => $this->directory->name($doc['therapistId'] ?? null, (string) ($doc['therapistName'] ?? '')),
             'createdAt' => $doc['createdAt'] ?? null,
         ];
 
