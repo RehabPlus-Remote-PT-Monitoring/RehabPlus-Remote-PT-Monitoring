@@ -35,7 +35,11 @@
                         <tr class="{{ $user['active'] ? '' : 'opacity-50' }}">
                             <td class="px-4 py-3">
                                 <div class="d-flex align-items-center gap-3">
-                                    <div class="rounded-circle text-white fw-bold d-flex align-items-center justify-content-center" style="width:44px;height:44px;background:linear-gradient(135deg,#14b8a6,#06b6d4);">{{ strtoupper(mb_substr($user['name'], 0, 1)) }}</div>
+                                    @if ($user['photoUrl'] !== '')
+                                        <img src="{{ $user['photoUrl'] }}" alt="" class="rounded-circle flex-shrink-0" style="width:44px;height:44px;object-fit:cover;">
+                                    @else
+                                        <div class="rounded-circle text-white fw-bold d-flex align-items-center justify-content-center" style="width:44px;height:44px;background:linear-gradient(135deg,#14b8a6,#06b6d4);">{{ strtoupper(mb_substr($user['name'], 0, 1)) }}</div>
+                                    @endif
                                     <div class="fw-bold">{{ $user['name'] }}@if ($user['uid'] === $me->id) <span class="text-muted fw-normal small">(you)</span>@endif</div>
                                 </div>
                             </td>

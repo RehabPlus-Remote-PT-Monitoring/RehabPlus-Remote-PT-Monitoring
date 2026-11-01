@@ -56,4 +56,15 @@ class StaffDirectoryTest extends TestCase
             ->assertDontSee('user-avatar-photo', false)
             ->assertSee('<div class="user-avatar">S</div>', false);
     }
+
+    public function test_staff_accounts_list_shows_each_persons_photo(): void
+    {
+        $this->staff('therapist', 'thA', 'Dr. Ana');
+        $this->staff('staff', 'st1', 'Sam Front');
+        $this->docs['users/thA']['photoUrl'] = 'data:image/png;base64,iVBORw0KGgo=';
+
+        $this->actingAs($this->staff('admin'))->get('/users')->assertOk()
+            ->assertSee('src="data:image/png;base64,iVBORw0KGgo="', false)
+            ->assertSee('>S</div>', false);
+    }
 }
