@@ -59,13 +59,13 @@
 
                 <div class="col-12">
                     <hr class="my-2">
-                    <p class="small fw-semibold mb-1">Contact details</p>
+                    <p class="small fw-semibold mb-1">Personal contact details</p>
                     <p class="form-text mt-0">Shown on the team section of the website. Your login email is used only to sign in.</p>
                 </div>
                 @php($contact = \App\Helpers\PhoneNumber::parse($user['contactPhone'] ?? ''))
-                @include('partials.phone-field', ['field' => 'phone', 'label' => 'Contact number', 'country' => old('phone_country', $contact['iso']), 'number' => old('phone', $contact['national']), 'initial' => old('phone', $contact['national']), 'required' => false])
+                @include('partials.phone-field', ['field' => 'phone', 'label' => 'Personal contact number', 'country' => old('phone_country', $contact['iso']), 'number' => old('phone', $contact['national']), 'initial' => old('phone', $contact['national']), 'required' => false])
                 <div class="col-md-6">
-                    <label for="contact_email" class="form-label small fw-semibold">Contact email</label>
+                    <label for="contact_email" class="form-label small fw-semibold">Personal contact email</label>
                     <input id="contact_email" type="email" name="contact_email" class="form-control @error('contact_email') is-invalid @enderror" value="{{ old('contact_email', $user['contactEmail']) }}" placeholder="name@gmail.com" maxlength="150">
                     @error('contact_email')
                         <div class="invalid-feedback">{{ $message }}</div>

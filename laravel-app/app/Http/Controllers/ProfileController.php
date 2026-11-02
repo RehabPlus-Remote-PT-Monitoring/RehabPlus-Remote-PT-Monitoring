@@ -42,7 +42,7 @@ class ProfileController extends Controller
             'photo.max' => 'The picture must be 500 KB or smaller.',
         ]);
 
-        $change = ['name' => $data['name'], 'role' => $current['role']] + UserValidation::contact($request, required: false);
+        $change = ['name' => $data['name'], 'role' => $current['role']] + UserValidation::contact($request);
         if ($request->boolean('remove_photo')) {
             $change['photoUrl'] = '';
         } elseif ($request->hasFile('photo')) {

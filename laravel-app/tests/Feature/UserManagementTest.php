@@ -42,12 +42,18 @@ class UserManagementTest extends TestCase
         ], array_diff_key($this->docs["users/{$uid}"], ['createdAt' => 1]));
     }
 
-    public function test_new_staff_account_needs_contact_details_and_a_personal_contact_email(): void
+    public function test_personal_contact_details_are_optional_when_creating_an_account(): void
     {
-        $this->actingAs($this->staff('admin'))->from('/users/create')->post('/users', [
+        $this->actingAs($this->staff('admin'))->post('/users', [
             'name' => 'Dr. New', 'email' => 'new@rehabplus.com', 'password' => 'long-enough', 'role' => 'therapist',
-        ])->assertSessionHasErrors(['phone', 'contact_email']);
+        ])->assertRedirect('/users')->assertSessionHasNoErrors();
 
+        $uid = $this->authUsers['new@rehabplus.com']['uid'];
+        $this->assertSame(['', ''], [$this->docs["users/{$uid}"]['contactPhone'], $this->docs["users/{$uid}"]['contactEmail']]);
+    }
+
+    public function test_personal_contact_email_cannot_be_the_clinic_login_address(): void
+    {
         $this->actingAs($this->staff('admin'))->from('/users/create')->post('/users', [
             'name' => 'Dr. New', 'email' => 'new@rehabplus.com', 'password' => 'long-enough', 'role' => 'therapist',
             'phone_country' => 'PH', 'phone' => '9171234567', 'contact_email' => 'new@rehabplus.com',

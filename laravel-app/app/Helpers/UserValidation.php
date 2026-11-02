@@ -29,31 +29,26 @@ class UserValidation
         ]);
         $data['role'] ??= StaffUser::THERAPIST;
 
-        return $data + self::contact($request, required: true);
+        return $data + self::contact($request);
     }
 
     /**
-     * The contact number and personal email shown on the website's team section.
-     * They are separate from the @rehabplus.com login email. Required when an account
-     * is created; optional when it is edited, so a blank field clears it.
+     * The personal contact number and email shown on the website's team section.
+     * They are optional and separate from the @rehabplus.com login email. A blank
+     * field leaves no contact detail on the account.
      *
      * @return array{contactPhone: string, contactEmail: string}
      */
-    public static function contact(Request $request, bool $required): array
+    public static function contact(Request $request): array
     {
-        $rule = $required ? 'required' : 'nullable';
-
         $data = $request->validate([
             'phone_country' => ['nullable', Rule::in(PhoneNumber::isoCodes())],
-            'phone' => [$rule, 'string', 'max:20'],
-            'contact_email' => [$rule, 'email', 'max:150', function (string $attribute, mixed $value, Closure $fail) {
+            'phone' => ['nullable', 'string', 'max:20'],
+            'contact_email' => ['nullable', 'email', 'max:150', function (string $attribute, mixed $value, Closure $fail) {
                 if (is_string($value) && OfficialEmailDomain::allows($value)) {
                     $fail('Use the personal email, such as Gmail. The @rehabplus.com address is for logging in.');
                 }
             }],
-        ], [
-            'phone.required' => 'Enter the contact phone number.',
-            'contact_email.required' => 'Enter the contact email, such as a Gmail address.',
         ]);
 
         // The number is checked against the chosen country and saved in the +country format.
@@ -89,6 +84,6 @@ class UserValidation
             unset($data['password']);
         }
 
-        return $data + self::contact($request, required: false);
+        return $data + self::contact($request);
     }
 }
