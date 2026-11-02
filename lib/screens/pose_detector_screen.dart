@@ -380,6 +380,13 @@ class _PoseDetectorScreenState extends State<PoseDetectorScreen>
   bool _countdownStarted = false;
   Timer? _countdownTimer;
 
+  /// The setup tip (with the "tap cast" hint) shows for this long as the
+  /// camera opens, even during the countdown, so it can be read before the
+  /// patient gets into position.
+  static const Duration _introTipDuration = Duration(seconds: 5);
+  bool _introTipVisible = false;
+  Timer? _introTipTimer;
+
   bool get _countingDown => _countdownLeft > 0;
 
   /// The small "where to stand" chip shows after the countdown until the
@@ -392,6 +399,10 @@ class _PoseDetectorScreenState extends State<PoseDetectorScreen>
   void _startCountdown() {
     if (_countdownStarted) return;
     _countdownStarted = true;
+    setState(() => _introTipVisible = true);
+    _introTipTimer = Timer(_introTipDuration, () {
+      if (mounted) setState(() => _introTipVisible = false);
+    });
     final seconds = _settings.countdownSeconds;
     if (seconds <= 0) return;
     setState(() => _countdownLeft = seconds);
@@ -2607,6 +2618,7 @@ class _PoseDetectorScreenState extends State<PoseDetectorScreen>
   void dispose() {
     WidgetsBinding.instance.removeObserver(this);
     _countdownTimer?.cancel();
+    _introTipTimer?.cancel();
     _staleSkeletonTimer?.cancel();
     _castPollTimer?.cancel();
     _logSessionSummary('closed');
@@ -2836,7 +2848,7 @@ class _PoseDetectorScreenState extends State<PoseDetectorScreen>
                 mainAxisSize: MainAxisSize.min,
                 children: [
                   _FormBanner(form: form),
-                  if (_showSetupTip) ...[
+                  if (_introTipVisible || _showSetupTip) ...[
                     const SizedBox(height: 6),
                     _SetupTip(text: exercise.setupTip, hint: castHint),
                   ],

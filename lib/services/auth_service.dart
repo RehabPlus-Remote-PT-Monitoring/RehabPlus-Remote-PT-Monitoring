@@ -228,7 +228,13 @@ class AuthService {
     'too-many-requests' ||
     'quota-exceeded' => 'Too many attempts. Try again later.',
     'network-request-failed' => 'No internet connection.',
-    'operation-not-allowed' || 'billing-not-enabled' =>
+    // Firebase project or app setup is missing (Phone sign-in off, Blaze plan
+    // not active, or this build's SHA fingerprint not registered).
+    'operation-not-allowed' ||
+    'billing-not-enabled' ||
+    'missing-client-identifier' ||
+    'app-not-authorized' ||
+    'invalid-app-credential' =>
       'Reset by text message isn\'t available yet. Contact the clinic.',
     _ => 'Could not send the code. Please try again.',
   };
@@ -344,6 +350,63 @@ class AuthService {
     }
     _logger.info('AuthService', 'Password changed', {'uid': user.uid});
     await _signOutQuietly();
+  }
+
+  /// Changes the password of the signed-in patient. Firebase wants a recent
+  /// sign-in for this, so [currentPassword] is checked again first. The
+  /// patient stays signed in. Throws [AuthFailure] with a message for the
+  /// form.
+  Future<void> changePassword({
+    required String currentPassword,
+    required String newPassword,
+  }) async {
+    final user = _auth.currentUser;
+    final email = user?.email;
+    if (user == null || email == null) {
+      throw const AuthFailure('Sign in again to change your password.');
+    }
+    try {
+      await user.reauthenticateWithCredential(
+        EmailAuthProvider.credential(email: email, password: currentPassword),
+      );
+    } on FirebaseAuthException catch (e, st) {
+      _logger.warn('AuthService', 'Current password check failed',
+          {'code': e.code}, e, st);
+      throw AuthFailure(switch (e.code) {
+        'invalid-credential' ||
+        'wrong-password' ||
+        'invalid-login-credentials' => 'Your current password is wrong.',
+        'too-many-requests' => 'Too many attempts. Try again later.',
+        'user-disabled' => 'This account has been disabled. Contact the clinic.',
+        'network-request-failed' => 'No internet connection.',
+        _ => 'Could not check your password. Please try again.',
+      });
+    } catch (e, st) {
+      _logger.error('AuthService', 'Current password check crashed',
+          firebaseErrorData(e), e, st);
+      throw const AuthFailure('Could not check your password. Please try again.');
+    }
+    try {
+      await user.updatePassword(newPassword);
+    } on FirebaseAuthException catch (e, st) {
+      _logger.warn('AuthService', 'Password change failed', {'code': e.code},
+          e, st);
+      throw AuthFailure(switch (e.code) {
+        'weak-password' =>
+          'Choose a stronger password (at least $minPasswordLength characters).',
+        'requires-recent-login' =>
+          'Please enter your current password again.',
+        'network-request-failed' => 'No internet connection.',
+        _ => 'Could not change the password. Please try again.',
+      });
+    } catch (e, st) {
+      _logger.error('AuthService', 'Password change crashed',
+          firebaseErrorData(e), e, st);
+      throw const AuthFailure(
+        'Could not change the password. Please try again.',
+      );
+    }
+    _logger.info('AuthService', 'Password changed in app', {'uid': user.uid});
   }
 
   /// Leaves a half-finished SMS reset: signs out the account the code

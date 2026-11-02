@@ -1,6 +1,5 @@
 import 'dart:async';
 
-import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/material.dart' hide DiagnosticLevel;
 import 'package:package_info_plus/package_info_plus.dart';
 import 'package:permission_handler/permission_handler.dart';
@@ -10,12 +9,12 @@ import '../core/diagnostic_logger.dart';
 import '../models/chat.dart';
 import '../services/app_lock_service.dart';
 import '../services/app_settings.dart';
-import '../services/auth_service.dart';
 import '../services/chat_service.dart';
 import '../services/notification_prefs_service.dart';
 import '../services/reminder_service.dart';
 import '../core/responsive.dart';
 import 'app_lock_settings_screen.dart';
+import 'change_password_screen.dart';
 import 'messages_screen.dart';
 
 /// Firestore rules limit a chat message to 1000 characters.
@@ -98,7 +97,6 @@ class _SettingsScreenState extends State<SettingsScreen>
 
   // Double-tap guards for actions that await something.
   bool _busyReminder = false;
-  bool _sendingPasswordLink = false;
   bool _reporting = false;
 
   @override
@@ -270,48 +268,12 @@ class _SettingsScreenState extends State<SettingsScreen>
   }
 
   Future<void> _changePassword() async {
-    if (_sendingPasswordLink) return;
-    final email = FirebaseAuth.instance.currentUser?.email;
-    if (email == null) {
-      _logger.warn(_tag, 'Change password: no signed-in e-mail');
-      return;
-    }
-    final ok = await showDialog<bool>(
-      context: context,
-      builder: (ctx) => AlertDialog(
-        backgroundColor: ctx.palette.surface,
-        title: const Text('Change password'),
-        content: Text(
-          'We\'ll email a link to $email. Open it to choose a new password.',
-        ),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.pop(ctx, false),
-            child: const Text('Cancel'),
-          ),
-          TextButton(
-            onPressed: () => Navigator.pop(ctx, true),
-            child: const Text('Send link'),
-          ),
-        ],
-      ),
+    _logger.info(_tag, 'Change password opened');
+    final changed = await Navigator.push<bool>(
+      context,
+      MaterialPageRoute(builder: (_) => const ChangePasswordScreen()),
     );
-    if (ok != true) return;
-    _sendingPasswordLink = true;
-    _logger.info(_tag, 'Password change link requested');
-    try {
-      await AuthService.I.sendPasswordReset(email);
-      _logger.info(_tag, 'Password change link sent');
-      _snack('Password link sent to $email.');
-    } on FirebaseAuthException catch (e, st) {
-      _logger.warn(_tag, 'Password change link failed', {'code': e.code}, e, st);
-      _snack('Could not send the link. Please try again.');
-    } catch (e, st) {
-      _logger.error(_tag, 'Password change link crashed', null, e, st);
-      _snack('Could not send the link. Please try again.');
-    } finally {
-      _sendingPasswordLink = false;
-    }
+    if (changed == true && mounted) _snack('Your password was changed.');
   }
 
   Future<void> _cameraAccess() async {

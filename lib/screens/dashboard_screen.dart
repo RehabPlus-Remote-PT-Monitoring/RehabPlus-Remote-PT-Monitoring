@@ -10,6 +10,8 @@ import '../core/app_palette.dart';
 import '../core/diagnostic_logger.dart';
 import '../services/app_provider.dart';
 import '../models/prescription.dart';
+import '../models/therapy_goal.dart';
+import '../services/goal_service.dart';
 import '../services/prescription_service.dart';
 import '../services/progress_report_loader.dart';
 import '../services/progress_stats.dart';
@@ -23,6 +25,7 @@ import 'notification_page.dart';
 import 'demo_screen.dart';
 import 'exercise_page.dart';
 import 'progress_report_screen.dart';
+import 'goals_screen.dart';
 
 class DashboardScreen extends StatefulWidget {
   const DashboardScreen({super.key});
@@ -106,6 +109,9 @@ class _DashboardScreenState extends State<DashboardScreen>
     _scheduleClockRefresh();
     _loadPlan();
   }
+
+  // ── THE PATIENT'S GOALS (the My Goal card) ─────────────────────────────────
+  late final Stream<List<TherapyGoal>> _goals = GoalService().watch();
 
   // ── THE THERAPIST'S PLAN (for "followed X% of your plan") ───────────────────
   List<Prescription> _plan = const [];
@@ -240,9 +246,9 @@ class _DashboardScreenState extends State<DashboardScreen>
                         _buildSummaryCard(reportView),
                         const SizedBox(height: 14),
                       ],
-                      // Right: the daily quote and the therapist.
+                      // Right: the patient's goal and the therapist.
                       right: [
-                        _buildQuoteCard(),
+                        _buildGoalCard(),
                         const SizedBox(height: 14),
                         _buildTherapistCard(),
                         const SizedBox(height: 8),
@@ -1083,69 +1089,116 @@ class _DashboardScreenState extends State<DashboardScreen>
     );
   }
 
-  // ── QUOTE CARD ───────────────────────────────────────────────────────────────
-  Widget _buildQuoteCard() {
-    return Container(
-      padding: const EdgeInsets.all(20),
-      decoration: BoxDecoration(
-        gradient: const LinearGradient(
-          colors: [Color(0xFF6A1B9A), Color(0xFF9C27B0), Color(0xFFAB47BC)],
-          begin: Alignment.topLeft,
-          end: Alignment.bottomRight,
-        ),
-        borderRadius: BorderRadius.circular(22),
-        boxShadow: [
-          BoxShadow(
-            color: const Color(0xFF9C27B0).withValues(alpha: 0.3),
-            blurRadius: 20,
-            offset: const Offset(0, 8),
+  // ── MY GOAL CARD ─────────────────────────────────────────────────────────────
+  // The first goal from the therapist (active goals first, nearest target
+  // date first). Tapping it opens the full My Goals page.
+  Widget _buildGoalCard() {
+    final palette = context.palette;
+    return StreamBuilder<List<TherapyGoal>>(
+      stream: _goals,
+      builder: (context, snap) {
+        final goal = snap.data?.firstOrNull;
+        return GestureDetector(
+          onTap: () => Navigator.push(
+            context,
+            MaterialPageRoute(builder: (_) => const GoalsScreen()),
           ),
-        ],
-      ),
-      child: Row(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Container(
-            padding: const EdgeInsets.all(8),
+          child: Container(
+            padding: const EdgeInsets.all(18),
             decoration: BoxDecoration(
-              color: Colors.white.withValues(alpha: 0.15),
-              borderRadius: BorderRadius.circular(10),
-            ),
-            child: const PhosphorIcon(
-              PhosphorIconsRegular.quotes,
-              color: Colors.white,
-              size: 22,
-            ),
-          ),
-          const SizedBox(width: 14),
-          const Expanded(
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Text(
-                  'Daily Motivation',
-                  style: TextStyle(
-                    color: Colors.white60,
-                    fontSize: 11,
-                    fontWeight: FontWeight.w600,
-                    letterSpacing: 0.5,
-                  ),
-                ),
-                SizedBox(height: 6),
-                Text(
-                  'The session plants the seed, but your daily movement is what makes it grow.',
-                  style: TextStyle(
-                    fontSize: 13,
-                    fontWeight: FontWeight.w500,
-                    color: Colors.white,
-                    height: 1.5,
-                  ),
+              color: palette.surface,
+              borderRadius: BorderRadius.circular(22),
+              boxShadow: [
+                BoxShadow(
+                  color: primaryTeal.withValues(alpha: 0.08),
+                  blurRadius: 20,
+                  offset: const Offset(0, 6),
                 ),
               ],
             ),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Row(
+                  children: [
+                    PhosphorIcon(PhosphorIcons.target(), color: primaryTeal, size: 16),
+                    const SizedBox(width: 6),
+                    Text(
+                      'My Goal',
+                      style: TextStyle(
+                        fontSize: 13,
+                        fontWeight: FontWeight.bold,
+                        color: palette.textSecondary,
+                      ),
+                    ),
+                    const Spacer(),
+                    Icon(Icons.chevron_right_rounded, size: 20, color: palette.textMuted),
+                  ],
+                ),
+                const SizedBox(height: 14),
+                if (goal == null)
+                  Text(
+                    snap.hasError
+                        ? 'Could not load your goal.'
+                        : 'Your therapist hasn\'t set a goal yet.',
+                    style: TextStyle(fontSize: 13, color: palette.textMuted, height: 1.4),
+                  )
+                else ...[
+                  Text(
+                    goal.title,
+                    style: TextStyle(
+                      fontSize: 15,
+                      fontWeight: FontWeight.bold,
+                      color: palette.textPrimary,
+                    ),
+                  ),
+                  if (goal.details.trim().isNotEmpty) ...[
+                    const SizedBox(height: 6),
+                    Text(
+                      goal.details.trim(),
+                      maxLines: 2,
+                      overflow: TextOverflow.ellipsis,
+                      style: TextStyle(fontSize: 13, color: palette.textSecondary, height: 1.35),
+                    ),
+                  ],
+                  const SizedBox(height: 14),
+                  Row(
+                    children: [
+                      Expanded(
+                        child: ClipRRect(
+                          borderRadius: BorderRadius.circular(6),
+                          child: LinearProgressIndicator(
+                            value: goal.progress / 100,
+                            minHeight: 8,
+                            backgroundColor: palette.surfaceMuted,
+                            valueColor: const AlwaysStoppedAnimation(primaryTeal),
+                          ),
+                        ),
+                      ),
+                      const SizedBox(width: 10),
+                      Text(
+                        '${goal.progress}%',
+                        style: TextStyle(
+                          fontSize: 13,
+                          fontWeight: FontWeight.w600,
+                          color: palette.textPrimary,
+                        ),
+                      ),
+                    ],
+                  ),
+                  if (goal.targetDate case final target?) ...[
+                    const SizedBox(height: 10),
+                    Text(
+                      'Target: ${DateFormat('d MMM y').format(target)}',
+                      style: TextStyle(fontSize: 12, color: palette.textMuted),
+                    ),
+                  ],
+                ],
+              ],
+            ),
           ),
-        ],
-      ),
+        );
+      },
     );
   }
 
