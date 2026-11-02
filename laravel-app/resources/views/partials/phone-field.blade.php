@@ -4,9 +4,10 @@
 <div class="col-md-6">
     <label for="{{ $field }}" class="form-label small fw-semibold">{{ $label }}</label>
     <div class="input-group" data-phone-field>
-        <select name="{{ $field }}_country" class="form-select flex-grow-0" style="max-width: 11rem;" data-phone-country aria-label="Country code">
+        {{-- A fixed width: inside an input group Bootstrap would otherwise shrink the select to just its arrow. --}}
+        <select name="{{ $field }}_country" class="form-select" style="width: 12rem; flex: 0 0 12rem;" data-phone-country aria-label="Country code">
             @foreach ($countries as $c)
-                <option value="{{ $c['iso'] }}" data-dial="{{ $c['dial'] }}" data-min="{{ $c['min'] }}" data-max="{{ $c['max'] }}" data-digits="{{ $c['digits'] }}" data-example="{{ $c['example'] }}" @selected($country === $c['iso'])>{{ $c['name'] }} (+{{ $c['dial'] }})</option>
+                <option value="{{ $c['iso'] }}" data-dial="{{ $c['dial'] }}" data-min="{{ $c['min'] }}" data-max="{{ $c['max'] }}" data-digits="{{ $c['digits'] }}" data-example="{{ $c['example'] }}" @selected($country === $c['iso'])>+{{ $c['dial'] }} {{ $c['name'] }}</option>
             @endforeach
         </select>
         <input id="{{ $field }}" type="text" name="{{ $field }}" class="form-control @error($field) is-invalid @enderror" inputmode="numeric" data-digits-only data-phone-number placeholder="{{ $selected['example'] }}" maxlength="{{ $selected['max'] }}" @if ($initial !== null) data-initial="{{ $initial }}" @endif value="{{ $number }}" @required($required)>
