@@ -8,6 +8,7 @@ use App\Rules\OfficialEmailDomain;
 use App\Services\Firebase\FirebaseAdmin;
 use App\Services\Firebase\FirebaseException;
 use App\Services\Firebase\FirestoreClient;
+use App\Services\Firebase\PatientNotifier;
 use App\Services\User\StaffDirectory;
 use App\Services\User\UserService;
 use Illuminate\Support\Facades\Cache;
@@ -29,6 +30,7 @@ class PatientService
         private FirebaseAdmin $admin,
         private UserService $users,
         private StaffDirectory $directory,
+        private PatientNotifier $notifier,
     ) {
     }
 
@@ -48,7 +50,7 @@ class PatientService
         return array_values($patients);
     }
 
-    /** Patients list page data: search by name/condition/email, filter by condition. */
+    /** Patients list page data: search by name or email, filter by condition. */
     public function search(StaffUser $user, string $search, string $condition, bool $archived): array
     {
         $all = $this->visible($user, includeArchived: true);
@@ -56,7 +58,7 @@ class PatientService
 
         $data = array_filter($all, fn ($p) => $p['archived'] === $archived
             && ($condition === '' || $p['condition'] === $condition)
-            && ($needle === '' || str_contains(mb_strtolower($p['name'].' '.$p['condition'].' '.$p['email']), $needle)));
+            && ($needle === '' || str_contains(mb_strtolower($p['name'].' '.$p['email']), $needle)));
 
         $conditions = array_unique(array_filter(array_column($all, 'condition')));
         sort($conditions, SORT_NATURAL | SORT_FLAG_CASE);
@@ -148,10 +150,22 @@ class PatientService
             [$fields['therapistId'], $fields['therapistName']] = $this->therapistFor($by, $data['therapist_id']);
         }
 
-        $this->db->commit([
+        $writes = [
             $this->db->mergeWrite("patients/{$patient['uid']}", $fields, serverTimestamps: ['updatedAt']),
             $this->db->mergeWrite("users/{$patient['uid']}", ['name' => $data['name']]),
-        ]);
+        ];
+
+        // The patient is told when their medical summary or therapy plan changes, so they know it is there.
+        $notice = $this->carePlanNotice($patient, $fields);
+        if ($notice !== null) {
+            $writes[] = $this->notifier->notificationWrite($patient['uid'], 'care_plan', 'Care Plan Updated', $notice);
+        }
+
+        $this->db->commit($writes);
+
+        if ($notice !== null) {
+            $this->notifier->push($patient['uid'], 'Care Plan Updated', $notice, ['type' => 'care_plan']);
+        }
 
         // The login's display name is cosmetic (the app shows users/{uid}.name), so
         // a failure here mustn't report the already-saved edit as failed.
@@ -239,6 +253,20 @@ class PatientService
             'phone' => (string) ($data['phone'] ?? ''),
             'dob' => (string) ($data['dob'] ?? ''),
         ];
+    }
+
+    /** What the patient is told when the medical summary or therapy plan changed, or null if neither did. */
+    private function carePlanNotice(array $patient, array $fields): ?string
+    {
+        $summaryChanged = $patient['medicalSummary'] !== $fields['medicalSummary'];
+        $planChanged = $patient['therapyPlan'] !== $fields['therapyPlan'];
+
+        return match (true) {
+            $summaryChanged && $planChanged => 'Your medical summary and therapy plan were updated.',
+            $summaryChanged => 'Your medical summary was updated.',
+            $planChanged => 'Your therapy plan was updated.',
+            default => null,
+        };
     }
 
     /** @return array{0: ?string, 1: string} therapistId and therapistName */

@@ -37,26 +37,23 @@
 
     <div class="card shadow-sm border-0">
         <div class="card-body border-bottom">
+            {{-- Picking a condition applies it at once; pressing Enter in the search box applies the name or email search. --}}
             <form method="GET" action="{{ route('patients.index') }}" class="row g-2 align-items-end">
                 @if ($showArchived)
                     <input type="hidden" name="archived" value="1">
                 @endif
-                <div class="col-md-5">
+                <div class="col-md-6">
                     <label for="patient-search" class="form-label small fw-semibold">Search patients</label>
-                    <input id="patient-search" type="search" name="search" class="form-control" value="{{ $search }}" placeholder="Name, email or condition">
+                    <input id="patient-search" type="search" name="search" class="form-control" value="{{ $search }}" placeholder="Name or email">
                 </div>
-                <div class="col-md-4">
+                <div class="col-md-6">
                     <label for="condition-filter" class="form-label small fw-semibold">Condition</label>
-                    <select id="condition-filter" name="condition" class="form-select">
+                    <select id="condition-filter" name="condition" class="form-select" data-autosubmit>
                         <option value="">All conditions</option>
                         @foreach ($conditions as $condition)
                             <option value="{{ $condition }}" @selected($selectedCondition === $condition)>{{ $condition }}</option>
                         @endforeach
                     </select>
-                </div>
-                <div class="col-md-3 d-flex gap-2">
-                    <button type="submit" class="btn btn-primary flex-grow-1">Filter</button>
-                    <a href="{{ route('patients.index', $showArchived ? ['archived' => 1] : []) }}" class="btn btn-outline-secondary">Clear</a>
                 </div>
             </form>
         </div>

@@ -157,6 +157,17 @@ class PatientTest extends TestCase
             ->assertSee('Tom Two')->assertDontSee('Olive One');
         $this->actingAs($this->staff('admin'))->get('/patients?condition=ACL')
             ->assertSee('Olive One')->assertDontSee('Tom Two');
+        $this->actingAs($this->staff('admin'))->get('/patients')
+            ->assertSee('data-autosubmit', false)
+            ->assertSee('placeholder="Name or email"', false)
+            ->assertDontSee('>Filter<', false)
+            ->assertDontSee('>Clear<', false);
+    }
+
+    public function test_search_matches_name_or_email_not_condition(): void
+    {
+        $this->actingAs($this->staff('admin'))->get('/patients?search=ACL')
+            ->assertDontSee('Olive One');
     }
 
     public function test_therapist_creates_patient_with_app_login_assigned_to_them(): void
@@ -330,6 +341,49 @@ class PatientTest extends TestCase
             ->put('/patients/pOne', ['name' => 'Olive Renamed', 'condition' => 'ACL', 'therapist_id' => 'thB']);
         $this->assertSame('thB', $this->docs['patients/pOne']['therapistId']);
         $this->assertSame('Dr. Ben', $this->docs['patients/pOne']['therapistName']);
+    }
+
+    public function test_changing_the_medical_summary_or_therapy_plan_notifies_the_patient(): void
+    {
+        $this->patientDoc('pOne', ['medicalSummary' => 'Old summary', 'therapyPlan' => 'Old plan']);
+        $this->docs['patients/pOne/devices/tok1'] = ['token' => 'tok1'];
+
+        $this->actingAs($this->staff('admin'))
+            ->put('/patients/pOne', ['name' => 'Olive One', 'condition' => 'ACL', 'medical_summary' => 'New summary', 'therapy_plan' => 'Old plan'])
+            ->assertRedirect('/patients/pOne');
+
+        $entries = $this->notificationFields('pOne');
+        $this->assertCount(1, $entries);
+        $this->assertSame('care_plan', $entries[0]['type']['stringValue']);
+        $this->assertSame('Your medical summary was updated.', $entries[0]['body']['stringValue']);
+        $this->assertCount(1, $this->pushes);
+        $this->assertSame(['type' => 'care_plan'], $this->pushes[0]['data']);
+    }
+
+    public function test_saving_without_changing_the_care_plan_sends_no_notification(): void
+    {
+        $this->patientDoc('pOne', ['medicalSummary' => 'Same', 'therapyPlan' => 'Same']);
+
+        $this->actingAs($this->staff('admin'))
+            ->put('/patients/pOne', ['name' => 'Olive One', 'condition' => 'Renamed', 'medical_summary' => 'Same', 'therapy_plan' => 'Same']);
+
+        $this->assertSame([], $this->notificationFields('pOne'));
+        $this->assertSame([], $this->pushes);
+    }
+
+    /** The fields of every Notifications-page entry written for a patient in this request. */
+    private function notificationFields(string $uid): array
+    {
+        $found = [];
+        foreach ($this->commits as $commit) {
+            foreach ($commit as $write) {
+                if (str_contains($write['update']['name'] ?? '', "/patients/{$uid}/notifications/")) {
+                    $found[] = $write['update']['fields'];
+                }
+            }
+        }
+
+        return $found;
     }
 
     public function test_archive_disables_login_and_restore_reenables(): void
