@@ -160,6 +160,7 @@ class PatientTest extends TestCase
         $this->actingAs($this->staff('admin'))->get('/patients')
             ->assertSee('data-autosubmit', false)
             ->assertSee('placeholder="Name or email"', false)
+            ->assertSee('aria-label="Search patients"', false)
             ->assertDontSee('>Filter<', false)
             ->assertDontSee('>Clear<', false);
     }

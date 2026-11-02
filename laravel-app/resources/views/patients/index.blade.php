@@ -44,7 +44,12 @@
                 @endif
                 <div class="col-md-6">
                     <label for="patient-search" class="form-label small fw-semibold">Search patients</label>
-                    <input id="patient-search" type="search" name="search" class="form-control" value="{{ $search }}" placeholder="Name or email">
+                    <div class="input-group">
+                        <input id="patient-search" type="search" name="search" class="form-control" value="{{ $search }}" placeholder="Name or email">
+                        <button type="submit" class="btn btn-primary" aria-label="Search patients" title="Search">
+                            <i class="bi bi-search" aria-hidden="true"></i>
+                        </button>
+                    </div>
                 </div>
                 <div class="col-md-6">
                     <label for="condition-filter" class="form-label small fw-semibold">Condition</label>
