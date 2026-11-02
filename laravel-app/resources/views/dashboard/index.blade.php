@@ -60,8 +60,10 @@
         <div class="card-header d-flex justify-content-between align-items-center flex-wrap gap-2">
             <span>Patient Recovery Overview</span>
             <div class="input-group table-search">
-                <span class="input-group-text"><i class="bi bi-search"></i></span>
                 <input type="text" id="patientSearch" class="form-control" placeholder="Search patient...">
+                <button type="button" id="patientSearchButton" class="btn btn-primary" aria-label="Search patients" title="Search">
+                    <i class="bi bi-search" aria-hidden="true"></i>
+                </button>
             </div>
         </div>
 

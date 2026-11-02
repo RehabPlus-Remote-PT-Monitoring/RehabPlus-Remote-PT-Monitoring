@@ -7,13 +7,20 @@ import { dragOffset, swipeCloses, swipeGesture } from './swipe.js';
 const searchInput = document.getElementById('patientSearch');
 const rows = document.querySelectorAll('#patientsTable tbody tr');
 
-if (searchInput) {
-    searchInput.addEventListener('keyup', function () {
-        const search = this.value.toLowerCase();
+function filterPatientRows() {
+    const search = searchInput.value.toLowerCase();
 
-        rows.forEach((row) => {
-            row.style.display = row.innerText.toLowerCase().includes(search) ? '' : 'none';
-        });
+    rows.forEach((row) => {
+        row.style.display = row.innerText.toLowerCase().includes(search) ? '' : 'none';
+    });
+}
+
+if (searchInput) {
+    searchInput.addEventListener('keyup', filterPatientRows);
+
+    document.getElementById('patientSearchButton')?.addEventListener('click', () => {
+        filterPatientRows();
+        searchInput.focus();
     });
 }
 
