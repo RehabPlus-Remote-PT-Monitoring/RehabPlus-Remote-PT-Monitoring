@@ -11,7 +11,7 @@
  */
 
 return [
-    'name' => 'Rehab Plus Physiotherapy',
+    'name' => 'Rehab+ Physiotherapy & Pilates',
     'subtitle' => 'Physical Therapy + Clinical Pilates',
 
     /* The footer line, after the copyright symbol and year. */

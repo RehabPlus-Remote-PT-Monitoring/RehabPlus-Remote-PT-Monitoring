@@ -14,7 +14,7 @@ class LandingTest extends TestCase
     public function test_guests_see_the_clinic_details_and_the_facebook_link(): void
     {
         $this->get('/')->assertOk()
-            ->assertSee('Rehab Plus Physiotherapy')
+            ->assertSee('Rehab+ Physiotherapy &amp; Pilates', false)
             ->assertSee('Physical Therapy + Clinical Pilates')
             ->assertSee('1308 Benavidez St, Metro Manila')
             ->assertSee('0912 854 8156')
