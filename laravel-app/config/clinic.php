@@ -22,7 +22,7 @@ return [
         ['days' => 'Sunday', 'hours' => '9:00am – 4:00pm'],
     ],
 
-    'location' => '1308 Benavidez St, Metro Manila',
+    'location' => '1308 Benavidez St, Tondo, Manila, 1003 Metro Manila',
     'map_url' => 'https://maps.app.goo.gl/ftDwzQCMAVh1mfXE9',
     'phone' => '0912 854 8156',
     'email' => 'rehabplusphysiotherapy24@gmail.com',

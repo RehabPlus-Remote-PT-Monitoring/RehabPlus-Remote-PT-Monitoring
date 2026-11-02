@@ -16,7 +16,7 @@ class LandingTest extends TestCase
         $this->get('/')->assertOk()
             ->assertSee('Rehab+ Physiotherapy &amp; Pilates', false)
             ->assertSee('Physical Therapy + Clinical Pilates')
-            ->assertSee('1308 Benavidez St, Metro Manila')
+            ->assertSee('1308 Benavidez St, Tondo, Manila, 1003 Metro Manila')
             ->assertSee('0912 854 8156')
             ->assertSee('href="https://maps.app.goo.gl/ftDwzQCMAVh1mfXE9"', false)
             ->assertDontSee('tel:', false)
@@ -173,7 +173,7 @@ class LandingTest extends TestCase
         $this->injectedFailures[':runQuery'] = [503, 503, 503];
 
         $this->get('/')->assertOk()
-            ->assertSee('1308 Benavidez St, Metro Manila')
+            ->assertSee('1308 Benavidez St, Tondo, Manila, 1003 Metro Manila')
             ->assertSee('No staff accounts yet');
     }
 
