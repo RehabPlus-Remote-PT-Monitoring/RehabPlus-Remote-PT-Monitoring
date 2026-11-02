@@ -9,9 +9,8 @@ use Illuminate\Contracts\Auth\Authenticatable;
  * profile in Firestore users/{uid}; nothing is stored in SQL.
  *
  * Roles (users/{uid}.role):
- *   admin     - everything, including staff accounts and all patients
+ *   admin     - everything, including staff accounts, all patients, the clinic inbox
  *   therapist - their own patients (patients.therapistId == uid)
- *   staff     - front desk: patient list/contact details and the clinic inbox
  * Patients ('patient') use the mobile app and can't sign in here.
  */
 class StaffUser implements Authenticatable
@@ -20,14 +19,11 @@ class StaffUser implements Authenticatable
 
     public const THERAPIST = 'therapist';
 
-    public const STAFF = 'staff';
-
-    public const ROLES = [self::ADMIN, self::THERAPIST, self::STAFF];
+    public const ROLES = [self::ADMIN, self::THERAPIST];
 
     public const ROLE_LABELS = [
         self::ADMIN => 'Administrator',
         self::THERAPIST => 'Physical Therapist',
-        self::STAFF => 'Front Desk Staff',
     ];
 
     public function __construct(

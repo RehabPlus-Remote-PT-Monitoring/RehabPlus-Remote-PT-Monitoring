@@ -2,10 +2,10 @@ import { describe, expect, test } from 'vitest';
 import { applyRoleDefaults } from '../../resources/js/role-defaults.js';
 
 describe('applyRoleDefaults', () => {
-    function staffForm(role = 'staff', name = '', email = '') {
+    function staffForm(role = 'therapist', name = '', email = '') {
         const form = document.createElement('form');
         const select = document.createElement('select');
-        for (const [value, label] of [['admin', 'Administrator'], ['staff', 'Front Desk Staff']]) {
+        for (const [value, label] of [['admin', 'Administrator'], ['therapist', 'Physical Therapist']]) {
             const option = new Option(label, value);
             Object.assign(option.dataset, { name: label, email: `${value}@rehabplus.com` });
             select.append(option);
@@ -30,7 +30,7 @@ describe('applyRoleDefaults', () => {
     });
 
     test('changes the placeholders when the role changes', () => {
-        const { select, nameInput, emailInput } = staffForm('staff');
+        const { select, nameInput, emailInput } = staffForm('therapist');
 
         select.value = 'admin';
         applyRoleDefaults(select);

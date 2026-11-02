@@ -77,7 +77,7 @@ class ContentSecurityPolicyTest extends TestCase
         $this->docs['payments/pay1'] = ['patient' => 'Pat', 'session' => 'S', 'fee' => 500, 'status' => 'Paid', 'date' => '2026-10-01'];
         $this->docs['inventory/inv1'] = ['item' => 'Bands', 'category' => 'Gear', 'stock' => 5, 'reorder' => 2, 'status' => 'Healthy'];
         $this->docs['appointments/ap1'] = ['patient' => 'Pat', 'therapist' => 'Dr. Ana', 'session' => 'S', 'date' => '2026-10-20', 'time' => '09:00', 'status' => 'Upcoming'];
-        $this->staff('staff', 'st1', 'Sam');
+        $this->staff('therapist', 'st1', 'Sam');
         $admin = $this->staff('admin', 'adm', 'Ada');
 
         $pages = [
@@ -98,7 +98,7 @@ class ContentSecurityPolicyTest extends TestCase
 
         // The converted handlers are present as data- attributes.
         $users = $this->actingAs($admin)->get('/users')->getContent();
-        $this->assertStringContainsString('data-confirm="Delete Sam permanently?', $users);
+        $this->assertStringContainsString('data-confirm="Archive Sam?', $users);
         $this->assertStringContainsString('data-autosubmit', $this->actingAs($admin)->get('/assessments')->getContent());
         $billing = $this->actingAs($admin)->get('/billing')->getContent();
         $this->assertStringContainsString('data-print', $billing);

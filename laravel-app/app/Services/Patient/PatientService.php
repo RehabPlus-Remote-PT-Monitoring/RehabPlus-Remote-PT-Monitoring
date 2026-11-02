@@ -18,7 +18,7 @@ use Illuminate\Support\Facades\Log;
  * (they sign in to the mobile app with it). See API_CONTRACT.md in the app repo.
  *
  * The service account bypasses Firestore rules, so access is checked here:
- *   - admin and front-desk staff see every patient
+ *   - administrators see every patient
  *   - therapists see only patients whose therapistId is their uid
  *   - only admins and the patient's own therapist change anything
  */

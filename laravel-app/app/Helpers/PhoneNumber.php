@@ -90,6 +90,18 @@ class PhoneNumber
         return '+'.self::COUNTRIES[$iso][1].$national;
     }
 
+    /** A stored phone for display, such as "+63 9171234567". */
+    public static function display(string $stored): string
+    {
+        if ($stored === '') {
+            return '';
+        }
+
+        $parsed = self::parse($stored);
+
+        return '+'.self::COUNTRIES[$parsed['iso']][1].' '.$parsed['national'];
+    }
+
     /**
      * The country and national number of a stored phone. Numbers saved before country codes
      * had no "+" and were taken as Philippine numbers, so a leading trunk "0" is dropped.

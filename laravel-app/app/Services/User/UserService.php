@@ -37,23 +37,6 @@ class UserService
         return array_values(array_filter($this->all(), fn ($u) => in_array($u['role'], StaffUser::ROLES, true)));
     }
 
-    /**
-     * Active staff for the Home page's board: administrators, then therapists,
-     * then front desk, each group by name. Only what the page shows.
-     */
-    public function board(): array
-    {
-        $order = array_flip(StaffUser::ROLES);
-        $active = array_filter($this->staff(), fn ($u) => $u['active']);
-        usort($active, fn ($a, $b) => [$order[$a['role']], $a['name']] <=> [$order[$b['role']], $b['name']]);
-
-        return array_values(array_map(fn ($u) => [
-            'name' => $u['name'],
-            'role' => StaffUser::ROLE_LABELS[$u['role']] ?? ucfirst($u['role']),
-            'photoUrl' => $u['photoUrl'],
-        ], $active));
-    }
-
     /** Active therapists, for "assigned therapist" pickers. */
     public function therapists(): array
     {
@@ -98,6 +81,8 @@ class UserService
                 'role' => $data['role'],
                 'name' => $data['name'],
                 'email' => strtolower($data['email']),
+                'contactPhone' => $data['contactPhone'] ?? '',
+                'contactEmail' => $data['contactEmail'] ?? '',
                 'active' => true,
             ], serverTimestamps: ['createdAt']),
         ]);
@@ -106,14 +91,16 @@ class UserService
     }
 
     /**
-     * Update name/role (and optionally the password and photoUrl). A therapist's
-     * new name is copied to their patients' therapistName, which the app shows.
+     * Update name/role (and optionally the password, photoUrl and contact details).
+     * A therapist's new name is copied to their patients' therapistName, which the app shows.
      */
     public function update(array $user, array $data): void
     {
         $fields = ['name' => $data['name'], 'role' => $data['role']];
-        if (array_key_exists('photoUrl', $data)) {
-            $fields['photoUrl'] = $data['photoUrl'];
+        foreach (['photoUrl', 'contactPhone', 'contactEmail'] as $key) {
+            if (array_key_exists($key, $data)) {
+                $fields[$key] = $data[$key];
+            }
         }
         $writes = [$this->db->mergeWrite("users/{$user['uid']}", $fields)];
 
@@ -134,6 +121,28 @@ class UserService
     }
 
     /** Enable or disable a login (Firebase Auth + users.active). */
+    /**
+     * Archive (login disabled, hidden from the staff list) or restore. Nothing is
+     * deleted: the record and its history stay until an admin deletes it for good.
+     */
+    public function setArchived(array $user, bool $archived, ?StaffUser $by = null): void
+    {
+        $this->admin->updateUser($user['uid'], ['disabled' => $archived]);
+
+        $change = ['archived' => $archived, 'active' => ! $archived];
+        $serverTimestamps = [];
+        if ($archived) {
+            $change['archivedByName'] = $by?->name ?? '';
+            $serverTimestamps[] = 'archivedAt';
+        } else {
+            $change += ['archivedAt' => null, 'archivedByName' => null];
+        }
+
+        $this->db->commit([$this->db->mergeWrite("users/{$user['uid']}", $change, serverTimestamps: $serverTimestamps)]);
+        FirebaseUserProvider::forget($user['uid']);
+        $this->directory->forget();
+    }
+
     public function setActive(array $user, bool $active): void
     {
         $this->admin->updateUser($user['uid'], ['disabled' => ! $active]);
@@ -209,6 +218,11 @@ class UserService
             'active' => ($doc['active'] ?? true) !== false,
             'createdAt' => $doc['createdAt'] ?? null,
             'photoUrl' => StaffDirectory::safePhotoUrl($doc['photoUrl'] ?? null),
+            'contactPhone' => (string) ($doc['contactPhone'] ?? ''),
+            'contactEmail' => (string) ($doc['contactEmail'] ?? ''),
+            'archived' => (bool) ($doc['archived'] ?? false),
+            'archivedAt' => $doc['archivedAt'] ?? null,
+            'archivedByName' => (string) ($doc['archivedByName'] ?? ''),
         ];
     }
 }

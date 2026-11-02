@@ -11,7 +11,7 @@ use Illuminate\View\View;
 
 class StaffScheduleController extends Controller
 {
-    private const NOT_SCHEDULABLE = 'Only active therapists and front desk staff can be put on the schedule.';
+    private const NOT_SCHEDULABLE = 'Only active therapists can be put on the schedule.';
 
     public function __construct(
         private StaffScheduleService $schedule,

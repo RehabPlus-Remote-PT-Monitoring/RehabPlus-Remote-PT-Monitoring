@@ -3,10 +3,13 @@
 namespace App\Helpers;
 
 use App\Auth\StaffUser;
+use App\Helpers\PhoneNumber;
 use App\Rules\OfficialEmailDomain;
 use App\Services\Firebase\FirebaseAdmin;
+use Closure;
 use Illuminate\Http\Request;
 use Illuminate\Validation\Rule;
+use Illuminate\Validation\ValidationException;
 
 class UserValidation
 {
@@ -24,9 +27,46 @@ class UserValidation
             'password' => 'required|string|min:'.FirebaseAdmin::MIN_PASSWORD.'|max:100',
             'role' => ['nullable', Rule::in(self::STAFF_ROLES)],
         ]);
-        $data['role'] ??= StaffUser::STAFF;
+        $data['role'] ??= StaffUser::THERAPIST;
 
-        return $data;
+        return $data + self::contact($request, required: true);
+    }
+
+    /**
+     * The contact number and personal email shown on the website's team section.
+     * They are separate from the @rehabplus.com login email. Required when an account
+     * is created; optional when it is edited, so a blank field clears it.
+     *
+     * @return array{contactPhone: string, contactEmail: string}
+     */
+    public static function contact(Request $request, bool $required): array
+    {
+        $rule = $required ? 'required' : 'nullable';
+
+        $data = $request->validate([
+            'phone_country' => ['nullable', Rule::in(PhoneNumber::isoCodes())],
+            'phone' => [$rule, 'string', 'max:20'],
+            'contact_email' => [$rule, 'email', 'max:150', function (string $attribute, mixed $value, Closure $fail) {
+                if (is_string($value) && OfficialEmailDomain::allows($value)) {
+                    $fail('Use the personal email, such as Gmail. The @rehabplus.com address is for logging in.');
+                }
+            }],
+        ], [
+            'phone.required' => 'Enter the contact phone number.',
+            'contact_email.required' => 'Enter the contact email, such as a Gmail address.',
+        ]);
+
+        // The number is checked against the chosen country and saved in the +country format.
+        $national = trim((string) ($data['phone'] ?? ''));
+        $iso = $data['phone_country'] ?? PhoneNumber::DEFAULT_COUNTRY;
+        if ($national !== '' && ($problem = PhoneNumber::problem($iso, $national)) !== null) {
+            throw ValidationException::withMessages(['phone' => $problem]);
+        }
+
+        return [
+            'contactPhone' => $national === '' ? '' : PhoneNumber::toStored($iso, $national),
+            'contactEmail' => strtolower(trim((string) ($data['contact_email'] ?? ''))),
+        ];
     }
 
     /**
@@ -49,6 +89,6 @@ class UserValidation
             unset($data['password']);
         }
 
-        return $data;
+        return $data + self::contact($request, required: false);
     }
 }

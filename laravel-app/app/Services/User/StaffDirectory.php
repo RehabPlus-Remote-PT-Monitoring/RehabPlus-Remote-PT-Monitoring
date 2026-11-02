@@ -3,6 +3,7 @@
 namespace App\Services\User;
 
 use App\Auth\StaffUser;
+use App\Helpers\PhoneNumber;
 use App\Services\Firebase\FirebaseException;
 use App\Services\Firebase\FirestoreClient;
 use Illuminate\Support\Facades\Cache;
@@ -57,11 +58,47 @@ class StaffDirectory
                 'name' => (string) ($doc['name'] ?? ''),
                 'role' => (string) ($doc['role'] ?? ''),
                 'photoUrl' => self::safePhotoUrl($doc['photoUrl'] ?? null),
+                'contactPhone' => (string) ($doc['contactPhone'] ?? ''),
+                'contactEmail' => (string) ($doc['contactEmail'] ?? ''),
                 'active' => ($doc['active'] ?? true) !== false,
             ];
         }
 
         return $directory;
+    }
+
+    /**
+     * Active staff for the public board, grouped by role (physical therapists, then
+     * administrators), each group sorted by name. Shows only the public details: name,
+     * photo, and the contact number and email the staff member chose. Never the login
+     * email. Roles with nobody active are left out.
+     *
+     * @return list<array{role: string, members: list<array{name: string, photoUrl: string, phone: string, email: string}>}>
+     */
+    public function board(): array
+    {
+        $groups = [];
+
+        // Physical therapists first, then administrators.
+        foreach ([StaffUser::THERAPIST, StaffUser::ADMIN] as $role) {
+            $members = array_values(array_filter($this->all(), fn ($u) => $u['active'] && $u['role'] === $role));
+            if ($members === []) {
+                continue;
+            }
+
+            usort($members, fn ($a, $b) => strcasecmp($a['name'], $b['name']));
+            $groups[] = [
+                'role' => StaffUser::ROLE_LABELS[$role] ?? ucfirst($role),
+                'members' => array_map(fn ($u) => [
+                    'name' => $u['name'],
+                    'photoUrl' => $u['photoUrl'],
+                    'phone' => $u['contactPhone'] !== '' ? PhoneNumber::display($u['contactPhone']) : '',
+                    'email' => filter_var($u['contactEmail'], FILTER_VALIDATE_EMAIL) ? $u['contactEmail'] : '',
+                ], $members),
+            ];
+        }
+
+        return $groups;
     }
 
     /** Call after a staff account changes, so this server shows the change at once. */

@@ -6,7 +6,7 @@
     @php($initial = strtoupper(mb_substr($user['name'] ?: '?', 0, 1)))
     <div class="mb-3">
         <p class="page-title mb-1">My Profile</p>
-        <p class="page-subtitle mb-0">Your name and picture show on the Home page staff board.</p>
+        <p class="page-subtitle mb-0">Your name, picture, and contact details show on the website's team section.</p>
     </div>
 
     @include('partials.flash')
@@ -55,6 +55,22 @@
                     <label class="form-label small fw-semibold">Login email</label>
                     <input type="text" class="form-control" value="{{ $user['email'] }}" disabled>
                     <div class="form-text">Ask an administrator if this needs to change.</div>
+                </div>
+
+                <div class="col-12">
+                    <hr class="my-2">
+                    <p class="small fw-semibold mb-1">Contact details</p>
+                    <p class="form-text mt-0">Shown on the team section of the website. Your login email is used only to sign in.</p>
+                </div>
+                @php($contact = \App\Helpers\PhoneNumber::parse($user['contactPhone'] ?? ''))
+                @include('partials.phone-field', ['field' => 'phone', 'label' => 'Contact number', 'country' => old('phone_country', $contact['iso']), 'number' => old('phone', $contact['national']), 'initial' => old('phone', $contact['national']), 'required' => false])
+                <div class="col-md-6">
+                    <label for="contact_email" class="form-label small fw-semibold">Contact email</label>
+                    <input id="contact_email" type="email" name="contact_email" class="form-control @error('contact_email') is-invalid @enderror" value="{{ old('contact_email', $user['contactEmail']) }}" placeholder="name@gmail.com" maxlength="150">
+                    @error('contact_email')
+                        <div class="invalid-feedback">{{ $message }}</div>
+                    @enderror
+                    <div class="form-text">A personal email, such as Gmail.</div>
                 </div>
             </div>
         </div>

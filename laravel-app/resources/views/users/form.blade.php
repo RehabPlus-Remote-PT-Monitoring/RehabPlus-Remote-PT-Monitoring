@@ -6,7 +6,10 @@
     @php
         $me = auth()->user();
         $roleLocked = $user && ($user['role'] === 'therapist' || $user['uid'] === $me->id);
-        $selectedRole = old('role', $user['role'] ?? 'staff');
+        $selectedRole = old('role', $user['role'] ?? 'therapist');
+        $contact = \App\Helpers\PhoneNumber::parse($user['contactPhone'] ?? '');
+        $contactCountry = old('phone_country', $contact['iso']);
+        $contactNumber = old('phone', $contact['national']);
     @endphp
     <div class="mb-3">
         <a href="{{ route('users.index') }}" class="text-decoration-none small"><i class="bi bi-arrow-left me-1"></i>Back to staff accounts</a>
@@ -42,7 +45,7 @@
                                 <option value="{{ $value }}" data-name="{{ $label }}" data-email="{{ $value }}@rehabplus.com" @selected($selectedRole === $value)>{{ $label }}</option>
                             @endforeach
                         </select>
-                        <div class="form-text">Therapists manage their own patients; front desk staff see patient contact details and the clinic inbox; administrators can do everything.</div>
+                        <div class="form-text">Physical therapists manage their own patients. Administrators can do everything, including managing staff accounts.</div>
                     @endif
                 </div>
 
@@ -58,6 +61,21 @@
                 <div class="col-md-6">
                     <label for="password" class="form-label small fw-semibold">{{ $user ? 'New password (optional)' : 'Password' }}</label>
                     <input id="password" type="password" name="password" class="form-control" minlength="{{ \App\Services\Firebase\FirebaseAdmin::MIN_PASSWORD }}" @required(! $user) @unless ($user) placeholder="**********" @endunless autocomplete="new-password">
+                </div>
+
+                <div class="col-12">
+                    <hr class="my-2">
+                    <p class="small fw-semibold mb-1">Contact details</p>
+                    <p class="form-text mt-0">Shown on the team section of the website. The login email above is used only to sign in.</p>
+                </div>
+                @include('partials.phone-field', ['field' => 'phone', 'label' => 'Contact number', 'country' => $contactCountry, 'number' => $contactNumber, 'initial' => $user ? $contactNumber : null, 'required' => ! $user])
+                <div class="col-md-6">
+                    <label for="contact_email" class="form-label small fw-semibold">Contact email</label>
+                    <input id="contact_email" type="email" name="contact_email" class="form-control @error('contact_email') is-invalid @enderror" value="{{ old('contact_email', $user['contactEmail'] ?? '') }}" placeholder="name@gmail.com" maxlength="150" @required(! $user)>
+                    @error('contact_email')
+                        <div class="invalid-feedback">{{ $message }}</div>
+                    @enderror
+                    <div class="form-text">A personal email, such as Gmail.</div>
                 </div>
             </div>
         </div>

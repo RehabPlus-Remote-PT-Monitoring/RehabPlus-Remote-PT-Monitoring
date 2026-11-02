@@ -78,7 +78,7 @@ class PasswordResetTest extends TestCase
 
     public function test_inactive_staff_get_no_email(): void
     {
-        $this->staff('staff', 'deskUid', 'Desk', 'desk@clinic.com');
+        $this->staff('therapist', 'deskUid', 'Desk', 'desk@clinic.com');
         $this->docs['users/deskUid']['active'] = false;
 
         $this->post('/forgot-password', ['email' => 'desk@clinic.com'])->assertSessionHas('success');

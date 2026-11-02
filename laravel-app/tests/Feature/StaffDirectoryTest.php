@@ -40,7 +40,7 @@ class StaffDirectoryTest extends TestCase
 
     public function test_top_bar_shows_the_signed_in_persons_current_photo(): void
     {
-        $actor = $this->staff('staff', 'st1', 'Sam Front');
+        $actor = $this->staff('therapist', 'st1', 'Sam Front');
         $this->docs['users/st1']['photoUrl'] = 'data:image/png;base64,iVBORw0KGgo=';
 
         $this->actingAs($actor)->get('/profile')->assertOk()
@@ -50,7 +50,7 @@ class StaffDirectoryTest extends TestCase
 
     public function test_top_bar_falls_back_to_initials_without_a_photo(): void
     {
-        $actor = $this->staff('staff', 'st1', 'Sam Front');
+        $actor = $this->staff('therapist', 'st1', 'Sam Front');
 
         $this->actingAs($actor)->get('/profile')->assertOk()
             ->assertDontSee('user-avatar-photo', false)
@@ -60,7 +60,7 @@ class StaffDirectoryTest extends TestCase
     public function test_staff_accounts_list_shows_each_persons_photo(): void
     {
         $this->staff('therapist', 'thA', 'Dr. Ana');
-        $this->staff('staff', 'st1', 'Sam Front');
+        $this->staff('therapist', 'st1', 'Sam Front');
         $this->docs['users/thA']['photoUrl'] = 'data:image/png;base64,iVBORw0KGgo=';
 
         $this->actingAs($this->staff('admin'))->get('/users')->assertOk()

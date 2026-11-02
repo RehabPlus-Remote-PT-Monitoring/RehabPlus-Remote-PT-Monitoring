@@ -132,7 +132,7 @@ class AppointmentTest extends TestCase
 
     public function test_therapist_is_stored_by_account_and_must_be_an_active_therapist(): void
     {
-        $this->staff('staff', 'st1', 'Sam Front');
+        $this->staff('admin', 'st1', 'Sam Front');
         $this->actingAs($this->staff('admin'));
 
         $this->post('/appointments', $this->form(['therapist_id' => 'nobody']))->assertSessionHasErrors('therapist_id');

@@ -114,14 +114,13 @@ class PatientConsentTest extends TestCase
         ])['status']);
     }
 
-    public function test_front_desk_staff_see_consent_status_too(): void
+    public function test_consent_status_is_shown_to_the_patients_therapist(): void
     {
         $this->consent('2026-10-18', CarbonImmutable::parse('2026-10-19'));
 
-        $this->actingAs($this->staff('staff'))->get('/patients/pOne')
+        $this->actingAs($this->staff('therapist', 'thA', 'Dr. Ana'))->get('/patients/pOne')
             ->assertOk()
-            ->assertSee('Accepted terms v2026-10-18')
-            ->assertDontSee('Assigned exercises');
+            ->assertSee('Accepted terms v2026-10-18');
     }
 
     public function test_failed_consent_read_shows_unavailable_but_page_loads(): void
@@ -133,7 +132,7 @@ class PatientConsentTest extends TestCase
         // Front desk: the consent query is the only runQuery on this page.
         $this->injectedFailures[':runQuery'] = [403];
 
-        $this->actingAs($this->staff('staff'))->get('/patients/pOne')
+        $this->actingAs($this->staff('admin'))->get('/patients/pOne')
             ->assertOk()
             ->assertSee('Olive One')
             ->assertSee('data-consent="unavailable"', false)

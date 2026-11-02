@@ -309,6 +309,36 @@ body {
     font-size: 0.95rem;
 }
 
+.website-link-wrap {
+    text-align: center;
+    margin-top: 20px;
+}
+
+.website-link {
+    display: inline-flex;
+    align-items: center;
+    padding: 9px 20px;
+    border: 1px solid #99f6e4;
+    border-radius: 999px;
+    color: #0f766e;
+    font-size: 0.95rem;
+    font-weight: 600;
+    text-decoration: none;
+    transition: background-color 0.2s ease, border-color 0.2s ease;
+}
+
+.website-link:hover,
+.website-link:focus-visible {
+    background-color: #f0fdfa;
+    border-color: #14b8a6;
+    color: #0d9488;
+}
+
+.website-link:focus-visible {
+    outline: 2px solid #14b8a6;
+    outline-offset: 3px;
+}
+
 .alert {
     border: none;
     border-radius: 18px;

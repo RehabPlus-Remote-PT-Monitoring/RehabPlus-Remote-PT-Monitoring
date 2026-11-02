@@ -1398,61 +1398,84 @@ html.dark-mode{
             color:#fbbf24;
         }
 
-        /* Home page: cover photo with the clinic logo overlapping its bottom edge. */
+        /* Home page hero: a full-width banner photo with the clinic name and calls to action centred on it. */
         .home-hero{
+            position:relative;
+            display:flex;
+            align-items:center;
+            justify-content:center;
+            min-height:420px;
+            margin-bottom:1.5rem;
             overflow:hidden;
-        }
-
-        .home-cover{
-            height:240px;
+            border-radius:var(--radius);
+            box-shadow:var(--shadow);
+            color:#fff;
             background:#0f172a;
         }
 
-        .home-cover img{
+        .home-hero-bg{
+            position:absolute;
+            inset:0;
+            width:100%;
+            height:100%;
             object-fit:cover;
         }
 
-        .home-profile{
-            display:flex;
-            flex-wrap:wrap;
-            align-items:flex-end;
-            gap:1rem 1.25rem;
-            padding:0 1.5rem 1.5rem;
+        .home-hero-shade{
+            position:absolute;
+            inset:0;
+            background:linear-gradient(180deg, rgba(15,23,42,.45) 0%, rgba(15,23,42,.8) 100%);
         }
 
-        .home-logo{
-            width:120px;
-            height:120px;
-            margin-top:-60px;
-            flex-shrink:0;
+        .home-hero-content{
+            position:relative;
+            max-width:760px;
+            padding:3rem 1.5rem;
+            text-align:center;
+        }
+
+        .home-hero-logo{
+            width:84px;
+            height:84px;
+            margin-bottom:1.25rem;
             border-radius:50%;
-            border:5px solid var(--card);
+            border:4px solid rgba(255,255,255,.9);
             background:#fff;
             object-fit:cover;
-            box-shadow:var(--shadow);
         }
 
-        .home-identity{
-            flex:1 1 220px;
-            min-width:0;
-            padding-top:.5rem;
+        .home-hero-eyebrow{
+            margin:0 0 .5rem;
+            font-size:.8rem;
+            font-weight:700;
+            letter-spacing:.14em;
+            text-transform:uppercase;
+            color:#99f6e4;
         }
 
-        .home-name{
-            margin:0;
-            font-size:1.5rem;
+        .home-hero-title{
+            margin:0 0 1.75rem;
+            font-size:clamp(2rem, 5vw, 3.25rem);
             font-weight:800;
-            color:var(--text);
+            line-height:1.1;
+            color:#fff;
         }
 
-        .home-subtitle{
-            margin:0;
-            font-weight:500;
-            color:var(--muted);
+        .home-hero-actions{
+            display:flex;
+            flex-wrap:wrap;
+            align-items:center;
+            justify-content:center;
+            gap:.75rem;
         }
 
-        .home-facebook{
-            align-self:center;
+        .home-hero-actions .btn{
+            padding:.7rem 1.4rem;
+            font-weight:600;
+        }
+
+        .home-hero-actions .btn-outline-light:hover{
+            color:#0f172a;
         }
 
         .home-icon{
@@ -1509,14 +1532,15 @@ html.dark-mode{
         }
 
         a.home-value{
-            text-decoration:none;
+            color:var(--primary-dark);
+            text-decoration:underline;
+            text-underline-offset:3px;
         }
 
         a.home-value:hover{
             color:var(--primary-dark);
             text-decoration:underline;
         }
-
         /* Tablet: two per row, with a divider between the columns and above the second row. */
         @media (min-width:768px){
             .home-info-item + .home-info-item{
@@ -1583,17 +1607,1065 @@ html.dark-mode{
         }
 
         @media (max-width:575.98px){
-            .home-cover{
-                height:160px;
+            .home-hero{
+                min-height:340px;
             }
 
-            .home-logo{
-                width:96px;
-                height:96px;
-                margin-top:-48px;
+            .home-hero-content{
+                padding:2.25rem 1.25rem;
             }
 
-            .home-facebook{
+            .home-hero-actions .btn{
                 width:100%;
             }
         }
+
+        /* Public welcome page: a slim top bar, the same sections as the Home page, and a footer. */
+        .public-page{
+            background:var(--bg);
+        }
+
+        .public-nav{
+            position:sticky;
+            top:0;
+            z-index:10;
+            background:var(--material);
+            backdrop-filter:blur(12px);
+            -webkit-backdrop-filter:blur(12px);
+            border-bottom:1px solid var(--border);
+        }
+
+        .public-nav-inner{
+            display:flex;
+            flex-wrap:wrap;
+            align-items:center;
+            justify-content:space-between;
+            gap:.75rem 1.5rem;
+            padding:.75rem clamp(1rem, 3vw, 2.5rem);
+        }
+
+        .public-brand{
+            display:flex;
+            align-items:center;
+            gap:.625rem;
+            font-weight:800;
+            color:var(--text);
+            text-decoration:none;
+        }
+
+        .public-brand-logo{
+            width:40px;
+            height:40px;
+            border-radius:50%;
+            object-fit:cover;
+            background:#fff;
+        }
+
+        .public-links{
+            display:flex;
+            flex-wrap:wrap;
+            gap:.25rem 1.25rem;
+            font-weight:500;
+        }
+
+        .public-links a{
+            color:var(--muted);
+            text-decoration:none;
+        }
+
+        .public-links a:hover{
+            color:var(--primary-dark);
+        }
+
+        /* The link for the section being read is highlighted in the theme's teal. */
+        .public-links a.is-active{
+            color:var(--primary-strong);
+            font-weight:700;
+        }
+
+        .public-login{
+            padding:.5rem 1.25rem;
+            font-weight:600;
+        }
+
+        .public-main{
+            padding:1.5rem clamp(1rem, 3vw, 2.5rem) 2.5rem;
+        }
+
+        .package-title{
+            margin:0 0 .75rem;
+            font-size:.8rem;
+            font-weight:700;
+            letter-spacing:.07em;
+            text-transform:uppercase;
+            color:var(--primary-dark);
+        }
+
+        .package-image{
+            display:block;
+            width:100%;
+            height:auto;
+            border-radius:var(--radius-sm);
+            border:1px solid var(--border);
+            background:#fff;
+        }
+
+        .public-main [id]{
+            scroll-margin-top:90px;
+        }
+
+        .public-footer{
+            border-top:1px solid var(--border);
+            background:var(--card);
+        }
+
+        .public-footer-links{
+            display:flex;
+            flex-wrap:wrap;
+            justify-content:center;
+            gap:.5rem 1.5rem;
+            padding:1rem clamp(1rem, 3vw, 2.5rem) 0;
+            font-size:.9rem;
+        }
+
+        .public-footer-links a{
+            color:var(--muted);
+            text-decoration:none;
+        }
+
+        .public-footer-links a:hover{
+            color:var(--primary-dark);
+            text-decoration:underline;
+        }
+
+        .info-page{
+            max-width:760px;
+            margin-top:1rem;
+        }
+
+        .info-page-subtitle{
+            margin:0 0 1.5rem;
+            font-size:1.05rem;
+            font-weight:700;
+            color:var(--primary-dark);
+        }
+
+        .info-text{
+            margin:0 0 1.25rem;
+            line-height:1.75;
+            color:var(--text);
+        }
+
+        .info-list{
+            margin:0 0 1.5rem;
+            padding-left:1.25rem;
+        }
+
+        .info-list li{
+            margin-bottom:1rem;
+            line-height:1.75;
+            color:var(--text);
+        }
+
+        .info-section-title{
+            margin:2rem 0 .75rem;
+            font-size:1.1rem;
+            font-weight:700;
+            color:var(--text);
+        }
+
+        .faq-item{
+            padding:.9rem 0;
+            border-bottom:1px solid var(--border);
+        }
+
+        .faq-item summary{
+            display:flex;
+            align-items:center;
+            justify-content:space-between;
+            gap:1rem;
+            cursor:pointer;
+            font-weight:600;
+            color:var(--text);
+            list-style:none;
+        }
+
+        .faq-item summary::-webkit-details-marker{
+            display:none;
+        }
+
+        .faq-item summary::after{
+            content:"+";
+            font-size:1.25rem;
+            line-height:1;
+            color:var(--primary-dark);
+        }
+
+        .faq-item[open] summary::after{
+            content:"\2013";
+        }
+
+        .faq-item summary:focus-visible{
+            outline:2px solid var(--primary);
+            outline-offset:4px;
+            border-radius:4px;
+        }
+
+        .faq-item .info-text{
+            margin:.75rem 0 0;
+        }
+
+        .info-page-title{
+            margin:1.25rem 0 .75rem;
+            font-size:clamp(1.5rem, 4vw, 2rem);
+            font-weight:800;
+            color:var(--text);
+        }
+
+        .public-footer-inner{
+            display:flex;
+            flex-wrap:wrap;
+            align-items:center;
+            justify-content:space-between;
+            gap:.5rem 1rem;
+            padding:1rem clamp(1rem, 3vw, 2.5rem);
+            font-size:.875rem;
+            color:var(--primary-dark);
+        }
+
+        .public-footer-inner a{
+            color:var(--primary-dark);
+            text-decoration:none;
+        }
+
+        @media (max-width:575.98px){
+            .public-login{
+                width:100%;
+                text-align:center;
+            }
+
+            .public-nav-inner{
+                justify-content:center;
+                text-align:center;
+            }
+
+            .public-brand{
+                justify-content:center;
+            }
+        }
+
+        /* Announcements: a card per notice, with an optional picture above the text. */
+        .announcement-card{
+            border-left:4px solid var(--primary-strong) !important;
+        }
+
+        .announcement-image{
+            display:block;
+            width:100%;
+            height:100%;
+            min-height:260px;
+            object-fit:cover;
+            background:var(--bg);
+        }
+
+        .announcement-text{
+            padding:1.5rem;
+        }
+
+        @media (min-width:768px){
+            .announcement-text{
+                padding:2rem 2.25rem;
+            }
+        }
+
+        @media (max-width:767.98px){
+            .announcement-image{
+                height:220px;
+                min-height:0;
+            }
+        }
+
+        .announcement-thumb{
+            width:96px;
+            height:96px;
+            flex-shrink:0;
+            border-radius:var(--radius-sm);
+            object-fit:cover;
+            border:1px solid var(--border);
+        }
+
+        .announcement-badge{
+            display:inline-flex;
+            align-items:center;
+            padding:.25rem .65rem;
+            border-radius:999px;
+            background:var(--primary-light);
+            color:var(--primary-dark);
+            font-size:.72rem;
+            font-weight:700;
+            letter-spacing:.05em;
+            text-transform:uppercase;
+        }
+
+        .announcement-title{
+            margin:0 0 .5rem;
+            font-size:1.125rem;
+            font-weight:700;
+            color:var(--text);
+        }
+
+        .announcement-body{
+            margin:0 0 .75rem;
+            white-space:pre-line;
+            line-height:1.6;
+            color:var(--text);
+        }
+
+        /* The announcement card's text panel: a soft tint and a faint megaphone watermark, with larger type. */
+        .announcement-card .announcement-text{
+            position:relative;
+            height:100%;
+            overflow:hidden;
+            padding:1.5rem;
+            background:
+                radial-gradient(circle at 100% 0%, rgba(20,184,166,.12), transparent 60%),
+                linear-gradient(180deg, #ffffff 0%, #f4fbfa 100%);
+        }
+
+        .announcement-card .announcement-text > *{
+            position:relative;
+        }
+
+        .announcement-watermark{
+            position:absolute !important;
+            right:-18px;
+            bottom:-18px;
+            width:200px;
+            height:200px;
+            color:var(--primary);
+            opacity:.09;
+            pointer-events:none;
+        }
+
+        .announcement-card .announcement-title{
+            font-size:clamp(1.35rem, 2.6vw, 1.75rem);
+            line-height:1.25;
+        }
+
+        .announcement-card .announcement-body{
+            font-size:clamp(1.05rem, 1.6vw, 1.2rem);
+            line-height:1.7;
+        }
+
+        @media (min-width:768px){
+            .announcement-card .announcement-text{
+                padding:2.25rem 2.5rem;
+            }
+        }
+
+        html.dark-mode body .announcement-card .announcement-text{
+            background:
+                radial-gradient(circle at 100% 0%, rgba(20,184,166,.18), transparent 60%),
+                linear-gradient(180deg, #172235 0%, #111b2c 100%);
+        }
+
+        html.dark-mode body .announcement-badge{
+            background:rgba(20,184,166,.15);
+            color:#5eead4;
+        }
+
+        /* For patients: a full-width band on the welcome page, pointing patients to the mobile app. */
+        .patient-band{
+            display:flex;
+            flex-wrap:wrap;
+            align-items:center;
+            justify-content:space-between;
+            gap:1.5rem 2rem;
+            padding:clamp(1.5rem, 4vw, 2.5rem);
+            border-radius:var(--radius);
+            color:#fff;
+            background:linear-gradient(135deg, var(--primary-dark) 0%, var(--primary-strong) 55%, var(--primary) 100%);
+            box-shadow:var(--shadow);
+        }
+
+        .patient-band-text{
+            flex:1 1 360px;
+            min-width:0;
+        }
+
+        .patient-band-eyebrow{
+            margin:0 0 .5rem;
+            font-size:.78rem;
+            font-weight:700;
+            letter-spacing:.14em;
+            text-transform:uppercase;
+            color:#ccfbf1;
+        }
+
+        .patient-band-title{
+            margin:0 0 .75rem;
+            font-size:clamp(1.35rem, 3.5vw, 1.9rem);
+            font-weight:800;
+            line-height:1.2;
+            color:#fff;
+        }
+
+        .patient-band-body{
+            margin:0;
+            max-width:60ch;
+            line-height:1.6;
+            color:rgba(255,255,255,.92);
+        }
+
+        /* Decoration behind the band's content: a faint SVG layer, never clickable. */
+        .patient-band{
+            position:relative;
+            overflow:hidden;
+        }
+
+        .patient-band-svg{
+            position:absolute;
+            inset:0;
+            width:100%;
+            height:100%;
+            color:#fff;
+            pointer-events:none;
+            z-index:0;
+        }
+
+        .patient-band > *:not(.patient-band-svg){
+            position:relative;
+            z-index:1;
+        }
+
+        .patient-band-points{
+            flex:0 1 300px;
+            display:flex;
+            flex-direction:column;
+            gap:.75rem;
+        }
+
+        .patient-band-point{
+            display:flex;
+            align-items:center;
+            gap:.6rem;
+            font-weight:600;
+            color:#fff;
+        }
+
+        .patient-band-point i{
+            font-size:1.2rem;
+            color:#ccfbf1;
+        }
+
+        /* The app screenshots, shown like phones side by side (swipeable on mobile). */
+        .patient-band-gallery{
+            flex:1 1 100%;
+            display:flex;
+            align-items:flex-end;
+            justify-content:center;
+            gap:clamp(.75rem, 2vw, 1.5rem);
+            padding-top:.5rem;
+        }
+
+        .app-shot{
+            flex:0 0 auto;
+            height:clamp(320px, 42vw, 480px);
+            width:auto;
+            border-radius:1.6rem;
+            border:6px solid #0f172a;
+            background:#fff;
+            box-shadow:0 22px 44px rgba(2,44,40,.35);
+            object-fit:cover;
+        }
+
+        .app-shot-center{
+            transform:translateY(-1.5rem);
+        }
+
+        @media (max-width:767.98px){
+            .patient-band-gallery{
+                justify-content:flex-start;
+                overflow-x:auto;
+                scroll-snap-type:x mandatory;
+                padding-bottom:.5rem;
+            }
+
+            .app-shot{
+                height:300px;
+                scroll-snap-align:center;
+            }
+
+            .app-shot-center{
+                transform:none;
+            }
+        }
+
+        .patient-band-note{
+            margin:.5rem 0 0;
+            padding:.85rem 1rem;
+            border-radius:var(--radius-sm);
+            background:rgba(255,255,255,.14);
+            font-size:.9rem;
+            line-height:1.5;
+            color:#fff;
+        }
+
+        .patient-band-btn{
+            align-self:flex-start;
+            display:inline-flex;
+            align-items:center;
+            margin-top:1rem;
+            padding:.6rem 1.25rem;
+            border-radius:999px;
+            background:#fff;
+            color:var(--primary-dark);
+            font-weight:700;
+            text-decoration:none;
+            transition:background-color .2s ease;
+        }
+
+        .patient-band-btn:hover,
+        .patient-band-btn:focus-visible{
+            background:#f0fdfa;
+            color:var(--primary-dark);
+        }
+
+        /* The RehabPlus Remote Monitoring page. */
+        .rm-hero{
+            display:grid;
+            grid-template-columns:minmax(0,1fr) minmax(0,1.1fr);
+            gap:2rem;
+            align-items:center;
+            margin-bottom:2.5rem;
+            padding:clamp(1.5rem, 4vw, 2.75rem);
+            border-radius:var(--radius);
+            color:#fff;
+            background:linear-gradient(135deg, var(--primary-dark) 0%, var(--primary-strong) 55%, var(--primary) 100%);
+            box-shadow:var(--shadow);
+        }
+
+        .rm-eyebrow{
+            margin:0 0 .5rem;
+            font-size:.78rem;
+            font-weight:700;
+            letter-spacing:.12em;
+            text-transform:uppercase;
+            color:#ccfbf1;
+        }
+
+        .rm-title{
+            margin:0 0 1rem;
+            font-size:clamp(1.8rem, 4vw, 2.5rem);
+            font-weight:800;
+            line-height:1.15;
+            color:#fff;
+        }
+
+        .rm-lead{
+            margin:0 0 1.5rem;
+            line-height:1.7;
+            color:#f0fdfa;
+        }
+
+        .rm-btn{
+            display:inline-flex;
+            align-items:center;
+            padding:.65rem 1.4rem;
+            border-radius:999px;
+            background:#fff;
+            color:var(--primary-dark);
+            font-weight:700;
+            text-decoration:none;
+            transition:background-color .2s ease;
+        }
+
+        .rm-btn:hover,
+        .rm-btn:focus-visible{
+            background:#f0fdfa;
+            color:var(--primary-dark);
+        }
+
+        .rm-gallery{
+            display:flex;
+            align-items:flex-end;
+            justify-content:center;
+            gap:clamp(.6rem, 2vw, 1.25rem);
+        }
+
+        .rm-shot{
+            width:clamp(96px, 22%, 170px);
+            height:auto;
+            border:4px solid rgba(255,255,255,.9);
+            border-radius:18px;
+            box-shadow:0 12px 30px rgba(15,118,110,.35);
+        }
+
+        .rm-shot-center{
+            width:clamp(110px, 26%, 196px);
+        }
+
+        .rm-steps,
+        .rm-feature-grid{
+            display:grid;
+            grid-template-columns:repeat(3, minmax(0, 1fr));
+            gap:1.25rem;
+            margin-bottom:2.5rem;
+        }
+
+        .rm-step,
+        .rm-feature{
+            padding:1.4rem;
+            border:1px solid var(--border);
+            border-radius:var(--radius);
+            background:var(--card);
+            box-shadow:var(--shadow);
+        }
+
+        .rm-step-number{
+            display:inline-flex;
+            align-items:center;
+            justify-content:center;
+            width:2.25rem;
+            height:2.25rem;
+            margin-bottom:.75rem;
+            border-radius:50%;
+            background:var(--primary-light);
+            color:var(--primary-dark);
+            font-weight:800;
+        }
+
+        .rm-feature-icon{
+            display:inline-flex;
+            align-items:center;
+            justify-content:center;
+            width:2.75rem;
+            height:2.75rem;
+            margin-bottom:.9rem;
+            border-radius:var(--radius-sm);
+            background:var(--primary-light);
+            color:var(--primary-dark);
+            font-size:1.3rem;
+        }
+
+        .rm-step h3,
+        .rm-feature h3{
+            margin:0 0 .4rem;
+            font-size:1.05rem;
+            font-weight:700;
+            color:var(--text);
+        }
+
+        .rm-step p,
+        .rm-feature p{
+            margin:0;
+            line-height:1.6;
+            color:var(--muted);
+        }
+
+        .rm-access{
+            padding:clamp(1.25rem, 3vw, 2rem);
+            border:1px solid var(--border);
+            border-radius:var(--radius);
+            background:var(--card);
+            box-shadow:var(--shadow);
+        }
+
+        .rm-access-points{
+            display:grid;
+            gap:.75rem;
+            margin:0;
+            padding:0;
+            list-style:none;
+        }
+
+        .rm-access-points li{
+            display:flex;
+            align-items:flex-start;
+            gap:.6rem;
+            font-weight:600;
+            color:var(--text);
+        }
+
+        .rm-access-points i{
+            font-size:1.2rem;
+            color:var(--primary-strong);
+        }
+
+        .rm-access-note{
+            margin:1.25rem 0 0;
+            padding:.9rem 1rem;
+            border-radius:var(--radius-sm);
+            background:var(--primary-light);
+            color:var(--primary-dark);
+            font-size:.95rem;
+            line-height:1.6;
+        }
+
+        .rm-cta{
+            padding:clamp(1.5rem, 4vw, 2.25rem);
+            border:1px solid var(--border);
+            border-radius:var(--radius);
+            background:var(--card);
+            box-shadow:var(--shadow);
+            text-align:center;
+        }
+
+        .rm-cta-title{
+            margin:0 0 .5rem;
+            font-size:1.4rem;
+            font-weight:800;
+            color:var(--text);
+        }
+
+        .rm-cta-text{
+            margin:0 0 1.25rem;
+            color:var(--muted);
+        }
+
+        .rm-btn-solid{
+            background:var(--primary-strong);
+            color:#fff;
+        }
+
+        .rm-btn-solid:hover,
+        .rm-btn-solid:focus-visible{
+            background:var(--primary-dark);
+            color:#fff;
+        }
+
+        @media (max-width: 900px){
+            .rm-hero{
+                grid-template-columns:1fr;
+            }
+
+            .rm-steps,
+            .rm-feature-grid{
+                grid-template-columns:repeat(2, minmax(0, 1fr));
+            }
+        }
+
+        @media (max-width: 600px){
+            .rm-steps,
+            .rm-feature-grid{
+                grid-template-columns:1fr;
+            }
+
+            .rm-gallery{
+                justify-content:flex-start;
+                overflow-x:auto;
+                padding-bottom:.5rem;
+            }
+        }
+
+        /* Welcome page section headers: an accent bar, the title, and a rule that fades out. */
+        .public-main .section-title{
+            display:flex;
+            align-items:center;
+            gap:.75rem;
+            margin:2.5rem 0 1.25rem;
+            font-size:clamp(1.15rem, 3.5vw, 1.4rem);
+            font-weight:800;
+            letter-spacing:-.01em;
+            color:var(--text);
+        }
+
+        .public-main .section-title::before{
+            content:"";
+            flex:0 0 auto;
+            width:5px;
+            height:1.5rem;
+            border-radius:4px;
+            background:linear-gradient(180deg, var(--primary), var(--primary-dark));
+        }
+
+        .public-main .section-title::after{
+            content:"";
+            flex:1 1 auto;
+            height:1px;
+            background:linear-gradient(90deg, var(--border), transparent);
+        }
+
+        html.dark-mode body .public-main .section-title::after{
+            background:linear-gradient(90deg, rgba(148,163,184,.25), transparent);
+        }
+
+        /* Clinic details, modernised: a soft gradient card with a teal top rule and filled icon badges. */
+        .home-info{
+            position:relative;
+            border:0;
+            border-radius:1.25rem;
+            background:linear-gradient(135deg, #ffffff 0%, #f0fbf9 100%);
+            box-shadow:0 12px 32px rgba(15,23,42,.07);
+        }
+
+        .home-info::before{
+            content:"";
+            position:absolute;
+            inset:0 0 auto 0;
+            height:4px;
+            background:linear-gradient(90deg, var(--primary), var(--primary-dark));
+        }
+
+        .home-info .home-info-item{
+            padding:1.75rem 1.5rem 1.5rem;
+            transition:background-color 200ms var(--ease-out);
+        }
+
+        .home-info .home-info-item:hover{
+            background-color:rgba(20,184,166,.06);
+        }
+
+        .home-info .home-icon{
+            width:52px;
+            height:52px;
+            border-radius:16px;
+            background:linear-gradient(135deg, var(--primary), var(--primary-dark));
+            color:#fff;
+            font-size:1.3rem;
+            box-shadow:0 8px 18px rgba(13,148,136,.28);
+        }
+
+        .home-info .home-label{
+            margin:0 0 .35rem;
+            color:var(--primary-dark);
+        }
+
+        .home-info .home-value{
+            font-size:1.05rem;
+            font-weight:700;
+        }
+
+        .home-info .home-value span{
+            font-size:.9rem;
+            margin-top:.15rem;
+        }
+
+        html.dark-mode body .home-info{
+            background:linear-gradient(135deg, #172235 0%, #0f1a2b 100%);
+        }
+
+        html.dark-mode body .home-info .home-label{
+            color:#5eead4;
+        }
+
+        /* Classes: a photo on top of each card, with the duration and level as chips. */
+        .class-card-photo{
+            aspect-ratio:4 / 3;
+            overflow:hidden;
+            background:var(--bg);
+        }
+
+        .class-card-photo img{
+            display:block;
+            width:100%;
+            height:100%;
+            object-fit:cover;
+            transition:transform 400ms var(--ease-out);
+        }
+
+        .class-card:hover .class-card-photo img{
+            transform:scale(1.04);
+        }
+
+        .class-card-body{
+            padding:1.25rem 1.35rem 1.5rem;
+        }
+
+        .class-card-title{
+            margin:0 0 .6rem;
+            font-size:1.15rem;
+            font-weight:800;
+            color:var(--text);
+        }
+
+        .class-card-meta{
+            display:flex;
+            flex-wrap:wrap;
+            gap:.5rem;
+            margin-bottom:.85rem;
+        }
+
+        .class-card-meta span{
+            display:inline-flex;
+            align-items:center;
+            gap:.35rem;
+            padding:.25rem .65rem;
+            border-radius:999px;
+            background:var(--primary-light);
+            color:var(--primary-dark);
+            font-size:.78rem;
+            font-weight:700;
+        }
+
+        .class-card-text{
+            line-height:1.65;
+            color:var(--muted);
+            font-size:.95rem;
+        }
+
+        html.dark-mode body .class-card-meta span{
+            background:rgba(20,184,166,.15);
+            color:#5eead4;
+        }
+
+        /* About Rehab+: a full-colour band, the way the Remote Monitoring band is, with the highlights as glass tiles. */
+        .about-card{
+            position:relative;
+            overflow:hidden;
+            border-radius:1.5rem;
+            color:#fff;
+            background:
+                radial-gradient(circle at 100% 0%, rgba(255,255,255,.16), transparent 45%),
+                linear-gradient(135deg, var(--primary-dark) 0%, var(--primary-strong) 55%, var(--primary) 100%);
+            box-shadow:0 18px 40px rgba(13,148,136,.25);
+        }
+
+        .about-lead{
+            margin:0 0 1rem;
+            font-size:clamp(1.1rem, 1.9vw, 1.3rem);
+            font-weight:700;
+            line-height:1.55;
+            color:#fff;
+        }
+
+        .about-text{
+            margin:0 0 1rem;
+            line-height:1.75;
+            color:rgba(255,255,255,.9);
+        }
+
+        .about-points li{
+            display:flex;
+            align-items:center;
+            gap:.9rem;
+            margin-bottom:.8rem;
+            padding:1rem 1.1rem;
+            border-radius:16px;
+            background:rgba(255,255,255,.14);
+            border:1px solid rgba(255,255,255,.22);
+            backdrop-filter:blur(6px);
+            -webkit-backdrop-filter:blur(6px);
+            font-weight:700;
+            color:#fff;
+        }
+
+        .about-point-icon{
+            display:grid;
+            place-items:center;
+            width:44px;
+            height:44px;
+            flex-shrink:0;
+            border-radius:13px;
+            background:#fff;
+            color:var(--primary-dark);
+            font-size:1.25rem;
+            box-shadow:0 6px 14px rgba(2,44,40,.2);
+        }
+
+        /* Plain sub-heading for the team, which sits under About us. */
+        .team-heading{
+            margin:2.25rem 0 .9rem;
+            font-size:1.2rem;
+            font-weight:800;
+            color:var(--text);
+        }
+
+        /* Team: one group per role, with a heading and how many people are in it. */
+        .team-group-head{
+            display:flex;
+            align-items:center;
+            gap:.6rem;
+            margin:0 0 .75rem;
+        }
+
+        /* Team cards on the welcome page: a larger photo, the name, and the contact details. */
+        .team-card{
+            display:flex;
+            flex-direction:column;
+            align-items:center;
+            height:100%;
+            padding:1.75rem 1.25rem 1.5rem;
+            border:1px solid var(--border);
+            border-radius:var(--radius);
+            background:var(--card);
+            box-shadow:var(--shadow);
+            text-align:center;
+            transition:transform .2s var(--ease-out), box-shadow .2s var(--ease-out);
+        }
+
+        .team-card:hover{
+            transform:translateY(-3px);
+            box-shadow:0 16px 32px rgba(15, 118, 110, .14);
+        }
+
+        .team-card-photo,
+        .team-card-initials{
+            width:124px;
+            height:124px;
+            border:4px solid var(--primary-light);
+            border-radius:50%;
+            box-shadow:0 8px 20px rgba(15, 118, 110, .15);
+        }
+
+        .team-card-photo{
+            object-fit:cover;
+        }
+
+        .team-card-initials{
+            display:flex;
+            align-items:center;
+            justify-content:center;
+            background:var(--primary-light);
+            color:var(--primary-dark);
+            font-size:2.6rem;
+            font-weight:800;
+        }
+
+        .team-card-name{
+            margin:1.1rem 0 0;
+            font-size:1.1rem;
+            font-weight:700;
+            color:var(--text);
+            overflow-wrap:anywhere;
+        }
+
+        .team-card-contact{
+            display:grid;
+            gap:.5rem;
+            width:100%;
+            margin:1rem 0 0;
+            padding:.9rem 0 0;
+            border-top:1px solid var(--border);
+            list-style:none;
+            font-size:.92rem;
+            color:var(--muted);
+        }
+
+        .team-card-contact li{
+            display:flex;
+            align-items:center;
+            justify-content:center;
+            gap:.5rem;
+            min-width:0;
+            overflow-wrap:anywhere;
+        }
+
+        .team-card-contact i{
+            flex-shrink:0;
+            color:var(--primary-strong);
+        }
+
+        .team-card-contact a{
+            color:var(--primary-dark);
+            text-decoration:underline;
+            text-underline-offset:3px;
+        }
+
+        .team-group-title{
+            margin:0;
+            font-size:1rem;
+            font-weight:700;
+            color:var(--text);
+        }
+

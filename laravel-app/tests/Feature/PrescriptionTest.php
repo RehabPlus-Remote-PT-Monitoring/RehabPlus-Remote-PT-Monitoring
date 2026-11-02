@@ -162,7 +162,7 @@ class PrescriptionTest extends TestCase
     {
         $this->actingAs($this->therapist())->post('/patients/pTwo/prescriptions', ['exercise_type' => 'bicepCurl', 'target_reps' => 10, 'frequency_per_week' => 3])
             ->assertNotFound();
-        $this->actingAs($this->staff('staff'))->get('/patients/pOne/prescriptions/create')->assertForbidden();
+        $this->actingAs($this->staff('therapist', 'thB', 'Dr. Ben'))->get('/patients/pOne/prescriptions/create')->assertNotFound();
         $this->assertSame([], $this->commits);
 
         $this->actingAs($this->staff('admin'))->post('/patients/pTwo/prescriptions', ['exercise_type' => 'bicepCurl', 'target_reps' => 10, 'frequency_per_week' => 3])

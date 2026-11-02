@@ -41,14 +41,13 @@ class RehabPlusConversionTest extends TestCase
 
     public function test_sidebar_matches_role(): void
     {
-        $this->actingAs($this->staff('staff'))->get('/dashboard')->assertOk()
-            ->assertDontSee('Therapy Notes &amp; Care Plans', false)
-            ->assertDontSee('Staff Accounts')
-            ->assertSee('Front Desk Staff');
-
         $this->actingAs($this->staff('therapist'))->get('/dashboard')->assertOk()
             ->assertSee('Therapy Notes &amp; Care Plans', false)
             ->assertDontSee('Staff Accounts');
+
+        $this->actingAs($this->staff('admin'))->get('/dashboard')->assertOk()
+            ->assertSee('Therapy Notes &amp; Care Plans', false)
+            ->assertSee('Staff Accounts');
     }
 
     public function test_appointment_form_lists_firebase_therapists(): void

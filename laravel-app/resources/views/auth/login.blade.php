@@ -165,6 +165,13 @@
                     <i class="bi bi-shield-check me-1"></i>
                     Secured access — authorised personnel only
                 </p>
+
+                <div class="website-link-wrap">
+                    <a href="{{ route('landing') }}" class="website-link">
+                        <i class="bi bi-arrow-left me-2" aria-hidden="true"></i>
+                        Rehab+ website
+                    </a>
+                </div>
             </div>
         </section>
     </main>

@@ -9,12 +9,20 @@
             <p class="page-subtitle mb-0">Physical Therapy Recovery Monitoring</p>
         </div>
 
-        @if (auth()->user()->isClinician())
-            <a href="{{ route('patients.create') }}" class="btn btn-primary d-flex align-items-center gap-2">
-                <i class="bi bi-plus-lg"></i>
-                Add Patient
-            </a>
-        @endif
+        <div class="d-flex flex-wrap gap-2">
+            @if (auth()->user()->isAdmin())
+                <a href="{{ route('announcements.index') }}" class="btn btn-outline-primary d-flex align-items-center gap-2">
+                    <i class="bi bi-megaphone"></i>
+                    Post announcement
+                </a>
+            @endif
+            @if (auth()->user()->isClinician())
+                <a href="{{ route('patients.create') }}" class="btn btn-primary d-flex align-items-center gap-2">
+                    <i class="bi bi-plus-lg"></i>
+                    Add Patient
+                </a>
+            @endif
+        </div>
     </div>
 
     <div class="row g-4 mb-4">

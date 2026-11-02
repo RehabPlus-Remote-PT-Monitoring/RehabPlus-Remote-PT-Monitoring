@@ -1,13 +1,15 @@
 <?php
 
+use App\Http\Controllers\AnnouncementController;
 use App\Http\Controllers\AppointmentController;
 use App\Http\Controllers\AuthController;
 use App\Http\Controllers\ClinicalRecordController;
 use App\Http\Controllers\CronController;
 use App\Http\Controllers\CspReportController;
 use App\Http\Controllers\DashboardController;
-use App\Http\Controllers\HomeController;
+use App\Http\Controllers\InfoPageController;
 use App\Http\Controllers\InventoryController;
+use App\Http\Controllers\LandingController;
 use App\Http\Controllers\MessageController;
 use App\Http\Controllers\PasswordResetController;
 use App\Http\Controllers\PatientController;
@@ -25,11 +27,14 @@ Route::pattern('uid', '[A-Za-z0-9_-]{1,128}');
 Route::pattern('id', '[A-Za-z0-9_-]{1,128}');
 Route::pattern('patientUid', '[A-Za-z0-9_-]{1,128}');
 
-Route::get('/', function () {
-    return auth()->check()
-        ? redirect()->route('dashboard')
-        : redirect()->route('login.page');
-});
+// The public welcome page. Staff use the dashboard, reached from the Log In button.
+Route::get('/', [LandingController::class, 'index'])->name('landing');
+
+// Footer pages (FAQ, policies, terms). Titles are in config/clinic.php ('info_pages').
+Route::get('/information/{page}', [InfoPageController::class, 'show'])->name('info.show');
+
+// The RehabPlus Remote Monitoring page (the mobile app). Its content is in config/clinic.php ('remote_monitoring').
+Route::view('/remote-monitoring', 'remote-monitoring')->name('remote-monitoring');
 
 Route::get('/login', [AuthController::class, 'login'])->name('login.page');
 Route::post('/login', [AuthController::class, 'attempt'])->middleware('throttle:10,1')->name('login.submit');
@@ -51,13 +56,17 @@ Route::post('/csp-report', CspReportController::class)->middleware('throttle:60,
 // Scheduled jobs: called by the GitHub Actions schedule with a bearer secret, no login.
 Route::post('/cron/exercise-reminders', [CronController::class, 'exerciseReminders'])->middleware('throttle:10,1,cron')->name('cron.reminders');
 
-// Signed-in staff: admin, therapist or front-desk staff (see App\Auth\StaffUser).
+// Signed-in staff: administrators or physical therapists (see App\Auth\StaffUser).
 Route::middleware(['auth.rehab'])->group(function () {
-    Route::get('/home', [HomeController::class, 'index'])->name('home');
 
     // My profile: every signed-in staff member edits only their own name and picture.
     Route::get('/profile', [ProfileController::class, 'edit'])->name('profile.edit');
     Route::put('/profile', [ProfileController::class, 'update'])->name('profile.update');
+
+    // Clinic announcements: administrators post and remove them; everyone sees them on the dashboard.
+    Route::get('/announcements', [AnnouncementController::class, 'index'])->name('announcements.index');
+    Route::post('/announcements', [AnnouncementController::class, 'store'])->name('announcements.store');
+    Route::delete('/announcements/{id}', [AnnouncementController::class, 'destroy'])->name('announcements.destroy');
     Route::get('/dashboard', [DashboardController::class, 'index'])->name('dashboard');
 
     // Reports & Analytics: one page, sections by role (see ReportService).
@@ -147,6 +156,8 @@ Route::middleware(['auth.rehab'])->group(function () {
         Route::get('/users/{uid}/edit', [UserController::class, 'edit'])->name('users.edit');
         Route::put('/users/{uid}', [UserController::class, 'update'])->name('users.update');
         Route::post('/users/{uid}/status', [UserController::class, 'status'])->name('users.status');
+        Route::post('/users/{uid}/archive', [UserController::class, 'archive'])->name('users.archive');
+        Route::post('/users/{uid}/restore', [UserController::class, 'restore'])->name('users.restore');
         Route::delete('/users/{uid}', [UserController::class, 'destroy'])->name('users.destroy');
     });
 });

@@ -17,10 +17,14 @@ class AuthTest extends TestCase
         $this->get('/login')->assertOk()->assertSee('Sign in');
     }
 
-    public function test_home_sends_guests_to_login_and_staff_to_dashboard(): void
+    public function test_root_is_the_public_welcome_page_with_a_log_in_button(): void
     {
-        $this->get('/')->assertRedirect('/login');
-        $this->actingAs($this->staff('admin'))->get('/')->assertRedirect('/dashboard');
+        $this->get('/')->assertOk()
+            ->assertSee('href="http://localhost/login"', false)
+            ->assertSee('Staff Login')
+            ->assertDontSee('>Log In<', false);
+
+        $this->actingAs($this->staff('admin'))->get('/')->assertOk()->assertSee('Staff Login');
     }
 
     public function test_staff_can_log_in_with_their_firebase_password(): void
@@ -68,7 +72,7 @@ class AuthTest extends TestCase
 
     public function test_disabled_and_roleless_accounts_cannot_log_in(): void
     {
-        $this->staff('staff', 'st1', 'Sam', 'sam@clinic.com');
+        $this->staff('therapist', 'st1', 'Sam', 'sam@clinic.com');
         $this->authUsers['sam@clinic.com']['disabled'] = true;
         $this->from('/login')->post('/login', ['email' => 'sam@clinic.com', 'password' => 'secret-pass'])
             ->assertSessionHas('error', fn ($m) => str_contains($m, 'disabled'));

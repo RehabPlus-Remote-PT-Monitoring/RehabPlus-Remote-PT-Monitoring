@@ -54,7 +54,7 @@ class MessagingTest extends TestCase
 
     public function test_clinic_staff_inbox_lists_clinic_threads(): void
     {
-        $this->actingAs($this->staff('staff'))
+        $this->actingAs($this->staff('admin'))
             ->get('/messages')
             ->assertOk()
             ->assertSee('Ben Lim')
@@ -113,7 +113,7 @@ class MessagingTest extends TestCase
 
     public function test_bad_patient_id_is_rejected_before_reaching_firestore(): void
     {
-        $this->actingAs($this->staff('staff'))->get('/messages/'.urlencode('pAnna/threads'))->assertNotFound();
+        $this->actingAs($this->staff('admin'))->get('/messages/'.urlencode('pAnna/threads'))->assertNotFound();
     }
 
     public function test_reply_writes_message_thread_and_notification_then_pushes(): void
@@ -273,7 +273,7 @@ class MessagingTest extends TestCase
 
     public function test_page_explains_missing_firebase_config(): void
     {
-        $user = $this->staff('staff');
+        $user = $this->staff('therapist');
         config(['services.firebase.credentials' => null]);
 
         $this->actingAs($user)->get('/messages')->assertOk()->assertSee('FIREBASE_CREDENTIALS is missing');

@@ -21,7 +21,7 @@ use Illuminate\Support\Str;
  *
  * Who answers what:
  *   - therapist: the "therapist" thread of patients whose therapistId is their uid
- *   - admin / front-desk staff: every patient's "clinic" thread
+ *   - administrators: every patient's "clinic" thread
  *
  * The service account bypasses Firestore rules, so every method checks
  * access itself.
@@ -49,7 +49,7 @@ class MessagingService
     {
         return match ($user->role) {
             StaffUser::THERAPIST => self::THREAD_THERAPIST,
-            StaffUser::ADMIN, StaffUser::STAFF => self::THREAD_CLINIC,
+            StaffUser::ADMIN => self::THREAD_CLINIC,
             default => null,
         };
     }

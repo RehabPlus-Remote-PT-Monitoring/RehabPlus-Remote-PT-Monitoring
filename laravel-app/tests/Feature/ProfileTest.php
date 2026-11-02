@@ -27,6 +27,22 @@ class ProfileTest extends TestCase
             ->assertDontSee('href="http://localhost/users"', false);
     }
 
+    public function test_contact_number_and_email_are_saved_on_my_profile_and_the_login_email_stays(): void
+    {
+        $this->actingAs($this->staff('therapist', 'thA', 'Dr. Ana'))
+            ->put('/profile', ['name' => 'Dr. Ana', 'phone_country' => 'PH', 'phone' => '9171234567', 'contact_email' => 'Ana.Reyes@Gmail.com'])
+            ->assertRedirect('/profile')
+            ->assertSessionHasNoErrors();
+
+        $this->assertSame('+639171234567', $this->docs['users/thA']['contactPhone']);
+        $this->assertSame('ana.reyes@gmail.com', $this->docs['users/thA']['contactEmail']);
+        $this->assertSame('thA@rehabplus.com', $this->docs['users/thA']['email']);
+
+        $this->actingAs($this->staff('therapist', 'thA', 'Dr. Ana'))
+            ->put('/profile', ['name' => 'Dr. Ana', 'contact_email' => 'thA@rehabplus.com'])
+            ->assertSessionHasErrors('contact_email');
+    }
+
     public function test_name_is_saved_and_the_role_cannot_be_changed(): void
     {
         $this->staff('therapist', 'thA', 'Dr. Ana');
@@ -41,25 +57,26 @@ class ProfileTest extends TestCase
         $this->assertSame('Dr. Ana Reyes', $this->authUsers['thA@rehabplus.com']['displayName']);
     }
 
-    public function test_a_picture_is_saved_in_the_user_document_and_shown_on_the_home_board(): void
+    public function test_a_picture_is_saved_in_the_user_document_and_shown_in_the_top_bar(): void
     {
-        $this->staff('staff', 'st1', 'Sam Front');
+        $this->staff('therapist', 'st1', 'Sam Front');
         $photo = UploadedFile::fake()->image('me.jpg', 200, 200);
 
-        $this->actingAs($this->staff('staff', 'st1', 'Sam Front'))
+        $this->actingAs($this->staff('therapist', 'st1', 'Sam Front'))
             ->put('/profile', ['name' => 'Sam Front', 'photo' => $photo])
             ->assertRedirect('/profile');
 
         $this->assertStringStartsWith('data:image/jpeg;base64,', $this->docs['users/st1']['photoUrl']);
 
-        $this->actingAs($this->staff('admin'))->get('/home')->assertOk()
+        // Front desk accounts are not on the public team, so check the top bar of the signed-in person.
+        $this->actingAs(new \App\Auth\StaffUser('st1', 'Sam Front', 'st1@rehabplus.com', 'therapist'))->get('/profile')->assertOk()
             ->assertSee('src="data:image/jpeg;base64,', false);
     }
 
     public function test_pictures_must_be_jpg_png_or_webp_and_500_kb_or_smaller(): void
     {
-        $this->staff('staff', 'st1', 'Sam Front');
-        $actor = $this->staff('staff', 'st1', 'Sam Front');
+        $this->staff('therapist', 'st1', 'Sam Front');
+        $actor = $this->staff('therapist', 'st1', 'Sam Front');
 
         $this->actingAs($actor)->put('/profile', ['name' => 'Sam Front', 'photo' => UploadedFile::fake()->create('cv.pdf', 10, 'application/pdf')])
             ->assertSessionHasErrors('photo');
@@ -72,7 +89,7 @@ class ProfileTest extends TestCase
 
     public function test_remove_picture_clears_it(): void
     {
-        $actor = $this->staff('staff', 'st1', 'Sam Front');
+        $actor = $this->staff('therapist', 'st1', 'Sam Front');
         $this->docs['users/st1']['photoUrl'] = 'data:image/png;base64,iVBORw0KGgo=';
 
         $this->actingAs($actor)

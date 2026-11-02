@@ -14,8 +14,8 @@ use Illuminate\Support\Collection;
 /** Staff shifts and time off (Firestore `staffShifts` / `staffTimeOff`, see ClinicStore). */
 class StaffScheduleService
 {
-    /** Roles that work shifts: therapists and front desk staff. Admins don't. */
-    public const SCHEDULABLE_ROLES = [StaffUser::THERAPIST, StaffUser::STAFF];
+    /** Roles that work shifts: therapists. Administrators don't. */
+    public const SCHEDULABLE_ROLES = [StaffUser::THERAPIST];
 
     public function __construct(
         private ClinicStore $store,
@@ -95,7 +95,7 @@ class StaffScheduleService
         ];
     }
 
-    /** The schedulable account with this uid (therapist or front desk, active), or null. */
+    /** The schedulable account with this uid (an active therapist), or null. */
     public function schedulableAccount(string $uid): ?array
     {
         return collect($this->staffDirectory($this->users->staff()))->firstWhere('uid', $uid);
@@ -126,7 +126,7 @@ class StaffScheduleService
     }
 
     /**
-     * Active therapist and front desk accounts, one row per account. Each account has exactly
+     * Active therapist accounts, one row per account. Each account has exactly
      * one role, the one it was created with, so two accounts with the same name are two rows.
      * Roles are an allow-list, so admins and any future role never appear here.
      */

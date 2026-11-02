@@ -48,7 +48,7 @@ class ReportService
     {
         return array_values(array_filter(self::SECTIONS, fn (string $section) => match ($section) {
             'recovery' => true,
-            'appointments', 'billing' => $user->isAdmin() || $user->role === StaffUser::STAFF,
+            'appointments', 'billing' => $user->isAdmin(),
             'goals' => $user->isClinician(),
             'patients' => $user->isAdmin(),
         }));

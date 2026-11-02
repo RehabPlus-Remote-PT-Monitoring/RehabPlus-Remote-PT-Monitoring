@@ -85,16 +85,6 @@ class ReportTest extends TestCase
         $r['response']->assertSee('Reports &amp; Analytics', false)->assertSee('Olive One')->assertSee('Otto Old')->assertSee('₱1,000.00');
     }
 
-    public function test_front_desk_staff_see_operations_but_no_clinical_or_registration_data(): void
-    {
-        $r = $this->report('staff');
-
-        $this->assertSame(['recovery', 'appointments', 'billing'], $r['sections']);
-        $this->assertNull($r['goals']);
-        $this->assertNull($r['patients']);
-        $r['response']->assertDontSee('Export CSV');
-    }
-
     public function test_therapist_sees_only_their_patients_recovery_and_goals(): void
     {
         $r = $this->report('therapist', uid: 'thA');
@@ -174,7 +164,7 @@ class ReportTest extends TestCase
 
     public function test_exports_are_admin_only(): void
     {
-        foreach (['therapist', 'staff'] as $role) {
+        foreach (['therapist'] as $role) {
             $this->actingAs($this->staff($role))->get('/analytics/export/csv')->assertForbidden();
             $this->actingAs($this->staff($role))->get('/analytics/export/pdf')->assertForbidden();
         }

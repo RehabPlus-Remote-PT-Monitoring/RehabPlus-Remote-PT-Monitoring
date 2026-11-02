@@ -147,7 +147,7 @@ class PatientTest extends TestCase
         $this->actingAs($this->staff('admin'))->get('/patients')
             ->assertOk()->assertSee('Olive One')->assertSee('Tom Two')->assertDontSee('Otto Archived');
 
-        $this->actingAs($this->staff('staff'))->get('/patients?archived=1')
+        $this->actingAs($this->staff('therapist', 'thA', 'Dr. Ana'))->get('/patients?archived=1')
             ->assertOk()->assertSee('Otto Archived')->assertDontSee('Olive One');
     }
 
@@ -257,15 +257,14 @@ class PatientTest extends TestCase
         $this->assertSame('Dr. Ben', $doc['therapistName']);
     }
 
-    public function test_front_desk_staff_cannot_add_patients(): void
+    public function test_therapists_and_administrators_can_open_the_add_patient_form(): void
     {
-        $this->actingAs($this->staff('staff'))->get('/patients/create')->assertForbidden();
+        $this->actingAs($this->staff('therapist'))->get('/patients/create')->assertOk();
 
         $this->actingAs($this->staff('admin'))->get('/patients/create')
             ->assertSee('placeholder="Patient"', false)
             ->assertSee('placeholder="patient@rehabplus.com"', false)
             ->assertSee('placeholder="**********"', false);
-        $this->actingAs($this->staff('staff'))->post('/patients', $this->newPatient())->assertForbidden();
     }
 
     public function test_validation_and_taken_email(): void
@@ -307,12 +306,11 @@ class PatientTest extends TestCase
         $this->assertSame([], $this->commits);
     }
 
-    public function test_front_desk_sees_profile_but_not_clinical_records_or_edit(): void
+    public function test_a_therapist_cannot_open_another_therapists_patient(): void
     {
-        $user = $this->staff('staff');
-        $this->actingAs($user)->get('/patients/pOne')
-            ->assertOk()->assertSee('Olive One')->assertDontSee('Assigned exercises')->assertDontSee('Therapy notes');
-        $this->actingAs($user)->get('/patients/pOne/edit')->assertForbidden();
+        $user = $this->staff('therapist', 'thB', 'Dr. Ben');
+        $this->actingAs($user)->get('/patients/pOne')->assertNotFound();
+        $this->actingAs($user)->get('/patients/pOne/edit')->assertNotFound();
     }
 
     public function test_update_profile_and_admin_reassignment(): void

@@ -163,13 +163,6 @@ class ClinicalRecordTest extends TestCase
             ->assertSee('50%');  // 1 of 2 goals achieved
     }
 
-    public function test_front_desk_staff_have_no_clinical_pages(): void
-    {
-        $user = $this->staff('staff');
-        $this->actingAs($user)->get('/assessments')->assertForbidden();
-        $this->actingAs($user)->get('/notes')->assertForbidden();
-        $this->actingAs($user)->post('/notes', ['patient_uid' => 'pOne', 'topic' => 'X', 'text' => 'Y', 'date' => '2026-10-01'])->assertForbidden();
-    }
 
     public function test_validation(): void
     {

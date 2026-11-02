@@ -2,6 +2,7 @@
 
 namespace App\Http\Controllers;
 
+use App\Helpers\UserValidation;
 use App\Services\User\UserService;
 use Illuminate\Http\Request;
 use Illuminate\Http\RedirectResponse;
@@ -41,7 +42,7 @@ class ProfileController extends Controller
             'photo.max' => 'The picture must be 500 KB or smaller.',
         ]);
 
-        $change = ['name' => $data['name'], 'role' => $current['role']];
+        $change = ['name' => $data['name'], 'role' => $current['role']] + UserValidation::contact($request, required: false);
         if ($request->boolean('remove_photo')) {
             $change['photoUrl'] = '';
         } elseif ($request->hasFile('photo')) {

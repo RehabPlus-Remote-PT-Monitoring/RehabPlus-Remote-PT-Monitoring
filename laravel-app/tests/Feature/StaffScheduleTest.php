@@ -22,7 +22,7 @@ class StaffScheduleTest extends TestCase
     public function test_schedule_lists_real_staff_without_patients_or_disabled_accounts(): void
     {
         $this->patientDoc('pat1', ['name' => 'Some Patient']);
-        $this->staff('staff', 'gone', 'Former Staffer');
+        $this->staff('therapist', 'gone', 'Former Staffer');
         $this->docs['users/gone']['active'] = false;
 
         $this->get('/schedule')
@@ -71,7 +71,7 @@ class StaffScheduleTest extends TestCase
     public function test_overlapping_shift_in_same_room_is_rejected(): void
     {
         $this->staff('therapist', 'thA', 'A');
-        $this->staff('staff', 'stB', 'B');
+        $this->staff('therapist', 'stB', 'B');
         $this->docs['staffShifts/s1'] = ['staffId' => 'thA', 'staff' => 'A', 'role' => 'therapist', 'day' => 'Monday', 'shift' => '08:00 - 12:00', 'room' => 'Room 1'];
 
         $this->post('/schedule/save', [
@@ -84,17 +84,17 @@ class StaffScheduleTest extends TestCase
         $this->assertCount(1, $this->docsLike('staffShifts/*'));
     }
 
-    public function test_only_therapists_and_front_desk_are_listed_never_admins(): void
+    public function test_only_therapists_are_listed_never_admins(): void
     {
         $this->staff('admin', 'adm2', 'Second Clinic Admin');
-        $this->staff('staff', 'fd1', 'Front Desk Person');
+        $this->staff('therapist', 'fd1', 'Second Therapist');
         // An old shift saved under an admin's name doesn't put them back on the schedule.
         $this->docs['staffShifts/old'] = ['staff' => 'Second Clinic Admin', 'role' => 'Admin', 'day' => Carbon::today()->format('l'), 'shift' => '08:00 - 12:00', 'room' => 'Room 9'];
 
         $this->get('/schedule')
             ->assertOk()
             ->assertSee('Dr. Real Therapist')
-            ->assertSee('Front Desk Person')
+            ->assertSee('Second Therapist')
             ->assertDontSee('Second Clinic Admin')
             ->assertDontSee('Room 9')
             ->assertViewHas('todayShifts', 0);
@@ -125,12 +125,12 @@ class StaffScheduleTest extends TestCase
 
     public function test_two_accounts_with_the_same_name_are_two_rows_with_one_role_each(): void
     {
-        $this->staff('staff', 'fd2', 'Dr. Real Therapist');
+        $this->staff('therapist', 'fd2', 'Dr. Real Therapist');
 
         $this->get('/schedule')
             ->assertOk()
             ->assertViewHas('staffDirectory', fn (array $dir) => collect($dir)->pluck('roleLabel', 'uid')->sortKeys()->all()
-                === ['fd2' => 'Front Desk Staff', 'th1' => 'Physical Therapist']);
+                === ['fd2' => 'Physical Therapist', 'th1' => 'Physical Therapist']);
     }
 
     public function test_staff_member_dropdown_and_time_off_dropdown_show_the_same_name_and_role(): void
@@ -142,9 +142,9 @@ class StaffScheduleTest extends TestCase
             ->assertDontSee('name="role"', false);
     }
 
-    public function test_front_desk_staff_can_be_given_a_shift(): void
+    public function test_a_second_therapist_can_be_given_a_shift(): void
     {
-        $this->staff('staff', 'fd1', 'Front Desk Person');
+        $this->staff('therapist', 'fd1', 'Second Therapist');
 
         $this->post('/schedule/save', [
             'staff_id' => 'fd1',
@@ -154,7 +154,7 @@ class StaffScheduleTest extends TestCase
         ])->assertRedirect('/schedule')->assertSessionMissing('error');
 
         $shift = array_values($this->docsLike('staffShifts/*'))[0];
-        $this->assertSame('staff', $shift['role']);
+        $this->assertSame('therapist', $shift['role']);
         $this->assertCount(1, $this->docsLike('staffShifts/*'));
     }
 
@@ -182,7 +182,7 @@ class StaffScheduleTest extends TestCase
         $this->get('/schedule')->assertOk()->assertSee('Room 5')->assertViewHas('staffAvailability', fn (array $a) => $a['th1'] === 'Available');
 
         // With a second account under the same name the old entry can't be tied to either one.
-        $this->staff('staff', 'fd2', 'Dr. Real Therapist');
+        $this->staff('therapist', 'fd2', 'Dr. Real Therapist');
         $this->get('/schedule')->assertOk()->assertViewHas('staffAvailability', fn (array $a) => $a['th1'] === 'Unavailable' && $a['fd2'] === 'Unavailable');
     }
 }
