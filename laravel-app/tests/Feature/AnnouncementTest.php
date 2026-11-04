@@ -51,6 +51,37 @@ class AnnouncementTest extends TestCase
             ->assertSee('href="http://localhost#announcements"', false);
     }
 
+    public function test_archiving_hides_an_announcement_from_visitors_and_lists_it_last_until_restored(): void
+    {
+        $this->docs['announcements/a1'] = ['title' => 'Old notice', 'body' => 'Hello', 'postedAt' => CarbonImmutable::now()->subDay(), 'postedByName' => 'Ada'];
+        $this->docs['announcements/a2'] = ['title' => 'Holiday schedule', 'body' => 'Closed Friday', 'postedAt' => CarbonImmutable::now(), 'postedByName' => 'Ada'];
+        $admin = $this->staff('admin');
+
+        $this->actingAs($admin)->post('/announcements/a2/archive')->assertRedirect('/announcements');
+        $this->assertTrue($this->docs['announcements/a2']['archived']);
+
+        $this->app['auth']->forgetGuards();
+        $this->get('/')->assertOk()->assertSee('Old notice')->assertDontSee('Holiday schedule');
+
+        $page = $this->actingAs($admin)->get('/announcements')->assertOk()
+            ->assertSee('Restore')->assertSee('Archived')->getContent();
+        $this->assertLessThan(strpos($page, 'Holiday schedule'), strpos($page, 'Old notice'), 'the archived one is listed last');
+
+        $this->actingAs($admin)->post('/announcements/a2/restore')->assertRedirect('/announcements');
+        $this->assertFalse($this->docs['announcements/a2']['archived']);
+        $this->app['auth']->forgetGuards();
+        $this->get('/')->assertOk()->assertSee('Holiday schedule');
+    }
+
+    public function test_an_archived_announcement_can_be_deleted_for_good(): void
+    {
+        $this->docs['announcements/a1'] = ['title' => 'Old notice', 'body' => 'Hello', 'postedAt' => CarbonImmutable::now(), 'archived' => true];
+
+        $this->actingAs($this->staff('admin'))->delete('/announcements/a1')->assertRedirect('/announcements');
+
+        $this->assertArrayNotHasKey('announcements/a1', $this->docs);
+    }
+
     public function test_the_announcements_link_and_section_stay_even_when_there_are_none(): void
     {
         $this->get('/')->assertOk()

@@ -60,17 +60,28 @@
 
     <h2 class="section-title">Currently showing</h2>
     @if ($announcements === [])
-        <div class="card shadow-sm border-0 text-center text-muted py-5 mb-4">No announcements are showing.</div>
+        <div class="card shadow-sm border-0 text-center text-muted py-5 mb-4">No announcements yet.</div>
     @else
         <div class="row g-3 mb-4">
             @foreach ($announcements as $announcement)
+                @if ($announcement['archived'] && ($loop->first || ! $announcements[$loop->index - 1]['archived']))
+                    <div class="col-12 small fw-semibold text-muted text-uppercase mt-2">Archived</div>
+                @endif
                 <div class="col-12">
-                    <div class="card shadow-sm border-0 p-3 d-flex flex-row flex-wrap align-items-start gap-3">
+                    <div @class([
+                        'card shadow-sm border-0 p-3 d-flex flex-row flex-wrap align-items-start gap-3',
+                        'announcement-archived' => $announcement['archived'],
+                    ])>
                         @if ($announcement['imageUrl'] !== '')
                             <img src="{{ $announcement['imageUrl'] }}" alt="" class="announcement-thumb">
                         @endif
                         <div class="flex-grow-1 min-w-0">
-                            <p class="announcement-title mb-1">{{ $announcement['title'] }}</p>
+                            <p class="announcement-title mb-1">
+                                {{ $announcement['title'] }}
+                                @if ($announcement['archived'])
+                                    <span class="badge bg-secondary ms-1 align-middle">Archived</span>
+                                @endif
+                            </p>
                             <p class="small text-muted mb-1">
                                 @if ($announcement['postedAt'])
                                     {{ $announcement['postedAt']->setTimezone(config('app.timezone'))->format('M j, Y') }} ·
@@ -82,11 +93,24 @@
                             </p>
                             <p class="announcement-body mb-0">{{ $announcement['body'] }}</p>
                         </div>
-                        <form method="POST" action="{{ route('announcements.destroy', $announcement['id']) }}" data-confirm="Remove this announcement? It will no longer show on the dashboard or the welcome page." data-confirm-danger>
-                            @csrf
-                            @method('DELETE')
-                            <button type="submit" class="btn btn-sm btn-outline-danger"><i class="bi bi-trash me-1"></i>Remove</button>
-                        </form>
+                        <div class="d-flex gap-2 flex-shrink-0">
+                            @if ($announcement['archived'])
+                                <form method="POST" action="{{ route('announcements.restore', $announcement['id']) }}" data-confirm="Restore this announcement? It will show on the dashboard and the welcome page again.">
+                                    @csrf
+                                    <button type="submit" class="btn btn-sm btn-outline-success"><i class="bi bi-arrow-counterclockwise me-1"></i>Restore</button>
+                                </form>
+                            @else
+                                <form method="POST" action="{{ route('announcements.archive', $announcement['id']) }}" data-confirm="Archive this announcement? It will no longer show on the welcome page. You can restore it later.">
+                                    @csrf
+                                    <button type="submit" class="btn btn-sm btn-outline-secondary"><i class="bi bi-archive me-1"></i>Archive</button>
+                                </form>
+                            @endif
+                            <form method="POST" action="{{ route('announcements.destroy', $announcement['id']) }}" data-confirm="Delete this announcement permanently? This can't be undone." data-confirm-danger>
+                                @csrf
+                                @method('DELETE')
+                                <button type="submit" class="btn btn-sm btn-outline-danger"><i class="bi bi-trash me-1"></i>Delete</button>
+                            </form>
+                        </div>
                     </div>
                 </div>
             @endforeach

@@ -67,6 +67,8 @@ Route::middleware(['auth.rehab'])->group(function () {
     // Clinic announcements: administrators post and remove them; everyone sees them on the dashboard.
     Route::get('/announcements', [AnnouncementController::class, 'index'])->name('announcements.index');
     Route::post('/announcements', [AnnouncementController::class, 'store'])->name('announcements.store');
+    Route::post('/announcements/{id}/archive', [AnnouncementController::class, 'archive'])->name('announcements.archive');
+    Route::post('/announcements/{id}/restore', [AnnouncementController::class, 'restore'])->name('announcements.restore');
     Route::delete('/announcements/{id}', [AnnouncementController::class, 'destroy'])->name('announcements.destroy');
     Route::get('/dashboard', [DashboardController::class, 'index'])->name('dashboard');
 

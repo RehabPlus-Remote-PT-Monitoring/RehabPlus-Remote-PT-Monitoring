@@ -19,6 +19,8 @@ class AnnouncementService
 
     private const LIST_LIMIT = 20;
 
+    private const MANAGE_LIMIT = 100;
+
     /** Longest side of a stored picture, in pixels. */
     private const MAX_SIDE = 1200;
 
@@ -29,15 +31,38 @@ class AnnouncementService
     {
     }
 
-    /** The announcements to show today, newest first. */
+    /** The announcements visitors see today, newest first. Archived ones are left out. */
     public function current(): array
     {
         $today = now()->toDateString();
         $docs = $this->db->query('', self::COLLECTION, orderBy: ['postedAt', 'DESCENDING'], limit: self::LIST_LIMIT);
 
-        $shown = array_filter($docs, fn (array $doc) => empty($doc['showUntil']) || $doc['showUntil'] >= $today);
+        $shown = array_filter($docs, fn (array $doc) => ! ($doc['archived'] ?? false)
+            && (empty($doc['showUntil']) || $doc['showUntil'] >= $today));
 
         return array_values(array_map(fn (array $doc) => $this->present($doc), $shown));
+    }
+
+    /**
+     * Every announcement for the management page: the current ones first, then the
+     * archived ones, each group newest first.
+     */
+    public function manage(): array
+    {
+        $docs = array_map(fn (array $doc) => $this->present($doc), $this->db->query('', self::COLLECTION, orderBy: ['postedAt', 'DESCENDING'], limit: self::MANAGE_LIMIT));
+
+        usort($docs, fn (array $a, array $b) => [$a['archived'] ? 1 : 0] <=> [$b['archived'] ? 1 : 0]);
+
+        return $docs;
+    }
+
+    public function setArchived(string $id, bool $archived): void
+    {
+        $change = $archived
+            ? ['archived' => true]
+            : ['archived' => false, 'archivedAt' => null];
+
+        $this->db->commit([$this->db->mergeWrite(self::COLLECTION."/{$id}", $change, serverTimestamps: $archived ? ['archivedAt'] : [])]);
     }
 
     public function create(array $data, StaffUser $by): string
@@ -105,6 +130,7 @@ class AnnouncementService
             'postedAt' => $doc['postedAt'] ?? null,
             'postedByName' => (string) ($doc['postedByName'] ?? ''),
             'showUntil' => $doc['showUntil'] ?? null,
+            'archived' => (bool) ($doc['archived'] ?? false),
         ];
     }
 }

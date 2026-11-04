@@ -1577,6 +1577,12 @@ html.dark-mode{
             }
         }
 
+        /* Archived announcements: listed at the bottom, faded. */
+        .announcement-archived{
+            opacity:.55;
+            filter:grayscale(.6);
+        }
+
         /* "Back to" links: teal in light mode, a brighter teal in dark mode so they read clearly next to the page text. */
         .back-link{
             color:var(--primary-dark);

@@ -19,7 +19,7 @@ class AnnouncementController extends Controller
     {
         abort_unless($request->user()->isAdmin(), 403);
 
-        return view('announcements.index', ['announcements' => $this->announcements->current()]);
+        return view('announcements.index', ['announcements' => $this->announcements->manage()]);
     }
 
     public function store(Request $request): RedirectResponse
@@ -47,6 +47,26 @@ class AnnouncementController extends Controller
         return redirect()->route('announcements.index')->with('success', 'Announcement posted.');
     }
 
+    public function archive(Request $request, string $id): RedirectResponse
+    {
+        abort_unless($request->user()->isAdmin(), 403);
+        abort_unless(FirestoreClient::isValidId($id), 404);
+
+        $this->announcements->setArchived($id, true);
+
+        return redirect()->route('announcements.index')->with('success', 'Announcement archived. It no longer shows on the welcome page.');
+    }
+
+    public function restore(Request $request, string $id): RedirectResponse
+    {
+        abort_unless($request->user()->isAdmin(), 403);
+        abort_unless(FirestoreClient::isValidId($id), 404);
+
+        $this->announcements->setArchived($id, false);
+
+        return redirect()->route('announcements.index')->with('success', 'Announcement restored.');
+    }
+
     public function destroy(Request $request, string $id): RedirectResponse
     {
         abort_unless($request->user()->isAdmin(), 403);
@@ -54,6 +74,6 @@ class AnnouncementController extends Controller
 
         $this->announcements->delete($id);
 
-        return redirect()->route('announcements.index')->with('success', 'Announcement removed.');
+        return redirect()->route('announcements.index')->with('success', 'Announcement deleted.');
     }
 }
