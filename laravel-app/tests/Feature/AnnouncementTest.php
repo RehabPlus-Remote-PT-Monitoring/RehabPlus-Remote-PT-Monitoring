@@ -51,6 +51,14 @@ class AnnouncementTest extends TestCase
             ->assertSee('href="http://localhost#announcements"', false);
     }
 
+    public function test_the_announcements_link_and_section_stay_even_when_there_are_none(): void
+    {
+        $this->get('/')->assertOk()
+            ->assertSee('href="http://localhost#announcements"', false)
+            ->assertSee('id="announcements"', false)
+            ->assertSee('No announcements right now.');
+    }
+
     public function test_the_post_button_is_only_on_the_dashboard_for_administrators(): void
     {
         $this->actingAs($this->staff('admin'))->get('/dashboard')->assertOk()

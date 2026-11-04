@@ -1,9 +1,16 @@
 {{-- Clinic announcements, newest first. Needs $announcements from AnnouncementService::current(). --}}
-@if ($announcements !== [])
-    <section id="announcements" class="announcements mb-4" aria-labelledby="announcements-heading">
-        <h2 id="announcements-heading" class="section-title">Announcements</h2>
+{{-- Always shown, so the Announcements link in the nav always has a section to go to. --}}
+<section id="announcements" class="announcements mb-4" aria-labelledby="announcements-heading">
+    <h2 id="announcements-heading" class="section-title">Announcements</h2>
 
-        @foreach ($announcements as $announcement)
+    @if ($announcements === [])
+        <div class="card shadow-sm border-0 text-center text-muted py-4 px-3">
+            <p class="fw-semibold mb-1">No announcements right now.</p>
+            <p class="small mb-0">Closure notices and other updates will be posted here. You can also follow us on Facebook or Instagram.</p>
+        </div>
+    @endif
+
+    @foreach ($announcements as $announcement)
             <article class="card shadow-sm border-0 overflow-hidden announcement-card mb-3">
                 <div class="row g-0">
                     @if ($announcement['imageUrl'] !== '')
@@ -37,6 +44,5 @@
                     </div>
                 </div>
             </article>
-        @endforeach
-    </section>
-@endif
+    @endforeach
+</section>

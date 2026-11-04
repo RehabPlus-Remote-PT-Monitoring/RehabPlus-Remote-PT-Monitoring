@@ -21,9 +21,7 @@
 
             <nav class="public-links" aria-label="Page sections">
                 <a href="{{ route('landing') }}#visit" data-section="visit">Visit us</a>
-                @if (! empty($announcements))
-                    <a href="{{ route('landing') }}#announcements" data-section="announcements">Announcements</a>
-                @endif
+                <a href="{{ route('landing') }}#announcements" data-section="announcements">Announcements</a>
                 <a href="{{ route('landing') }}#patients" data-section="patients" @if (request()->routeIs('remote-monitoring')) class="is-active" aria-current="page" @endif>Remote Monitoring</a>
                 <a href="{{ route('landing') }}#classes" data-section="classes">Classes</a>
                 <a href="{{ route('landing') }}#packages" data-section="packages">Packages</a>
