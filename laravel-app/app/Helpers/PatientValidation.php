@@ -2,6 +2,7 @@
 
 namespace App\Helpers;
 
+use App\Rules\EmailNotTaken;
 use App\Rules\OfficialEmailDomain;
 use App\Services\Firebase\FirebaseAdmin;
 use Illuminate\Http\Request;
@@ -21,6 +22,10 @@ class PatientValidation
             'phone_country' => ['nullable', Rule::in(PhoneNumber::isoCodes())],
             'phone' => 'nullable|string|max:20',
             'dob' => 'nullable|date_format:Y-m-d|before_or_equal:today',
+            'address_street' => 'nullable|string|max:150',
+            'address_barangay' => 'nullable|string|max:100',
+            'address_city' => 'nullable|string|max:100',
+            'address_province' => 'nullable|string|max:100',
             'therapist_id' => 'nullable|string|max:128',
         ], [
             'dob.date_format' => 'Pick the date of birth from the calendar.',
@@ -43,8 +48,10 @@ class PatientValidation
     public static function create(Request $request): array
     {
         return self::profile($request) + $request->validate([
-            'email' => ['required', 'email', 'max:150', new OfficialEmailDomain],
-            'password' => 'required|string|min:'.FirebaseAdmin::MIN_PASSWORD.'|max:100|confirmed',
+            'email' => ['required', 'email', 'max:150', new OfficialEmailDomain, new EmailNotTaken],
+            'password' => ['required', 'string', 'min:'.FirebaseAdmin::MIN_PASSWORD, 'max:100', 'regex:/^[^\s-]+$/'],
+        ], [
+            'password.regex' => 'The temporary password cannot contain spaces or hyphens.',
         ]);
     }
 

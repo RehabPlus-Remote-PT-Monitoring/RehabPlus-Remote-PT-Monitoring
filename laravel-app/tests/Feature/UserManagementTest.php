@@ -3,6 +3,7 @@
 namespace Tests\Feature;
 
 use App\Rules\OfficialEmailDomain;
+use App\Services\User\EmailAvailability;
 use Tests\Support\FakeFirebase;
 use Tests\TestCase;
 
@@ -75,6 +76,18 @@ class UserManagementTest extends TestCase
 
         $this->actingAs($this->staff('admin'))->put('/users/th1', ['name' => 'Dr. Lee'])->assertRedirect('/users');
         $this->assertSame(['', ''], [$this->docs['users/th1']['contactPhone'], $this->docs['users/th1']['contactEmail']]);
+    }
+
+    public function test_a_staff_account_cannot_use_an_email_a_patient_already_has(): void
+    {
+        $this->patientDoc('pmaria');
+
+        $this->actingAs($this->staff('admin'))->from('/users/create')->post('/users', [
+            'name' => 'Dr. Copy', 'email' => 'pmaria@mail.com', 'password' => 'long-enough', 'role' => 'therapist',
+            'phone_country' => 'PH', 'phone' => '9171234567', 'contact_email' => 'copy@gmail.com',
+        ])->assertSessionHasErrors(['email' => EmailAvailability::TAKEN_MESSAGE]);
+
+        $this->assertSame([], $this->commits);
     }
 
     public function test_staff_account_must_use_the_clinic_domain(): void

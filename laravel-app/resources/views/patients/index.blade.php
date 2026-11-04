@@ -95,14 +95,18 @@
                                 <td class="text-end">
                                     <a href="{{ route('patients.show', $patient['uid']) }}" class="btn btn-sm btn-outline-secondary">View</a>
                                     @php($canManage = $me->isAdmin() || $patient['therapistId'] === $me->id)
+                                    @if ($canManage)
+                                        {{-- Opens the Messages tab on this patient's conversation: the therapist thread for PTs, the clinic thread for admins. --}}
+                                        <a href="{{ route('messages.show', $patient['uid']) }}" class="btn btn-sm btn-outline-primary ms-1"><i class="bi bi-chat-dots me-1"></i>Message</a>
+                                    @endif
                                     @if ($canManage && $showArchived)
                                         <form method="POST" action="{{ route('patients.restore', $patient['uid']) }}" class="d-inline ms-1" data-confirm="Restore {{ $patient['name'] }}? Their app login is enabled again and they show up in the patient list.">@csrf<button type="submit" class="btn btn-sm btn-outline-success"><i class="bi bi-arrow-counterclockwise me-1"></i>Restore</button></form>
                                     @endif
                                     @if ($canManage && ! $showArchived)
                                         <form method="POST" action="{{ route('patients.archive', $patient['uid']) }}" class="d-inline ms-1" data-confirm="Archive {{ $patient['name'] }}? Their app login is disabled; their records are kept and you can restore them later." data-confirm-danger>@csrf<button type="submit" class="btn btn-sm btn-outline-danger"><i class="bi bi-archive me-1"></i>Archive</button></form>
                                     @endif
-                                    @if ($me->isAdmin() && $showArchived)
-                                        <form method="POST" action="{{ route('patients.destroy', $patient['uid']) }}" class="d-inline ms-1" data-confirm="Permanently delete {{ $patient['name'] }}? This can't be undone. Their app login and every record and message saved for them are erased." data-confirm-danger>@csrf<button type="submit" class="btn btn-sm btn-outline-danger"><i class="bi bi-trash me-1"></i>Delete permanently</button></form>
+                                    @if ($me->isAdmin())
+                                        <form method="POST" action="{{ route('patients.destroy', $patient['uid']) }}" class="d-inline ms-1" data-confirm="Are you sure you want to delete this patient? This will permanently delete the patient's account, including all their records and conversations." data-confirm-danger>@csrf<button type="submit" class="btn btn-sm btn-outline-danger"><i class="bi bi-trash me-1"></i>Delete</button></form>
                                     @endif
                                     @if ($canManage)
                                         <a href="{{ route('patients.edit', $patient['uid']) }}" class="btn btn-sm btn-outline-primary ms-1">Edit</a>

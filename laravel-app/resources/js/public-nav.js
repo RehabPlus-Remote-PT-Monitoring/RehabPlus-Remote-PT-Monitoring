@@ -51,6 +51,11 @@ export function initPublicNav(doc = document, win = window) {
                 return { id: el.id, top: box.top, bottom: box.bottom };
             });
 
+        // A page without these sections (such as Remote Monitoring) keeps the highlight it was given.
+        if (sections.length === 0) {
+            return;
+        }
+
         const active = currentSection(sections, readingLine);
         for (const link of links) {
             link.classList.toggle('is-active', link.dataset.section === active);

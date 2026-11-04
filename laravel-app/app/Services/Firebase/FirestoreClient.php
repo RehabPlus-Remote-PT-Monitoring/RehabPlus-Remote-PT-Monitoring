@@ -204,7 +204,9 @@ class FirestoreClient
             $found = array_merge($found, $level);
         }
 
-        foreach (array_chunk($found, 500) as $batch) {
+        // Deepest documents first (threads' messages before the threads, the patient last), so a
+        // failure part-way never leaves messages behind under a patient document that is already gone.
+        foreach (array_chunk(array_reverse($found), 500) as $batch) {
             $this->commit(array_map(fn (string $p) => ['delete' => $this->name($p)], $batch));
         }
     }

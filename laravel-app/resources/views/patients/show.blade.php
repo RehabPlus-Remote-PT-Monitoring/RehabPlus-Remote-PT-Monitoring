@@ -15,7 +15,7 @@
     @endphp
 
     <div class="mb-3">
-        <a href="{{ route('patients.index') }}" class="text-decoration-none small"><i class="bi bi-arrow-left me-1"></i>All patients</a>
+        <a href="{{ route('patients.index') }}" class="back-link text-decoration-none small"><i class="bi bi-arrow-left me-1"></i>All patients</a>
     </div>
 
     <div class="d-flex justify-content-between align-items-start flex-wrap gap-3 mb-4">
@@ -26,12 +26,13 @@
                     <span class="badge bg-secondary align-middle ms-2" style="font-size:.8rem;">Archived</span>
                 @endif
             </p>
-            <p class="page-subtitle mb-1">{{ $patient['condition'] }} · Therapist: {{ $patient['therapistName'] ?: 'Unassigned' }}</p>
+            <p class="page-subtitle mb-1">{{ $patient['condition'] }} · <strong>Therapist:</strong> {{ $patient['therapistName'] ?: 'Unassigned' }}</p>
+            <p class="text-muted small mb-0"><i class="bi bi-geo-alt me-1"></i>{{ $patient['address'] ?: 'No address recorded' }}</p>
             <p class="text-muted small mb-0">
                 <i class="bi bi-envelope me-1"></i>{{ $patient['email'] ?: '—' }}
                 <span class="ms-3"><i class="bi bi-telephone me-1"></i>{{ $patient['phone'] ?: '—' }}</span>
-                <span class="ms-3"><i class="bi bi-calendar3 me-1"></i>Born {{ $patient['dob'] ?: '—' }}</span>
-                <span class="ms-3">Added {{ $patient['createdAt']?->setTimezone($tz)->format('M j, Y') ?? '—' }}</span>
+                <span class="ms-3"><i class="bi bi-calendar3 me-1"></i><strong>Born</strong> {{ $patient['dob'] ?: '—' }}</span>
+                <span class="ms-3"><strong>Added</strong> {{ $patient['createdAt']?->setTimezone($tz)->format('M j, Y') ?? '—' }}</span>
             </p>
             {{-- Terms / Privacy Policy consent the patient gave in the app (read-only, see ConsentService) --}}
             <p class="consent-status mt-1 mb-0" data-consent="{{ $consent['status'] }}">

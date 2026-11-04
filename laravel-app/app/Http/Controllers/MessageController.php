@@ -24,7 +24,8 @@ class MessageController extends Controller
 
     public function index(Request $request): View
     {
-        $data = ['thread' => $this->messaging->threadFor($request->user()), 'conversations' => [], 'error' => null];
+        $archived = $request->boolean('archived');
+        $data = ['thread' => $this->messaging->threadFor($request->user()), 'conversations' => [], 'error' => null, 'archived' => $archived];
 
         if (! GoogleAccessToken::isConfigured()) {
             $data['error'] = 'Messaging is not set up on this server yet: FIREBASE_CREDENTIALS is missing from .env.';
@@ -33,7 +34,7 @@ class MessageController extends Controller
         }
 
         try {
-            $data = $this->messaging->inbox($request->user()) + $data;
+            $data = $this->messaging->inbox($request->user(), $archived) + $data;
         } catch (FirebaseException $e) {
             report($e);
             $data['error'] = 'Could not load conversations from Firebase. Try again in a moment.';

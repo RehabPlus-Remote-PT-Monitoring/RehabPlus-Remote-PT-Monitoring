@@ -40,21 +40,30 @@
 
                 @if (! $patient)
                     <div class="col-12"><hr class="my-1"><p class="fw-semibold mb-0 mt-2">App login</p>
-                        <p class="text-muted small mb-0">Give the patient this email and temporary password. They can set their own password from the app's "Forgot password" link.</p></div>
-                    <div class="col-md-4">
+                        <p class="text-muted small mb-0">Click the icon to generate a temporary password, then give it to the patient with their email.</p></div>
+                    <div class="col-md-6" data-email-wrap>
                         <label for="email" class="form-label small fw-semibold">Email</label>
-                        <input id="email" type="email" name="email" class="form-control @error('email') is-invalid @enderror" value="{{ old('email') }}" placeholder="patient@rehabplus.com" required maxlength="150" autocomplete="off">
+                        <div class="input-group">
+                            <input id="email" type="email" name="email" class="form-control @error('email') is-invalid @enderror" value="{{ old('email') }}" placeholder="patient@rehabplus.com" required maxlength="150" autocomplete="off" data-email-check="{{ route('email-check') }}">
+                            <span class="input-group-text" data-email-status aria-hidden="true"></span>
+                        </div>
+                        <div class="form-text text-danger" data-email-feedback></div>
                         @error('email')
-                            <div class="invalid-feedback">{{ $message }}</div>
+                            <div class="invalid-feedback d-block">{{ $message }}</div>
                         @enderror
                     </div>
-                    <div class="col-md-4">
+                    <div class="col-md-6">
                         <label for="password" class="form-label small fw-semibold">Temporary password</label>
-                        <input id="password" type="password" name="password" class="form-control" required minlength="{{ \App\Services\Firebase\FirebaseAdmin::MIN_PASSWORD }}" placeholder="**********" autocomplete="new-password">
-                    </div>
-                    <div class="col-md-4">
-                        <label for="password_confirmation" class="form-label small fw-semibold">Repeat password</label>
-                        <input id="password_confirmation" type="password" name="password_confirmation" class="form-control" required placeholder="**********" autocomplete="new-password">
+                        <div class="input-group">
+                            <input id="password" type="text" name="password" class="form-control font-monospace @error('password') is-invalid @enderror" required minlength="{{ \App\Services\Firebase\FirebaseAdmin::MIN_PASSWORD }}" value="{{ old('password') }}" autocomplete="off" spellcheck="false" aria-describedby="password-hint" data-password-lock @unless (old('password')) readonly @endunless>
+                            <button type="button" class="btn btn-outline-primary" data-generate-password="#password" data-email-field="#email" data-generate-url="{{ route('patients.temporary-password') }}" title="Generate a temporary password" aria-label="Generate a temporary password">
+                                <i class="bi bi-arrow-repeat" aria-hidden="true"></i>
+                            </button>
+                            @error('password')
+                                <div class="invalid-feedback">{{ $message }}</div>
+                            @enderror
+                        </div>
+                        <div class="form-text" id="password-hint" data-password-hint>Enter the patient's email first, then click the button to generate a password.</div>
                     </div>
                     <div class="col-12"><hr class="my-1"></div>
                 @else
@@ -72,6 +81,34 @@
                     <label for="dob" class="form-label small fw-semibold">Date of birth</label>
                     <input id="dob" type="date" name="dob" class="form-control @error('dob') is-invalid @enderror" max="{{ now()->toDateString() }}" @if ($patient) data-initial="{{ $patient['dob'] ?? '' }}" @endif value="{{ old('dob', $patient['dob'] ?? '') }}">
                     @error('dob')
+                        <div class="invalid-feedback">{{ $message }}</div>
+                    @enderror
+                </div>
+                <div class="col-12">
+                    <label for="address_street" class="form-label small fw-semibold">Street and house number</label>
+                    <input id="address_street" type="text" name="address_street" class="form-control @error('address_street') is-invalid @enderror" maxlength="150" value="{{ old('address_street', $patient['addressStreet'] ?? '') }}" placeholder="e.g. Blk 2 Lot 5, 123 Rizal St.">
+                    @error('address_street')
+                        <div class="invalid-feedback">{{ $message }}</div>
+                    @enderror
+                </div>
+                <div class="col-md-4">
+                    <label for="address_barangay" class="form-label small fw-semibold">Barangay</label>
+                    <input id="address_barangay" type="text" name="address_barangay" class="form-control @error('address_barangay') is-invalid @enderror" maxlength="100" value="{{ old('address_barangay', $patient['addressBarangay'] ?? '') }}">
+                    @error('address_barangay')
+                        <div class="invalid-feedback">{{ $message }}</div>
+                    @enderror
+                </div>
+                <div class="col-md-4">
+                    <label for="address_city" class="form-label small fw-semibold">City or municipality</label>
+                    <input id="address_city" type="text" name="address_city" class="form-control @error('address_city') is-invalid @enderror" maxlength="100" value="{{ old('address_city', $patient['addressCity'] ?? '') }}">
+                    @error('address_city')
+                        <div class="invalid-feedback">{{ $message }}</div>
+                    @enderror
+                </div>
+                <div class="col-md-4">
+                    <label for="address_province" class="form-label small fw-semibold">Province</label>
+                    <input id="address_province" type="text" name="address_province" class="form-control @error('address_province') is-invalid @enderror" maxlength="100" value="{{ old('address_province', $patient['addressProvince'] ?? '') }}">
+                    @error('address_province')
                         <div class="invalid-feedback">{{ $message }}</div>
                     @enderror
                 </div>

@@ -197,9 +197,15 @@ html.dark-mode{
 
         html.dark-mode body .input-group-text,
         html.dark-mode body .form-control,
-        html.dark-mode body .form-select,
         html.dark-mode body textarea{
             background:#0f172a !important;
+            color:#ffffff !important;
+            border-color:var(--border) !important;
+        }
+
+        /* background-color only: the shorthand would remove the dropdown arrow drawn on .form-select. */
+        html.dark-mode body .form-select{
+            background-color:#0f172a !important;
             color:#ffffff !important;
             border-color:var(--border) !important;
         }
@@ -1569,6 +1575,17 @@ html.dark-mode{
             .home-info-item + .home-info-item{
                 border-left:1px solid var(--border);
             }
+        }
+
+        /* "Back to" links: teal in light mode, a brighter teal in dark mode so they read clearly next to the page text. */
+        .back-link{
+            color:var(--primary-dark);
+            font-weight:600;
+        }
+
+        /* !important: the dark-mode rule for .small text would otherwise win over this link. */
+        html.dark-mode body .back-link{
+            color:#5eead4 !important;
         }
 
         html.dark-mode body .home-value a,

@@ -5,7 +5,7 @@
 @section('content')
     <div class="d-flex justify-content-between align-items-center mb-3">
         <div>
-            <a href="{{ route('messages.index') }}" class="text-decoration-none small"><i class="bi bi-arrow-left me-1"></i>All conversations</a>
+            <a href="{{ route('messages.index') }}" class="back-link text-decoration-none small"><i class="bi bi-arrow-left me-1"></i>All conversations</a>
             <p class="page-title mb-0 mt-1">{{ $patient['name'] ?? 'Unnamed patient' }}</p>
             <p class="page-subtitle mb-0">
                 {{ $thread === 'therapist' ? 'Therapist conversation' : 'Clinic conversation' }}{{ ! empty($patient['condition']) ? ' · '.$patient['condition'] : '' }}

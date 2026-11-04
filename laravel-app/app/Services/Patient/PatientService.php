@@ -236,6 +236,11 @@ class PatientService
             'therapyPlan' => (string) ($doc['therapyPlan'] ?? ''),
             'phone' => (string) ($doc['phone'] ?? ''),
             'dob' => (string) ($doc['dob'] ?? ''),
+            'address' => (string) ($doc['address'] ?? ''),
+            'addressStreet' => (string) ($doc['addressStreet'] ?? ''),
+            'addressBarangay' => (string) ($doc['addressBarangay'] ?? ''),
+            'addressCity' => (string) ($doc['addressCity'] ?? ''),
+            'addressProvince' => (string) ($doc['addressProvince'] ?? ''),
             'createdAt' => $doc['createdAt'] ?? null,
             'archived' => (bool) ($doc['archived'] ?? false),
             'archivedAt' => $doc['archivedAt'] ?? null,
@@ -252,6 +257,17 @@ class PatientService
             'therapyPlan' => (string) ($data['therapy_plan'] ?? ''),
             'phone' => (string) ($data['phone'] ?? ''),
             'dob' => (string) ($data['dob'] ?? ''),
+            'addressStreet' => trim((string) ($data['address_street'] ?? '')),
+            'addressBarangay' => trim((string) ($data['address_barangay'] ?? '')),
+            'addressCity' => trim((string) ($data['address_city'] ?? '')),
+            'addressProvince' => trim((string) ($data['address_province'] ?? '')),
+            // One line for the profile and the app: the parts that are filled in, joined with commas.
+            'address' => implode(', ', array_filter([
+                trim((string) ($data['address_street'] ?? '')),
+                trim((string) ($data['address_barangay'] ?? '')),
+                trim((string) ($data['address_city'] ?? '')),
+                trim((string) ($data['address_province'] ?? '')),
+            ])),
         ];
     }
 

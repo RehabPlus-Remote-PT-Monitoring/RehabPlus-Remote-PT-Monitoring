@@ -3,7 +3,7 @@
 @section('title', 'RehabPlus Remote Monitoring')
 
 @section('content')
-    <a href="{{ route('landing') }}" class="small text-decoration-none d-inline-block mb-3"><i class="bi bi-arrow-left me-1"></i>Back to home</a>
+    <a href="{{ route('landing') }}" class="back-link small text-decoration-none d-inline-block mb-3"><i class="bi bi-arrow-left me-1"></i>Back to home</a>
 
     <section class="rm-hero" aria-labelledby="rm-title">
         <div class="rm-hero-text">

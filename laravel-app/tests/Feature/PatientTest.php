@@ -4,6 +4,7 @@ namespace Tests\Feature;
 
 use App\Rules\OfficialEmailDomain;
 use App\Services\Patient\PatientProgress;
+use App\Services\User\EmailAvailability;
 use Carbon\CarbonImmutable;
 use Tests\Support\FakeFirebase;
 use Tests\TestCase;
@@ -27,7 +28,7 @@ class PatientTest extends TestCase
     {
         return $overrides + [
             'name' => 'Nina New', 'condition' => 'Ankle sprain', 'email' => 'Nina@RehabPlus.com',
-            'password' => 'temp-pass-1', 'password_confirmation' => 'temp-pass-1',
+            'password' => 'tempPass1', 'password_confirmation' => 'tempPass1',
             'phone_country' => 'PH', 'phone' => '9175550101', 'dob' => '1990-05-14',
             'medical_summary' => 'Inversion sprain', 'therapy_plan' => 'Balance work',
         ];
@@ -61,7 +62,7 @@ class PatientTest extends TestCase
         $this->docs['patients/pGone/threads/t1/messages/m1'] = ['text' => 'hello'];
 
         $this->actingAs($this->staff('admin'))->post('/patients/pGone/delete')
-            ->assertRedirect('/patients?archived=1')
+            ->assertRedirect('/patients')
             ->assertSessionHas('success');
 
         $this->assertSame([], array_values(array_filter(array_keys($this->docs), fn ($k) => str_starts_with($k, 'patients/pGone'))));
@@ -70,14 +71,52 @@ class PatientTest extends TestCase
         $this->assertArrayHasKey('patients/pOne', $this->docs);
     }
 
-    public function test_only_archived_patients_can_be_deleted_permanently(): void
+    public function test_admin_can_delete_an_active_patient_without_archiving_first(): void
     {
         $this->actingAs($this->staff('admin'))->post('/patients/pOne/delete')
-            ->assertRedirect('/patients/pOne')
-            ->assertSessionHas('error');
+            ->assertRedirect('/patients')
+            ->assertSessionHas('success');
 
-        $this->assertArrayHasKey('patients/pOne', $this->docs);
-        $this->assertArrayHasKey('pOne@mail.com', $this->authUsers);
+        $this->assertArrayNotHasKey('patients/pOne', $this->docs);
+        $this->assertArrayNotHasKey('pOne@mail.com', $this->authUsers);
+    }
+
+    public function test_messages_are_deleted_before_the_patient_document(): void
+    {
+        $this->patientDoc('pGone', ['archived' => true]);
+        $this->docs['patients/pGone/threads/t1'] = ['unreadForStaff' => 0];
+        $this->docs['patients/pGone/threads/t1/messages/m1'] = ['text' => 'hello'];
+
+        $this->actingAs($this->staff('admin'))->post('/patients/pGone/delete');
+
+        $deletes = [];
+        foreach ($this->commits as $commit) {
+            foreach ($commit as $write) {
+                if (isset($write['delete'])) {
+                    $deletes[] = $write['delete'];
+                }
+            }
+        }
+        $messageAt = array_search(true, array_map(fn ($d) => str_ends_with($d, '/threads/t1/messages/m1'), $deletes), true);
+        $patientAt = array_search(true, array_map(fn ($d) => str_ends_with($d, '/patients/pGone'), $deletes), true);
+
+        $this->assertNotFalse($messageAt);
+        $this->assertNotFalse($patientAt);
+        $this->assertLessThan($patientAt, $messageAt);
+    }
+
+    public function test_patient_list_has_message_and_delete_buttons_for_the_right_staff(): void
+    {
+        $this->actingAs($this->staff('admin'))->get('/patients')
+            ->assertOk()
+            ->assertSee('href="http://localhost/messages/pOne"', false)
+            ->assertSee("This will permanently delete the patient's account, including all their records and conversations.", false)
+            ->assertSee('>Delete<', false);
+
+        $this->actingAs($this->staff('therapist', 'thA', 'Dr. Ana'))->get('/patients')
+            ->assertOk()
+            ->assertDontSee('href="http://localhost/messages/pTwo"', false)
+            ->assertDontSee('>Delete<', false);
     }
 
     public function test_therapists_cannot_delete_permanently(): void
@@ -100,12 +139,12 @@ class PatientTest extends TestCase
         $this->actingAs($this->staff('admin'))->get('/patients?archived=1')
             ->assertOk()
             ->assertSee('/patients/pOld/restore', false)
-            ->assertSee('Delete permanently');
+            ->assertSee('/patients/pOld/delete', false);
 
         $this->actingAs($this->staff('therapist', 'thA', 'Dr. Ana'))->get('/patients?archived=1')
             ->assertOk()
             ->assertSee('/patients/pOld/restore', false)
-            ->assertDontSee('Delete permanently');
+            ->assertDontSee('/patients/pOld/delete', false);
     }
 
     public function test_archived_list_shows_when_and_by_whom_a_patient_was_archived(): void
@@ -171,6 +210,44 @@ class PatientTest extends TestCase
             ->assertDontSee('Olive One');
     }
 
+    public function test_the_add_patient_form_starts_with_no_password_and_the_button_makes_one(): void
+    {
+        $admin = $this->staff('admin');
+        $page = $this->actingAs($admin)->get('/patients/create')->assertOk()
+            ->assertSee('data-generate-password="#password"', false)
+            ->assertDontSee('password_confirmation', false)
+            ->assertDontSee('Generate another', false)
+            ->getContent();
+        $this->assertMatchesRegularExpression('/id="password" type="text" name="password"[^>]*value=""/', $page, 'no password is shown before the button is used');
+        $this->assertMatchesRegularExpression('/id="password"[^>]*readonly/', $page, 'the password box is locked until the button is used');
+
+        $generated = $this->actingAs($admin)->getJson('/patients/temporary-password')->assertOk()->json('password');
+        $this->assertMatchesRegularExpression('/^[A-Za-z]+\d{4}$/', $generated);
+
+        $this->actingAs($admin)->post('/patients', $this->newPatient(['password' => $generated]))
+            ->assertSessionHas('success', fn ($message) => str_contains($message, "Temporary password: {$generated}."));
+    }
+
+    public function test_address_is_saved_and_shown_on_the_patient_profile(): void
+    {
+        $admin = $this->staff('admin');
+        $address = 'Blk 2 Lot 5, Brgy. Tondo, Manila, Metro Manila';
+
+        $this->actingAs($admin)->post('/patients', $this->newPatient([
+            'address_street' => 'Blk 2 Lot 5', 'address_barangay' => 'Brgy. Tondo', 'address_city' => 'Manila', 'address_province' => 'Metro Manila',
+        ]))->assertRedirect();
+        $uid = $this->authUsers['nina@rehabplus.com']['uid'];
+        $this->assertSame($address, $this->docs["patients/{$uid}"]['address']);
+        $this->assertSame('Brgy. Tondo', $this->docs["patients/{$uid}"]['addressBarangay']);
+
+        $this->actingAs($admin)->get("/patients/{$uid}")->assertOk()->assertSee($address);
+        $this->actingAs($admin)->put("/patients/{$uid}", [
+            'name' => 'Nina New', 'condition' => 'Ankle sprain', 'address_street' => 'New Street 9',
+        ])->assertRedirect();
+        $this->assertSame('New Street 9', $this->docs["patients/{$uid}"]['address']);
+        $this->assertSame('', $this->docs["patients/{$uid}"]['addressBarangay']);
+    }
+
     public function test_therapist_creates_patient_with_app_login_assigned_to_them(): void
     {
         $response = $this->actingAs($this->staff('therapist', 'thA', 'Dr. Ana'))
@@ -178,7 +255,7 @@ class PatientTest extends TestCase
 
         // Firebase Auth login with the temporary password; its uid keys everything else.
         $uid = $this->authUsers['nina@rehabplus.com']['uid'];
-        $this->assertSame(['uid' => $uid, 'password' => 'temp-pass-1', 'disabled' => false, 'displayName' => 'Nina New'], $this->authUsers['nina@rehabplus.com']);
+        $this->assertSame(['uid' => $uid, 'password' => 'tempPass1', 'disabled' => false, 'displayName' => 'Nina New'], $this->authUsers['nina@rehabplus.com']);
         $response->assertRedirect("/patients/{$uid}")->assertSessionHas('success');
 
         // users/{uid} + patients/{uid} created together, never overwriting.
@@ -276,24 +353,54 @@ class PatientTest extends TestCase
         $this->actingAs($this->staff('admin'))->get('/patients/create')
             ->assertSee('placeholder="Patient"', false)
             ->assertSee('placeholder="patient@rehabplus.com"', false)
-            ->assertSee('placeholder="**********"', false);
+            ->assertSee('data-generate-password', false);
+    }
+
+    public function test_temporary_password_cannot_contain_spaces_or_hyphens(): void
+    {
+        $user = $this->staff('admin');
+        $this->actingAs($user)->post('/patients', $this->newPatient(['password' => 'Maple River 42']))
+            ->assertSessionHasErrors(['password' => 'The temporary password cannot contain spaces or hyphens.']);
+        $this->actingAs($user)->post('/patients', $this->newPatient(['password' => 'Maple-River-42']))
+            ->assertSessionHasErrors('password');
+        $this->assertSame([], $this->commits);
     }
 
     public function test_validation_and_taken_email(): void
     {
         $user = $this->staff('admin');
-        $this->actingAs($user)->post('/patients', $this->newPatient(['password_confirmation' => 'different']))
-            ->assertSessionHasErrors('password');
-        $this->actingAs($user)->post('/patients', $this->newPatient(['password' => 'short', 'password_confirmation' => 'short']))
+        $this->actingAs($user)->post('/patients', $this->newPatient(['password' => 'short']))
             ->assertSessionHasErrors('password');
 
         $this->authUsers['nina@rehabplus.com'] = ['uid' => 'existing', 'password' => 'x', 'disabled' => false, 'displayName' => 'x'];
         $this->actingAs($user)->from('/patients/create')->post('/patients', $this->newPatient())
             ->assertRedirect('/patients/create')
-            ->assertSessionHas('error', 'That email address already has an account.')
-            ->assertSessionHasInput('name', 'Nina New')
-            ->assertSessionMissing('_old_input.password');
+            ->assertSessionHasErrors(['email' => EmailAvailability::TAKEN_MESSAGE])
+            ->assertSessionHasInput('name', 'Nina New');
         $this->assertSame([], $this->commits);
+    }
+
+    public function test_an_email_used_by_a_staff_account_is_refused_for_a_patient(): void
+    {
+        $this->staff('therapist', 'thA', 'Dr. Ana', 'ana@rehabplus.com');
+
+        $this->actingAs($this->staff('admin'))->from('/patients/create')
+            ->post('/patients', $this->newPatient(['email' => 'ana@rehabplus.com']))
+            ->assertSessionHasErrors(['email' => EmailAvailability::TAKEN_MESSAGE]);
+        $this->assertSame([], $this->commits, 'nothing is written for a taken email');
+    }
+
+    public function test_the_live_email_check_says_whether_an_email_is_taken(): void
+    {
+        $admin = $this->staff('admin');
+        $this->patientDoc('pmaria'); // stored lowercase, like every saved email
+
+        $this->actingAs($admin)->getJson('/email-check?email=PMaria@Mail.com')
+            ->assertOk()->assertJson(['available' => false, 'message' => EmailAvailability::TAKEN_MESSAGE]);
+        $this->actingAs($admin)->getJson('/email-check?email=fresh@rehabplus.com')
+            ->assertOk()->assertJson(['available' => true, 'message' => '']);
+        $this->actingAs($admin)->getJson('/email-check?email=not-an-email')
+            ->assertOk()->assertJson(['available' => null]);
     }
 
     public function test_login_is_deleted_again_if_firestore_write_fails(): void

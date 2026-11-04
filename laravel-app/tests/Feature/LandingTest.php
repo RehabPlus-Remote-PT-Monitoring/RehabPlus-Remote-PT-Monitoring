@@ -113,6 +113,7 @@ class LandingTest extends TestCase
             ->assertSee('an alternative way to continue your rehabilitation');
 
         $this->get('/remote-monitoring')->assertOk()
+            ->assertSee('class="is-active" aria-current="page"', false)
             ->assertSee('How it works')
             ->assertSee('Camera-based guidance')
             ->assertSee('Real-time form feedback')

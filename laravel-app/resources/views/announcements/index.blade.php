@@ -4,7 +4,7 @@
 
 @section('content')
     <div class="mb-3">
-        <a href="{{ route('dashboard') }}" class="text-decoration-none small"><i class="bi bi-arrow-left me-1"></i>Back to dashboard</a>
+        <a href="{{ route('dashboard') }}" class="back-link text-decoration-none small"><i class="bi bi-arrow-left me-1"></i>Back to dashboard</a>
         <p class="page-title mb-1 mt-1">Announcements</p>
         <p class="page-subtitle mb-0">Post news for the team and visitors. Announcements show on the dashboard and on the clinic's welcome page.</p>
     </div>

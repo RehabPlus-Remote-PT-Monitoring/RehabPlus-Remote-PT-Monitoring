@@ -4,6 +4,7 @@ namespace App\Helpers;
 
 use App\Auth\StaffUser;
 use App\Helpers\PhoneNumber;
+use App\Rules\EmailNotTaken;
 use App\Rules\OfficialEmailDomain;
 use App\Services\Firebase\FirebaseAdmin;
 use Closure;
@@ -23,7 +24,7 @@ class UserValidation
     {
         $data = $request->validate([
             'name' => 'required|string|min:2|max:100',
-            'email' => ['required', 'email', 'max:150', new OfficialEmailDomain],
+            'email' => ['required', 'email', 'max:150', new OfficialEmailDomain, new EmailNotTaken],
             'password' => 'required|string|min:'.FirebaseAdmin::MIN_PASSWORD.'|max:100',
             'role' => ['nullable', Rule::in(self::STAFF_ROLES)],
         ]);

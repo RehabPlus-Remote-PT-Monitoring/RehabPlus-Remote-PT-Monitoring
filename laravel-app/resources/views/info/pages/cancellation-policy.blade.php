@@ -4,7 +4,7 @@
 
 @section('content')
     <article class="info-page card shadow-sm border-0 p-4 p-lg-5 mx-auto">
-        <a href="{{ route('landing') }}" class="small text-decoration-none"><i class="bi bi-arrow-left me-1"></i>Back to home</a>
+        <a href="{{ route('landing') }}" class="back-link small text-decoration-none"><i class="bi bi-arrow-left me-1"></i>Back to home</a>
 
         <h1 class="info-page-title">{{ $title }}</h1>
         <p class="info-page-subtitle">{{ config('clinic.copyright') }}: Class Cancellation & Late Arrival Policy</p>

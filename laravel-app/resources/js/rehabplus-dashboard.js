@@ -287,6 +287,135 @@ document.querySelectorAll('[data-phone-country]').forEach(applyPhoneField);
 
 initPatientPickers();
 
+// Account forms: as soon as an email is typed, check whether another account already uses it.
+// The browser also blocks saving while the email is taken; the server checks again on save.
+function clearEmailTaken(input) {
+    input.setCustomValidity('');
+    const wrap = input.closest('[data-email-wrap]');
+    wrap?.querySelector('[data-email-feedback]')?.replaceChildren();
+    setEmailStatus(input, null);
+}
+
+// The icon at the end of the email box: a green check when the email is free, a red cross when it is taken.
+function setEmailStatus(input, state) {
+    const icon = input.closest('[data-email-wrap]')?.querySelector('[data-email-status]');
+    if (!icon) {
+        return;
+    }
+    if (state === 'available') {
+        icon.innerHTML = '<i class="bi bi-check-circle-fill text-success" title="Available"></i>';
+    } else if (state === 'taken') {
+        icon.innerHTML = '<i class="bi bi-x-circle-fill text-danger" title="Already taken"></i>';
+    } else {
+        icon.replaceChildren();
+    }
+}
+
+document.addEventListener('input', (event) => {
+    if (event.target.matches?.('[data-email-check]')) {
+        clearEmailTaken(event.target);
+    }
+});
+
+// Checked when the email box is left, so a missing or taken email is shown straight away.
+document.addEventListener('focusout', (event) => {
+    if (event.target.matches?.('[data-email-check]')) {
+        checkEmail(event.target);
+    }
+});
+
+function showEmailMessage(input, message) {
+    const feedback = input.closest('[data-email-wrap]')?.querySelector('[data-email-feedback]');
+    if (feedback) {
+        feedback.textContent = message;
+    }
+}
+
+async function checkEmail(input) {
+    clearEmailTaken(input);
+
+    const email = input.value.trim();
+    if (!email) {
+        showEmailMessage(input, 'Enter the email address first.');
+        return;
+    }
+    if (!input.checkValidity()) {
+        showEmailMessage(input, 'Enter a valid email address.');
+        return;
+    }
+    if (!/@rehabplus\.com$/i.test(email)) {
+        showEmailMessage(input, 'Invalid email domain. Account creation is strictly restricted to official @rehabplus.com email addresses.');
+        return;
+    }
+
+    try {
+        const url = new URL(input.dataset.emailCheck, window.location.origin);
+        url.searchParams.set('email', email);
+        const response = await fetch(url, { headers: { Accept: 'application/json' }, credentials: 'same-origin' });
+        if (!response.ok) {
+            return;
+        }
+        const { available, message } = await response.json();
+        if (available === false) {
+            input.setCustomValidity(message);
+            input.closest('[data-email-wrap]').querySelector('[data-email-feedback]').textContent = message;
+            setEmailStatus(input, 'taken');
+        } else if (available === true) {
+            setEmailStatus(input, 'available');
+        }
+    } catch (error) {
+        // Couldn't check right now: the server checks again when the form is saved.
+    }
+}
+
+// A locked password box explains what to do instead of doing nothing.
+document.addEventListener('click', (event) => {
+    const locked = event.target.closest?.('[data-password-lock]');
+    if (locked?.readOnly) {
+        document.querySelector('[data-password-hint]').textContent = 'Click the icon first to generate a temporary password.';
+    }
+});
+
+// Add Patient: the generate button fills in a temporary password, but only once an email is entered.
+document.addEventListener('click', async (event) => {
+    const button = event.target.closest?.('[data-generate-password]');
+    if (!button) {
+        return;
+    }
+
+    const email = document.querySelector(button.dataset.emailField);
+    const password = document.querySelector(button.dataset.generatePassword);
+    const hint = document.querySelector('[data-password-hint]');
+
+    if (!email.value.trim()) {
+        hint.textContent = "Enter the patient's email first, then click the button again.";
+        hint.classList.add('text-danger');
+        email.focus();
+        return;
+    }
+    if (!email.checkValidity()) {
+        email.reportValidity();
+        return;
+    }
+
+    try {
+        const response = await fetch(button.dataset.generateUrl, {
+            headers: { Accept: 'application/json' },
+            credentials: 'same-origin',
+        });
+        if (!response.ok) {
+            throw new Error(`HTTP ${response.status}`);
+        }
+        password.value = (await response.json()).password;
+        password.readOnly = false; // from now on the staff member can edit it, or clear it and type their own
+        hint.textContent = 'Copy this password now. It is shown again only after you save.';
+        hint.classList.remove('text-danger');
+    } catch (error) {
+        hint.textContent = 'Could not generate a password. Try again.';
+        hint.classList.add('text-danger');
+    }
+});
+
 document.addEventListener('change', (event) => {
     if (event.target.matches?.('[data-phone-country]')) {
         applyPhoneField(event.target);

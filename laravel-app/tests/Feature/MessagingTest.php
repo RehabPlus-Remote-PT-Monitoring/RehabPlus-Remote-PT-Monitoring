@@ -52,6 +52,24 @@ class MessagingTest extends TestCase
             ->assertDontSee('Olga Archived');
     }
 
+    public function test_archived_patients_are_in_the_archived_folder_not_the_inbox(): void
+    {
+        $this->actingAs($this->therapist())
+            ->get('/messages')->assertOk()
+            ->assertDontSee('Olga Archived')
+            ->assertSee('Archived Messages');
+
+        $this->actingAs($this->therapist())
+            ->get('/messages?archived=1')->assertOk()
+            ->assertSee('Olga Archived')
+            ->assertDontSee('Anna Cruz');
+
+        $this->actingAs($this->staff('admin'))
+            ->get('/messages?archived=1')->assertOk()
+            ->assertSee('Olga Archived')
+            ->assertDontSee('Ben Lim');
+    }
+
     public function test_clinic_staff_inbox_lists_clinic_threads(): void
     {
         $this->actingAs($this->staff('admin'))

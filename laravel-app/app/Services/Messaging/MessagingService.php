@@ -57,17 +57,18 @@ class MessagingService
     /**
      * Conversations this user can answer: unread first, then newest.
      * Patients with no messages yet are included so staff can start one.
+     * The main inbox holds active patients; $archived lists the archived ones.
      *
      * @return array{thread: string, conversations: array<int, array>}
      */
-    public function inbox(StaffUser $user): array
+    public function inbox(StaffUser $user, bool $archived = false): array
     {
         $thread = $this->threadFor($user);
 
         $patients = $thread === self::THREAD_THERAPIST
             ? $this->db->query('', 'patients', [['therapistId', 'EQUAL', $user->id]])
             : $this->db->query('', 'patients');
-        $patients = array_values(array_filter($patients, fn ($p) => ! ($p['archived'] ?? false)));
+        $patients = array_values(array_filter($patients, fn ($p) => (bool) ($p['archived'] ?? false) === $archived));
 
         $summaries = $this->db->getMany(array_map(
             fn ($p) => "patients/{$p['_id']}/threads/{$thread}",

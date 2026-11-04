@@ -12,6 +12,7 @@ use App\Http\Controllers\InventoryController;
 use App\Http\Controllers\LandingController;
 use App\Http\Controllers\MessageController;
 use App\Http\Controllers\PasswordResetController;
+use App\Http\Controllers\EmailCheckController;
 use App\Http\Controllers\PatientController;
 use App\Http\Controllers\PaymentController;
 use App\Http\Controllers\PrescriptionController;
@@ -91,6 +92,8 @@ Route::middleware(['auth.rehab'])->group(function () {
     Route::middleware(['role:admin,therapist'])->group(function () {
         Route::get('/patients/create', [PatientController::class, 'create'])->name('patients.create');
         Route::post('/patients', [PatientController::class, 'store'])->name('patients.store');
+        Route::get('/patients/temporary-password', [PatientController::class, 'temporaryPassword'])->name('patients.temporary-password');
+        Route::get('/email-check', [EmailCheckController::class, 'show'])->name('email-check');
     });
     Route::get('/patients', [PatientController::class, 'index'])->name('patients.index');
     Route::get('/patients/{uid}', [PatientController::class, 'show'])->name('patients.show');

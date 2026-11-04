@@ -14,8 +14,17 @@
                 @endif
             </p>
         </div>
-        <a href="{{ route('messages.index') }}" class="btn btn-outline-secondary"><i class="bi bi-arrow-clockwise me-1"></i>Refresh</a>
+        <a href="{{ route('messages.index', $archived ? ['archived' => 1] : []) }}" class="btn btn-outline-secondary"><i class="bi bi-arrow-clockwise me-1"></i>Refresh</a>
     </div>
+
+    <nav class="nav nav-pills gap-2 mb-3" aria-label="Message folders">
+        <a href="{{ route('messages.index') }}" class="nav-link {{ $archived ? '' : 'active' }}" @if (! $archived) aria-current="page" @endif>
+            <i class="bi bi-inbox me-1"></i>Inbox
+        </a>
+        <a href="{{ route('messages.index', ['archived' => 1]) }}" class="nav-link {{ $archived ? 'active' : '' }}" @if ($archived) aria-current="page" @endif>
+            <i class="bi bi-archive me-1"></i>Archived Messages
+        </a>
+    </nav>
 
     @if ($error)
         <div class="alert alert-danger">{{ $error }}</div>
@@ -45,7 +54,11 @@
                     </a>
                 @empty
                     <div class="text-center text-muted py-5">
-                        {{ $thread === 'therapist' ? 'No patients are assigned to you yet.' : 'No patients yet.' }}
+                        @if ($archived)
+                            No archived conversations.
+                        @else
+                            {{ $thread === 'therapist' ? 'No patients are assigned to you yet.' : 'No patients yet.' }}
+                        @endif
                     </div>
                 @endforelse
             </div>

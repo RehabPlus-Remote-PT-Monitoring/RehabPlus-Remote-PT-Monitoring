@@ -9,7 +9,9 @@ use App\Services\Patient\ConsentService;
 use App\Services\Patient\PatientProgress;
 use App\Services\Patient\PatientService;
 use App\Services\Patient\PrescriptionService;
+use App\Services\Patient\TemporaryPassword;
 use App\Services\User\UserService;
+use Illuminate\Http\JsonResponse;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
 use Illuminate\View\View;
@@ -88,13 +90,20 @@ class PatientController extends Controller
         ]);
     }
 
+    /** A new temporary password for the Add Patient form, fetched when the staff member asks for one. */
+    public function temporaryPassword(): JsonResponse
+    {
+        return response()->json(['password' => TemporaryPassword::generate()]);
+    }
+
     public function store(Request $request): RedirectResponse
     {
+        $password = $request->input('password');
         $uid = $this->patients->create($request->user(), PatientValidation::create($request));
 
         return redirect()->route('patients.show', $uid)->with(
             'success',
-            'Patient added. Give them their email and temporary password to sign in to the RehabPlus app; they can change the password with "Forgot password".',
+            "Patient added. Temporary password: {$password}. Give it with their email so they can sign in to the RehabPlus app, and they can change it with \"Forgot password\". It is shown only now.",
         );
     }
 
@@ -136,19 +145,18 @@ class PatientController extends Controller
         return redirect()->back(fallback: route('patients.show', $uid))->with('success', 'Patient restored. They can sign in to the app again.');
     }
 
-    /** Permanent delete: admins only, and only once the patient is archived. */
+    /**
+     * Delete the patient for good: their login, profile, records, and every
+     * conversation under them. Admins only. Doesn't need the patient to be archived first.
+     */
     public function destroy(Request $request, string $uid): RedirectResponse
     {
         abort_unless($request->user()->isAdmin(), 403);
         $patient = $this->manageableOr403($request, $uid);
 
-        if (! $patient['archived']) {
-            return redirect()->route('patients.show', $uid)->with('error', 'Archive the patient before deleting them permanently.');
-        }
-
         $this->patients->deletePermanently($patient);
 
-        return redirect()->route('patients.index', ['archived' => 1])->with('success', 'Patient permanently deleted. Their login and records are gone.');
+        return redirect()->route('patients.index')->with('success', 'Patient deleted. Their login, records, and conversations are gone.');
     }
 
     public function password(Request $request, string $uid): RedirectResponse

@@ -12,7 +12,7 @@
         $contactNumber = old('phone', $contact['national']);
     @endphp
     <div class="mb-3">
-        <a href="{{ route('users.index') }}" class="text-decoration-none small"><i class="bi bi-arrow-left me-1"></i>Back to staff accounts</a>
+        <a href="{{ route('users.index') }}" class="back-link text-decoration-none small"><i class="bi bi-arrow-left me-1"></i>Back to staff accounts</a>
         <p class="page-title mb-1 mt-1">{{ $user ? 'Edit '.$user['name'] : 'New Staff Account' }}</p>
         <p class="page-subtitle mb-0">{{ $user ? $user['email'] : 'Creates a login for the clinic dashboard.' }}</p>
     </div>
@@ -50,11 +50,15 @@
                 </div>
 
                 @unless ($user)
-                    <div class="col-md-6">
+                    <div class="col-md-6" data-email-wrap>
                         <label for="email" class="form-label small fw-semibold">Email</label>
-                        <input id="email" type="email" name="email" class="form-control @error('email') is-invalid @enderror" value="{{ old('email') }}" placeholder="{{ $selectedRole }}@rehabplus.com" required maxlength="150" autocomplete="off">
+                        <div class="input-group">
+                            <input id="email" type="email" name="email" class="form-control @error('email') is-invalid @enderror" value="{{ old('email') }}" placeholder="{{ $selectedRole }}@rehabplus.com" required maxlength="150" autocomplete="off" data-email-check="{{ route('email-check') }}">
+                            <span class="input-group-text" data-email-status aria-hidden="true"></span>
+                        </div>
+                        <div class="form-text text-danger" data-email-feedback></div>
                         @error('email')
-                            <div class="invalid-feedback">{{ $message }}</div>
+                            <div class="invalid-feedback d-block">{{ $message }}</div>
                         @enderror
                     </div>
                 @endunless
