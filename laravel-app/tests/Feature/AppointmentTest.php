@@ -35,6 +35,23 @@ class AppointmentTest extends TestCase
         ];
     }
 
+    public function test_a_therapists_bell_lists_only_their_own_upcoming_appointments(): void
+    {
+        $tomorrow = CarbonImmutable::now()->addDay()->toDateString();
+        $this->docs['appointments/mine'] = ['patient' => 'Kesh Mine', 'therapistId' => 'thA', 'therapist' => 'Dr. Ana', 'date' => $tomorrow, 'time' => '9:30 AM', 'session' => 'Knee rehab', 'status' => 'Upcoming'];
+        $this->docs['appointments/theirs'] = ['patient' => 'Other Patient', 'therapistId' => 'thB', 'therapist' => 'Dr. Ben', 'date' => $tomorrow, 'time' => '10:00 AM', 'session' => 'Shoulder', 'status' => 'Upcoming'];
+        $this->docs['appointments/done'] = ['patient' => 'Done Patient', 'therapistId' => 'thA', 'therapist' => 'Dr. Ana', 'date' => $tomorrow, 'time' => '11:00 AM', 'session' => 'Hip', 'status' => 'Completed'];
+
+        $this->actingAs($this->staff('therapist', 'thA', 'Dr. Ana'))->get('/dashboard')->assertOk()
+            ->assertSee('appt-alerts-count')
+            ->assertSee('Kesh Mine')
+            ->assertDontSee('Other Patient')
+            ->assertDontSee('Done Patient');
+
+        $this->actingAs($this->staff('admin'))->get('/dashboard')->assertOk()
+            ->assertDontSee('Your upcoming appointments');
+    }
+
     public function test_appointment_is_created_listed_and_shown(): void
     {
         $this->actingAs($this->staff('admin'));

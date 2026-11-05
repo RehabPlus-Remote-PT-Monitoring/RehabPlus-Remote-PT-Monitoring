@@ -49,6 +49,24 @@ class AppointmentService
         ];
     }
 
+    /**
+     * The upcoming appointments set for this therapist, soonest first. Shown in the
+     * bell at the top of the dashboard.
+     *
+     * @return list<ClinicRecord>
+     */
+    public function upcomingFor(string $therapistId, int $limit = 10): array
+    {
+        $today = now()->toDateString();
+
+        return $this->store->where(ClinicStore::APPOINTMENTS, 'therapistId', $therapistId)
+            ->filter(fn (ClinicRecord $a) => $a->status === 'Upcoming' && $a->date >= $today)
+            ->sortBy(fn (ClinicRecord $a) => $a->date.' '.$a->time)
+            ->take($limit)
+            ->values()
+            ->all();
+    }
+
     /** Active patients this user can see, for the patient name picker. */
     public function activePatients(StaffUser $user): array
     {

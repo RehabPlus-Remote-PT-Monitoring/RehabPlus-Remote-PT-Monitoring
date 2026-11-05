@@ -3,7 +3,9 @@
 namespace App\Providers;
 
 use App\Auth\FirebaseUserProvider;
+use App\Services\Appointment\AppointmentService;
 use App\Services\Firebase\FirebaseAdmin;
+use App\Services\Firebase\FirebaseException;
 use App\Services\Firebase\FirebaseMetrics;
 use App\Services\Firebase\FirebaseTransport;
 use App\Services\Firebase\FirestoreClient;
@@ -47,6 +49,17 @@ class AppServiceProvider extends ServiceProvider
                 'name' => $directory->name($user->id, $user->name),
                 'photoUrl' => $directory->photoUrl($user->id),
             ]);
+
+            // The bell shows physical therapists their own upcoming appointments.
+            $alerts = [];
+            if ($user?->isTherapist()) {
+                try {
+                    $alerts = app(AppointmentService::class)->upcomingFor($user->id);
+                } catch (FirebaseException $e) {
+                    report($e); // the bell is empty for now; the page still loads
+                }
+            }
+            $view->with('appointmentAlerts', $alerts);
         });
 
         // A query-string value as trimmed text. Anything that isn't a plain

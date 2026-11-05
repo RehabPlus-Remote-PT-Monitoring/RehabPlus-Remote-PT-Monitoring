@@ -41,6 +41,12 @@ class ClinicStore
         return collect($this->db->query('', $collection))->map(fn (array $doc) => $this->record($doc));
     }
 
+    /** The documents whose $field equals $value. @return Collection<int, ClinicRecord> */
+    public function where(string $collection, string $field, string $value): Collection
+    {
+        return collect($this->db->query('', $collection, [[$field, 'EQUAL', $value]]))->map(fn (array $doc) => $this->record($doc));
+    }
+
     /** The record, or null for a missing document or an id that isn't a valid document id. */
     public function find(string $collection, string $id): ?ClinicRecord
     {

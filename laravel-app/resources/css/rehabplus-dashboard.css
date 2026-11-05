@@ -326,6 +326,71 @@ html.dark-mode{
             justify-content:center;
         }
 
+        /* Physical therapists' bell: a round button with a count, and a panel of upcoming appointments. */
+        .appt-alerts{
+            position:relative;
+        }
+
+        .appt-alerts-toggle{
+            position:relative;
+            cursor:pointer;
+            list-style:none;
+        }
+
+        .appt-alerts-toggle::-webkit-details-marker{
+            display:none;
+        }
+
+        .appt-alerts-count{
+            position:absolute;
+            top:-4px;
+            right:-4px;
+            min-width:18px;
+            height:18px;
+            padding:0 4px;
+            border-radius:9px;
+            background:#dc2626;
+            color:#fff;
+            font-size:.7rem;
+            font-weight:700;
+            line-height:18px;
+            text-align:center;
+        }
+
+        .appt-alerts-panel{
+            position:absolute;
+            right:0;
+            top:calc(100% + 8px);
+            z-index:1050;
+            width:min(320px, 90vw);
+            padding:.75rem;
+            border:1px solid var(--border);
+            border-radius:var(--radius-sm);
+            background:var(--card);
+            box-shadow:var(--shadow);
+        }
+
+        .appt-alerts-title{
+            margin:0 0 .5rem;
+            font-size:.85rem;
+            font-weight:700;
+            color:var(--text);
+        }
+
+        .appt-alerts-item{
+            display:flex;
+            flex-direction:column;
+            padding:.5rem .4rem;
+            border-radius:var(--radius-sm);
+            color:var(--text);
+            text-decoration:none;
+        }
+
+        .appt-alerts-item:hover{
+            background:var(--primary-light);
+            color:var(--text);
+        }
+
         /* NAVBAR: a translucent material layer; page content scrolls under it. */
 
         .navbar{

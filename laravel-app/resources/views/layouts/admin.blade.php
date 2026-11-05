@@ -36,6 +36,29 @@
         <div class="d-flex align-items-center gap-2 gap-md-3">
             <span class="top-date d-none d-md-inline">{{ now()->format('F j, Y') }}</span>
 
+            @if (auth()->user()?->isTherapist())
+                {{-- Physical therapists: their upcoming appointments, set by the clinic. --}}
+                <details class="appt-alerts">
+                    <summary class="theme-toggle appt-alerts-toggle" title="Your upcoming appointments" aria-label="Your upcoming appointments">
+                        <i class="bi bi-bell-fill"></i>
+                        @if ($appointmentAlerts !== [])
+                            <span class="appt-alerts-count">{{ count($appointmentAlerts) }}</span>
+                        @endif
+                    </summary>
+                    <div class="appt-alerts-panel">
+                        <p class="appt-alerts-title">Your upcoming appointments</p>
+                        @forelse ($appointmentAlerts as $alert)
+                            <a href="{{ route('appointments.show', $alert->id) }}" class="appt-alerts-item">
+                                <span class="fw-semibold">{{ $alert->patient }}</span>
+                                <span class="small text-muted">{{ \Carbon\CarbonImmutable::parse($alert->date)->format('M j, Y') }} · {{ $alert->time }} · {{ $alert->session }}</span>
+                            </a>
+                        @empty
+                            <p class="small text-muted mb-0">No upcoming appointments.</p>
+                        @endforelse
+                    </div>
+                </details>
+            @endif
+
             <button type="button" class="theme-toggle" id="themeToggle" title="Toggle dark mode" aria-label="Toggle dark mode">
                 <i class="bi bi-moon-fill"></i>
             </button>
