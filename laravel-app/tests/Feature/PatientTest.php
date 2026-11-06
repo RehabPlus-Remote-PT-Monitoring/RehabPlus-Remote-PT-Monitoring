@@ -315,7 +315,7 @@ class PatientTest extends TestCase
 
         $this->actingAs($this->staff('admin'))->get('/patients/pOne/edit')
             ->assertOk()
-            ->assertSee('<option value="US" data-dial="1" data-min="10" data-max="10" data-digits="10 digits" data-example="2025550123" selected>', false)
+            ->assertSee('<option value="US" data-dial="1" data-min="10" data-max="10" data-digits="10 digits" data-example="2025550123" data-pattern="[2-9]\d{2}[2-9]\d{6}" selected>', false)
             ->assertSee('value="2025550123"', false);
     }
 

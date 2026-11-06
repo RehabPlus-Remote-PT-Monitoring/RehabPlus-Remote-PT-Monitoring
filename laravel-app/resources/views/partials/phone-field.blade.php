@@ -9,7 +9,7 @@
             <span data-phone-iso>{{ $selected['iso'] }}</span>
             <select name="{{ $field }}_country" data-phone-country aria-label="Country code">
                 @foreach ($countries as $c)
-                    <option value="{{ $c['iso'] }}" data-dial="{{ $c['dial'] }}" data-min="{{ $c['min'] }}" data-max="{{ $c['max'] }}" data-digits="{{ $c['digits'] }}" data-example="{{ $c['example'] }}" @selected($selected['iso'] === $c['iso'])>+{{ $c['dial'] }} {{ $c['name'] }}</option>
+                    <option value="{{ $c['iso'] }}" data-dial="{{ $c['dial'] }}" data-min="{{ $c['min'] }}" data-max="{{ $c['max'] }}" data-digits="{{ $c['digits'] }}" data-example="{{ $c['example'] }}" data-pattern="{{ $c['pattern'] }}" @selected($selected['iso'] === $c['iso'])>+{{ $c['dial'] }} {{ $c['name'] }}</option>
                 @endforeach
             </select>
         </div>

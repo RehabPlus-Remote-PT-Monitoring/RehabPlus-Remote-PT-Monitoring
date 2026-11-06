@@ -15,7 +15,7 @@ describe('phone field', () => {
         root.innerHTML = `
             <span data-phone-iso></span>
             <select data-phone-country>
-                <option value="PH" data-dial="63" data-min="10" data-max="10">+63 Philippines</option>
+                <option value="PH" data-dial="63" data-min="10" data-max="10" data-pattern="9\\d{9}|8(?:13|9[5-9])\\d{7}">+63 Philippines</option>
                 <option value="NZ" data-dial="64" data-min="8" data-max="10">+64 New Zealand</option>
             </select>
             <div data-phone-box><span data-phone-dial></span><input data-phone-number></div>
@@ -37,11 +37,22 @@ describe('phone field', () => {
     });
 
     test('checks the length against the country', () => {
-        const [ph, nz] = field().querySelectorAll('option');
+        const [ph] = field().querySelectorAll('option');
 
         expect(phoneIsValid(ph, '9171234567')).toBe(true);
         expect(phoneIsValid(ph, '917123')).toBe(false);
         expect(phoneIsValid(ph, '0917123456')).toBe(false);
+    });
+
+    test('a random number of the right length is not valid', () => {
+        const [ph, nz] = field().querySelectorAll('option');
+
+        expect(phoneIsValid(ph, '1234567890')).toBe(false);
+        expect(phoneIsValid(ph, '5551234567')).toBe(false);
+        expect(phoneIsValid(ph, '9999999999')).toBe(false);
+        expect(phoneIsValid(ph, '9876543210')).toBe(false);
+        expect(phoneIsValid(ph, '8131234567')).toBe(true);
+        expect(phoneIsValid(ph, '9175550101')).toBe(true);
         expect(phoneIsValid(nz, '21234567')).toBe(true);
         expect(phoneIsValid(ph, '')).toBe(true);
     });

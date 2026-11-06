@@ -47,7 +47,21 @@ export function showPhoneCountry(select, iso, dial) {
     dial.textContent = `+${option.dataset.dial}`;
 }
 
-/** Whether the number has the right length for the country. Empty is fine: "required" handles that. */
+/** All one digit, or digits simply counting up or down, like 9999999999 or 9876543210. */
+export function looksMadeUp(number) {
+    const steps = new Set();
+    for (let i = 1; i < number.length; i++) {
+        steps.add(Number(number[i]) - Number(number[i - 1]));
+    }
+
+    return steps.size === 1 && [0, 1, -1].some((step) => steps.has(step));
+}
+
+/**
+ * Whether the number could be a mobile number in the country: its length, how it starts
+ * (data-pattern, from App\Helpers\PhoneNumber) and not obviously made up. Empty is fine:
+ * "required" handles that. This can't tell whether a number is really in use.
+ */
 export function phoneIsValid(option, number) {
     if (number === '') {
         return true;
@@ -56,7 +70,9 @@ export function phoneIsValid(option, number) {
     // No leading 0: the country code replaces it, and a text can't reach the number with both.
     return /^[1-9]\d*$/.test(number)
         && number.length >= Number(option.dataset.min)
-        && number.length <= Number(option.dataset.max);
+        && number.length <= Number(option.dataset.max)
+        && new RegExp(`^(?:${option.dataset.pattern ?? '\\d+'})$`).test(number)
+        && !looksMadeUp(number);
 }
 
 /** Shows the error under the field when the number is wrong, and the hint when it isn't. */
