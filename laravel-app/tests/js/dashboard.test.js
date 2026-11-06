@@ -25,6 +25,15 @@ beforeAll(async () => {
             <button id="printBtn" data-print></button>
             <button id="swapBtn" data-show="panelB" data-hide="panelA extra"></button>
             <div id="panelA"></div><div id="panelB" hidden></div><div id="extra"></div>
+            <form id="phoneForm" data-phone-group>
+                <span data-phone-iso></span>
+                <select data-phone-country>
+                    <option value="PH" data-dial="63" data-min="10" data-max="10" data-digits="10 digits" data-example="9171234567">+63 Philippines</option>
+                </select>
+                <div data-phone-box><span data-phone-dial></span><input id="phoneNumber" data-digits-only data-phone-number required></div>
+                <div data-phone-error hidden></div>
+                <div data-phone-hint></div>
+            </form>
         </main>`;
     Object.defineProperty(document.getElementById('sidebar'), 'offsetWidth', { value: WIDTH });
     // jsdom has no layout, so no innerText; textContent is the same for these rows.
@@ -259,5 +268,43 @@ describe('patient search and theme', () => {
         expect(localStorage.getItem('rehabplus-theme')).toBe(wasDark ? 'light' : 'dark');
         $('themeToggle').click();
         expect(document.body.classList.contains('dark-mode')).toBe(wasDark);
+    });
+});
+
+describe('saving a form with a wrong phone number', () => {
+    const form = () => document.getElementById('phoneForm');
+    const number = () => document.getElementById('phoneNumber');
+    const error = () => form().querySelector('[data-phone-error]');
+
+    function typeNumber(value) {
+        number().value = value;
+        number().dispatchEvent(new Event('input', { bubbles: true }));
+    }
+
+    test('a wrong number stops the save and says it is invalid', () => {
+        typeNumber('123');
+
+        expect(form().reportValidity()).toBe(false);
+        expect(error().hidden).toBe(false);
+        expect(error().textContent).toBe('This phone number is either invalid or is in the wrong format.');
+        expect(form().querySelector('[data-phone-box]').classList.contains('is-invalid')).toBe(true);
+        expect(document.activeElement).toBe(number());
+    });
+
+    test('an empty required number stops the save and asks for one', () => {
+        typeNumber('');
+
+        expect(form().reportValidity()).toBe(false);
+        expect(error().textContent).toBe('Enter a phone number.');
+    });
+
+    test('correcting the number lets the form save and clears the message', () => {
+        typeNumber('123');
+        form().reportValidity();
+
+        typeNumber('9171234567');
+
+        expect(form().reportValidity()).toBe(true);
+        expect(error().hidden).toBe(true);
     });
 });

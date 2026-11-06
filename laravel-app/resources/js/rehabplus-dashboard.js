@@ -1,7 +1,7 @@
 import { confirmSubmit, needsConfirmation } from './confirm.js';
 import { copyPassword } from './copy-password.js';
 import { dismissFlashMessages } from './flash-messages.js';
-import { applyPhoneLimits, keepDigitsOnly, refreshPhoneProblem, showPhoneCountry } from './input-masks.js';
+import { applyPhoneLimits, keepDigitsOnly, refreshPhoneProblem, showPhoneCountry, syncPhoneValidity } from './input-masks.js';
 import { initPatientPickers } from './patient-picker.js';
 import { applyRoleDefaults } from './role-defaults.js';
 import { dragOffset, swipeCloses, swipeGesture } from './swipe.js';
@@ -283,6 +283,7 @@ document.addEventListener('input', (event) => {
     // While typing, an error already showing clears as soon as the number is right.
     if (event.target.matches?.('[data-phone-number]')) {
         const field = event.target.closest('[data-phone-group]');
+        syncPhoneValidity(field);
         if (field.querySelector('[data-phone-box]').classList.contains('is-invalid')) {
             refreshPhoneProblem(field);
         }
@@ -296,11 +297,26 @@ document.addEventListener('focusout', (event) => {
     }
 });
 
+// Pressing save with a wrong number: the red message under the box replaces the browser's
+// bubble, and the form stays put. Bubbles for other fields still appear (invalid doesn't bubble up, so capture).
+document.addEventListener('invalid', (event) => {
+    if (!event.target.matches?.('[data-phone-number]')) {
+        return;
+    }
+    event.preventDefault();
+    refreshPhoneProblem(event.target.closest('[data-phone-group]'), true);
+    // Only when it's the first wrong field: an earlier field's bubble needs the focus to stay showing.
+    if ([...(event.target.form?.elements ?? [])].find((el) => !el.validity.valid) === event.target) {
+        event.target.focus();
+    }
+}, true);
+
 // Phone fields: the country picked sets the code shown, length limit, placeholder and hint.
 function applyPhoneField(select) {
     const field = select.closest('[data-phone-group]');
     applyPhoneLimits(select, field.querySelector('[data-phone-number]'), field.querySelector('[data-phone-hint]'));
     showPhoneCountry(select, field.querySelector('[data-phone-iso]'), field.querySelector('[data-phone-dial]'));
+    syncPhoneValidity(field);
 }
 
 document.querySelectorAll('[data-phone-country]').forEach(applyPhoneField);

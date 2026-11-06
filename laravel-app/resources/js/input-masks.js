@@ -36,7 +36,8 @@ export function keepDigitsOnly(input) {
  *   </div>
  */
 
-export const PHONE_FORMAT_MESSAGE = 'This phone number is either invalid or in the wrong format.';
+export const PHONE_FORMAT_MESSAGE = 'This phone number is either invalid or is in the wrong format.';
+export const PHONE_REQUIRED_MESSAGE = 'Enter a phone number.';
 
 /** Shows the selected country's short code on the picker and its dial code in the number box. */
 export function showPhoneCountry(select, iso, dial) {
@@ -59,15 +60,26 @@ export function phoneIsValid(option, number) {
 }
 
 /** Shows the error under the field when the number is wrong, and the hint when it isn't. */
-export function refreshPhoneProblem(field) {
+export function refreshPhoneProblem(field, submitting = false) {
     const select = field.querySelector('[data-phone-country]');
-    const valid = phoneIsValid(select.selectedOptions[0], field.querySelector('[data-phone-number]').value);
+    const input = field.querySelector('[data-phone-number]');
+    // An empty required box only counts as a problem once the form is being saved, not when tabbing past it.
+    const missing = submitting && input.required && input.value === '';
+    const valid = !missing && phoneIsValid(select.selectedOptions[0], input.value);
     const error = field.querySelector('[data-phone-error]');
 
     field.querySelector('[data-phone-box]').classList.toggle('is-invalid', !valid);
     field.querySelector('[data-phone-hint]').hidden = !valid;
     error.hidden = valid;
-    error.textContent = valid ? '' : PHONE_FORMAT_MESSAGE;
+    error.textContent = valid ? '' : (missing ? PHONE_REQUIRED_MESSAGE : PHONE_FORMAT_MESSAGE);
+}
+
+/** Tells the browser whether the number is right, so it won't submit the form while it's wrong. */
+export function syncPhoneValidity(field) {
+    const select = field.querySelector('[data-phone-country]');
+    const input = field.querySelector('[data-phone-number]');
+
+    input.setCustomValidity(phoneIsValid(select.selectedOptions[0], input.value) ? '' : PHONE_FORMAT_MESSAGE);
 }
 
 /** Limits the number to the selected country's length and updates the placeholder and hint. */
