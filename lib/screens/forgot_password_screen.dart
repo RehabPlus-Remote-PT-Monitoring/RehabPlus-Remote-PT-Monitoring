@@ -1,27 +1,15 @@
-import 'dart:async';
-
-import 'package:firebase_auth/firebase_auth.dart' show PhoneAuthCredential;
 import 'package:flutter/material.dart';
-import 'package:flutter/services.dart'
-    show
-        FilteringTextInputFormatter,
-        LengthLimitingTextInputFormatter,
-        TextInputFormatter;
+import 'package:flutter/services.dart' show TextInputFormatter;
 import 'package:phosphor_flutter/phosphor_flutter.dart';
 
 import '../core/app_palette.dart';
 import '../core/diagnostic_logger.dart';
-import '../services/auth_service.dart';
 import '../core/responsive.dart';
+import '../services/auth_service.dart';
 
-// Reset by text message (see AuthService): the patient types their mobile
-// number, then the 6-digit code Firebase texts them, then a new password.
-// The code briefly signs them in; leaving before the end signs them out
-// again, and finishing signs them out so they log in with the new password.
-enum _ForgotStage { enterPhone, enterCode, newPassword, success }
-
-/// Digits in the SMS code.
-const int resetCodeLength = 6;
+// Reset with the temporary password the therapist gives the patient: the
+// patient types their email, that temporary password and a new password.
+enum _Stage { form, success }
 
 class ForgotPasswordScreen extends StatefulWidget {
   const ForgotPasswordScreen({super.key});
@@ -34,40 +22,21 @@ class _ForgotPasswordScreenState extends State<ForgotPasswordScreen>
     with TickerProviderStateMixin {
   static const Color primaryTeal = Color(0xFF23A8AA);
   static const String _tag = 'ForgotPassword';
-  static const Duration _resendWait = Duration(seconds: 30);
   final DiagnosticLogger _logger = DiagnosticLogger.I;
 
-  _ForgotStage _stage = _ForgotStage.enterPhone;
+  _Stage _stage = _Stage.form;
 
-  final _phoneCtrl = TextEditingController();
-  final _codeCtrl = TextEditingController();
+  final _emailCtrl = TextEditingController();
+  final _tempCtrl = TextEditingController();
   final _passwordCtrl = TextEditingController();
   final _confirmCtrl = TextEditingController();
   bool _isLoading = false;
   bool _showPassword = false;
 
-  /// The number the code went to, in +63... form.
-  String? _phoneE164;
-  String? _verificationId;
-  int? _resendToken;
-
-  /// True once the code signed the patient in and until the password is
-  /// changed: leaving the screen in between must sign them out again.
-  bool _signedInForReset = false;
-
-  /// Seconds before "Resend code" can be tapped again.
-  int _resendIn = 0;
-  Timer? _resendTimer;
-
-  // Stage transition animation
-  late final AnimationController _stageCtrl;
-  late final Animation<double> _stageFade;
-  late final Animation<Offset> _stageSlide;
-
-  // Logo entrance animation
-  late final AnimationController _logoCtrl;
-  late final Animation<double> _logoScale;
-  late final Animation<double> _logoFade;
+  // Entrance animation for the card
+  late final AnimationController _entryCtrl;
+  late final Animation<double> _entryFade;
+  late final Animation<Offset> _entrySlide;
 
   // Success pulse animation
   late final AnimationController _successCtrl;
@@ -77,105 +46,75 @@ class _ForgotPasswordScreenState extends State<ForgotPasswordScreen>
   void initState() {
     super.initState();
 
-    _stageCtrl = AnimationController(vsync: this, duration: const Duration(milliseconds: 420));
-    _stageFade = CurvedAnimation(parent: _stageCtrl, curve: Curves.easeOut);
-    _stageSlide = Tween<Offset>(begin: const Offset(0.06, 0), end: Offset.zero)
-        .animate(CurvedAnimation(parent: _stageCtrl, curve: Curves.easeOutCubic));
+    _entryCtrl = AnimationController(
+      vsync: this,
+      duration: const Duration(milliseconds: 600),
+    );
+    _entryFade = CurvedAnimation(parent: _entryCtrl, curve: Curves.easeOut);
+    _entrySlide = Tween<Offset>(begin: const Offset(0, 0.08), end: Offset.zero)
+        .animate(CurvedAnimation(parent: _entryCtrl, curve: Curves.easeOutCubic));
+    _entryCtrl.forward();
 
-    _logoCtrl = AnimationController(vsync: this, duration: const Duration(milliseconds: 900));
-    _logoScale = Tween<double>(begin: 0.5, end: 1.0)
-        .animate(CurvedAnimation(parent: _logoCtrl, curve: Curves.elasticOut));
-    _logoFade = CurvedAnimation(parent: _logoCtrl, curve: Curves.easeOut);
-
-    _successCtrl = AnimationController(vsync: this, duration: const Duration(milliseconds: 700));
+    _successCtrl = AnimationController(
+      vsync: this,
+      duration: const Duration(milliseconds: 700),
+    );
     _successScale = Tween<double>(begin: 0.0, end: 1.0)
         .animate(CurvedAnimation(parent: _successCtrl, curve: Curves.elasticOut));
-
-    // Skip if the screen was closed during the delay (disposed controllers
-    // throw when started).
-    Future.delayed(const Duration(milliseconds: 80), () {
-      if (!mounted) return;
-      _logoCtrl.forward();
-      _stageCtrl.forward();
-    });
 
     _logger.info(_tag, 'Screen opened');
   }
 
   @override
   void dispose() {
-    if (_signedInForReset) {
-      // Left half-way: don't stay signed in without a known password.
-      unawaited(AuthService.I.cancelPasswordReset());
-    }
-    _resendTimer?.cancel();
-    _phoneCtrl.dispose();
-    _codeCtrl.dispose();
+    _emailCtrl.dispose();
+    _tempCtrl.dispose();
     _passwordCtrl.dispose();
     _confirmCtrl.dispose();
-    _stageCtrl.dispose();
-    _logoCtrl.dispose();
+    _entryCtrl.dispose();
     _successCtrl.dispose();
     super.dispose();
-  }
-
-  Future<void> _transitionTo(_ForgotStage next) async {
-    await _stageCtrl.reverse();
-    if (!mounted) return;
-    setState(() {
-      _stage = next;
-      _isLoading = false;
-    });
-    _stageCtrl.forward();
-    if (next == _ForgotStage.success) _successCtrl.forward();
   }
 
   Future<void> _onContinue() async {
     // The keyboard's "done" key can call this while a request is running.
     if (_isLoading) return;
-    switch (_stage) {
-      case _ForgotStage.enterPhone:
-        final phone = toE164(_phoneCtrl.text);
-        if (phone == null) {
-          _showSnack('Enter a valid mobile number, e.g. 0917 123 4567.',
-              isError: true);
-          return;
-        }
-        _phoneE164 = phone;
-        await _sendCode();
-      case _ForgotStage.enterCode:
-        final code = _codeCtrl.text.trim();
-        final id = _verificationId;
-        if (code.length != resetCodeLength || id == null) {
-          _showSnack('Enter the $resetCodeLength-digit code from the text message.',
-              isError: true);
-          return;
-        }
-        await _checkCode(AuthService.I.credentialFor(id, code));
-      case _ForgotStage.newPassword:
-        await _savePassword();
-      case _ForgotStage.success:
-        Navigator.pop(context);
+    if (_stage == _Stage.success) {
+      Navigator.pop(context);
+      return;
     }
+    await _submit();
   }
 
-  /// Texts the code to [_phoneE164] (again, when [_resendToken] is set).
-  Future<void> _sendCode() async {
+  Future<void> _submit() async {
+    final email = _emailCtrl.text.trim();
+    final temporary = _tempCtrl.text;
+    final password = _passwordCtrl.text;
+
+    if (!_looksLikeEmail(email)) {
+      _showSnack('Enter the email address on your account.', isError: true);
+      return;
+    }
+    if (temporary.isEmpty) {
+      _showSnack('Enter the temporary password from your therapist.',
+          isError: true);
+      return;
+    }
+    final problem = newPasswordProblem(password, _confirmCtrl.text);
+    if (problem != null) {
+      _showSnack(problem, isError: true);
+      return;
+    }
+
     FocusScope.of(context).unfocus();
     setState(() => _isLoading = true);
-    // The number itself is never logged.
-    _logger.info(_tag, 'Reset code requested', {'resend': _resendToken != null});
-    final ResetCodeRequest request;
+    // The email and passwords are never logged.
+    _logger.info(_tag, 'Password reset requested');
     try {
-      request = await AuthService.I.sendResetCode(
-        _phoneE164!,
-        resendToken: _resendToken,
-        // Android read the SMS by itself: no need to type the code.
-        onAutoVerified: (credential) {
-          if (mounted && _stage == _ForgotStage.enterCode && !_isLoading) {
-            _checkCode(credential);
-          }
-        },
+      await AuthService.I.resetWithTemporaryPassword(
+        email: email,
+        temporaryPassword: temporary,
+        newPassword: password,
       );
     } on AuthFailure catch (e) {
       if (!mounted) return;
@@ -184,72 +123,16 @@ class _ForgotPasswordScreenState extends State<ForgotPasswordScreen>
       return;
     }
     if (!mounted) return;
-    final credential = request.credential;
-    if (credential != null) {
-      // Number verified instantly by Android.
-      await _checkCode(credential);
-      return;
-    }
-    _verificationId = request.verificationId;
-    _resendToken = request.resendToken ?? _resendToken;
-    _startResendCountdown();
-    if (_stage == _ForgotStage.enterCode) {
-      setState(() => _isLoading = false);
-      _showSnack('A new code is on its way.');
-    } else {
-      _transitionTo(_ForgotStage.enterCode);
-    }
-  }
-
-  void _startResendCountdown() {
-    _resendTimer?.cancel();
-    setState(() => _resendIn = _resendWait.inSeconds);
-    _resendTimer = Timer.periodic(const Duration(seconds: 1), (t) {
-      if (!mounted) return t.cancel();
-      setState(() => _resendIn--);
-      if (_resendIn <= 0) t.cancel();
-    });
-  }
-
-  Future<void> _checkCode(PhoneAuthCredential credential) async {
-    FocusScope.of(context).unfocus();
-    setState(() => _isLoading = true);
-    try {
-      await AuthService.I.verifyResetCode(credential);
-    } on AuthFailure catch (e) {
-      if (!mounted) return;
-      setState(() => _isLoading = false);
-      _showSnack(e.message, isError: true);
-      return;
-    }
-    _signedInForReset = true;
-    if (!mounted) return;
-    _logger.info(_tag, 'Code accepted');
-    _transitionTo(_ForgotStage.newPassword);
-  }
-
-  Future<void> _savePassword() async {
-    final password = _passwordCtrl.text;
-    final problem = newPasswordProblem(password, _confirmCtrl.text);
-    if (problem != null) {
-      _showSnack(problem, isError: true);
-      return;
-    }
-    FocusScope.of(context).unfocus();
-    setState(() => _isLoading = true);
-    try {
-      await AuthService.I.setNewPassword(password);
-    } on AuthFailure catch (e) {
-      if (!mounted) return;
-      setState(() => _isLoading = false);
-      _showSnack(e.message, isError: true);
-      return;
-    }
-    _signedInForReset = false; // setNewPassword signed out
     _logger.info(_tag, 'Password reset finished');
-    if (!mounted) return;
-    _transitionTo(_ForgotStage.success);
+    setState(() {
+      _stage = _Stage.success;
+      _isLoading = false;
+    });
+    _successCtrl.forward();
   }
+
+  static bool _looksLikeEmail(String value) =>
+      RegExp(r'^[^@\s]+@[^@\s]+\.[^@\s]+$').hasMatch(value);
 
   void _showSnack(String msg, {bool isError = false}) {
     if (!mounted) return;
@@ -264,26 +147,19 @@ class _ForgotPasswordScreenState extends State<ForgotPasswordScreen>
 
   // ── Stage metadata ────────────────────────────────────────────────────────
   String get _stageTitle => switch (_stage) {
-        _ForgotStage.enterPhone => 'Forgot Password?',
-        _ForgotStage.enterCode => 'Enter the Code',
-        _ForgotStage.newPassword => 'New Password',
-        _ForgotStage.success => 'Password Changed',
+        _Stage.form => 'Forgot Password?',
+        _Stage.success => 'Password Changed',
       };
 
   String get _stageSubtitle => switch (_stage) {
-        _ForgotStage.enterPhone =>
-          'Enter the mobile number on your account and we\'ll text you a code to reset your password.',
-        _ForgotStage.enterCode =>
-          'We sent a $resetCodeLength-digit code to ${_phoneCtrl.text.trim()}.',
-        _ForgotStage.newPassword => 'Choose a new password for your account.',
-        _ForgotStage.success => 'You can now sign in with your new password.',
+        _Stage.form =>
+          'Ask your therapist for a temporary password. Enter it with your email, then choose your new password.',
+        _Stage.success => 'You can now sign in with your new password.',
       };
 
   String get _buttonLabel => switch (_stage) {
-        _ForgotStage.enterPhone => 'Send Code',
-        _ForgotStage.enterCode => 'Verify Code',
-        _ForgotStage.newPassword => 'Save Password',
-        _ForgotStage.success => 'Back to Login',
+        _Stage.form => 'Set New Password',
+        _Stage.success => 'Back to Login',
       };
 
   @override
@@ -307,7 +183,8 @@ class _ForgotPasswordScreenState extends State<ForgotPasswordScreen>
             SafeArea(
               child: Center(
                 child: SingleChildScrollView(
-                  padding: readablePadding(context, const EdgeInsets.symmetric(horizontal: 28)),
+                  padding: readablePadding(
+                      context, const EdgeInsets.symmetric(horizontal: 28)),
                   child: Column(
                     children: [
                       const SizedBox(height: 20),
@@ -327,48 +204,46 @@ class _ForgotPasswordScreenState extends State<ForgotPasswordScreen>
   }
 
   Widget _circle(double size, double opacity) => Container(
-        width: size, height: size,
+        width: size,
+        height: size,
         decoration: BoxDecoration(
           color: Colors.white.withValues(alpha: opacity),
           shape: BoxShape.circle,
         ),
       );
 
-  // ── Branding header (shared across all stages) ────────────────────────────
+  // ── Branding header ───────────────────────────────────────────────────────
   Widget _buildBrandingHeader() {
-    return FadeTransition(
-      opacity: _logoFade,
-      child: Column(
-        children: [
-          ScaleTransition(
-            scale: _logoScale,
-            child: Container(
-              width: 76,
-              height: 76,
-              decoration: BoxDecoration(
-                color: Colors.white.withValues(alpha: 0.15),
-                shape: BoxShape.circle,
-                border: Border.all(color: Colors.white.withValues(alpha: 0.3), width: 2),
-              ),
-              child: Stack(
-                alignment: Alignment.center,
-                children: [
-                  PhosphorIcon(PhosphorIcons.shieldPlus(), color: Colors.white, size: 42),
-                ],
-              ),
-            ),
+    return Column(
+      children: [
+        Container(
+          width: 76,
+          height: 76,
+          decoration: BoxDecoration(
+            color: Colors.white.withValues(alpha: 0.15),
+            shape: BoxShape.circle,
+            border: Border.all(
+                color: Colors.white.withValues(alpha: 0.3), width: 2),
           ),
-          const SizedBox(height: 12),
-          const Text(
-            'Rehab +',
-            style: TextStyle(color: Colors.white, fontSize: 24, fontWeight: FontWeight.bold, letterSpacing: 1),
+          child: Center(
+            child: PhosphorIcon(PhosphorIcons.shieldPlus(),
+                color: Colors.white, size: 42),
           ),
-          const Text(
-            'Physiotherapy',
-            style: TextStyle(color: Colors.white70, fontSize: 13, letterSpacing: 2),
-          ),
-        ],
-      ),
+        ),
+        const SizedBox(height: 12),
+        const Text(
+          'Rehab +',
+          style: TextStyle(
+              color: Colors.white,
+              fontSize: 24,
+              fontWeight: FontWeight.bold,
+              letterSpacing: 1),
+        ),
+        const Text(
+          'Physiotherapy',
+          style: TextStyle(color: Colors.white70, fontSize: 13, letterSpacing: 2),
+        ),
+      ],
     );
   }
 
@@ -376,9 +251,9 @@ class _ForgotPasswordScreenState extends State<ForgotPasswordScreen>
   Widget _buildCard() {
     final palette = context.palette;
     return SlideTransition(
-      position: _stageSlide,
+      position: _entrySlide,
       child: FadeTransition(
-        opacity: _stageFade,
+        opacity: _entryFade,
         child: Container(
           padding: const EdgeInsets.all(28),
           decoration: BoxDecoration(
@@ -396,48 +271,38 @@ class _ForgotPasswordScreenState extends State<ForgotPasswordScreen>
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
               // Back button (not on success)
-              if (_stage != _ForgotStage.success)
+              if (_stage == _Stage.form)
                 GestureDetector(
                   onTap: () => Navigator.pop(context),
                   child: Container(
-                    width: 36, height: 36,
+                    width: 36,
+                    height: 36,
                     margin: const EdgeInsets.only(bottom: 16),
                     decoration: BoxDecoration(
                       color: palette.surfaceMuted,
                       borderRadius: BorderRadius.circular(10),
                     ),
-                    child: Icon(Icons.arrow_back_ios_new_rounded, size: 16, color: palette.textSecondary),
+                    child: Icon(Icons.arrow_back_ios_new_rounded,
+                        size: 16, color: palette.textSecondary),
                   ),
                 ),
 
               Text(
                 _stageTitle,
-                style: TextStyle(fontSize: 22, fontWeight: FontWeight.bold, color: palette.textPrimary),
+                style: TextStyle(
+                    fontSize: 22,
+                    fontWeight: FontWeight.bold,
+                    color: palette.textPrimary),
               ),
               const SizedBox(height: 6),
               Text(
                 _stageSubtitle,
-                style: TextStyle(fontSize: 13, color: palette.textMuted, height: 1.4),
+                style: TextStyle(
+                    fontSize: 13, color: palette.textMuted, height: 1.4),
               ),
               const SizedBox(height: 28),
 
-              // Stage content
-              AnimatedSwitcher(
-                duration: const Duration(milliseconds: 300),
-                switchInCurve: Curves.easeOutCubic,
-                switchOutCurve: Curves.easeInCubic,
-                transitionBuilder: (child, anim) => FadeTransition(
-                  opacity: anim,
-                  child: SlideTransition(
-                    position: Tween<Offset>(begin: const Offset(0.05, 0), end: Offset.zero).animate(anim),
-                    child: child,
-                  ),
-                ),
-                child: KeyedSubtree(
-                  key: ValueKey(_stage),
-                  child: _buildStageContent(),
-                ),
-              ),
+              if (_stage == _Stage.form) _buildForm() else _buildSuccess(),
 
               const SizedBox(height: 24),
 
@@ -451,18 +316,24 @@ class _ForgotPasswordScreenState extends State<ForgotPasswordScreen>
                     backgroundColor: const Color(0xFF1E8E92),
                     foregroundColor: Colors.white,
                     elevation: 0,
-                    shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+                    shape: RoundedRectangleBorder(
+                        borderRadius: BorderRadius.circular(16)),
                   ),
                   child: AnimatedSwitcher(
                     duration: const Duration(milliseconds: 250),
                     child: _isLoading
                         ? const SizedBox(
-                            width: 22, height: 22,
-                            child: CircularProgressIndicator(color: Colors.white, strokeWidth: 2.5),
+                            width: 22,
+                            height: 22,
+                            child: CircularProgressIndicator(
+                                color: Colors.white, strokeWidth: 2.5),
                           )
                         : Text(
                             _buttonLabel,
-                            style: const TextStyle(fontSize: 16, fontWeight: FontWeight.w700, letterSpacing: 0.5),
+                            style: const TextStyle(
+                                fontSize: 16,
+                                fontWeight: FontWeight.w700,
+                                letterSpacing: 0.5),
                           ),
                   ),
                 ),
@@ -474,76 +345,9 @@ class _ForgotPasswordScreenState extends State<ForgotPasswordScreen>
     );
   }
 
-  // ── Stage content ─────────────────────────────────────────────────────────
-  Widget _buildStageContent() {
-    return switch (_stage) {
-      _ForgotStage.enterPhone => _buildEnterPhone(),
-      _ForgotStage.enterCode => _buildEnterCode(),
-      _ForgotStage.newPassword => _buildNewPassword(),
-      _ForgotStage.success => _buildSuccess(),
-    };
-  }
-
-  Widget _buildEnterPhone() {
-    return _inputField(
-      controller: _phoneCtrl,
-      hint: 'Mobile number (e.g. 0917 123 4567)',
-      icon: PhosphorIcons.phone(),
-      keyboardType: TextInputType.phone,
-      autofillHints: const [AutofillHints.telephoneNumber],
-      inputFormatters: [
-        FilteringTextInputFormatter.allow(RegExp(r'[0-9+\s\-()]')),
-        LengthLimitingTextInputFormatter(20),
-      ],
-    );
-  }
-
-  Widget _buildEnterCode() {
-    return Column(
-      children: [
-        _inputField(
-          controller: _codeCtrl,
-          hint: '$resetCodeLength-digit code',
-          icon: PhosphorIcons.chatCircleText(),
-          keyboardType: TextInputType.number,
-          autofillHints: const [AutofillHints.oneTimeCode],
-          inputFormatters: [
-            FilteringTextInputFormatter.digitsOnly,
-            LengthLimitingTextInputFormatter(resetCodeLength),
-          ],
-        ),
-        const SizedBox(height: 8),
-        Row(
-          mainAxisAlignment: MainAxisAlignment.spaceBetween,
-          children: [
-            TextButton(
-              onPressed: _isLoading
-                  ? null
-                  : () {
-                      _codeCtrl.clear();
-                      _resendTimer?.cancel();
-                      setState(() {
-                        _resendIn = 0;
-                        _verificationId = null;
-                        _resendToken = null;
-                      });
-                      _transitionTo(_ForgotStage.enterPhone);
-                    },
-              child: const Text('Change number'),
-            ),
-            TextButton(
-              onPressed: _isLoading || _resendIn > 0 ? null : _sendCode,
-              child: Text(_resendIn > 0 ? 'Resend in ${_resendIn}s' : 'Resend code'),
-            ),
-          ],
-        ),
-      ],
-    );
-  }
-
-  Widget _buildNewPassword() {
+  Widget _buildForm() {
     final toggle = IconButton(
-      tooltip: _showPassword ? 'Hide password' : 'Show password',
+      tooltip: _showPassword ? 'Hide passwords' : 'Show passwords',
       icon: Icon(
         _showPassword ? Icons.visibility_off_outlined : Icons.visibility_outlined,
         size: 20,
@@ -554,11 +358,28 @@ class _ForgotPasswordScreenState extends State<ForgotPasswordScreen>
     return Column(
       children: [
         _inputField(
+          controller: _emailCtrl,
+          hint: 'Email',
+          icon: PhosphorIcons.envelopeSimple(),
+          keyboardType: TextInputType.emailAddress,
+          autofillHints: const [AutofillHints.email],
+          textInputAction: TextInputAction.next,
+        ),
+        const SizedBox(height: 12),
+        _inputField(
+          controller: _tempCtrl,
+          hint: 'Temporary password',
+          icon: PhosphorIcons.key(),
+          obscureText: !_showPassword,
+          suffix: toggle,
+          textInputAction: TextInputAction.next,
+        ),
+        const SizedBox(height: 12),
+        _inputField(
           controller: _passwordCtrl,
           hint: 'New password',
           icon: PhosphorIcons.lockSimple(),
           obscureText: !_showPassword,
-          suffix: toggle,
           autofillHints: const [AutofillHints.newPassword],
           textInputAction: TextInputAction.next,
         ),
@@ -582,27 +403,38 @@ class _ForgotPasswordScreenState extends State<ForgotPasswordScreen>
           ScaleTransition(
             scale: _successScale,
             child: Container(
-              width: 80, height: 80,
+              width: 80,
+              height: 80,
               decoration: BoxDecoration(
-                gradient: const LinearGradient(colors: [Color(0xFF23A8AA), Color(0xFF0D6E71)]),
+                gradient: const LinearGradient(
+                    colors: [Color(0xFF23A8AA), Color(0xFF0D6E71)]),
                 shape: BoxShape.circle,
                 boxShadow: [
-                  BoxShadow(color: const Color(0xFF23A8AA).withValues(alpha: 0.4), blurRadius: 20, offset: const Offset(0, 8)),
+                  BoxShadow(
+                    color: const Color(0xFF23A8AA).withValues(alpha: 0.4),
+                    blurRadius: 20,
+                    offset: const Offset(0, 8),
+                  ),
                 ],
               ),
-              child: const Icon(Icons.check_rounded, color: Colors.white, size: 40),
+              child: const Icon(Icons.check_rounded,
+                  color: Colors.white, size: 40),
             ),
           ),
           const SizedBox(height: 16),
           Text(
             'All Set!',
-            style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold, color: palette.textPrimary),
+            style: TextStyle(
+                fontSize: 18,
+                fontWeight: FontWeight.bold,
+                color: palette.textPrimary),
           ),
           const SizedBox(height: 8),
           Text(
             'Your password was changed. Sign in with your email and new password.',
             textAlign: TextAlign.center,
-            style: TextStyle(fontSize: 13, color: palette.textMuted, height: 1.4),
+            style: TextStyle(
+                fontSize: 13, color: palette.textMuted, height: 1.4),
           ),
         ],
       ),
@@ -625,7 +457,7 @@ class _ForgotPasswordScreenState extends State<ForgotPasswordScreen>
       controller: controller,
       obscureText: obscureText,
       keyboardType: keyboardType,
-      // Numbers, codes and passwords must not be "corrected".
+      // Passwords and codes must not be "corrected".
       autocorrect: false,
       enableSuggestions: false,
       autofillHints: autofillHints,
@@ -642,7 +474,8 @@ class _ForgotPasswordScreenState extends State<ForgotPasswordScreen>
         suffixIcon: suffix,
         filled: true,
         fillColor: palette.inputFill,
-        contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 16),
+        contentPadding:
+            const EdgeInsets.symmetric(horizontal: 16, vertical: 16),
         enabledBorder: OutlineInputBorder(
           borderRadius: BorderRadius.circular(14),
           borderSide: BorderSide(color: palette.divider),
@@ -653,7 +486,8 @@ class _ForgotPasswordScreenState extends State<ForgotPasswordScreen>
         ),
       ),
     );
-  }}
+  }
+}
 
 /// Why [password] (typed twice, the second time as [confirm]) can't be the
 /// new password, or null when it's fine.

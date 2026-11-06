@@ -177,33 +177,39 @@ class _ExercisePageState extends State<ExercisePage> {
                 ReadableWidth(
                   // Same width as the exercise list, so the header lines up.
                   maxWidth: adaptiveMaxWidth(context),
-                  child: Padding(
-                    padding: const EdgeInsets.symmetric(horizontal: 20.0),
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        Text(
-                          DateFormat(
-                            'EEEE, d MMMM',
-                          ).format(DateTime.now()).toUpperCase(),
-                          style: TextStyle(
-                            fontSize: 11,
-                            fontWeight: FontWeight.w600,
-                            color: palette.textSecondary,
-                            letterSpacing: 0.5,
+                  // Fill the column width so the left-aligned text sits at the
+                  // left edge instead of being centred as a shrink-wrapped block.
+                  child: SizedBox(
+                    width: double.infinity,
+                    child: Padding(
+                      padding: const EdgeInsets.symmetric(horizontal: 20.0),
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Text(
+                            DateFormat(
+                              'EEEE, d MMMM',
+                            ).format(DateTime.now()).toUpperCase(),
+                            style: TextStyle(
+                              fontSize: 11,
+                              fontWeight: FontWeight.w600,
+                              color: palette.textSecondary,
+                              letterSpacing: 0.5,
+                            ),
                           ),
-                        ),
-                        const SizedBox(height: 4),
-                        Text(
-                          'Select an\nExercise',
-                          style: TextStyle(
-                            fontSize: 24,
-                            fontWeight: FontWeight.bold,
-                            height: 1.15,
-                            color: palette.textPrimary,
+                          const SizedBox(height: 4),
+                          Text(
+                            'Select an\nExercise',
+                            textAlign: TextAlign.left,
+                            style: TextStyle(
+                              fontSize: 24,
+                              fontWeight: FontWeight.bold,
+                              height: 1.15,
+                              color: palette.textPrimary,
+                            ),
                           ),
-                        ),
-                      ],
+                        ],
+                      ),
                     ),
                   ),
                 ),

@@ -1,0 +1,9 @@
+{
+  "name": "rehabplus-backfill-phone",
+  "private": true,
+  "type": "module",
+  "description": "Copies patient phone numbers onto their Auth logins. See backfill.mjs.",
+  "dependencies": {
+    "firebase-admin": "^13.0.0"
+  }
+}

@@ -13,7 +13,20 @@
           "package_name": "com.rehabplus.app"
         }
       },
-      "oauth_client": [],
+      "oauth_client": [
+        {
+          "client_id": "756139475263-vltpq0agrllp3es7rjlsmvoh1tv8hlgv.apps.googleusercontent.com",
+          "client_type": 1,
+          "android_info": {
+            "package_name": "com.rehabplus.app",
+            "certificate_hash": "5fdd0c3cb58eec7054074d87cb896934848f1566"
+          }
+        },
+        {
+          "client_id": "756139475263-khp2vc12kt85le427utcqe8ve22fkkfh.apps.googleusercontent.com",
+          "client_type": 3
+        }
+      ],
       "api_key": [
         {
           "current_key": "AIzaSyD8L2yrFU9Esb1lt8w4MYqmAOloHeWP0_g"
@@ -21,7 +34,12 @@
       ],
       "services": {
         "appinvite_service": {
-          "other_platform_oauth_client": []
+          "other_platform_oauth_client": [
+            {
+              "client_id": "756139475263-khp2vc12kt85le427utcqe8ve22fkkfh.apps.googleusercontent.com",
+              "client_type": 3
+            }
+          ]
         }
       }
     }

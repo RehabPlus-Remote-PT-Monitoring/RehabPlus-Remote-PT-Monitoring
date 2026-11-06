@@ -3,6 +3,7 @@ import 'dart:typed_data';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart' show PlatformException;
 import 'package:image_picker/image_picker.dart';
+import 'package:intl/intl.dart';
 import 'package:permission_handler/permission_handler.dart';
 
 import '../core/app_palette.dart';
@@ -220,6 +221,29 @@ class _EditProfileScreenState extends State<EditProfileScreen>
     super.dispose();
   }
 
+  /// Format the date of birth is saved in, e.g. "May 12, 1990".
+  static final DateFormat _dobFormat = DateFormat('MMMM d, yyyy');
+
+  /// Opens a calendar so the patient picks their birth date instead of typing.
+  Future<void> _pickDob() async {
+    final now = DateTime.now();
+    DateTime? current;
+    try {
+      current = _dobFormat.parseStrict(_dobCtrl.text.trim());
+    } catch (_) {
+      // Older entries may be free text; start the calendar near a typical age.
+    }
+    final picked = await showDatePicker(
+      context: context,
+      initialDate: current ?? DateTime(now.year - 30),
+      firstDate: DateTime(1900),
+      lastDate: now,
+      helpText: 'Date of birth',
+    );
+    if (picked == null || !mounted) return;
+    setState(() => _dobCtrl.text = _dobFormat.format(picked));
+  }
+
   Future<void> _save() async {
     if (_isSaving) return;
     if (!_formKey.currentState!.validate()) {
@@ -326,7 +350,9 @@ class _EditProfileScreenState extends State<EditProfileScreen>
                             'Date of Birth',
                             Icons.cake_outlined,
                             validator: _required,
-                            autofillHints: const [AutofillHints.birthday],
+                            // Picked from a calendar, so the text is always a date.
+                            readOnly: true,
+                            onTap: _isSaving ? null : _pickDob,
                           ),
                         ]),
                         const SizedBox(height: 20),
@@ -519,6 +545,7 @@ class _EditProfileScreenState extends State<EditProfileScreen>
     TextInputType? keyboardType,
     String? Function(String?)? validator,
     bool readOnly = false,
+    VoidCallback? onTap,
     Iterable<String>? autofillHints,
     TextCapitalization capitalization = TextCapitalization.none,
   }) {
@@ -529,6 +556,7 @@ class _EditProfileScreenState extends State<EditProfileScreen>
         controller: ctrl,
         keyboardType: keyboardType,
         readOnly: readOnly,
+        onTap: onTap,
         validator: validator,
         autofillHints: readOnly ? null : autofillHints,
         textCapitalization: capitalization,
@@ -549,7 +577,9 @@ class _EditProfileScreenState extends State<EditProfileScreen>
             color: readOnly ? palette.textFaint : palette.textMuted,
           ),
           border: InputBorder.none,
-          suffixIcon: readOnly
+          suffixIcon: onTap != null
+              ? Icon(Icons.calendar_today_outlined, size: 16, color: primaryTeal)
+              : readOnly
               ? Icon(Icons.lock_outline, size: 14, color: palette.textFaint)
               : null,
         ),

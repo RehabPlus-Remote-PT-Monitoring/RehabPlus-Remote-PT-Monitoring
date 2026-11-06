@@ -138,6 +138,13 @@ class _RehabPlusAppState extends State<RehabPlusApp> {
   }
 
   Widget _app() {
+    // Every normal page change (MaterialPageRoute) is a plain fade on all
+    // platforms. A slide on top of each page's own entrance animation is what
+    // made the moves feel slow and busy.
+    final pageTransitions = PageTransitionsTheme(builders: {
+      for (final platform in TargetPlatform.values)
+        platform: const FadeForwardsPageTransitionsBuilder(),
+    });
     return MaterialApp(
       title: 'RehabPlus',
       navigatorKey: navigatorKey,
@@ -169,6 +176,7 @@ class _RehabPlusAppState extends State<RehabPlusApp> {
         ),
         useMaterial3: true,
         extensions: const [AppPalette.light],
+        pageTransitionsTheme: pageTransitions,
         scaffoldBackgroundColor: AppPalette.light.background,
         appBarTheme: const AppBarTheme(
           backgroundColor: Color(0xFF00BCD4),
@@ -211,6 +219,7 @@ class _RehabPlusAppState extends State<RehabPlusApp> {
         ),
         useMaterial3: true,
         extensions: const [AppPalette.dark],
+        pageTransitionsTheme: pageTransitions,
         scaffoldBackgroundColor: AppPalette.dark.background,
         dialogTheme: DialogThemeData(backgroundColor: AppPalette.dark.surface),
         bottomSheetTheme: BottomSheetThemeData(
