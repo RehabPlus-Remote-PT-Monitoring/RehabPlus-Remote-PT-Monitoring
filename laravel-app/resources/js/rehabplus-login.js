@@ -1,3 +1,7 @@
+import { dismissFlashMessages } from './flash-messages.js';
+
+dismissFlashMessages();
+
 // Show/hide the password. Wired up here because the Content-Security-Policy
 // blocks inline onclick/onkeydown handlers.
 const togglePassword = function () {

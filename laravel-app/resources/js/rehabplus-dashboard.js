@@ -1,8 +1,12 @@
 import { confirmSubmit, needsConfirmation } from './confirm.js';
-import { applyPhoneLimits, keepDigitsOnly } from './input-masks.js';
+import { copyPassword } from './copy-password.js';
+import { dismissFlashMessages } from './flash-messages.js';
+import { applyPhoneLimits, keepDigitsOnly, refreshPhoneProblem, showPhoneCountry } from './input-masks.js';
 import { initPatientPickers } from './patient-picker.js';
 import { applyRoleDefaults } from './role-defaults.js';
 import { dragOffset, swipeCloses, swipeGesture } from './swipe.js';
+
+dismissFlashMessages();
 
 const searchInput = document.getElementById('patientSearch');
 const rows = document.querySelectorAll('#patientsTable tbody tr');
@@ -275,17 +279,40 @@ document.addEventListener('input', (event) => {
     if (event.target.matches?.('[data-digits-only]')) {
         keepDigitsOnly(event.target);
     }
+
+    // While typing, an error already showing clears as soon as the number is right.
+    if (event.target.matches?.('[data-phone-number]')) {
+        const field = event.target.closest('[data-phone-group]');
+        if (field.querySelector('[data-phone-box]').classList.contains('is-invalid')) {
+            refreshPhoneProblem(field);
+        }
+    }
 });
 
-// Phone fields: the country picked sets the length limit, placeholder and hint.
+// Leaving the box is when an unfinished number counts as wrong.
+document.addEventListener('focusout', (event) => {
+    if (event.target.matches?.('[data-phone-number]')) {
+        refreshPhoneProblem(event.target.closest('[data-phone-group]'));
+    }
+});
+
+// Phone fields: the country picked sets the code shown, length limit, placeholder and hint.
 function applyPhoneField(select) {
-    const field = select.closest('[data-phone-field]');
+    const field = select.closest('[data-phone-group]');
     applyPhoneLimits(select, field.querySelector('[data-phone-number]'), field.querySelector('[data-phone-hint]'));
+    showPhoneCountry(select, field.querySelector('[data-phone-iso]'), field.querySelector('[data-phone-dial]'));
 }
 
 document.querySelectorAll('[data-phone-country]').forEach(applyPhoneField);
 
 initPatientPickers();
+
+document.addEventListener('click', (event) => {
+    const button = event.target.closest?.('[data-copy-password]');
+    if (button) {
+        copyPassword(button);
+    }
+});
 
 // Account forms: as soon as an email is typed, check whether another account already uses it.
 // The browser also blocks saving while the email is taken; the server checks again on save.
@@ -419,6 +446,7 @@ document.addEventListener('click', async (event) => {
 document.addEventListener('change', (event) => {
     if (event.target.matches?.('[data-phone-country]')) {
         applyPhoneField(event.target);
+        refreshPhoneProblem(event.target.closest('[data-phone-group]'));
     }
 
     if (event.target.matches?.('[data-role-defaults]')) {

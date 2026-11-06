@@ -28,7 +28,7 @@
                 <a href="{{ route('landing') }}#about" data-section="about">About us</a>            </nav>
 
             <a class="btn btn-primary public-login" href="{{ route('login.page') }}" title="For clinic staff only">
-                <i class="bi bi-shield-lock me-1"></i>Staff Login
+                <i class="bi bi-shield-lock me-1"></i>Log in
             </a>
         </div>
     </header>

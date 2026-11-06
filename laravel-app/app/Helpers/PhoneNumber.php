@@ -76,7 +76,7 @@ class PhoneNumber
 
         $length = strlen($national);
         if ($length >= $min && $length <= $max) {
-            return null;
+            return str_starts_with($national, '0') ? 'Leave out the 0 at the start of the phone number.' : null;
         }
 
         return $min === $max
@@ -88,6 +88,22 @@ class PhoneNumber
     public static function toStored(string $iso, string $national): string
     {
         return '+'.self::COUNTRIES[$iso][1].$national;
+    }
+
+    /**
+     * A stored phone in the form a text message can be sent to, repairing older numbers
+     * saved with a trunk "0". Empty stays empty; null when the digits can't be a real number.
+     */
+    public static function toE164(string $stored): ?string
+    {
+        if (trim($stored) === '') {
+            return '';
+        }
+
+        $parsed = self::parse($stored);
+        $national = ltrim($parsed['national'], '0');
+
+        return self::problem($parsed['iso'], $national) === null ? self::toStored($parsed['iso'], $national) : null;
     }
 
     /** A stored phone for display, such as "+63 9171234567". */

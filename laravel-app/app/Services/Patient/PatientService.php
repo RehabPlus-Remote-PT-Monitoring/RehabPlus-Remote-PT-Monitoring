@@ -4,6 +4,7 @@ namespace App\Services\Patient;
 
 use App\Auth\FirebaseUserProvider;
 use App\Auth\StaffUser;
+use App\Helpers\PhoneNumber;
 use App\Rules\OfficialEmailDomain;
 use App\Services\Firebase\FirebaseAdmin;
 use App\Services\Firebase\FirebaseException;
@@ -215,6 +216,31 @@ class PatientService
         $this->admin->deleteUser($patient['uid']);
         FirebaseUserProvider::forget($patient['uid']);
         Cache::forget(FirebaseAdmin::uidCacheKey($patient['email']));
+    }
+
+    /**
+     * Put the patient's mobile number on their app login, which is where the app's
+     * "Forgot password" texts its code (Firebase Phone Auth). Firebase allows a number on
+     * only one login, and family members can share a phone, so a failure doesn't undo the
+     * saved patient: it returns the warning to show staff, or null when linked.
+     */
+    public function linkLoginPhone(string $uid, string $stored): ?string
+    {
+        $number = PhoneNumber::toE164($stored);
+        $problem = 'That phone number is not valid.';
+
+        if ($number !== null) {
+            try {
+                $this->admin->updateUser($uid, ['phoneNumber' => $number]);
+
+                return null;
+            } catch (FirebaseException $e) {
+                Log::warning('Could not link patient phone: '.$e->getMessage(), ['patient' => $uid]);
+                $problem = $e->getMessage();
+            }
+        }
+
+        return "Saved, but this patient can't get password reset codes by text yet. {$problem} Use Reset password on their page if they forget it.";
     }
 
     /** Set a new temporary app password (the patient can change it via "Forgot password"). */

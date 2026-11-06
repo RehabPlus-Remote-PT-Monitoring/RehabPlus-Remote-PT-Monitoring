@@ -15,6 +15,20 @@ class PhoneNumberTest extends TestCase
         $this->assertSame('Phone number can only contain numbers.', PhoneNumber::problem('PH', '917555abcd'));
     }
 
+    public function test_a_leading_zero_is_refused_because_a_text_could_never_reach_that_number(): void
+    {
+        $this->assertSame('Leave out the 0 at the start of the phone number.', PhoneNumber::problem('PH', '0917555010'));
+    }
+
+    public function test_stored_numbers_become_numbers_a_text_can_be_sent_to(): void
+    {
+        $this->assertSame('+639175550101', PhoneNumber::toE164('+639175550101'));
+        $this->assertSame('+639175550101', PhoneNumber::toE164('0917 555 0101'));
+        $this->assertSame('+639175550101', PhoneNumber::toE164('+6309175550101'));
+        $this->assertSame('', PhoneNumber::toE164(''));
+        $this->assertNull(PhoneNumber::toE164('12345'));
+    }
+
     public function test_each_country_has_its_own_length_range(): void
     {
         $this->assertNull(PhoneNumber::problem('NZ', '21234567'));

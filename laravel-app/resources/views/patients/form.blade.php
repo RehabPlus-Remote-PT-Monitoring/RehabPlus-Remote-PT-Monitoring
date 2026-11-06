@@ -76,7 +76,7 @@
                 @php($phone = \App\Helpers\PhoneNumber::parse($patient['phone'] ?? ''))
                 @php($phoneCountry = old('phone_country', $phone['iso']))
                 @php($phoneNumber = old('phone', $phone['national']))
-                @include('partials.phone-field', ['field' => 'phone', 'label' => 'Phone', 'country' => $phoneCountry, 'number' => $phoneNumber, 'initial' => $patient ? $phoneNumber : null, 'required' => false])
+                @include('partials.phone-field', ['field' => 'phone', 'label' => 'Mobile number (for password reset texts)', 'country' => $phoneCountry, 'number' => $phoneNumber, 'initial' => $patient ? $phoneNumber : null, 'required' => false])
                 <div class="col-md-6">
                     <label for="dob" class="form-label small fw-semibold">Date of birth</label>
                     <input id="dob" type="date" name="dob" class="form-control @error('dob') is-invalid @enderror" max="{{ now()->toDateString() }}" @if ($patient) data-initial="{{ $patient['dob'] ?? '' }}" @endif value="{{ old('dob', $patient['dob'] ?? '') }}">

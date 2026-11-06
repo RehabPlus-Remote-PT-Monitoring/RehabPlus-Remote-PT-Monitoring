@@ -72,7 +72,8 @@ class FirebaseAdmin
     }
 
     /**
-     * Change an account. Supported keys: password, displayName, disabled.
+     * Change an account. Supported keys: password, displayName, disabled, and
+     * phoneNumber (E.164; an empty string removes the number from the login).
      * Setting values is safe to repeat, so this is retried on transient errors.
      */
     public function updateUser(string $uid, array $changes): void
@@ -85,6 +86,13 @@ class FirebaseAdmin
         }
         if (array_key_exists('disabled', $changes)) {
             $body['disableUser'] = (bool) $changes['disabled'];
+        }
+        if (array_key_exists('phoneNumber', $changes)) {
+            if ($changes['phoneNumber'] === '') {
+                $body['deleteProvider'] = ['phone'];
+            } else {
+                $body['phoneNumber'] = $changes['phoneNumber'];
+            }
         }
 
         $fields = implode(',', array_keys(array_diff_key($body, ['localId' => 1])));
@@ -229,6 +237,8 @@ class FirebaseAdmin
             'INVALID_EMAIL' => 'That email address is not valid.',
             'WEAK_PASSWORD' => 'The password is too weak (use at least '.self::MIN_PASSWORD.' characters).',
             'USER_NOT_FOUND' => 'That account no longer exists in Firebase.',
+            'PHONE_NUMBER_EXISTS' => 'That number is already on another account.',
+            'INVALID_PHONE_NUMBER' => 'That phone number is not valid.',
             default => "Could not {$action} in Firebase (".$response->status().').',
         });
     }

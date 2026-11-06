@@ -225,7 +225,7 @@ class PatientTest extends TestCase
         $this->assertMatchesRegularExpression('/^[A-Za-z]+\d{4}$/', $generated);
 
         $this->actingAs($admin)->post('/patients', $this->newPatient(['password' => $generated]))
-            ->assertSessionHas('success', fn ($message) => str_contains($message, "Temporary password: {$generated}."));
+            ->assertSessionHas('temporary_password', $generated);
     }
 
     public function test_address_is_saved_and_shown_on_the_patient_profile(): void
@@ -255,7 +255,7 @@ class PatientTest extends TestCase
 
         // Firebase Auth login with the temporary password; its uid keys everything else.
         $uid = $this->authUsers['nina@rehabplus.com']['uid'];
-        $this->assertSame(['uid' => $uid, 'password' => 'tempPass1', 'disabled' => false, 'displayName' => 'Nina New'], $this->authUsers['nina@rehabplus.com']);
+        $this->assertSame(['uid' => $uid, 'password' => 'tempPass1', 'disabled' => false, 'displayName' => 'Nina New', 'phoneNumber' => '+639175550101'], $this->authUsers['nina@rehabplus.com']);
         $response->assertRedirect("/patients/{$uid}")->assertSessionHas('success');
 
         // users/{uid} + patients/{uid} created together, never overwriting.
@@ -509,15 +509,118 @@ class PatientTest extends TestCase
         $this->assertFalse($this->docs['patients/pOne']['archived']);
     }
 
-    public function test_temporary_password_reset(): void
+    public function test_the_patients_therapist_resets_the_password_and_sees_it_with_ways_to_contact_them(): void
     {
         $this->authUsers['pOne@mail.com'] = ['uid' => 'pOne', 'password' => 'old', 'disabled' => false, 'displayName' => 'Olive One'];
+        $this->docs['patients/pOne']['phone'] = '+639175550101';
+
+        $response = $this->actingAs($this->staff('therapist', 'thA', 'Dr. Ana'))->post('/patients/pOne/password');
+        $response->assertRedirect('/patients/pOne');
+
+        $password = $this->authUsers['pOne@mail.com']['password'];
+        $this->assertNotSame('old', $password);
+        $this->assertMatchesRegularExpression('/^[A-Za-z]+\d{4}$/', $password);
+        $response->assertSessionHas('temporary_password', $password);
+
+        $this->get('/patients/pOne')
+            ->assertOk()
+            ->assertSee('data-temporary-password', false)
+            ->assertSee($password)
+            ->assertSee('href="tel:+639175550101"', false)
+            ->assertSee('href="sms:+639175550101?body=', false);
+
+        // Shown once: the next page load doesn't have it.
+        $this->get('/patients/pOne')->assertOk()->assertDontSee($password);
+    }
+
+    public function test_the_reset_password_button_is_only_for_people_who_manage_the_patient(): void
+    {
+        $this->authUsers['pOne@mail.com'] = ['uid' => 'pOne', 'password' => 'old', 'disabled' => false, 'displayName' => 'Olive One'];
+        $action = 'action="http://localhost/patients/pOne/password"';
+
+        $this->actingAs($this->staff('admin'))->get('/patients/pOne')->assertOk()->assertSee($action, false);
+        $this->actingAs($this->staff('therapist', 'thA', 'Dr. Ana'))->get('/patients/pOne')->assertOk()->assertSee($action, false);
+
+        $otherTherapist = $this->staff('therapist', 'thB', 'Dr. Ben');
+        $this->actingAs($otherTherapist)->post('/patients/pOne/password')->assertNotFound();
+        $this->assertSame('old', $this->authUsers['pOne@mail.com']['password']);
+    }
+
+    public function test_an_archived_patients_password_is_not_reset(): void
+    {
+        $this->authUsers['pOld@mail.com'] = ['uid' => 'pOld', 'password' => 'old', 'disabled' => true, 'displayName' => 'Otto Archived'];
 
         $this->actingAs($this->staff('admin'))
-            ->post('/patients/pOne/password', ['password' => 'new-temp-9', 'password_confirmation' => 'new-temp-9'])
-            ->assertRedirect('/patients/pOne');
+            ->post('/patients/pOld/password')
+            ->assertRedirect('/patients/pOld')
+            ->assertSessionHas('error');
 
-        $this->assertSame('new-temp-9', $this->authUsers['pOne@mail.com']['password']);
+        $this->assertSame('old', $this->authUsers['pOld@mail.com']['password']);
+    }
+
+    private function editOlive(array $overrides): \Illuminate\Testing\TestResponse
+    {
+        return $this->actingAs($this->staff('admin'))->put('/patients/pOne', $overrides + [
+            'name' => 'Olive One', 'condition' => 'ACL', 'phone_country' => 'PH', 'phone' => '9175550101',
+        ]);
+    }
+
+    public function test_a_new_patients_number_goes_on_their_login_for_reset_texts(): void
+    {
+        $this->actingAs($this->staff('admin'))->post('/patients', $this->newPatient())->assertSessionHas('success');
+
+        $this->assertSame('+639175550101', $this->authUsers['nina@rehabplus.com']['phoneNumber']);
+    }
+
+    public function test_changing_or_clearing_a_number_updates_the_login(): void
+    {
+        $this->editOlive(['phone' => '9175550102'])->assertSessionHas('success')->assertSessionMissing('warning');
+        $this->assertSame('+639175550102', $this->authUsers['pOne@mail.com']['phoneNumber']);
+
+        $this->docs['patients/pOne']['phone'] = '+639175550102';
+        $this->editOlive(['phone' => '']);
+        $this->assertArrayNotHasKey('phoneNumber', $this->authUsers['pOne@mail.com']);
+    }
+
+    public function test_a_number_on_another_login_saves_the_patient_and_warns_staff(): void
+    {
+        $this->authUsers['pTwo@mail.com']['phoneNumber'] = '+639175550101';
+
+        $this->editOlive(['condition' => 'ACL tear'])
+            ->assertSessionHas('success')
+            ->assertSessionHas('warning', fn ($message) => str_contains($message, 'already on another account'));
+
+        $this->assertSame('ACL tear', $this->docs['patients/pOne']['condition']);
+        $this->assertSame('+639175550101', $this->docs['patients/pOne']['phone']);
+        $this->assertArrayNotHasKey('phoneNumber', $this->authUsers['pOne@mail.com']);
+    }
+
+    public function test_a_number_with_a_leading_zero_is_refused(): void
+    {
+        $this->editOlive(['phone' => '0917555010'])->assertSessionHasErrors('phone');
+    }
+
+    public function test_the_catch_up_command_links_existing_patients(): void
+    {
+        $this->docs['patients/pOne']['phone'] = '0917 555 0101';
+        $this->docs['patients/pTwo']['phone'] = '123';
+
+        $this->artisan('rehab:link-patient-phones', ['--dry-run' => true])->assertFailed();
+        $this->assertArrayNotHasKey('phoneNumber', $this->authUsers['pOne@mail.com']);
+
+        $this->artisan('rehab:link-patient-phones')->assertFailed();
+        $this->assertSame('+639175550101', $this->authUsers['pOne@mail.com']['phoneNumber']);
+        $this->assertArrayNotHasKey('phoneNumber', $this->authUsers['pTwo@mail.com']);
+    }
+
+    public function test_a_new_patients_temporary_password_stays_on_screen(): void
+    {
+        $this->actingAs($this->staff('admin'))
+            ->followingRedirects()
+            ->post('/patients', $this->newPatient(['therapist_id' => 'thA', 'password' => 'tempPass1']))
+            ->assertOk()
+            ->assertSee('data-temporary-password', false)
+            ->assertSee('tempPass1');
     }
 
     public function test_profile_shows_progress_from_app_sessions(): void
@@ -596,7 +699,7 @@ class PatientTest extends TestCase
         $this->actingAs($therapist)->get('/patients/pOne')->assertOk()
             ->assertSee('data-confirm="Archive Olive One?', false)
             ->assertSee('data-confirm-danger', false)
-            ->assertSee('data-confirm="Set a new app password for Olive One?', false);
+            ->assertSee('data-confirm="Reset the app password for Olive One?', false);
 
         // Restore on an archived patient.
         $this->actingAs($therapist)->get('/patients/pOld')->assertOk()

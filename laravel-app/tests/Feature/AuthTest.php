@@ -21,10 +21,10 @@ class AuthTest extends TestCase
     {
         $this->get('/')->assertOk()
             ->assertSee('href="http://localhost/login"', false)
-            ->assertSee('Staff Login')
+            ->assertSee('Log in')
             ->assertDontSee('>Log In<', false);
 
-        $this->actingAs($this->staff('admin'))->get('/')->assertOk()->assertSee('Staff Login');
+        $this->actingAs($this->staff('admin'))->get('/')->assertOk()->assertSee('Log in');
     }
 
     public function test_staff_can_log_in_with_their_firebase_password(): void

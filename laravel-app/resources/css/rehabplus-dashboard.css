@@ -299,6 +299,71 @@ html.dark-mode{
             transform:none;
         }
 
+        /* Phone field: short country picker, then a box with the dial code inside it. */
+        .phone-field{
+            display:flex;
+            gap:.5rem;
+        }
+
+        .phone-country{
+            position:relative;
+            flex:0 0 5.25rem;
+            width:5.25rem;
+        }
+
+        /* Invisible but on top, so a click opens the native list of country names. */
+        .phone-country select{
+            position:absolute;
+            inset:0;
+            width:100%;
+            height:100%;
+            margin:0;
+            padding:0;
+            border:0;
+            opacity:0;
+            cursor:pointer;
+        }
+
+        .phone-field .phone-box{
+            display:flex;
+            align-items:center;
+            flex:1 1 auto;
+            min-width:0;
+            padding-top:0;
+            padding-bottom:0;
+            padding-left:.75rem;
+        }
+
+        .phone-dial{
+            opacity:.7;
+            white-space:nowrap;
+        }
+
+        .phone-box .phone-input{
+            flex:1 1 auto;
+            min-width:0;
+            padding-left:.4rem;
+            padding-right:0;
+            border:0;
+            background:transparent;
+        }
+
+        .phone-box .phone-input:focus{
+            outline:none;
+            box-shadow:none;
+        }
+
+        .phone-country:focus-within,
+        .phone-box:focus-within{
+            border-color:var(--primary);
+            box-shadow:0 0 0 3px var(--bs-focus-ring-color);
+        }
+
+        .phone-box.is-invalid,
+        .phone-box.is-invalid:focus-within{
+            border-color:var(--bs-form-invalid-border-color,#dc3545);
+        }
+
         /* One focus ring everywhere, keyboard only. */
         :focus-visible{
             outline:2px solid var(--primary);

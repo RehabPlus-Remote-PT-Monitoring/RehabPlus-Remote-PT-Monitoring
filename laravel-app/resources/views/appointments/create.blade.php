@@ -31,7 +31,7 @@
                     <label for="patient" class="form-label small fw-semibold">Patient name</label>
                     <div class="position-relative" data-patient-picker>
                         <div class="input-group">
-                            <input id="patient" type="text" name="patient" class="form-control @error('patient') is-invalid @enderror" value="{{ old('patient', $appointment->patient ?? '') }}" required maxlength="100" autocomplete="off">
+                            <input id="patient" type="text" name="patient" data-patient-name class="form-control @error('patient') is-invalid @enderror" value="{{ old('patient', $appointment->patient ?? '') }}" required maxlength="100" autocomplete="off">
                             <button type="button" class="btn btn-outline-secondary" data-patient-toggle aria-label="Choose from active patients" aria-expanded="false" @disabled(empty($patients))>
                                 <i class="bi bi-chevron-down"></i>
                             </button>

@@ -83,6 +83,7 @@ class AppointmentTest extends TestCase
         $this->actingAs($this->staff('admin'))->get('/appointments/create')
             ->assertOk()
             ->assertSee('data-patient-picker', false)
+            ->assertSee('data-patient-name', false)
             ->assertSee('data-patient-option data-name="Olive One"', false)
             ->assertSee('data-patient-option data-name="Tom Two"', false)
             ->assertDontSee('Otto Archived')

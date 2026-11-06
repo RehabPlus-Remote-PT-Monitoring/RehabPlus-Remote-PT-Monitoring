@@ -27,7 +27,8 @@
     </nav>
 
     @if ($error)
-        <div class="alert alert-danger">{{ $error }}</div>
+        {{-- Stays: it replaces the conversation list, so the page would be blank without it. --}}
+        <div class="alert alert-danger" data-keep>{{ $error }}</div>
     @else
         <div class="card shadow-sm border-0">
             <div class="list-group list-group-flush">

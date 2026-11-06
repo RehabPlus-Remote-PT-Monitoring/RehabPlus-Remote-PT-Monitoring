@@ -55,10 +55,4 @@ class PatientValidation
         ]);
     }
 
-    public static function password(Request $request): array
-    {
-        return $request->validate([
-            'password' => 'required|string|min:'.FirebaseAdmin::MIN_PASSWORD.'|max:100|confirmed',
-        ]);
-    }
 }

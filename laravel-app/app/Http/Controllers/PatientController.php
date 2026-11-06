@@ -99,12 +99,14 @@ class PatientController extends Controller
     public function store(Request $request): RedirectResponse
     {
         $password = $request->input('password');
-        $uid = $this->patients->create($request->user(), PatientValidation::create($request));
+        $data = PatientValidation::create($request);
+        $uid = $this->patients->create($request->user(), $data);
+        $warning = $data['phone'] !== '' ? $this->patients->linkLoginPhone($uid, $data['phone']) : null;
 
-        return redirect()->route('patients.show', $uid)->with(
-            'success',
-            "Patient added. Temporary password: {$password}. Give it with their email so they can sign in to the RehabPlus app, and they can change it with \"Forgot password\". It is shown only now.",
-        );
+        return redirect()->route('patients.show', $uid)
+            ->with('success', 'Patient added.')
+            ->with('warning', $warning)
+            ->with('temporary_password', $password);
     }
 
     public function edit(Request $request, string $uid): View
@@ -127,7 +129,12 @@ class PatientController extends Controller
 
         $this->patients->update($request->user(), $patient, $data);
 
-        return redirect()->route('patients.show', $uid)->with('success', 'Patient updated.');
+        // Sent again on every save with a number, so saving also fixes one that failed to link before.
+        $warning = $data['phone'] !== '' || $patient['phone'] !== ''
+            ? $this->patients->linkLoginPhone($uid, $data['phone'])
+            : null;
+
+        return redirect()->route('patients.show', $uid)->with('success', 'Patient updated.')->with('warning', $warning);
     }
 
     public function archive(Request $request, string $uid): RedirectResponse
@@ -159,12 +166,24 @@ class PatientController extends Controller
         return redirect()->route('patients.index')->with('success', 'Patient deleted. Their login, records, and conversations are gone.');
     }
 
+    /**
+     * For a patient who forgot their password and called or texted the clinic: replace it
+     * with a generated one, and show it once for the staff member to pass on.
+     */
     public function password(Request $request, string $uid): RedirectResponse
     {
         $patient = $this->manageableOr403($request, $uid);
-        $this->patients->resetPassword($patient, PatientValidation::password($request)['password']);
 
-        return redirect()->route('patients.show', $uid)->with('success', 'Temporary password set. Give it to the patient; they can change it in the app.');
+        if ($patient['archived']) {
+            return redirect()->route('patients.show', $uid)->with('error', 'Restore this patient before resetting their password. Their app login is disabled.');
+        }
+
+        $password = TemporaryPassword::generate();
+        $this->patients->resetPassword($patient, $password);
+
+        return redirect()->route('patients.show', $uid)
+            ->with('success', 'Password reset.')
+            ->with('temporary_password', $password);
     }
 
     /** 404 for patients that don't exist or that this user can't see. */

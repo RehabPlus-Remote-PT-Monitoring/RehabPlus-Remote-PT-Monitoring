@@ -204,7 +204,13 @@ trait FakeFirebase
             if ($email === false) {
                 return $error('USER_NOT_FOUND');
             }
-            foreach (['password' => 'password', 'displayName' => 'displayName', 'disableUser' => 'disabled'] as $in => $field) {
+            if (isset($body['phoneNumber']) && collect($this->authUsers)->contains(fn ($u) => ($u['phoneNumber'] ?? null) === $body['phoneNumber'] && $u['uid'] !== $body['localId'])) {
+                return $error('PHONE_NUMBER_EXISTS');
+            }
+            if (in_array('phone', $body['deleteProvider'] ?? [], true)) {
+                unset($this->authUsers[$email]['phoneNumber']);
+            }
+            foreach (['password' => 'password', 'displayName' => 'displayName', 'disableUser' => 'disabled', 'phoneNumber' => 'phoneNumber'] as $in => $field) {
                 if (array_key_exists($in, $body)) {
                     $this->authUsers[$email][$field] = $body[$in];
                 }
