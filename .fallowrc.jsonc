@@ -1,0 +1,22 @@
+// fallow (https://fallow.tools) settings for this repo. Run from the repo root:
+//   npx fallow
+// For exact per-function test coverage instead of fallow's estimate:
+//   (cd laravel-app && npm run coverage) && npx fallow --coverage laravel-app/coverage/coverage-final.json
+{
+    // Vite builds these (laravel-app/vite.config.js) and the Blade layouts load
+    // them with @vite(...), which fallow can't see.
+    "entry": [
+        "laravel-app/resources/js/rehabplus-*.js",
+        "laravel-app/resources/css/rehabplus-*.css"
+    ],
+    // The old CodeIgniter app inlines these into its error pages with PHP's
+    // file_get_contents() (app/Views/errors/html/error_exception.php).
+    "dynamicallyLoaded": [
+        "app/Views/errors/html/debug.js",
+        "app/Views/errors/html/debug.css"
+    ],
+    "health": {
+        // CodeIgniter's own debug script, shipped with the framework; not ours to refactor.
+        "ignore": ["app/Views/errors/html/debug.js"]
+    }
+}
