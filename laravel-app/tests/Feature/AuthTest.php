@@ -99,7 +99,7 @@ class AuthTest extends TestCase
         $originalSessionId = session()->getId();
         $originalCsrfToken = csrf_token();
 
-        $this->post('/logout')->assertRedirect('/login');
+        $this->post('/logout')->assertRedirect(route('landing'));
 
         $this->assertGuest();
         $this->assertNotSame($originalSessionId, session()->getId());

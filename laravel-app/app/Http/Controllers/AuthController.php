@@ -97,7 +97,7 @@ class AuthController extends Controller
         $request->session()->invalidate();
         $request->session()->regenerateToken();
 
-        return redirect()->route('login.page');
+        return redirect()->route('landing');
     }
 
     /** One line per login attempt: outcome, hashed email, uid/role when known, client IP. */
