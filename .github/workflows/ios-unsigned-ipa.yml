@@ -31,6 +31,10 @@ jobs:
       - uses: subosito/flutter-action@v2
         with:
           channel: stable
+          # Same Flutter as the team's machines. Newer stables (3.47+) made
+          # IconData a final class, and phosphor_flutter 2.1.0 no longer
+          # compiles there. Bump this together with the local SDK.
+          flutter-version: 3.41.2
           cache: true
 
       - name: Flutter version
