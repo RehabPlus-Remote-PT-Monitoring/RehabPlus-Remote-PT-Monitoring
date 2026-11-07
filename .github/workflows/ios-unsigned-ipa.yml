@@ -45,12 +45,21 @@ jobs:
         run: |
           flutter build ios --release --no-codesign -v > build-ios.log 2>&1 || {
             echo '---- Xcode errors ----'
-            grep -E 'error:|requires a development team|Signing for' build-ios.log | sort -u | head -40
+            grep -E ' error: |\*\* BUILD FAILED|Command .* failed' build-ios.log | sort -u | head -40
+            grep -A3 '"issueType" : "Error"' build-ios.log | head -60
             echo '---- end of log ----'
             tail -60 build-ios.log
             exit 1
           }
           tail -5 build-ios.log
+
+      - name: Upload build log (on failure)
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: build-ios-log
+          path: build-ios.log
+          retention-days: 7
 
       # An .ipa is just a zip with the .app inside a folder named Payload.
       - name: Package .ipa
