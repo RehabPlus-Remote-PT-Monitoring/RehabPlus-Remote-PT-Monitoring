@@ -4,6 +4,8 @@
 
 @section('content')
     @php($tz = config('app.timezone'))
+    @php($assessmentDates = \App\Helpers\ClinicalValidation::assessmentDates())
+    @php($goalDates = \App\Helpers\ClinicalValidation::goalDates())
     <div class="d-flex justify-content-between align-items-center mb-4">
         <div>
             <p class="page-title mb-1">Assessments &amp; Goals</p>
@@ -58,11 +60,11 @@
                             </div>
                             <div class="col-md-6">
                                 <label class="form-label small fw-semibold" for="a_score">Score (%)</label>
-                                <input id="a_score" type="number" name="score" class="form-control" min="0" max="100" value="{{ old('score') }}" required>
+                                <input id="a_score" type="number" name="score" class="form-control" min="0" max="100" data-percent value="{{ old('score') }}" required>
                             </div>
                             <div class="col-md-6">
                                 <label class="form-label small fw-semibold" for="a_date">Date</label>
-                                <input id="a_date" type="date" name="date" class="form-control" value="{{ old('date', now($tz)->format('Y-m-d')) }}" max="{{ now($tz)->format('Y-m-d') }}" required>
+                                <input id="a_date" type="date" name="date" class="form-control" value="{{ old('date', now($tz)->format('Y-m-d')) }}" min="{{ $assessmentDates['min'] }}" max="{{ $assessmentDates['max'] }}" data-calendar-only required>
                             </div>
                             <div class="col-12">
                                 <label class="form-label small fw-semibold" for="a_notes">Findings</label>
@@ -86,7 +88,7 @@
                             </div>
                             <div class="col-md-6">
                                 <label class="form-label small fw-semibold" for="g_target">Target date</label>
-                                <input id="g_target" type="date" name="target_date" class="form-control" value="{{ old('target_date') }}">
+                                <input id="g_target" type="date" name="target_date" class="form-control" value="{{ old('target_date') }}" min="{{ $goalDates['min'] }}" max="{{ $goalDates['max'] }}" data-calendar-only>
                             </div>
                             <div class="col-md-9">
                                 <label class="form-label small fw-semibold" for="g_title">Goal</label>
@@ -94,7 +96,7 @@
                             </div>
                             <div class="col-md-3">
                                 <label class="form-label small fw-semibold" for="g_progress">Progress</label>
-                                <div class="input-group"><input id="g_progress" type="number" name="progress" class="form-control" min="0" max="100" value="{{ old('progress', 0) }}"><span class="input-group-text">%</span></div>
+                                <select id="g_progress" name="progress" class="form-select">@foreach (\App\Helpers\ClinicalValidation::progressChoices() as $percent)<option value="{{ $percent }}" @selected((int) old('progress', 0) === $percent)>{{ $percent }}%</option>@endforeach</select>
                             </div>
                             <div class="col-12">
                                 <label class="form-label small fw-semibold" for="g_details">Details</label>

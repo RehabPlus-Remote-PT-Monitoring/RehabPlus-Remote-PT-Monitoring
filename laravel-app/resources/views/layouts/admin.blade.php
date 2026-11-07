@@ -196,5 +196,6 @@
             @yield('content')
         </main>
     </div>
+@stack('outside-page')
 </body>
 </html>

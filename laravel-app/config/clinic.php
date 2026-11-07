@@ -22,6 +22,16 @@ return [
         ['days' => 'Sunday', 'hours' => '9:00am – 4:00pm'],
     ],
 
+    /*
+     * The choices on the Staff Schedule page, for shifts and specific-time time off.
+     * Shifts are "HH:MM - HH:MM" (24-hour), which is how conflicts between them are checked.
+     */
+    'shifts' => ['09:00 - 13:00', '13:00 - 18:00', '09:00 - 16:00', '09:00 - 18:00'],
+    'rooms' => ['Room 1', 'Room 2', 'Room 3', 'Room 4', 'Room 5'],
+
+    /* The highest number offered in Inventory's Stock and Reorder point dropdowns. */
+    'inventory_max_quantity' => 200,
+
     'location' => '1308 Benavidez St, Tondo, Manila, 1003 Metro Manila',
     'map_url' => 'https://maps.app.goo.gl/ftDwzQCMAVh1mfXE9',
     'phone' => '0912 854 8156',

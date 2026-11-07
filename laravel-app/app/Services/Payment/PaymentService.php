@@ -59,9 +59,13 @@ class PaymentService
         ]);
     }
 
+    /** A paid record's status is final, so a settled payment can't be quietly reopened. */
     public function updateStatus(string $id, string $status): void
     {
-        $this->store->findOrFail(ClinicStore::PAYMENTS, $id);
+        if ($this->store->findOrFail(ClinicStore::PAYMENTS, $id)->status === 'Paid') {
+            throw ValidationException::withMessages(['status' => "This payment is already paid, so its status can't be changed."]);
+        }
+
         $this->store->update(ClinicStore::PAYMENTS, $id, ['status' => $status]);
     }
 

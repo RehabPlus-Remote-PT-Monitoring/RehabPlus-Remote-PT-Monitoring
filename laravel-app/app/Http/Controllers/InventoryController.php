@@ -43,7 +43,8 @@ class InventoryController extends Controller
 
     public function update(Request $request, string $inventory): RedirectResponse
     {
-        $this->inventory->update($this->inventory->find($inventory), InventoryValidation::item($request));
+        $item = $this->inventory->find($inventory);
+        $this->inventory->update($item, InventoryValidation::item($request, $item));
 
         return redirect()->route('inventory.index')->with('success', 'Inventory item updated successfully.');
     }

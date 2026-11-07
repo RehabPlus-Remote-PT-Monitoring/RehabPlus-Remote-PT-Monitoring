@@ -90,7 +90,7 @@
                                     @php($canManage = $me->isAdmin() || $patient['therapistId'] === $me->id)
                                     @if ($canManage)
                                         {{-- Opens the Messages tab on this patient's conversation: the therapist thread for PTs, the clinic thread for admins. --}}
-                                        <a href="{{ route('messages.show', $patient['uid']) }}" class="btn btn-sm btn-outline-primary ms-1"><i class="bi bi-chat-dots me-1"></i>Message</a>
+                                        <a href="{{ route('messages.show', $patient['uid']) }}" class="btn btn-sm btn-outline-primary ms-1"><i class="bi bi-chat-dots me-1"></i>{{ $showArchived ? 'View messages' : 'Message' }}</a>
                                     @endif
                                     @if ($canManage && $showArchived)
                                         <form method="POST" action="{{ route('patients.restore', $patient['uid']) }}" class="d-inline ms-1" data-confirm="Restore {{ $patient['name'] }}? Their app login is enabled again and they show up in the patient list.">@csrf<button type="submit" class="btn btn-sm btn-outline-success"><i class="bi bi-arrow-counterclockwise me-1"></i>Restore</button></form>

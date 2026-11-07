@@ -26,11 +26,11 @@ beforeAll(async () => {
             <button id="swapBtn" data-show="panelB" data-hide="panelA extra"></button>
             <div id="panelA"></div><div id="panelB" hidden></div><div id="extra"></div>
             <form id="phoneForm" data-phone-group>
-                <span data-phone-iso></span>
+                <span data-phone-code></span>
                 <select data-phone-country>
                     <option value="PH" data-dial="63" data-min="10" data-max="10" data-digits="10 digits" data-example="9171234567">+63 Philippines</option>
                 </select>
-                <div data-phone-box><span data-phone-dial></span><input id="phoneNumber" data-digits-only data-phone-number required></div>
+                <div data-phone-box><input id="phoneNumber" data-digits-only data-phone-number required></div>
                 <div data-phone-error hidden></div>
                 <div data-phone-hint></div>
             </form>

@@ -1,9 +1,11 @@
 import { confirmSubmit, needsConfirmation } from './confirm.js';
 import { copyPassword } from './copy-password.js';
 import { dismissFlashMessages } from './flash-messages.js';
-import { applyPhoneLimits, keepDigitsOnly, refreshPhoneProblem, showPhoneCountry, syncPhoneValidity } from './input-masks.js';
+import { applyPhoneLimits, keepDigitsOnly, keepPercent, refreshPhoneProblem, showPhoneCountry, syncPhoneValidity } from './input-masks.js';
 import { initPatientPickers } from './patient-picker.js';
+import { printReceipts } from './print-receipts.js';
 import { applyRoleDefaults } from './role-defaults.js';
+import { initScheduleForm } from './schedule-form.js';
 import { initSessionPickers } from './session-picker.js';
 import { dragOffset, swipeCloses, swipeGesture } from './swipe.js';
 
@@ -256,7 +258,7 @@ if (sidebar && navToggle) {
  *   <form data-confirm="Delete this?">      asks "Do you want to proceed?" first
  *   <form data-confirm-changes>              same, listing the changed fields (confirm.js)
  *   <select data-autosubmit>                 submits its form when changed
- *   <button data-print>                      opens the print dialog
+ *   <button data-print>                      prints the page's receipts (see print-receipts.js)
  *   <button data-show="id" data-hide="id">   shows / hides elements by id
  */
 document.addEventListener('submit', async (event) => {
@@ -279,6 +281,10 @@ document.addEventListener('submit', async (event) => {
 document.addEventListener('input', (event) => {
     if (event.target.matches?.('[data-digits-only]')) {
         keepDigitsOnly(event.target);
+    }
+
+    if (event.target.matches?.('[data-percent]')) {
+        keepPercent(event.target);
     }
 
     // While typing, an error already showing clears as soon as the number is right.
@@ -316,7 +322,7 @@ document.addEventListener('invalid', (event) => {
 function applyPhoneField(select) {
     const field = select.closest('[data-phone-group]');
     applyPhoneLimits(select, field.querySelector('[data-phone-number]'), field.querySelector('[data-phone-hint]'));
-    showPhoneCountry(select, field.querySelector('[data-phone-iso]'), field.querySelector('[data-phone-dial]'));
+    showPhoneCountry(select, field.querySelector('[data-phone-code]'));
     syncPhoneValidity(field);
 }
 
@@ -324,6 +330,7 @@ document.querySelectorAll('[data-phone-country]').forEach(applyPhoneField);
 
 initPatientPickers();
 initSessionPickers();
+initScheduleForm();
 
 document.addEventListener('click', (event) => {
     const button = event.target.closest?.('[data-copy-password]');
@@ -483,7 +490,7 @@ document.addEventListener('click', (event) => {
     }
 
     if (button.hasAttribute('data-print')) {
-        window.print();
+        printReceipts(button.dataset.printReceipt);
     }
     setHidden(button.dataset.hide, true);
     setHidden(button.dataset.show, false);

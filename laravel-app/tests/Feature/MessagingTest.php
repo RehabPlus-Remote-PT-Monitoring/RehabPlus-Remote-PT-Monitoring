@@ -124,6 +124,27 @@ class MessagingTest extends TestCase
         $this->assertSame([], $this->commits);
     }
 
+    public function test_archived_patients_can_be_read_but_not_messaged(): void
+    {
+        $this->actingAs($this->therapist())->get('/messages/pOld')->assertOk()
+            ->assertSee('data-archived-note', false)
+            ->assertDontSee('name="text"', false);
+
+        $this->post('/messages/pOld', ['text' => 'Are you there?'])
+            ->assertRedirect('/messages/pOld')
+            ->assertSessionHas('error', fn ($m) => str_contains($m, 'archived'));
+
+        $this->assertSame([], $this->commits);
+        $this->assertCount(0, $this->pushes);
+    }
+
+    public function test_active_patients_keep_the_reply_box(): void
+    {
+        $this->actingAs($this->therapist())->get('/messages/pAnna')->assertOk()
+            ->assertSee('name="text"', false)
+            ->assertDontSee('data-archived-note', false);
+    }
+
     public function test_guests_are_sent_to_login(): void
     {
         $this->get('/messages')->assertRedirect('/login');

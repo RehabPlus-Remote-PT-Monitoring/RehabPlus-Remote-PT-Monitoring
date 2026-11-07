@@ -74,7 +74,7 @@ class ContentSecurityPolicyTest extends TestCase
         $this->docs['patients/pat1/goals/g1'] = ['title' => 'Walk', 'status' => 'active', 'progress' => 10];
         $this->docs['patients/pat1/assessments/a1'] = ['type' => 'ROM', 'score' => 70];
         $this->docs['patients/pat1/notes/n1'] = ['topic' => 'Visit', 'text' => 'ok'];
-        $this->docs['payments/pay1'] = ['patient' => 'Pat', 'session' => 'S', 'fee' => 500, 'status' => 'Paid', 'date' => '2026-10-01'];
+        $this->docs['payments/pay1'] = ['patient' => 'Pat', 'session' => 'S', 'fee' => 500, 'status' => 'Pending', 'date' => '2026-10-01'];
         $this->docs['inventory/inv1'] = ['item' => 'Bands', 'category' => 'Gear', 'stock' => 5, 'reorder' => 2, 'status' => 'Healthy'];
         $this->docs['appointments/ap1'] = ['patient' => 'Pat', 'therapist' => 'Dr. Ana', 'session' => 'S', 'date' => '2026-10-20', 'time' => '09:00', 'status' => 'Upcoming'];
         $this->staff('therapist', 'st1', 'Sam');

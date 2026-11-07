@@ -47,7 +47,7 @@ class ClinicalRecordTest extends TestCase
     {
         $user = $this->therapist();
         $this->actingAs($user)->from('/assessments')->post('/goals', [
-            'patient_uid' => 'pOne', 'title' => 'Climb stairs unaided', 'progress' => 20, 'target_date' => '2026-12-01',
+            'patient_uid' => 'pOne', 'title' => 'Climb stairs unaided', 'progress' => 20, 'target_date' => now()->addMonth()->toDateString(),
         ])->assertRedirect('/assessments');
 
         [$path, $goal] = [array_key_first($this->docsLike('patients/pOne/goals/*')), array_values($this->docsLike('patients/pOne/goals/*'))[0]];
@@ -172,5 +172,39 @@ class ClinicalRecordTest extends TestCase
         $this->docs['patients/pOne/goals/g1'] = ['title' => 'Goal', 'status' => 'active', 'progress' => 0];
         $this->actingAs($user)->put('/patients/pOne/goals/g1', ['status' => 'done', 'progress' => 5])
             ->assertSessionHasErrors('status');
+    }
+
+    public function test_assessment_and_goal_dates_cannot_be_random(): void
+    {
+        $user = $this->therapist();
+        $this->actingAs($user);
+
+        foreach (['12345', '0002-01-01', '275760-07-05', now()->addDay()->toDateString(), now()->subYears(6)->toDateString()] as $date) {
+            $this->post('/assessments', ['patient_uid' => 'pOne', 'type' => 'ROM', 'score' => 50, 'date' => $date])->assertSessionHasErrors('date');
+        }
+
+        foreach (['12345', '275760-07-05', now()->subDay()->toDateString(), now()->addYears(6)->toDateString()] as $date) {
+            $this->post('/goals', ['patient_uid' => 'pOne', 'title' => 'Walk', 'target_date' => $date])->assertSessionHasErrors('target_date');
+        }
+
+        $this->assertSame([], $this->docsLike('patients/pOne/assessments/*'));
+        $this->assertSame([], $this->docsLike('patients/pOne/goals/*'));
+
+        $this->post('/goals', ['patient_uid' => 'pOne', 'title' => 'Walk'])->assertSessionHasNoErrors();
+        $this->assertCount(1, $this->docsLike('patients/pOne/goals/*'));
+    }
+
+    public function test_progress_is_a_dropdown_that_keeps_a_saved_value(): void
+    {
+        $this->docs['patients/pOne/goals/g1'] = ['title' => 'Old goal', 'status' => 'active', 'progress' => 37, 'createdAt' => now()];
+
+        $this->actingAs($this->therapist())->get('/assessments')->assertOk()
+            ->assertSee('<select id="g_progress" name="progress"', false)
+            ->assertSee('<option value="100"', false)
+            ->assertDontSee('<option value="105"', false)
+            ->assertSee('<option value="37" selected>37%</option>', false)
+            ->assertDontSee('type="number" name="progress"', false);
+
+        $this->post('/goals', ['patient_uid' => 'pOne', 'title' => 'Walk', 'progress' => 101])->assertSessionHasErrors('progress');
     }
 }

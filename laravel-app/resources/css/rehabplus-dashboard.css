@@ -299,7 +299,7 @@ html.dark-mode{
             transform:none;
         }
 
-        /* Phone field: short country picker, then a box with the dial code inside it. */
+        /* Phone field: short country picker with the dial code, then the number box. */
         .phone-field{
             display:flex;
             gap:.5rem;
@@ -307,8 +307,9 @@ html.dark-mode{
 
         .phone-country{
             position:relative;
-            flex:0 0 5.25rem;
-            width:5.25rem;
+            flex:0 0 7.25rem;
+            width:7.25rem;
+            white-space:nowrap;
         }
 
         /* Invisible but on top, so a click opens the native list of country names. */
@@ -334,15 +335,10 @@ html.dark-mode{
             padding-left:.75rem;
         }
 
-        .phone-dial{
-            opacity:.7;
-            white-space:nowrap;
-        }
-
         .phone-box .phone-input{
             flex:1 1 auto;
             min-width:0;
-            padding-left:.4rem;
+            padding-left:0;
             padding-right:0;
             border:0;
             background:transparent;
@@ -362,6 +358,110 @@ html.dark-mode{
         .phone-box.is-invalid,
         .phone-box.is-invalid:focus-within{
             border-color:var(--bs-form-invalid-border-color,#dc3545);
+        }
+
+        /* Printed receipts: hidden on screen; when printing, the only thing on the paper. */
+        .receipts{
+            display:none;
+        }
+
+        @page receipt{
+            margin:0;
+        }
+
+        @media print{
+            body.printing-receipts{
+                background:#fff !important;
+            }
+
+            body.printing-receipts > :not(.receipts){
+                display:none !important;
+            }
+
+            body.printing-receipts .receipts{
+                display:block;
+            }
+
+            .receipt{
+                page:receipt;
+                padding:18mm;
+                color:#000;
+                font-size:12pt;
+            }
+
+            .receipt[hidden]{
+                display:none;
+            }
+
+            .receipt:not([hidden]) ~ .receipt:not([hidden]){
+                break-before:page;
+            }
+
+            .receipt-head{
+                display:flex;
+                justify-content:space-between;
+                gap:12mm;
+                padding-bottom:6mm;
+                border-bottom:2px solid #000;
+            }
+
+            .receipt-head h1{
+                margin:0 0 2mm;
+                font-size:16pt;
+                font-weight:700;
+                color:#000;
+            }
+
+            .receipt-head p{
+                margin:0;
+                font-size:10pt;
+                color:#000;
+            }
+
+            .receipt-title{
+                flex:none;
+                text-align:right;
+            }
+
+            .receipt-title h2{
+                margin:0 0 2mm;
+                font-size:14pt;
+                font-weight:600;
+                color:#000;
+            }
+
+            .receipt-details{
+                display:grid;
+                grid-template-columns:30mm 1fr;
+                row-gap:3mm;
+                margin:8mm 0;
+            }
+
+            .receipt-details dt{
+                font-weight:600;
+            }
+
+            .receipt-details dd{
+                margin:0;
+            }
+
+            .receipt-total{
+                display:flex;
+                justify-content:space-between;
+                align-items:baseline;
+                padding:4mm 0;
+                border-top:1px solid #000;
+                border-bottom:1px solid #000;
+            }
+
+            .receipt-total strong{
+                font-size:16pt;
+            }
+
+            .receipt-foot{
+                margin-top:8mm;
+                font-size:10pt;
+            }
         }
 
         /* One focus ring everywhere, keyboard only. */

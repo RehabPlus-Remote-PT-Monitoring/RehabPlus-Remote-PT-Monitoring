@@ -3,22 +3,56 @@ import {
     applyPhoneLimits,
     digitsOnly,
     keepDigitsOnly,
+    keepPercent,
     PHONE_FORMAT_MESSAGE,
     phoneIsValid,
     refreshPhoneProblem,
     showPhoneCountry,
 } from '../../resources/js/input-masks.js';
 
+describe('keepPercent', () => {
+    const typed = (value) => {
+        const input = document.createElement('input');
+        input.type = 'number';
+        input.value = value;
+        keepPercent(input);
+
+        return input.value;
+    };
+
+    test('caps anything above 100', () => {
+        expect(typed('101')).toBe('100');
+        expect(typed('300000000000000000000')).toBe('100');
+        expect(typed('1e5')).toBe('100');
+    });
+
+    test('keeps whole numbers from 0 to 100', () => {
+        expect(typed('0')).toBe('0');
+        expect(typed('85')).toBe('85');
+        expect(typed('100')).toBe('100');
+    });
+
+    test('removes minus signs, decimals and leading zeros', () => {
+        expect(typed('-5')).toBe('5');
+        expect(typed('5.5')).toBe('5');
+        expect(typed('007')).toBe('7');
+    });
+
+    test('leaves an empty box empty so it can be retyped', () => {
+        expect(typed('')).toBe('');
+    });
+});
+
 describe('phone field', () => {
     function field(value = '', iso = 'PH') {
         const root = document.createElement('div');
         root.innerHTML = `
-            <span data-phone-iso></span>
+            <span data-phone-code></span>
             <select data-phone-country>
                 <option value="PH" data-dial="63" data-min="10" data-max="10" data-pattern="9\\d{9}|8(?:13|9[5-9])\\d{7}">+63 Philippines</option>
                 <option value="NZ" data-dial="64" data-min="8" data-max="10">+64 New Zealand</option>
             </select>
-            <div data-phone-box><span data-phone-dial></span><input data-phone-number></div>
+            <div data-phone-box><input data-phone-number></div>
             <div data-phone-error hidden></div>
             <div data-phone-hint></div>`;
         root.querySelector('select').value = iso;
@@ -30,10 +64,9 @@ describe('phone field', () => {
     test('shows the short code and dial code of the selected country', () => {
         const root = field('', 'NZ');
 
-        showPhoneCountry(root.querySelector('select'), root.querySelector('[data-phone-iso]'), root.querySelector('[data-phone-dial]'));
+        showPhoneCountry(root.querySelector('select'), root.querySelector('[data-phone-code]'));
 
-        expect(root.querySelector('[data-phone-iso]').textContent).toBe('NZ');
-        expect(root.querySelector('[data-phone-dial]').textContent).toBe('+64');
+        expect(root.querySelector('[data-phone-code]').textContent).toBe('NZ +64');
     });
 
     test('checks the length against the country', () => {

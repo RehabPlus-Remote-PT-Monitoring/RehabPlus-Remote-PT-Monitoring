@@ -99,6 +99,12 @@ class MessageController extends Controller
 
         [$thread, $patient] = $this->authorizeThread($request, $patientUid);
 
+        // Archived patients have no app login, so they could never read or answer it.
+        if (! empty($patient['archived'])) {
+            return redirect()->route('messages.show', $patientUid)
+                ->with('error', 'Message not sent. This patient is archived. Restore them to send a message.');
+        }
+
         try {
             $this->messaging->reply($request->user(), $patientUid, $patient, $thread, $validated['text']);
         } catch (FirebaseException $e) {

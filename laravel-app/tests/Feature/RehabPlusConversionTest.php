@@ -2,6 +2,7 @@
 
 namespace Tests\Feature;
 
+use Illuminate\Support\Carbon;
 use Tests\Support\FakeFirebase;
 use Tests\TestCase;
 
@@ -131,6 +132,64 @@ class RehabPlusConversionTest extends TestCase
         $this->get('/billing')->assertOk()->assertSee('Maria Santos')->assertSee('1500.00')->assertSee('₱1,500.00');
     }
 
+    public function test_each_payment_has_its_own_printable_page(): void
+    {
+        $this->docs['payments/paid1'] = ['patient' => 'Maria Santos', 'session' => 'Massage', 'fee' => 1500.0, 'status' => 'Paid', 'date' => '2026-10-09'];
+        $this->docs['payments/open1'] = ['patient' => 'Juan Cruz', 'session' => 'Rehab', 'fee' => 800.0, 'status' => 'Pending', 'date' => '2026-10-08'];
+
+        $this->actingAs($this->staff('admin'))->get('/billing')->assertOk()
+            ->assertSee('id="receipt-paid1"', false)
+            ->assertSee('data-print-receipt="receipt-paid1"', false)
+            ->assertSee('Payment Receipt')
+            ->assertSee('Billing Statement')
+            ->assertSee('October 9, 2026')
+            ->assertSee(config('clinic.name'));
+    }
+
+    public function test_the_header_shows_todays_date_in_the_philippines(): void
+    {
+        // 3:18 AM on Nov 8 in Manila is still Nov 7 in UTC.
+        Carbon::setTestNow(Carbon::parse('2026-11-07 19:18:00', 'UTC'));
+
+        try {
+            $this->actingAs($this->staff('admin'))->get('/billing')->assertOk()->assertSee('November 8, 2026');
+        } finally {
+            Carbon::setTestNow();
+        }
+    }
+
+    public function test_status_edit_form_starts_closed(): void
+    {
+        $this->docs['payments/pay1'] = ['patient' => 'Maria Santos', 'session' => 'Massage', 'fee' => 100.0, 'status' => 'Pending', 'date' => '2026-10-09'];
+
+        $html = $this->actingAs($this->staff('admin'))->get('/billing')->assertOk()->getContent();
+
+        // Bootstrap's d-flex would override hidden, leaving the form always open.
+        $this->assertMatchesRegularExpression('/<form id="status-form-pay1"[^\n]*\shidden>/', $html);
+        $this->assertDoesNotMatchRegularExpression('/<form id="status-form-pay1"[^\n]*d-flex/', $html);
+    }
+
+    public function test_paid_status_is_final(): void
+    {
+        $this->docs['payments/paid'] = ['patient' => 'Maria Santos', 'session' => 'Massage', 'fee' => 100.0, 'status' => 'Paid', 'date' => '2026-10-09'];
+        $this->docs['payments/open'] = ['patient' => 'Juan Cruz', 'session' => 'Massage', 'fee' => 100.0, 'status' => 'Partial', 'date' => '2026-10-08'];
+
+        $this->actingAs($this->staff('admin'))->get('/billing')->assertOk()
+            ->assertDontSee('status-form-paid', false)
+            ->assertSee('status-form-open', false);
+
+        $this->from('/billing')->patch('/billing/paid/status', ['status' => 'Pending'])
+            ->assertRedirect('/billing')
+            ->assertSessionHasErrors('status');
+        $this->assertSame('Paid', $this->docs['payments/paid']['status']);
+
+        $this->patch('/billing/open/status', ['status' => 'Pending'])->assertSessionHasNoErrors();
+        $this->assertSame('Pending', $this->docs['payments/open']['status']);
+
+        $this->from('/billing')->followingRedirects()->patch('/billing/paid/status', ['status' => 'Pending'])
+            ->assertSee('already paid');
+    }
+
     public function test_payment_status_can_be_updated_and_deleted(): void
     {
         $this->actingAs($this->staff('admin'));
@@ -152,6 +211,43 @@ class RehabPlusConversionTest extends TestCase
         $this->patch('/billing/nope/status', ['status' => 'Paid'])->assertNotFound();
         $this->delete('/billing/a..b')->assertNotFound();
         $this->assertSame([], $this->commits);
+    }
+
+    public function test_stock_and_reorder_are_dropdowns_and_reject_other_values(): void
+    {
+        $this->actingAs($this->staff('admin'));
+
+        $this->get('/inventory')->assertOk()
+            ->assertSee('<select name="stock"', false)
+            ->assertSee('<select name="reorder"', false)
+            ->assertDontSee('type="number"', false);
+
+        $item = ['item' => 'Bands', 'category' => 'Gear', 'status' => 'In Stock'];
+        foreach ([['stock' => 201], ['stock' => -1], ['stock' => 'abc'], ['stock' => 1.5]] as $bad) {
+            $this->post('/inventory', $bad + $item)->assertSessionHasErrors('stock');
+        }
+        $this->post('/inventory', ['stock' => 5, 'reorder' => 9999] + $item)->assertSessionHasErrors('reorder');
+        $this->assertSame([], $this->docsLike('inventory/*'));
+
+        $this->post('/inventory', ['stock' => 200, 'reorder' => ''] + $item)->assertSessionHasNoErrors();
+        $this->assertNull(array_values($this->docsLike('inventory/*'))[0]['reorder']);
+    }
+
+    public function test_editing_an_item_keeps_a_number_above_the_dropdown_limit(): void
+    {
+        $this->actingAs($this->staff('admin'));
+        $this->docs['inventory/big'] = ['item' => 'Gloves', 'category' => 'Supplies', 'stock' => 750, 'reorder' => 300, 'status' => 'In Stock'];
+
+        $this->get('/inventory/big/edit')->assertOk()
+            ->assertSee('<option value="750" selected>750</option>', false)
+            ->assertSee('<option value="300" selected>300</option>', false);
+
+        $this->put('/inventory/big', ['item' => 'Gloves', 'category' => 'Supplies', 'stock' => 750, 'reorder' => 300, 'status' => 'Low Stock'])
+            ->assertSessionHasNoErrors();
+        $this->assertSame(750, $this->docs['inventory/big']['stock']);
+
+        $this->put('/inventory/big', ['item' => 'Gloves', 'category' => 'Supplies', 'stock' => 751, 'status' => 'Low Stock'])
+            ->assertSessionHasErrors('stock');
     }
 
     public function test_inventory_item_can_be_created_and_status_changed(): void

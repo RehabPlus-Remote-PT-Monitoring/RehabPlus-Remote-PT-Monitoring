@@ -12,6 +12,9 @@
     @if (session('success'))
         <div class="alert alert-success">{{ session('success') }}</div>
     @endif
+    @error('status')
+        <div class="alert alert-danger">{{ $message }}</div>
+    @enderror
 
     <div class="card shadow-sm mb-4 border-0">
         <div class="card-header">
@@ -105,7 +108,7 @@
     <div class="card shadow-sm">
         <div class="card-header d-flex justify-content-between align-items-center">
             <h5 class="mb-0">Recent payment activity</h5>
-            <button class="btn btn-outline-primary btn-sm" data-print>Printable receipts</button>
+            <button type="button" class="btn btn-outline-primary btn-sm" data-print @disabled($payments->isEmpty())><i class="bi bi-printer me-1"></i>Print all receipts</button>
         </div>
         <div class="card-body p-0">
             <div class="table-responsive">
@@ -122,21 +125,29 @@
                                 <td>
                                     <div id="status-view-{{ $payment->id }}">
                                         @switch($payment['status']) @case('Paid')<span class="badge bg-success-subtle text-success">Paid</span>@break @case('Pending')<span class="badge bg-warning-subtle text-warning">Pending</span>@break @default<span class="badge bg-info-subtle text-info">Partial</span>@endswitch
-                                        <button type="button" class="btn btn-sm btn-link p-0 ms-1" title="Edit status" data-hide="status-view-{{ $payment->id }}" data-show="status-form-{{ $payment->id }}"><i class="bi bi-pencil-square"></i> Edit</button>
+                                        {{-- A paid record's status is final, see PaymentService::updateStatus(). --}}
+                                        @if ($payment['status'] !== 'Paid')
+                                            <button type="button" class="btn btn-sm btn-link p-0 ms-1" title="Edit status" data-hide="status-view-{{ $payment->id }}" data-show="status-form-{{ $payment->id }}"><i class="bi bi-pencil-square"></i> Edit</button>
+                                        @endif
                                     </div>
-                                    <form id="status-form-{{ $payment->id }}" method="post" action="{{ route('billing.status', $payment->id) }}" class="d-flex gap-1 align-items-center" hidden>
-                                        @csrf @method('PATCH')
-                                        <select name="status" class="form-select form-select-sm w-auto">
-                                            @foreach (['Paid', 'Pending', 'Partial'] as $status)
-                                                <option value="{{ $status }}" @selected($payment['status'] === $status)>{{ $status }}</option>
-                                            @endforeach
-                                        </select>
-                                        <button type="submit" class="btn btn-sm btn-primary">Save</button>
-                                        <button type="button" class="btn btn-sm btn-outline-secondary" data-hide="status-form-{{ $payment->id }}" data-show="status-view-{{ $payment->id }}">Cancel</button>
-                                    </form>
+                                    @if ($payment['status'] !== 'Paid')
+                                        {{-- The flex classes stay on the inner div: on the form, d-flex would override hidden. --}}
+                                        <form id="status-form-{{ $payment->id }}" method="post" action="{{ route('billing.status', $payment->id) }}" hidden>
+                                            @csrf @method('PATCH')
+                                            <div class="d-flex gap-1 align-items-center">
+                                                <select name="status" class="form-select form-select-sm w-auto">
+                                                    @foreach (['Paid', 'Pending', 'Partial'] as $status)
+                                                        <option value="{{ $status }}" @selected($payment['status'] === $status)>{{ $status }}</option>
+                                                    @endforeach
+                                                </select>
+                                                <button type="submit" class="btn btn-sm btn-primary">Save</button>
+                                                <button type="button" class="btn btn-sm btn-outline-secondary" data-hide="status-form-{{ $payment->id }}" data-show="status-view-{{ $payment->id }}">Cancel</button>
+                                            </div>
+                                        </form>
+                                    @endif
                                 </td>
                                 <td>{{ $payment['date'] }}</td>
-                                <td class="text-end"><form method="post" action="{{ route('billing.delete', $payment->id) }}" class="d-inline" data-confirm="Delete this payment record?">@csrf @method('DELETE')<button type="submit" class="btn btn-sm btn-outline-danger">Delete</button></form></td>
+                                <td class="text-end"><button type="button" class="btn btn-sm btn-outline-primary me-1" data-print data-print-receipt="receipt-{{ $payment->id }}"><i class="bi bi-printer me-1"></i>Print</button><form method="post" action="{{ route('billing.delete', $payment->id) }}" class="d-inline" data-confirm="Delete this payment record?">@csrf @method('DELETE')<button type="submit" class="btn btn-sm btn-outline-danger">Delete</button></form></td>
                             </tr>
                         @empty
                             <tr><td colspan="6" class="text-center text-muted py-4">No payment records available.</td></tr>
@@ -147,3 +158,36 @@
         </div>
     </div>
 @endsection
+
+{{-- One page per payment, shown only when printing: a patient's copy never lists other patients. --}}
+@push('outside-page')
+    <div class="receipts">
+        @foreach ($payments as $payment)
+            @php($isPaid = $payment['status'] === 'Paid')
+            <article class="receipt" id="receipt-{{ $payment->id }}" data-receipt>
+                <header class="receipt-head">
+                    <div>
+                        <h1>{{ config('clinic.name') }}</h1>
+                        <p>{{ config('clinic.location') }}</p>
+                        <p>{{ config('clinic.phone') }} · {{ config('clinic.email') }}</p>
+                    </div>
+                    <div class="receipt-title">
+                        <h2>{{ $isPaid ? 'Payment Receipt' : 'Billing Statement' }}</h2>
+                        <p>No. {{ strtoupper(substr($payment->id, 0, 8)) }}</p>
+                    </div>
+                </header>
+                <dl class="receipt-details">
+                    <dt>Patient</dt><dd>{{ $payment['patient'] }}</dd>
+                    <dt>Session</dt><dd>{{ $payment['session'] }}</dd>
+                    <dt>Date</dt><dd>{{ rescue(fn () => \Carbon\CarbonImmutable::parse($payment['date'])->format('F j, Y'), $payment['date'], false) }}</dd>
+                    <dt>Status</dt><dd>{{ $payment['status'] }}</dd>
+                </dl>
+                <div class="receipt-total">
+                    <span>{{ $isPaid ? 'Amount paid' : 'Session fee' }}</span>
+                    <strong>₱{{ number_format((float) $payment['fee'], 2) }}</strong>
+                </div>
+                <footer class="receipt-foot">Printed {{ now()->format('F j, Y') }}</footer>
+            </article>
+        @endforeach
+    </div>
+@endpush

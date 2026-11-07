@@ -28,10 +28,11 @@
                         <option value="{{ $value }}" @selected($goal['status'] === $value)>{{ $label }}</option>
                     @endforeach
                 </select>
-                <div class="input-group input-group-sm" style="width:110px;">
-                    <input type="number" name="progress" class="form-control" min="0" max="100" value="{{ $goal['progress'] }}" aria-label="Progress percent">
-                    <span class="input-group-text">%</span>
-                </div>
+                <select name="progress" class="form-select form-select-sm" style="width:auto;" aria-label="Progress percent">
+                    @foreach (\App\Helpers\ClinicalValidation::progressChoices((int) $goal['progress']) as $percent)
+                        <option value="{{ $percent }}" @selected((int) $goal['progress'] === $percent)>{{ $percent }}%</option>
+                    @endforeach
+                </select>
                 <button class="btn btn-sm btn-outline-primary">Update</button>
             </form>
             <form method="POST" action="{{ route('records.delete', [$goal['patientUid'], 'goals', $goal['id']]) }}" data-confirm="Delete this goal?">

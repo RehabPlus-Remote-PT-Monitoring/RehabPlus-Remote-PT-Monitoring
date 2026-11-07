@@ -21,14 +21,30 @@ export function keepDigitsOnly(input) {
 }
 
 /*
+ * Keeps a percentage between 0 and 100 while it's typed (see the same input handler):
+ *
+ *   <input type="number" data-percent>   whole numbers only; anything above 100 becomes 100
+ */
+export function keepPercent(input) {
+    if (input.value === '') {
+        return;
+    }
+
+    const percent = String(Math.min(Math.trunc(Math.abs(Number(input.value))), 100));
+
+    if (input.value !== percent) {
+        input.value = percent;
+    }
+}
+
+/*
  * Phone fields: the country <select> decides how many digits the number has.
  * The option's data-max, data-digits and data-example come from App\Helpers\PhoneNumber.
  *
  *   <div data-phone-group>
- *     <span data-phone-iso></span>
+ *     <span data-phone-code></span>
  *     <select data-phone-country>...</select>
  *     <div data-phone-box>
- *       <span data-phone-dial></span>
  *       <input data-phone-number data-digits-only>
  *     </div>
  *     <div data-phone-error hidden></div>
@@ -39,12 +55,11 @@ export function keepDigitsOnly(input) {
 export const PHONE_FORMAT_MESSAGE = 'This phone number is either invalid or is in the wrong format.';
 export const PHONE_REQUIRED_MESSAGE = 'Enter a phone number.';
 
-/** Shows the selected country's short code on the picker and its dial code in the number box. */
-export function showPhoneCountry(select, iso, dial) {
+/** Shows the selected country's short and dial codes on the picker, like "PH +63". */
+export function showPhoneCountry(select, code) {
     const option = select.selectedOptions[0];
 
-    iso.textContent = option.value;
-    dial.textContent = `+${option.dataset.dial}`;
+    code.textContent = `${option.value} +${option.dataset.dial}`;
 }
 
 /** All one digit, or digits simply counting up or down, like 9999999999 or 9876543210. */

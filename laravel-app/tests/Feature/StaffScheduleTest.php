@@ -40,17 +40,17 @@ class StaffScheduleTest extends TestCase
         $this->post('/schedule/save', [
             'staff_id' => 'th1',
             'day' => $today,
-            'shift' => '08:00 - 15:00',
+            'shift' => '09:00 - 16:00',
             'room' => 'Room 3',
         ])->assertRedirect('/schedule');
 
         $shifts = array_values($this->docsLike('staffShifts/*'));
         $this->assertCount(1, $shifts);
-        $this->assertSame(['staffId' => 'th1', 'staff' => 'Dr. Real Therapist', 'role' => 'therapist', 'day' => $today, 'shift' => '08:00 - 15:00', 'room' => 'Room 3'],
+        $this->assertSame(['staffId' => 'th1', 'staff' => 'Dr. Real Therapist', 'role' => 'therapist', 'day' => $today, 'shift' => '09:00 - 16:00', 'room' => 'Room 3'],
             array_intersect_key($shifts[0], array_flip(['staffId', 'staff', 'role', 'day', 'shift', 'room'])));
         $this->assertArrayHasKey('createdAt', $shifts[0]);
 
-        $this->get('/schedule')->assertOk()->assertSee('08:00 - 15:00')->assertSee('Available');
+        $this->get('/schedule')->assertOk()->assertSee('09:00 - 16:00')->assertSee('Available');
     }
 
     public function test_role_comes_from_the_account_not_from_the_form(): void
@@ -60,7 +60,7 @@ class StaffScheduleTest extends TestCase
             'staff_id' => 'th1',
             'role' => 'admin',
             'day' => 'Monday',
-            'shift' => '08:00 - 12:00',
+            'shift' => '09:00 - 13:00',
             'room' => 'Room 4',
         ])->assertRedirect('/schedule');
 
@@ -77,7 +77,7 @@ class StaffScheduleTest extends TestCase
         $this->post('/schedule/save', [
             'staff_id' => 'stB',
             'day' => 'Monday',
-            'shift' => '10:00 - 14:00',
+            'shift' => '09:00 - 13:00',
             'room' => 'Room 1',
         ])->assertRedirect('/schedule')->assertSessionHas('error', fn (string $e) => str_contains($e, 'conflict'));
 
@@ -108,7 +108,7 @@ class StaffScheduleTest extends TestCase
             $this->post('/schedule/save', [
                 'staff_id' => $uid,
                 'day' => 'Monday',
-                'shift' => '08:00 - 12:00',
+                'shift' => '09:00 - 13:00',
                 'room' => 'Room 1',
             ])->assertRedirect('/schedule')->assertSessionHas('error', fn (string $e) => str_contains($e, 'Only active therapists'));
 
@@ -149,13 +149,72 @@ class StaffScheduleTest extends TestCase
         $this->post('/schedule/save', [
             'staff_id' => 'fd1',
             'day' => 'Tuesday',
-            'shift' => '09:00 - 17:00',
-            'room' => 'Reception',
+            'shift' => '09:00 - 18:00',
+            'room' => 'Room 2',
         ])->assertRedirect('/schedule')->assertSessionMissing('error');
 
         $shift = array_values($this->docsLike('staffShifts/*'))[0];
         $this->assertSame('therapist', $shift['role']);
         $this->assertCount(1, $this->docsLike('staffShifts/*'));
+    }
+
+    public function test_shift_and_room_are_dropdowns_with_five_rooms(): void
+    {
+        $response = $this->get('/schedule')->assertOk()
+            ->assertSee('<select name="shift"', false)
+            ->assertSee('<select name="room"', false)
+            ->assertSee('<select name="time"', false)
+            ->assertSee('<option value="Room 5"', false)
+            ->assertDontSee('<option value="Room 6"', false);
+
+        $this->assertSame(['Room 1', 'Room 2', 'Room 3', 'Room 4', 'Room 5'], config('clinic.rooms'));
+    }
+
+    public function test_shifts_and_rooms_must_come_from_the_lists(): void
+    {
+        $shift = ['staff_id' => 'th1', 'day' => 'Monday', 'shift' => '09:00 - 13:00', 'room' => 'Room 1'];
+
+        foreach ([['shift' => 'abc123'], ['shift' => '25:99 - 99:99'], ['room' => 'Room 6'], ['room' => 'asdf'], ['room' => '']] as $bad) {
+            $this->post('/schedule/save', $bad + $shift)->assertSessionHasErrors(array_key_first($bad));
+        }
+
+        $this->assertCount(0, $this->docsLike('staffShifts/*'));
+    }
+
+    public function test_time_off_date_must_be_a_real_date_near_today(): void
+    {
+        $off = ['staff_id' => 'th1', 'time_off_type' => 'Full day', 'reason' => 'Leave'];
+
+        foreach (['12345', 'not a date', '0002-01-01', '275760-09-13', Carbon::today()->addYears(2)->toDateString(), Carbon::today()->subYears(2)->toDateString()] as $date) {
+            $this->post('/schedule/time-off/save', ['date' => $date] + $off)->assertSessionHasErrors('date');
+        }
+
+        $this->assertCount(0, $this->docsLike('staffTimeOff/*'));
+    }
+
+    public function test_specific_time_off_needs_a_time_from_the_list(): void
+    {
+        $off = ['staff_id' => 'th1', 'date' => Carbon::today()->toDateString(), 'time_off_type' => 'Specific time', 'reason' => 'Clinic visit'];
+
+        $this->post('/schedule/time-off/save', $off)->assertSessionHasErrors('time');
+        $this->post('/schedule/time-off/save', ['time' => 'whenever'] + $off)->assertSessionHasErrors('time');
+        $this->assertCount(0, $this->docsLike('staffTimeOff/*'));
+
+        $this->post('/schedule/time-off/save', ['time' => '09:00 - 13:00'] + $off)->assertSessionHasNoErrors();
+        $this->assertSame('09:00 - 13:00', array_values($this->docsLike('staffTimeOff/*'))[0]['time']);
+    }
+
+    public function test_full_day_time_off_ignores_any_time(): void
+    {
+        $this->post('/schedule/time-off/save', [
+            'staff_id' => 'th1',
+            'date' => Carbon::today()->toDateString(),
+            'time_off_type' => 'Full day',
+            'time' => '09:00 - 13:00',
+            'reason' => 'Leave',
+        ])->assertSessionHasNoErrors();
+
+        $this->assertSame('Full day', array_values($this->docsLike('staffTimeOff/*'))[0]['time']);
     }
 
     public function test_time_off_marks_staff_on_leave(): void
