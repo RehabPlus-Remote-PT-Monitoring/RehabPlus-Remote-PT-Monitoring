@@ -26,10 +26,7 @@ class DefaultFirebaseOptions {
       case TargetPlatform.android:
         return android;
       case TargetPlatform.iOS:
-        throw UnsupportedError(
-          'DefaultFirebaseOptions have not been configured for ios - '
-          'you can reconfigure this by running the FlutterFire CLI again.',
-        );
+        return ios;
       case TargetPlatform.macOS:
         throw UnsupportedError(
           'DefaultFirebaseOptions have not been configured for macos - '
@@ -58,5 +55,16 @@ class DefaultFirebaseOptions {
     messagingSenderId: '756139475263',
     projectId: 'rehabplus-80675',
     storageBucket: 'rehabplus-80675.firebasestorage.app',
+  );
+
+  // iOS app registered in Firebase on 7 Nov 2026 for iPhone testing
+  // (`firebase apps:create ios`); values match ios/Runner/GoogleService-Info.plist.
+  static const FirebaseOptions ios = FirebaseOptions(
+    apiKey: 'AIzaSyAqJxmXfOnSvxo4Cd4yRhS-kXtaGAyFcd0',
+    appId: '1:756139475263:ios:59801258aba6d627cfd38a',
+    messagingSenderId: '756139475263',
+    projectId: 'rehabplus-80675',
+    storageBucket: 'rehabplus-80675.firebasestorage.app',
+    iosBundleId: 'com.rehabplus.app',
   );
 }

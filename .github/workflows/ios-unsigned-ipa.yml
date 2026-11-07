@@ -1,0 +1,58 @@
+# Builds an UNSIGNED iPhone app (RehabPlus-unsigned.ipa) on a GitHub macOS
+# runner, because a Flutter iOS build needs Xcode and nobody on the team has
+# a Mac.
+#
+# How to use it
+#   1. Push to the iphone-testing branch, or run it by hand:
+#      GitHub > Actions > "iOS unsigned IPA" > Run workflow.
+#   2. When the run is green, download the "RehabPlus-unsigned-ipa" artifact
+#      at the bottom of the run page (it is a .zip holding the .ipa).
+#   3. Sign + install it with your own free Apple ID through SideStore (on
+#      the iPhone) or Sideloadly / AltStore (from a computer). Free Apple ID
+#      installs expire after 7 days; re-sign the same .ipa to renew.
+#
+# Known limits with a free Apple ID: no push notifications (Apple doesn't
+# give free accounts the push entitlement), and the signer may change the
+# bundle ID, which is fine for Firebase sign-in/Firestore.
+name: iOS unsigned IPA
+
+on:
+  push:
+    branches: [iphone-testing]
+  workflow_dispatch:
+
+jobs:
+  build-ios:
+    runs-on: macos-latest
+    timeout-minutes: 60
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: subosito/flutter-action@v2
+        with:
+          channel: stable
+          cache: true
+
+      - name: Flutter version
+        run: flutter --version
+
+      - name: Get packages
+        run: flutter pub get
+
+      - name: Build iOS app (no code signing)
+        run: flutter build ios --release --no-codesign
+
+      # An .ipa is just a zip with the .app inside a folder named Payload.
+      - name: Package .ipa
+        run: |
+          mkdir -p build/ipa/Payload
+          cp -R build/ios/iphoneos/Runner.app build/ipa/Payload/
+          cd build/ipa
+          zip -qry RehabPlus-unsigned.ipa Payload
+          ls -lh RehabPlus-unsigned.ipa
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: RehabPlus-unsigned-ipa
+          path: build/ipa/RehabPlus-unsigned.ipa
+          retention-days: 14

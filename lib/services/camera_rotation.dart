@@ -37,11 +37,18 @@ int deviceRotationDegrees(DeviceOrientation orientation) =>
 ///
 /// The front camera's image is mirrored, so the device turn is added to the
 /// sensor angle; for the back camera it is subtracted.
+///
+/// On iOS ([isIOS]) the answer is always 0: the camera plugin
+/// (camera_avfoundation) already turns every frame upright for how the
+/// device is held, and ML Kit's iOS side ignores the rotation for raw bytes
+/// anyway. Reporting 0 also keeps the overlay's width/height un-swapped.
 InputImageRotation mlKitRotation({
   required int sensorOrientation,
   required bool isFrontCamera,
   required DeviceOrientation device,
+  bool isIOS = false,
 }) {
+  if (isIOS) return InputImageRotation.rotation0deg;
   final turn = deviceRotationDegrees(device);
   final degrees = isFrontCamera
       ? (sensorOrientation + turn) % 360
@@ -49,3 +56,13 @@ InputImageRotation mlKitRotation({
   return InputImageRotationValue.fromRawValue(degrees) ??
       InputImageRotation.rotation0deg;
 }
+
+/// Whether the skeleton must be flipped left-right to line up with the
+/// camera preview, before the patient's own "flip skeleton" setting.
+///
+/// Android: the preview of the front camera is mirrored on screen but the
+/// frames ML Kit sees are not, so the skeleton has to be flipped to match.
+/// iOS: camera_avfoundation mirrors the front camera's frames themselves
+/// (the same frames feed the preview), so they already line up.
+bool skeletonNeedsMirror({required bool isFrontCamera, required bool isIOS}) =>
+    isFrontCamera && !isIOS;

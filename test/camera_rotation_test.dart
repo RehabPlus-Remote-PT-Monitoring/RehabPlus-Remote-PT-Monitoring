@@ -80,4 +80,29 @@ void main() {
       );
     });
   });
+
+  group('iOS', () {
+    test('mlKitRotation is always 0: frames already arrive upright', () {
+      for (final front in [true, false]) {
+        for (final device in DeviceOrientation.values) {
+          expect(
+            mlKitRotation(
+              sensorOrientation: 90,
+              isFrontCamera: front,
+              device: device,
+              isIOS: true,
+            ),
+            InputImageRotation.rotation0deg,
+          );
+        }
+      }
+    });
+
+    test('skeletonNeedsMirror: only the Android front camera', () {
+      expect(skeletonNeedsMirror(isFrontCamera: true, isIOS: false), isTrue);
+      expect(skeletonNeedsMirror(isFrontCamera: false, isIOS: false), isFalse);
+      expect(skeletonNeedsMirror(isFrontCamera: true, isIOS: true), isFalse);
+      expect(skeletonNeedsMirror(isFrontCamera: false, isIOS: true), isFalse);
+    });
+  });
 }

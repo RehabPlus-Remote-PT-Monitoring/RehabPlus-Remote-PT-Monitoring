@@ -26,6 +26,19 @@
 	<string>$(FLUTTER_BUILD_NUMBER)</string>
 	<key>LSRequiresIPhoneOS</key>
 	<true/>
+	<!-- Permission texts iOS shows the patient. iOS kills the app outright
+	     if it asks for one of these without the matching text. -->
+	<key>NSCameraUsageDescription</key>
+	<string>RehabPlus uses the camera to track your body and count your exercise reps. The video stays on your phone.</string>
+	<key>NSPhotoLibraryUsageDescription</key>
+	<string>RehabPlus lets you choose a profile picture from your photos.</string>
+	<key>NSFaceIDUsageDescription</key>
+	<string>RehabPlus can use Face ID to unlock the app instead of your PIN.</string>
+	<!-- The "call clinic" button opens tel: links (messages_screen.dart). -->
+	<key>LSApplicationQueriesSchemes</key>
+	<array>
+		<string>tel</string>
+	</array>
 	<key>UIApplicationSceneManifest</key>
 	<dict>
 		<key>UIApplicationSupportsMultipleScenes</key>

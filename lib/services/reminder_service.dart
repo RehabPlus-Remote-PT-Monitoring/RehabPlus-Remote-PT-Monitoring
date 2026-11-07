@@ -63,6 +63,14 @@ class ReminderService {
     await _plugin.initialize(
       settings: const InitializationSettings(
         android: AndroidInitializationSettings('@mipmap/ic_launcher'),
+        // The plugin throws on iOS without Darwin settings. Permission is
+        // asked in schedule() instead, only when the patient turns the
+        // reminder on, not at startup.
+        iOS: DarwinInitializationSettings(
+          requestAlertPermission: false,
+          requestBadgePermission: false,
+          requestSoundPermission: false,
+        ),
       ),
     );
     _logger.info('ReminderService', 'Initialized', {
@@ -85,7 +93,14 @@ class ReminderService {
           .resolvePlatformSpecificImplementation<
             AndroidFlutterLocalNotificationsPlugin
           >();
-      final allowed = await android?.requestNotificationsPermission() ?? true;
+      final ios = _plugin
+          .resolvePlatformSpecificImplementation<
+            IOSFlutterLocalNotificationsPlugin
+          >();
+      final allowed =
+          await android?.requestNotificationsPermission() ??
+          await ios?.requestPermissions(alert: true, sound: true) ??
+          true;
       if (!allowed) {
         _logger.info('ReminderService', 'Reminder permission refused');
         return false;

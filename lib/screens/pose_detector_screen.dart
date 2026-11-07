@@ -40,6 +40,7 @@
 // Tuning knobs are all in the "TUNING" block below.
 
 import 'dart:async';
+import 'dart:io' show Platform;
 import 'dart:math';
 import 'dart:typed_data';
 
@@ -606,9 +607,14 @@ class _PoseDetectorScreenState extends State<PoseDetectorScreen>
         orElse: () => _availableCameras.first,
       );
       _lensDirection = camera.lensDirection;
-      // Front camera previews are mirrored; Settings can flip that default.
+      // Front camera previews are mirrored (on Android only the preview, on
+      // iOS the frames too; see skeletonNeedsMirror). Settings can flip
+      // that default.
       _mirrorSkeleton =
-          (_lensDirection == CameraLensDirection.front) !=
+          skeletonNeedsMirror(
+            isFrontCamera: _lensDirection == CameraLensDirection.front,
+            isIOS: Platform.isIOS,
+          ) !=
           _settings.flipSkeleton;
 
       controller = CameraController(
@@ -616,7 +622,11 @@ class _PoseDetectorScreenState extends State<PoseDetectorScreen>
         ResolutionPreset.low,
         enableAudio: false,
         fps: _useFpsCap ? _cameraFps : null,
-        imageFormatGroup: ImageFormatGroup.nv21,
+        // NV21 is Android-only; iOS cameras deliver BGRA, which is what
+        // ML Kit's iOS side expects for raw bytes.
+        imageFormatGroup: Platform.isIOS
+            ? ImageFormatGroup.bgra8888
+            : ImageFormatGroup.nv21,
       );
       _cameraController = controller;
 
@@ -650,7 +660,7 @@ class _PoseDetectorScreenState extends State<PoseDetectorScreen>
         'lens': camera.lensDirection.name,
         'sensorOrientation': camera.sensorOrientation,
         'preset': 'low',
-        'requestedFormat': 'nv21',
+        'requestedFormat': Platform.isIOS ? 'bgra8888' : 'nv21',
         'requestedFps': _useFpsCap ? _cameraFps : null,
         'preview': _resolutionLabel,
         'cameras': _availableCameras.length,
@@ -2574,6 +2584,7 @@ class _PoseDetectorScreenState extends State<PoseDetectorScreen>
       sensorOrientation: camera.sensorOrientation,
       isFrontCamera: camera.lensDirection == CameraLensDirection.front,
       device: device,
+      isIOS: Platform.isIOS,
     );
     if (rotation != _lastLoggedRotation) {
       _lastLoggedRotation = rotation;
@@ -2586,7 +2597,7 @@ class _PoseDetectorScreenState extends State<PoseDetectorScreen>
     }
     final format =
         InputImageFormatValue.fromRawValue(image.format.raw) ??
-        InputImageFormat.nv21;
+        (Platform.isIOS ? InputImageFormat.bgra8888 : InputImageFormat.nv21);
 
     // Android + ImageFormatGroup.nv21 delivers ONE plane holding the whole
     // NV21 frame (camera_android_camerax converts it natively), so its bytes
