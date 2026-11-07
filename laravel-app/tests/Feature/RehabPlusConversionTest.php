@@ -314,6 +314,13 @@ class RehabPlusConversionTest extends TestCase
         $this->assertArrayHasKey('payments/paid', $this->docs);
     }
 
+    public function test_theme_button_has_both_icons_so_the_stylesheet_can_pick_before_paint(): void
+    {
+        $this->actingAs($this->staff('admin'))->get('/billing')->assertOk()
+            ->assertSee('bi-moon-fill theme-icon-light', false)
+            ->assertSee('bi-sun-fill theme-icon-dark', false);
+    }
+
     public function test_add_payment_starts_on_pending(): void
     {
         $this->actingAs($this->staff('admin'))->get('/billing')->assertOk()

@@ -59,7 +59,9 @@
             @endif
 
             <button type="button" class="theme-toggle" id="themeToggle" title="Toggle dark mode" aria-label="Toggle dark mode">
-                <i class="bi bi-moon-fill"></i>
+                {{-- The stylesheet shows the one for the current theme, so it's right before the page paints. --}}
+                <i class="bi bi-moon-fill theme-icon-light"></i>
+                <i class="bi bi-sun-fill theme-icon-dark"></i>
             </button>
 
             <div class="user-chip" title="{{ $viewer['name'] ?? '' }}">

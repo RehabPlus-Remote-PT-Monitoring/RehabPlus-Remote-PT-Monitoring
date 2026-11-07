@@ -97,9 +97,6 @@ const applyTheme = (dark) => {
     if (themeColor) {
         themeColor.content = dark ? '#10172a' : '#f6f8fb';
     }
-    themeToggle.innerHTML = dark
-        ? '<i class="bi bi-sun-fill"></i>'
-        : '<i class="bi bi-moon-fill"></i>';
 };
 
 if (themeToggle) {

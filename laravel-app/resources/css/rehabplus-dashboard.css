@@ -491,6 +491,16 @@ html.dark-mode{
             justify-content:center;
         }
 
+        /* Moon in light mode, sun in dark mode. */
+        .theme-toggle .theme-icon-dark,
+        html.dark-mode .theme-toggle .theme-icon-light{
+            display:none;
+        }
+
+        html.dark-mode .theme-toggle .theme-icon-dark{
+            display:inline-block;
+        }
+
         /* Physical therapists' bell: a round button with a count, and a panel of upcoming appointments. */
         .appt-alerts{
             position:relative;
