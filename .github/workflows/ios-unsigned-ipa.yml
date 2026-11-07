@@ -40,7 +40,17 @@ jobs:
         run: flutter pub get
 
       - name: Build iOS app (no code signing)
-        run: flutter build ios --release --no-codesign
+        # Xcode's own error lines are hidden by Flutter unless verbose; the
+        # grep keeps the log readable while still showing them on failure.
+        run: |
+          flutter build ios --release --no-codesign -v > build-ios.log 2>&1 || {
+            echo '---- Xcode errors ----'
+            grep -E 'error:|requires a development team|Signing for' build-ios.log | sort -u | head -40
+            echo '---- end of log ----'
+            tail -60 build-ios.log
+            exit 1
+          }
+          tail -5 build-ios.log
 
       # An .ipa is just a zip with the .app inside a folder named Payload.
       - name: Package .ipa
