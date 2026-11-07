@@ -7,13 +7,6 @@
     <div class="d-flex flex-wrap justify-content-between align-items-center gap-3 mb-4">
         <div>
             <p class="page-title mb-1">{{ $showArchived ? 'Archived Patients' : 'Patients' }}</p>
-            <p class="page-subtitle mb-0">
-                @if ($me->isTherapist())
-                    Patients assigned to you. They sign in to the RehabPlus app with the email shown here.
-                @else
-                    Every patient registered with the clinic. They sign in to the RehabPlus app with the email shown here.
-                @endif
-            </p>
         </div>
         <div class="d-flex flex-wrap gap-2">
             @if ($showArchived)

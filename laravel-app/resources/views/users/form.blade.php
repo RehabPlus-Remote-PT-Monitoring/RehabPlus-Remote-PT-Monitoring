@@ -14,7 +14,9 @@
     <div class="mb-3">
         <a href="{{ route('users.index') }}" class="back-link text-decoration-none small"><i class="bi bi-arrow-left me-1"></i>Back to staff accounts</a>
         <p class="page-title mb-1 mt-1">{{ $user ? 'Edit '.$user['name'] : 'New Staff Account' }}</p>
-        <p class="page-subtitle mb-0">{{ $user ? $user['email'] : 'Creates a login for the clinic dashboard.' }}</p>
+        @if ($user)
+            <p class="page-subtitle mb-0">{{ $user['email'] }}</p>
+        @endif
     </div>
 
     @include('partials.flash')

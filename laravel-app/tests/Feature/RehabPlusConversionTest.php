@@ -62,9 +62,57 @@ class RehabPlusConversionTest extends TestCase
         $this->actingAs($this->staff('admin'))->get('/billing')->assertOk()->assertSee('₱0.00');
     }
 
+    public function test_billing_form_only_offers_patients_with_appointments(): void
+    {
+        $this->patientDoc('pat1', ['name' => 'Maria Santos']);
+        $this->patientDoc('pat2', ['name' => 'No Appointments']);
+        $this->docs['appointments/a1'] = ['patient' => 'Maria Santos', 'session' => 'Physical Therapy'];
+        $this->docs['appointments/a2'] = ['patient' => ' maria santos ', 'session' => 'physical therapy'];
+        $this->docs['appointments/a3'] = ['patient' => 'Maria Santos', 'session' => 'Massage'];
+        $this->docs['appointments/a4'] = ['patient' => 'Typed Walk-in', 'session' => 'Assessment'];
+
+        $response = $this->actingAs($this->staff('admin'))->get('/billing')->assertOk()
+            ->assertDontSee('No Appointments');
+
+        $this->assertSame([
+            ['name' => 'Maria Santos', 'sessions' => ['Massage', 'Physical Therapy']],
+            ['name' => 'Typed Walk-in', 'sessions' => ['Assessment']],
+        ], $response->viewData('billablePatients'));
+    }
+
+    public function test_therapists_only_get_patients_from_their_own_appointments(): void
+    {
+        $this->docs['appointments/a1'] = ['patient' => 'Mine', 'session' => 'Massage', 'therapistId' => 'th1'];
+        $this->docs['appointments/a2'] = ['patient' => 'Theirs', 'session' => 'Massage', 'therapistId' => 'th2'];
+
+        $response = $this->actingAs($this->staff('therapist', 'th1'))->get('/billing')->assertOk();
+
+        $this->assertSame([['name' => 'Mine', 'sessions' => ['Massage']]], $response->viewData('billablePatients'));
+
+        $this->post('/billing', ['patient' => 'Theirs', 'session' => 'Massage', 'fee' => '100', 'status' => 'Paid', 'date' => '2026-10-09'])
+            ->assertSessionHasErrors('patient');
+    }
+
+    public function test_billing_only_accepts_a_patient_with_an_appointment_and_their_own_session(): void
+    {
+        $this->patientDoc('pat1', ['name' => 'No Appointments']);
+        $this->docs['appointments/a1'] = ['patient' => 'Maria Santos', 'session' => 'Physical Therapy'];
+        $this->docs['appointments/a2'] = ['patient' => 'Juan Cruz', 'session' => 'Massage'];
+        $this->actingAs($this->staff('admin'));
+        $payment = ['fee' => '100', 'status' => 'Paid', 'date' => '2026-10-09'];
+
+        $this->post('/billing', ['patient' => 'No Appointments', 'session' => 'Physical Therapy'] + $payment)
+            ->assertSessionHasErrors('patient');
+        $this->post('/billing', ['patient' => 'Juan Cruz', 'session' => 'Physical Therapy'] + $payment)
+            ->assertSessionHasErrors('session');
+
+        $this->assertSame([], $this->docsLike('payments/*'));
+    }
+
     public function test_payment_record_can_be_created(): void
     {
         $this->actingAs($this->staff('admin'));
+        $this->docs['appointments/a1'] = ['patient' => 'Maria Santos', 'session' => 'Physical Therapy'];
 
         $this->post('/billing', [
             'patient' => 'Maria Santos',

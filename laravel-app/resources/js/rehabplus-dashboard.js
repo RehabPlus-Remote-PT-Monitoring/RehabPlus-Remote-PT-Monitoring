@@ -4,6 +4,7 @@ import { dismissFlashMessages } from './flash-messages.js';
 import { applyPhoneLimits, keepDigitsOnly, refreshPhoneProblem, showPhoneCountry, syncPhoneValidity } from './input-masks.js';
 import { initPatientPickers } from './patient-picker.js';
 import { applyRoleDefaults } from './role-defaults.js';
+import { initSessionPickers } from './session-picker.js';
 import { dragOffset, swipeCloses, swipeGesture } from './swipe.js';
 
 dismissFlashMessages();
@@ -322,6 +323,7 @@ function applyPhoneField(select) {
 document.querySelectorAll('[data-phone-country]').forEach(applyPhoneField);
 
 initPatientPickers();
+initSessionPickers();
 
 document.addEventListener('click', (event) => {
     const button = event.target.closest?.('[data-copy-password]');

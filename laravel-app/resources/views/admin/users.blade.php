@@ -7,13 +7,6 @@
     <div class="d-flex flex-wrap justify-content-between align-items-start gap-3 mb-4">
         <div>
             <p class="page-title mb-1">{{ $showArchived ? 'Archived Staff' : 'Staff Accounts' }}</p>
-            <p class="page-subtitle mb-0">
-                @if ($showArchived)
-                    Archived accounts can't sign in and aren't on the staff list. Restore one, or delete it for good.
-                @else
-                    Dashboard logins for clinic staff. Patients get their app login when they're added on the <a href="{{ route('patients.index') }}">Patients</a> page.
-                @endif
-            </p>
         </div>
         <div class="d-flex flex-wrap gap-2">
             @if ($showArchived)

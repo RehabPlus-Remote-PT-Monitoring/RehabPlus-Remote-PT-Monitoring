@@ -14,14 +14,14 @@ class PaymentController extends Controller
     {
     }
 
-    public function index(): View
+    public function index(Request $request): View
     {
-        return view('admin.billing', $this->payments->overview());
+        return view('admin.billing', $this->payments->overview($request->user()));
     }
 
     public function store(Request $request): RedirectResponse
     {
-        $this->payments->create(PaymentValidation::payment($request));
+        $this->payments->create($request->user(), PaymentValidation::payment($request));
 
         return redirect()->route('billing')->with('success', 'Payment record added successfully.');
     }

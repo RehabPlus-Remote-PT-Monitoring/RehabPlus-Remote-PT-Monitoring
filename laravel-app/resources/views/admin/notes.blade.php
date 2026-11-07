@@ -7,7 +7,6 @@
     <div class="d-flex justify-content-between align-items-center mb-4">
         <div>
             <p class="page-title mb-1">Therapy Notes &amp; Care Plans</p>
-            <p class="page-subtitle mb-0">Progress notes for {{ auth()->user()->isTherapist() ? 'your' : 'all' }} patients. Notes are visible to clinic staff only, not in the patient's app.</p>
         </div>
     </div>
 

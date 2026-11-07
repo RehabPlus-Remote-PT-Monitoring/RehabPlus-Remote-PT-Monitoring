@@ -6,7 +6,6 @@
     <div class="d-flex justify-content-between align-items-center mb-4">
         <div>
             <p class="page-title mb-1">Billing and Payment Records</p>
-            <p class="page-subtitle mb-0">Track session fees, balances, payment activity, and printable receipts.</p>
         </div>
     </div>
 
@@ -22,8 +21,28 @@
             <form method="post" action="{{ route('billing.store') }}">
                 @csrf
                 <div class="row g-3">
-                    <div class="col-md-3"><label class="form-label small fw-semibold">Patient</label><input type="text" name="patient" class="form-control" placeholder="Patient name" required></div>
-                    <div class="col-md-3"><label class="form-label small fw-semibold">Session</label><input type="text" name="session" class="form-control" placeholder="Session type" required></div>
+                    <div class="col-md-3">
+                        <label for="billing_patient" class="form-label small fw-semibold">Patient</label>
+                        <select id="billing_patient" name="patient" class="form-select @error('patient') is-invalid @enderror" data-session-patient required>
+                            <option value="">{{ $billablePatients ? 'Select patient' : 'No patients with appointments yet' }}</option>
+                            @foreach ($billablePatients as $patient)
+                                <option value="{{ $patient['name'] }}" data-sessions="{{ json_encode($patient['sessions']) }}" @selected(old('patient') === $patient['name'])>{{ $patient['name'] }}</option>
+                            @endforeach
+                        </select>
+                        @error('patient')
+                            <div class="invalid-feedback">{{ $message }}</div>
+                        @enderror
+                    </div>
+                    <div class="col-md-3">
+                        <label for="billing_session" class="form-label small fw-semibold">Session</label>
+                        {{-- Filled with the chosen patient's session types, see session-picker.js. --}}
+                        <select id="billing_session" name="session" class="form-select @error('session') is-invalid @enderror" data-session-select data-selected="{{ old('session') }}" required disabled>
+                            <option value="">Select a patient first</option>
+                        </select>
+                        @error('session')
+                            <div class="invalid-feedback">{{ $message }}</div>
+                        @enderror
+                    </div>
                     <div class="col-md-2"><label class="form-label small fw-semibold">Fee</label><input type="number" name="fee" step="0.01" class="form-control" placeholder="₱120.00" required></div>
                     <div class="col-md-2"><label class="form-label small fw-semibold">Status</label><select name="status" class="form-select"><option value="Paid">Paid</option><option value="Pending">Pending</option><option value="Partial">Partial</option></select></div>
                     <div class="col-md-2"><label class="form-label small fw-semibold">Date</label><input type="date" name="date" class="form-control" required></div>

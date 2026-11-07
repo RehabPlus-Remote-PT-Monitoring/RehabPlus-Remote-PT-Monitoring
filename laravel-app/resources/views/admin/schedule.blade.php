@@ -4,7 +4,7 @@
 
 @section('content')
     <div class="d-flex justify-content-between align-items-center mb-4">
-        <div><p class="page-title mb-1">Staff Schedule</p><p class="page-subtitle mb-0">Plan staffing coverage, shift assignments, and clinic room usage.</p></div>
+        <div><p class="page-title mb-1">Staff Schedule</p></div>
     </div>
 
     @if (session('success'))

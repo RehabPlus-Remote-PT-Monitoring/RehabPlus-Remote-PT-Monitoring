@@ -4,7 +4,7 @@
 
 @section('content')
     <div class="d-flex justify-content-between align-items-center mb-4">
-        <div><p class="page-title mb-1">Appointments</p><p class="page-subtitle mb-0">Manage scheduled patient appointments and sessions.</p></div>
+        <div><p class="page-title mb-1">Appointments</p></div>
         <a href="{{ route('appointments.create') }}" class="btn btn-primary"><i class="bi bi-plus-lg me-1"></i>Schedule Appointment</a>
     </div>
 

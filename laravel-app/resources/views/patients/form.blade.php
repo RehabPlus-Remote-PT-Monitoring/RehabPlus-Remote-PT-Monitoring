@@ -9,13 +9,6 @@
             <i class="bi bi-arrow-left me-1"></i>{{ $patient ? 'Back to patient' : 'Back to patients' }}
         </a>
         <p class="page-title mb-1 mt-1">{{ $patient ? 'Edit '.$patient['name'] : 'Add Patient' }}</p>
-        <p class="page-subtitle mb-0">
-            @if ($patient)
-                Changes show in the patient's app the next time it loads.
-            @else
-                This also creates the patient's RehabPlus app login.
-            @endif
-        </p>
     </div>
 
     @include('partials.flash')

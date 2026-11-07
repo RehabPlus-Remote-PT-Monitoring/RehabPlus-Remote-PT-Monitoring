@@ -11,7 +11,6 @@
     <div class="mb-3">
         <a href="{{ route('patients.show', $patient['uid']) }}" class="back-link text-decoration-none small"><i class="bi bi-arrow-left me-1"></i>Back to {{ $patient['name'] }}</a>
         <p class="page-title mb-1 mt-1">{{ $rx ? 'Edit '.$rx['exerciseName'] : 'Assign Exercise' }}</p>
-        <p class="page-subtitle mb-0">For {{ $patient['name'] }}. The app tracks the exercise with the camera and counts reps.</p>
     </div>
 
     @include('partials.flash')

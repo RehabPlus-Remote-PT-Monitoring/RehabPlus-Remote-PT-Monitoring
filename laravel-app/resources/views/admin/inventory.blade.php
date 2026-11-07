@@ -6,7 +6,6 @@
     <div class="d-flex justify-content-between align-items-center mb-4">
         <div>
             <p class="page-title mb-1">Inventory and Supplies</p>
-            <p class="page-subtitle mb-0">Track equipment, supplies, stock levels, and restock needs.</p>
         </div>
     </div>
 

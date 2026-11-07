@@ -7,13 +7,6 @@
     <div class="d-flex justify-content-between align-items-center mb-4">
         <div>
             <p class="page-title mb-1">Assessments &amp; Goals</p>
-            <p class="page-subtitle mb-0">
-                @if ($focusPatient)
-                    Evaluation scores and treatment goals for <a href="{{ route('patients.show', $focusPatient['uid']) }}">{{ $focusPatient['name'] }}</a>.
-                @else
-                    Evaluation scores and treatment goals for {{ auth()->user()->isTherapist() ? 'your' : 'all' }} patients.
-                @endif
-            </p>
         </div>
         @if ($patients)
             <form method="GET" action="{{ route('assessments') }}" class="d-flex gap-2 align-items-center">

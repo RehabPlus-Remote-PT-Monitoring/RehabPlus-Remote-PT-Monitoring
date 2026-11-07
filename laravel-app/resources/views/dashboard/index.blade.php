@@ -6,7 +6,6 @@
     <div class="d-flex justify-content-between align-items-center mb-4">
         <div>
             <h2 class="page-title mb-1">RehabPlus Dashboard</h2>
-            <p class="page-subtitle mb-0">Physical Therapy Recovery Monitoring</p>
         </div>
 
         <div class="d-flex flex-wrap gap-2">

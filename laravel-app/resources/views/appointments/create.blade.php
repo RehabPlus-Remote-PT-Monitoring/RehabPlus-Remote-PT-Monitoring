@@ -12,9 +12,6 @@
             <i class="bi bi-arrow-left me-1"></i>Back to appointments
         </a>
         <p class="page-title mb-1 mt-1">{{ $appointment ? 'Edit Appointment' : 'Schedule Appointment' }}</p>
-        <p class="page-subtitle mb-0">
-            {{ $appointment ? 'Update the details of this session.' : 'Book a session for a patient with a physical therapist.' }}
-        </p>
     </div>
 
     @include('partials.flash')

@@ -6,13 +6,6 @@
     <div class="d-flex justify-content-between align-items-center mb-4">
         <div>
             <p class="page-title mb-1">Messages</p>
-            <p class="page-subtitle mb-0">
-                @if ($thread === 'therapist')
-                    Conversations with your patients from the RehabPlus app.
-                @else
-                    Clinic inbox: appointment and home-visit requests and app questions from patients.
-                @endif
-            </p>
         </div>
         <a href="{{ route('messages.index', $archived ? ['archived' => 1] : []) }}" class="btn btn-outline-secondary"><i class="bi bi-arrow-clockwise me-1"></i>Refresh</a>
     </div>

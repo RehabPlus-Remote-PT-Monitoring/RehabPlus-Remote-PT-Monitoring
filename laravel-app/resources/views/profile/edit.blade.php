@@ -6,7 +6,6 @@
     @php($initial = strtoupper(mb_substr($user['name'] ?: '?', 0, 1)))
     <div class="mb-3">
         <p class="page-title mb-1">My Profile</p>
-        <p class="page-subtitle mb-0">Your name, picture, and contact details show on the website's team section.</p>
     </div>
 
     @include('partials.flash')
