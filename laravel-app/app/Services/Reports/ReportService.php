@@ -7,6 +7,7 @@ use App\Services\Clinic\ClinicRecord;
 use App\Services\Clinic\ClinicStore;
 use App\Services\Dashboard\DashboardOverviewService;
 use App\Services\Dashboard\PatientStatisticsService;
+use App\Services\User\UserService;
 use App\Services\Firebase\FirebaseTransport;
 use App\Services\Patient\ClinicalRecordService;
 use App\Services\Patient\PatientProgress;
@@ -40,6 +41,7 @@ class ReportService
         private ClinicStore $store,
         private PatientStatisticsService $patientStatistics,
         private FirebaseTransport $firebase,
+        private UserService $users,
     ) {
     }
 
@@ -63,6 +65,7 @@ class ReportService
         // Round 1: everything that doesn't depend on the patient list.
         $first = $this->firebase->concurrently(array_filter([
             'patients' => fn () => $this->patients->visible($user, includeArchived: true),
+            'therapists' => $shows('patients') ? fn () => $this->users->therapists() : null,
             'appointments' => $shows('appointments') ? fn () => $this->store->all(ClinicStore::APPOINTMENTS) : null,
             'payments' => $shows('billing') ? fn () => $this->store->all(ClinicStore::PAYMENTS) : null,
             'sessions' => $user->isTherapist() ? null : fn () => $this->progress->sessionsByPatient(),
@@ -93,7 +96,7 @@ class ReportService
             'appointments' => $shows('appointments') ? $this->appointmentSummary($first['appointments'], $range) : null,
             'billing' => $shows('billing') ? $this->billingSummary($first['payments'], $range) : null,
             'goals' => $shows('goals') ? $this->goalSummary($second['goals'], $range) : null,
-            'patients' => $shows('patients') ? $this->patientStatistics->build($request, $allPatients) : null,
+            'patients' => $shows('patients') ? $this->patientStatistics->build($request, $allPatients, array_values(array_unique(array_column($first['therapists'], 'name')))) : null,
         ];
     }
 

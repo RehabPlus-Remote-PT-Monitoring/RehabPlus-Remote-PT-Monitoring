@@ -19,8 +19,9 @@ class PatientStatisticsService
      * Everything the "Patient registrations" section and the exports need.
      *
      * @param  array  $patients  presented patients, archived ones included
+     * @param  list<string>  $therapistNames  the filter's choices: the current therapist accounts
      */
-    public function build(Request $request, array $patients): array
+    public function build(Request $request, array $patients, array $therapistNames = []): array
     {
         $filters = $this->resolveFilters($request);
         $range = $this->dateRange($request);
@@ -38,7 +39,7 @@ class PatientStatisticsService
             'selected' => $selected,
             'recentPatients' => $this->paginate($selected, 10, $request),
             'conditionOptions' => $this->distinct($all, 'condition'),
-            'therapistOptions' => $this->distinct($all, 'assigned_to'),
+            'therapistOptions' => $therapistNames,
         ];
     }
 

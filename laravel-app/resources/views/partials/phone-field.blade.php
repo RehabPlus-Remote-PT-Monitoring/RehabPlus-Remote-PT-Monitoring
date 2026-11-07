@@ -1,6 +1,6 @@
 {{-- Phone number with a country code. Needs $field (input name), $label, $country (ISO code), $number, $initial (null for new records) and $required. --}}
 @php($countries = \App\Helpers\PhoneNumber::countries())
-@php($selected = collect($countries)->firstWhere('iso', $country) ?? $countries[0])
+@php($selected = collect($countries)->firstWhere('iso', $country) ?? collect($countries)->firstWhere('iso', \App\Helpers\PhoneNumber::DEFAULT_COUNTRY))
 <div class="col-md-6" data-phone-group>
     <label for="{{ $field }}" class="form-label small fw-semibold">{{ $label }}</label>
     <div class="phone-field">
@@ -9,7 +9,7 @@
             <span data-phone-code>{{ $selected['iso'] }} +{{ $selected['dial'] }}</span>
             <select name="{{ $field }}_country" data-phone-country aria-label="Country code">
                 @foreach ($countries as $c)
-                    <option value="{{ $c['iso'] }}" data-dial="{{ $c['dial'] }}" data-min="{{ $c['min'] }}" data-max="{{ $c['max'] }}" data-digits="{{ $c['digits'] }}" data-example="{{ $c['example'] }}" data-pattern="{{ $c['pattern'] }}" @selected($selected['iso'] === $c['iso'])>+{{ $c['dial'] }} {{ $c['name'] }}</option>
+                    <option value="{{ $c['iso'] }}" data-dial="{{ $c['dial'] }}" data-min="{{ $c['min'] }}" data-max="{{ $c['max'] }}" data-digits="{{ $c['digits'] }}" data-example="{{ $c['example'] }}" data-pattern="{{ $c['pattern'] }}" @selected($selected['iso'] === $c['iso'])>{{ $c['name'] }} (+{{ $c['dial'] }})</option>
                 @endforeach
             </select>
         </div>

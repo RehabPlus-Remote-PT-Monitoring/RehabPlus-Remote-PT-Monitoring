@@ -43,7 +43,8 @@ class AppointmentTest extends TestCase
         $this->docs['appointments/done'] = ['patient' => 'Done Patient', 'therapistId' => 'thA', 'therapist' => 'Dr. Ana', 'date' => $tomorrow, 'time' => '11:00 AM', 'session' => 'Hip', 'status' => 'Completed'];
 
         $this->actingAs($this->staff('therapist', 'thA', 'Dr. Ana'))->get('/dashboard')->assertOk()
-            ->assertSee('appt-alerts-count')
+            ->assertSee('data-appt-alert-id="mine"', false)
+            ->assertDontSee('data-appt-alert-id="done"', false)
             ->assertSee('Kesh Mine')
             ->assertDontSee('Other Patient')
             ->assertDontSee('Done Patient');
@@ -195,5 +196,16 @@ class AppointmentTest extends TestCase
         Http::fake(fn () => Http::failedConnection());
 
         $this->get('/appointments')->assertStatus(503)->assertSee('Could not reach Firebase');
+    }
+
+    public function test_appointment_date_cannot_be_random(): void
+    {
+        $this->actingAs($this->staff('admin'));
+
+        foreach (['12345', '0002-01-01', '275760-07-05', now()->addYears(3)->toDateString(), now()->subYears(6)->toDateString()] as $date) {
+            $this->post('/appointments', $this->form(['date' => $date]))->assertSessionHasErrors('date');
+        }
+
+        $this->assertSame([], $this->docsLike('appointments/*'));
     }
 }

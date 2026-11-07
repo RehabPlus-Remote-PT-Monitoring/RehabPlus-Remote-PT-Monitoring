@@ -522,6 +522,10 @@ html.dark-mode{
             text-align:center;
         }
 
+        .appt-alerts-count[hidden]{
+            display:none;
+        }
+
         .appt-alerts-panel{
             position:absolute;
             right:0;

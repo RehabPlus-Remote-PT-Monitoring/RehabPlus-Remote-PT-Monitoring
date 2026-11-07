@@ -21,7 +21,7 @@
             <h5 class="mb-0">Add payment record</h5>
         </div>
         <div class="card-body">
-            <form method="post" action="{{ route('billing.store') }}">
+            <form method="post" action="{{ route('billing.store') }}" data-confirm="Mark this payment as paid? It can't be changed or deleted afterward." data-confirm-if-field="status" data-confirm-if-value="Paid">
                 @csrf
                 <div class="row g-3">
                     <div class="col-md-3">
@@ -47,8 +47,8 @@
                         @enderror
                     </div>
                     <div class="col-md-2"><label class="form-label small fw-semibold">Fee</label><input type="number" name="fee" step="0.01" class="form-control" placeholder="₱120.00" required></div>
-                    <div class="col-md-2"><label class="form-label small fw-semibold">Status</label><select name="status" class="form-select"><option value="Paid">Paid</option><option value="Pending">Pending</option><option value="Partial">Partial</option></select></div>
-                    <div class="col-md-2"><label class="form-label small fw-semibold">Date</label><input type="date" name="date" class="form-control" required></div>
+                    <div class="col-md-2"><label class="form-label small fw-semibold">Status</label><select name="status" class="form-select">@foreach (['Pending', 'Partial', 'Paid'] as $choice)<option value="{{ $choice }}" @selected(old('status', 'Pending') === $choice)>{{ $choice }}</option>@endforeach</select></div>
+                    <div class="col-md-2"><label class="form-label small fw-semibold">Date</label>@php($paymentDates = \App\Helpers\PaymentValidation::dates())<input type="date" name="date" class="form-control" min="{{ $paymentDates['min'] }}" max="{{ $paymentDates['max'] }}" value="{{ old('date') }}" data-calendar-only required></div>
                     <div class="col-12 text-end"><button type="submit" class="btn btn-primary">Add payment</button></div>
                 </div>
             </form>
@@ -132,7 +132,7 @@
                                     </div>
                                     @if ($payment['status'] !== 'Paid')
                                         {{-- The flex classes stay on the inner div: on the form, d-flex would override hidden. --}}
-                                        <form id="status-form-{{ $payment->id }}" method="post" action="{{ route('billing.status', $payment->id) }}" hidden>
+                                        <form id="status-form-{{ $payment->id }}" method="post" action="{{ route('billing.status', $payment->id) }}" data-confirm="Mark this payment as paid? It can't be changed or deleted afterward." data-confirm-if-field="status" data-confirm-if-value="Paid" hidden>
                                             @csrf @method('PATCH')
                                             <div class="d-flex gap-1 align-items-center">
                                                 <select name="status" class="form-select form-select-sm w-auto">
@@ -147,7 +147,7 @@
                                     @endif
                                 </td>
                                 <td>{{ $payment['date'] }}</td>
-                                <td class="text-end"><button type="button" class="btn btn-sm btn-outline-primary me-1" data-print data-print-receipt="receipt-{{ $payment->id }}"><i class="bi bi-printer me-1"></i>Print</button><form method="post" action="{{ route('billing.delete', $payment->id) }}" class="d-inline" data-confirm="Delete this payment record?">@csrf @method('DELETE')<button type="submit" class="btn btn-sm btn-outline-danger">Delete</button></form></td>
+                                <td class="text-end"><button type="button" class="btn btn-sm btn-outline-primary me-1" data-print data-print-receipt="receipt-{{ $payment->id }}"><i class="bi bi-printer me-1"></i>Print</button>@if ($payment['status'] !== 'Paid')<form method="post" action="{{ route('billing.delete', $payment->id) }}" class="d-inline" data-confirm="Delete this payment record?">@csrf @method('DELETE')<button type="submit" class="btn btn-sm btn-outline-danger">Delete</button></form>@endif</td>
                             </tr>
                         @empty
                             <tr><td colspan="6" class="text-center text-muted py-4">No payment records available.</td></tr>

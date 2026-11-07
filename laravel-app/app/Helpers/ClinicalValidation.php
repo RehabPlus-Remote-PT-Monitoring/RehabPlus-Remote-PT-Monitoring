@@ -9,7 +9,7 @@ use Illuminate\Validation\Rule;
 
 class ClinicalValidation
 {
-    /** Assessments are recorded for today or up to five years back. */
+    /** Assessments and notes are recorded for today or up to five years back. */
     public static function assessmentDates(): array
     {
         return [
@@ -74,11 +74,13 @@ class ClinicalValidation
 
     public static function note(Request $request): array
     {
+        $dates = self::assessmentDates();
+
         return $request->validate([
             'patient_uid' => 'required|string|max:128',
             'topic' => 'required|string|max:100',
             'text' => 'required|string|max:2000',
-            'date' => 'required|date|before_or_equal:today',
+            'date' => ['required', 'date_format:Y-m-d', 'after_or_equal:'.$dates['min'], 'before_or_equal:'.$dates['max']],
         ]);
     }
 }

@@ -82,7 +82,8 @@
 
                 <div class="col-md-6">
                     <label for="date" class="form-label small fw-semibold">Date</label>
-                    <input id="date" type="date" name="date" class="form-control @error('date') is-invalid @enderror" value="{{ old('date', $appointment->date ?? '') }}" required>
+                    @php($appointmentDates = \App\Helpers\AppointmentValidation::dates())
+                    <input id="date" type="date" name="date" class="form-control @error('date') is-invalid @enderror" value="{{ old('date', $appointment->date ?? '') }}" min="{{ $appointmentDates['min'] }}" max="{{ $appointmentDates['max'] }}" data-calendar-only required>
                     @error('date')
                         <div class="invalid-feedback">{{ $message }}</div>
                     @enderror

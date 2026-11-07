@@ -200,8 +200,9 @@ class RehabPlusConversionTest extends TestCase
         $this->assertSame('Maria Santos', $this->docs['payments/pay1']['patient']);
         $this->patch('/billing/pay1/status', ['status' => 'Refunded'])->assertSessionHasErrors('status');
 
-        $this->delete('/billing/pay1')->assertRedirect('/billing');
-        $this->assertArrayNotHasKey('payments/pay1', $this->docs);
+        $this->docs['payments/pay2'] = ['patient' => 'Juan Cruz', 'session' => 'Massage', 'fee' => 500.0, 'status' => 'Pending', 'date' => '2026-10-09'];
+        $this->delete('/billing/pay2')->assertRedirect('/billing');
+        $this->assertArrayNotHasKey('payments/pay2', $this->docs);
     }
 
     public function test_missing_or_malformed_payment_ids_are_404(): void
@@ -297,5 +298,65 @@ class RehabPlusConversionTest extends TestCase
         foreach (['In Stock', 'Low Stock', 'Out of Stock'] as $status) {
             $this->assertSame(2, substr_count($html, '<option value="'.$status.'"'), $status);
         }
+    }
+
+    public function test_paid_records_cannot_be_deleted(): void
+    {
+        $this->actingAs($this->staff('admin'));
+        $this->docs['payments/paid'] = ['patient' => 'Maria Santos', 'session' => 'Massage', 'fee' => 100.0, 'status' => 'Paid', 'date' => '2026-10-09'];
+        $this->docs['payments/open'] = ['patient' => 'Juan Cruz', 'session' => 'Massage', 'fee' => 100.0, 'status' => 'Pending', 'date' => '2026-10-09'];
+
+        $this->get('/billing')->assertOk()
+            ->assertDontSee('action="'.route('billing.delete', 'paid').'"', false)
+            ->assertSee('action="'.route('billing.delete', 'open').'"', false);
+
+        $this->from('/billing')->followingRedirects()->delete('/billing/paid')->assertSee("already paid, so it can&#039;t be deleted", false);
+        $this->assertArrayHasKey('payments/paid', $this->docs);
+    }
+
+    public function test_add_payment_starts_on_pending(): void
+    {
+        $this->actingAs($this->staff('admin'))->get('/billing')->assertOk()
+            ->assertSee('<option value="Pending" selected>Pending</option>', false);
+    }
+
+    public function test_marking_paid_asks_first_only_when_paid_is_chosen(): void
+    {
+        $this->docs['payments/open'] = ['patient' => 'Juan Cruz', 'session' => 'Massage', 'fee' => 100.0, 'status' => 'Pending', 'date' => '2026-10-09'];
+
+        $html = $this->actingAs($this->staff('admin'))->get('/billing')->assertOk()->getContent();
+
+        $this->assertSame(2, substr_count($html, 'data-confirm-if-field="status" data-confirm-if-value="Paid"'));
+    }
+
+    public function test_every_date_field_is_calendar_only(): void
+    {
+        $this->actingAs($this->staff('admin'));
+        $this->patientDoc('pat1', ['name' => 'Maria Santos']); // the notes and assessment forms need a patient
+
+        foreach (['/billing', '/notes', '/appointments/create', '/patients/create', '/schedule', '/assessments'] as $page) {
+            $html = $this->get($page)->assertOk()->getContent();
+
+            preg_match_all('/<input[^>]*type="date"[^>]*>/', $html, $dates);
+            $this->assertNotEmpty($dates[0], $page);
+            foreach ($dates[0] as $input) {
+                $this->assertStringContainsString('data-calendar-only', $input, $page);
+                $this->assertStringContainsString('min="', $input, $page);
+                $this->assertStringContainsString('max="', $input, $page);
+            }
+        }
+    }
+
+    public function test_payment_date_cannot_be_random(): void
+    {
+        $this->actingAs($this->staff('admin'));
+        $this->docs['appointments/a1'] = ['patient' => 'Maria Santos', 'session' => 'Massage'];
+        $payment = ['patient' => 'Maria Santos', 'session' => 'Massage', 'fee' => '100', 'status' => 'Paid'];
+
+        foreach (['12345', '0002-01-01', '275760-07-05', now()->addYears(2)->toDateString(), now()->subYears(6)->toDateString()] as $date) {
+            $this->post('/billing', ['date' => $date] + $payment)->assertSessionHasErrors('date');
+        }
+
+        $this->assertSame([], $this->docsLike('payments/*'));
     }
 }

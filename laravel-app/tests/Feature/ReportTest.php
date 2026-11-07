@@ -197,4 +197,27 @@ class ReportTest extends TestCase
         $this->assertLessThanOrEqual(3, $metrics->batches, 'auth lookup excluded, data should take two rounds');
         $this->assertGreaterThanOrEqual(4, $metrics->largestBatch);
     }
+
+    public function test_therapist_filter_lists_current_therapist_accounts(): void
+    {
+        $this->staff('therapist', 'thNew', 'izaac');
+        $this->staff('therapist', 'thNoPatients', 'Clarence Combes');
+        $this->staff('therapist', 'thGone', 'Warren Former');
+        $this->docs['users/thGone']['active'] = false;
+        $this->staff('admin', 'adm9', 'Some Admin');
+        // A name saved on a patient whose therapist no longer has an account.
+        $this->patientDoc('pStale', ['name' => 'Stale Patient', 'therapistId' => 'deleted', 'therapistName' => 'Andrew Deleted']);
+
+        $options = $this->report('admin')['patients']['therapistOptions'];
+
+        $this->assertContains('Clarence Combes', $options);
+        $this->assertContains('izaac', $options);
+        $this->assertNotContains('Warren Former', $options);
+        $this->assertNotContains('Andrew Deleted', $options);
+        $this->assertNotContains('Some Admin', $options);
+
+        $sorted = $options;
+        natcasesort($sorted);
+        $this->assertSame(array_values($sorted), $options);
+    }
 }

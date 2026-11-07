@@ -129,6 +129,20 @@ describe('askToProceed', () => {
 });
 
 describe('confirmSubmit', () => {
+    test('a conditional question is asked only for that value', () => {
+        const form = document.createElement('form');
+        form.dataset.confirm = 'Mark as paid?';
+        form.dataset.confirmIfField = 'status';
+        form.dataset.confirmIfValue = 'Paid';
+        form.innerHTML = '<select name="status"><option>Paid</option><option>Pending</option></select>';
+
+        form.elements.status.value = 'Paid';
+        expect(needsConfirmation(form)).toBe(true);
+
+        form.elements.status.value = 'Pending';
+        expect(needsConfirmation(form)).toBe(false);
+    });
+
     test('needsConfirmation spots data-confirm and data-confirm-changes', () => {
         document.body.innerHTML = '<form id="a" data-confirm="?"></form><form id="b" data-confirm-changes></form><form id="c"></form>';
         expect(needsConfirmation(document.getElementById('a'))).toBe(true);

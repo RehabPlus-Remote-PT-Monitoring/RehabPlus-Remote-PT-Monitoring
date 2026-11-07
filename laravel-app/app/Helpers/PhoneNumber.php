@@ -62,6 +62,7 @@ class PhoneNumber
                 'example' => $country[4],
                 'pattern' => $country[5],
             ])
+            ->sortBy('name')
             ->values()
             ->all();
     }

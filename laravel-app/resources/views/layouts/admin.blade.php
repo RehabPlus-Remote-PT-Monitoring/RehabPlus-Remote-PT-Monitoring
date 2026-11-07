@@ -38,17 +38,16 @@
 
             @if (auth()->user()?->isTherapist())
                 {{-- Physical therapists: their upcoming appointments, set by the clinic. --}}
-                <details class="appt-alerts">
+                <details class="appt-alerts" data-appt-alerts data-seen-key="appt-alerts-seen:{{ auth()->id() }}">
                     <summary class="theme-toggle appt-alerts-toggle" title="Your upcoming appointments" aria-label="Your upcoming appointments">
                         <i class="bi bi-bell-fill"></i>
-                        @if ($appointmentAlerts !== [])
-                            <span class="appt-alerts-count">{{ count($appointmentAlerts) }}</span>
-                        @endif
+                        {{-- appointment-alerts.js shows this with the number not seen yet. --}}
+                        <span class="appt-alerts-count" data-appt-alerts-count hidden></span>
                     </summary>
                     <div class="appt-alerts-panel">
                         <p class="appt-alerts-title">Your upcoming appointments</p>
                         @forelse ($appointmentAlerts as $alert)
-                            <a href="{{ route('appointments.show', $alert->id) }}" class="appt-alerts-item">
+                            <a href="{{ route('appointments.show', $alert->id) }}" class="appt-alerts-item" data-appt-alert-id="{{ $alert->id }}">
                                 <span class="fw-semibold">{{ $alert->patient }}</span>
                                 <span class="small text-muted">{{ \Carbon\CarbonImmutable::parse($alert->date)->format('M j, Y') }} · {{ $alert->time }} · {{ $alert->session }}</span>
                             </a>

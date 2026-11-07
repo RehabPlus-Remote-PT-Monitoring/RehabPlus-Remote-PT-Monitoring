@@ -21,7 +21,7 @@ class PatientValidation
             'therapy_plan' => 'nullable|string|max:2000',
             'phone_country' => ['nullable', Rule::in(PhoneNumber::isoCodes())],
             'phone' => 'nullable|string|max:20',
-            'dob' => 'nullable|date_format:Y-m-d|before_or_equal:today',
+            'dob' => 'nullable|date_format:Y-m-d|after_or_equal:1900-01-01|before_or_equal:today',
             'address_street' => 'nullable|string|max:150',
             'address_barangay' => 'nullable|string|max:100',
             'address_city' => 'nullable|string|max:100',
@@ -29,6 +29,7 @@ class PatientValidation
             'therapist_id' => 'nullable|string|max:128',
         ], [
             'dob.date_format' => 'Pick the date of birth from the calendar.',
+            'dob.after_or_equal' => 'Pick a real date of birth from the calendar.',
             'dob.before_or_equal' => 'Date of birth can\'t be in the future.',
         ]);
 

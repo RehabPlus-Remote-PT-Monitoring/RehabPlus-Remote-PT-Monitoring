@@ -709,4 +709,12 @@ class PatientTest extends TestCase
         $this->actingAs($therapist)->get('/patients/create')->assertOk()
             ->assertDontSee('data-confirm', false);
     }
+
+    public function test_date_of_birth_cannot_be_before_1900(): void
+    {
+        $this->actingAs($this->staff('admin'))
+            ->from('/patients/create')
+            ->post('/patients', $this->newPatient(['dob' => '0002-01-01']))
+            ->assertSessionHasErrors(['dob' => 'Pick a real date of birth from the calendar.']);
+    }
 }

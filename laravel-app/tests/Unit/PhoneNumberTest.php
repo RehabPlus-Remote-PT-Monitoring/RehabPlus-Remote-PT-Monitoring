@@ -69,4 +69,14 @@ class PhoneNumberTest extends TestCase
         $this->assertSame(['iso' => 'PH', 'national' => '9175550101'], PhoneNumber::parse('0917 555 0101'));
         $this->assertSame(['iso' => 'PH', 'national' => ''], PhoneNumber::parse(null));
     }
+
+    public function test_countries_are_listed_alphabetically(): void
+    {
+        $names = array_column(PhoneNumber::countries(), 'name');
+        $sorted = $names;
+        sort($sorted);
+
+        $this->assertSame($sorted, $names);
+        $this->assertSame('Australia', $names[0]);
+    }
 }

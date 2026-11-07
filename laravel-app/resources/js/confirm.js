@@ -4,6 +4,8 @@
  *
  *   <form data-confirm="Archive this patient? ...">   asks with that message
  *   <form data-confirm-danger ...>                     red Proceed button
+ *   <form data-confirm="..." data-confirm-if-field="status" data-confirm-if-value="Paid">
+ *                                                      asks only when that field has that value
  *   <form data-confirm-changes="Save these changes?">  also lists every field
  *                                                      changed since the page loaded
  *
@@ -143,6 +145,11 @@ export function askToProceed({ title = 'Do you want to proceed?', message = '', 
 
 /** Whether this form asks before submitting. */
 export function needsConfirmation(form) {
+    const field = form.dataset?.confirmIfField;
+    if (field !== undefined && form.elements[field]?.value !== form.dataset.confirmIfValue) {
+        return false;
+    }
+
     return form.dataset?.confirm !== undefined || form.dataset?.confirmChanges !== undefined;
 }
 

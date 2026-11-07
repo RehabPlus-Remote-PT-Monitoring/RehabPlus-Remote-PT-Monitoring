@@ -1,3 +1,4 @@
+import { initAppointmentAlerts } from './appointment-alerts.js';
 import { confirmSubmit, needsConfirmation } from './confirm.js';
 import { copyPassword } from './copy-password.js';
 import { dismissFlashMessages } from './flash-messages.js';
@@ -330,6 +331,7 @@ document.querySelectorAll('[data-phone-country]').forEach(applyPhoneField);
 
 initPatientPickers();
 initSessionPickers();
+initAppointmentAlerts();
 initScheduleForm();
 
 document.addEventListener('click', (event) => {

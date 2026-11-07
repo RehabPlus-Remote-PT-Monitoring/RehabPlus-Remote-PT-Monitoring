@@ -207,4 +207,15 @@ class ClinicalRecordTest extends TestCase
 
         $this->post('/goals', ['patient_uid' => 'pOne', 'title' => 'Walk', 'progress' => 101])->assertSessionHasErrors('progress');
     }
+
+    public function test_note_date_cannot_be_random(): void
+    {
+        $this->actingAs($this->therapist());
+
+        foreach (['12345', '275760-07-05', now()->addDay()->toDateString(), now()->subYears(6)->toDateString()] as $date) {
+            $this->post('/notes', ['patient_uid' => 'pOne', 'topic' => 'Mobility', 'text' => 'Better', 'date' => $date])->assertSessionHasErrors('date');
+        }
+
+        $this->assertSame([], $this->docsLike('patients/pOne/notes/*'));
+    }
 }

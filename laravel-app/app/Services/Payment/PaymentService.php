@@ -69,9 +69,13 @@ class PaymentService
         $this->store->update(ClinicStore::PAYMENTS, $id, ['status' => $status]);
     }
 
+    /** A paid record is kept, so a settled payment can't disappear from the books. */
     public function delete(string $id): void
     {
-        $this->store->findOrFail(ClinicStore::PAYMENTS, $id);
+        if ($this->store->findOrFail(ClinicStore::PAYMENTS, $id)->status === 'Paid') {
+            throw ValidationException::withMessages(['status' => "This payment is already paid, so it can't be deleted."]);
+        }
+
         $this->store->delete(ClinicStore::PAYMENTS, $id);
     }
 
