@@ -37,8 +37,15 @@ jobs:
           flutter-version: 3.41.2
           cache: true
 
-      - name: Flutter version
-        run: flutter --version
+      # Firebase (firebase_messaging 17 -> GoogleDataTransport ~> 10) and ML
+      # Kit pose detection 0.12 (-> GoogleDataTransport < 10) can't share
+      # CocoaPods. With Swift Package Manager on, the Firebase plugins come in
+      # as Swift packages and only ML Kit stays on CocoaPods, so the two never
+      # meet. (Flutter 3.47+ has this on by default.)
+      - name: Flutter version + Swift Package Manager
+        run: |
+          flutter config --enable-swift-package-manager
+          flutter --version
 
       - name: Get packages
         run: flutter pub get
