@@ -53,6 +53,19 @@ class _ProfileScreenState extends State<ProfileScreen> {
   ProfileData get _profile =>
       context.read<AppProvider>().profile ?? _emptyProfile;
 
+  /// Pull-to-refresh: reloads the profile and the session history (the
+  /// stats and breakdown cards) from Firestore. AppProvider keeps the old
+  /// data and logs a warning if a load fails, so an offline pull just stops
+  /// the spinner instead of blanking the page.
+  Future<void> _refresh() async {
+    _logger.info(_tag, 'Pull to refresh');
+    try {
+      await context.read<AppProvider>().loadUserData();
+    } catch (e, st) {
+      _logger.warn(_tag, 'Refresh failed', null, e, st);
+    }
+  }
+
   Future<void> _openEdit() async {
     if (_editing) return;
     _editing = true;
@@ -95,79 +108,98 @@ class _ProfileScreenState extends State<ProfileScreen> {
 
         return Scaffold(
           backgroundColor: context.palette.background,
-          body: SingleChildScrollView(
-            child: Column(
-              children: [
-                _buildHeader(),
-                // The header is full width; the cards below are centred.
-                // On wide screens the stats stay one row across the top and
-                // the cards split into two columns: who the patient is on
-                // the left, their activity and the menu entries on the
-                // right. On a phone it is one column in the same order.
-                ReadableWidth(
-                  maxWidth: adaptiveMaxWidth(context),
-                  child: Column(
-                    children: [
-                      const SizedBox(height: 16),
-                      _buildStatsRow(sessions.length, totalSets, totalReps, avgCompliance),
-                      const SizedBox(height: 14),
-                      AdaptiveColumns(
-                        // Every card already has 16 px of side padding, so
-                        // neighbouring cards are 32 px apart without a gap.
-                        gap: 0,
-                        left: [
-                          _buildInfoCard(
-                            title: 'Personal Info',
-                            icon: Icons.person_outline_rounded,
-                            items: [
-                              _InfoRow(icon: Icons.person_outline, label: 'Full Name', value: _profile.name),
-                              _InfoRow(icon: Icons.email_outlined, label: 'Email', value: _profile.email),
-                              _InfoRow(icon: Icons.phone_outlined, label: 'Phone', value: _profile.phone),
-                              _InfoRow(icon: Icons.cake_outlined, label: 'Date of Birth', value: _profile.dob),
-                            ],
+          // The header stays put and only the cards scroll, like Home.
+          // Pulling the cards down shows the spinning refresh circle (as on
+          // the Exercises tab) instead of dragging the whole page, header
+          // included, down with the finger.
+          body: Column(
+            children: [
+              _buildHeader(),
+              Expanded(
+                child: RefreshIndicator(
+                  color: primaryTeal,
+                  onRefresh: _refresh,
+                  child: SingleChildScrollView(
+                    // Always scrollable, so the pull works even when the
+                    // cards fit on screen (big tablets, short profiles).
+                    physics: const BouncingScrollPhysics(
+                      parent: AlwaysScrollableScrollPhysics(),
+                    ),
+                    child: Column(
+                        children: [
+                          // The header is full width; the cards below are centred.
+                          // On wide screens the stats stay one row across the top and
+                          // the cards split into two columns: who the patient is on
+                          // the left, their activity and the menu entries on the
+                          // right. On a phone it is one column in the same order.
+                          ReadableWidth(
+                            maxWidth: adaptiveMaxWidth(context),
+                            child: Column(
+                              children: [
+                                const SizedBox(height: 16),
+                                _buildStatsRow(sessions.length, totalSets, totalReps, avgCompliance),
+                                const SizedBox(height: 14),
+                                AdaptiveColumns(
+                                  // Every card already has 16 px of side padding, so
+                                  // neighbouring cards are 32 px apart without a gap.
+                                  gap: 0,
+                                  left: [
+                                    _buildInfoCard(
+                                      title: 'Personal Info',
+                                      icon: Icons.person_outline_rounded,
+                                      items: [
+                                        _InfoRow(icon: Icons.person_outline, label: 'Full Name', value: _profile.name),
+                                        _InfoRow(icon: Icons.email_outlined, label: 'Email', value: _profile.email),
+                                        _InfoRow(icon: Icons.phone_outlined, label: 'Phone', value: _profile.phone),
+                                        _InfoRow(icon: Icons.cake_outlined, label: 'Date of Birth', value: _profile.dob),
+                                      ],
+                                    ),
+                                    const SizedBox(height: 14),
+                                    _buildInfoCard(
+                                      title: 'Rehab Info',
+                                      icon: Icons.medical_services_outlined,
+                                      items: [
+                                        _InfoRow(icon: Icons.medical_services_outlined, label: 'Condition', value: _profile.condition),
+                                        _InfoRow(icon: Icons.person_pin_outlined, label: 'Therapist', value: _profile.therapist),
+                                        _InfoRow(
+                                          icon: Icons.calendar_today_outlined,
+                                          label: 'Program Start',
+                                          value: _profile.programStart == null
+                                              ? ''
+                                              : DateFormat.yMMMd().format(_profile.programStart!),
+                                        ),
+                                      ],
+                                    ),
+                                    const SizedBox(height: 14),
+                                  ],
+                                  right: [
+                                    // With no sessions the breakdown card is empty.
+                                    // On a phone its gap stays, exactly as before; in
+                                    // two columns it is dropped so the right column
+                                    // starts level with the left one.
+                                    if (sessions.isNotEmpty || !isTwoColumn(context)) ...[
+                                      _buildExerciseBreakdownCard(sessions),
+                                      const SizedBox(height: 14),
+                                    ],
+                                    _buildGoalsCard(),
+                                    const SizedBox(height: 14),
+                                    _buildSettingsCard(),
+                                    const SizedBox(height: 14),
+                                    _buildLegalCard(),
+                                    const SizedBox(height: 14),
+                                    _buildSignOutButton(),
+                                    const SizedBox(height: 28),
+                                  ],
+                                ),
+                              ],
+                            ),
                           ),
-                          const SizedBox(height: 14),
-                          _buildInfoCard(
-                            title: 'Rehab Info',
-                            icon: Icons.medical_services_outlined,
-                            items: [
-                              _InfoRow(icon: Icons.medical_services_outlined, label: 'Condition', value: _profile.condition),
-                              _InfoRow(icon: Icons.person_pin_outlined, label: 'Therapist', value: _profile.therapist),
-                              _InfoRow(
-                                icon: Icons.calendar_today_outlined,
-                                label: 'Program Start',
-                                value: _profile.programStart == null
-                                    ? ''
-                                    : DateFormat.yMMMd().format(_profile.programStart!),
-                              ),
-                            ],
-                          ),
-                          const SizedBox(height: 14),
                         ],
-                        right: [
-                          // With no sessions the breakdown card is empty.
-                          // On a phone its gap stays, exactly as before; in
-                          // two columns it is dropped so the right column
-                          // starts level with the left one.
-                          if (sessions.isNotEmpty || !isTwoColumn(context)) ...[
-                            _buildExerciseBreakdownCard(sessions),
-                            const SizedBox(height: 14),
-                          ],
-                          _buildGoalsCard(),
-                          const SizedBox(height: 14),
-                          _buildSettingsCard(),
-                          const SizedBox(height: 14),
-                          _buildLegalCard(),
-                          const SizedBox(height: 14),
-                          _buildSignOutButton(),
-                          const SizedBox(height: 28),
-                        ],
-                      ),
-                    ],
+                    ),
                   ),
                 ),
-              ],
-            ),
+              ),
+            ],
           ),
         );
       },
