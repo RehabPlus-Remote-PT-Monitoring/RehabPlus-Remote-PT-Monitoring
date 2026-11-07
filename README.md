@@ -1,50 +1,127 @@
-<<<<<<< HEAD
-# RehabPlus
-Admin Website
-=======
-# Mobile-Based Camera-Assisted Remote Physical Therapy Monitoring System
+# RehabPlus clinic dashboard
 
-## Project Description
+The web dashboard of the capstone project "Mobile-Based Camera-Assisted Remote
+Physical Therapy Monitoring System" for Rehab+ Physiotherapy & Pilates. Clinic
+staff use it to manage patients, prescribe home exercises, review the sessions
+patients record with the RehabPlus phone app, and reply to their messages.
 
-The proposed project is a Mobile-Based Camera-Assisted Remote Physical Therapy Monitoring System designed to support remote monitoring of orthopedic rehabilitation exercises. The system is intended to assist patients in performing prescribed rehabilitation exercises while providing physical therapists with information that can support the monitoring of patient exercise sessions and progress.
+This branch (`web/messaging`) holds the dashboard, a Laravel 12 app in
+[`laravel-app/`](laravel-app/). The patient app is a separate Flutter app on
+the `camera/monitoring` branch.
 
-The proposed system consists of an Android mobile application for patients and a web-based dashboard for physical therapists. The system is planned to use Flutter for mobile application development, React.js for the therapist dashboard, Firebase for cloud-based services and data storage, and MediaPipe for pose estimation.
+## What the dashboard does
 
-## Current Development Status
+- Public site: home page, Remote Monitoring page, FAQ, Terms, and Privacy
+  Policy.
+- Staff sign-in for two roles, `admin` and `therapist`, with password reset.
+- Patients: add, edit, archive, restore, and permanently delete; phone fields
+  with a country code; give a patient a temporary password; see the
+  patient's Terms and Privacy Policy consent.
+- Exercise prescriptions, assessments, goals, and clinical notes. Patients
+  are notified in the app when their care plan changes.
+- Session review: compliance, pain levels, and progress from the sessions the
+  patient app uploads.
+- Messages: reply to each patient's therapist thread and clinic thread.
+- Appointments, staff schedules and time off, billing with printable
+  receipts, and inventory.
+- Announcements to patients (archive, restore, and delete), a notification
+  bell with upcoming appointments for therapists, and reports with CSV and
+  PDF export (admin only).
+- Staff accounts with photos (admin only), and My Profile for every staff
+  member.
+- Evening exercise reminders: a scheduled GitHub Action calls
+  `POST /cron/exercise-reminders`, and the dashboard pushes a reminder to
+  patients who haven't done today's exercises.
+- Dark mode. Times are shown in Philippine time.
 
-The project is currently in the planning and documentation phase. Capstone Chapters 1 and 2 have been prepared, including the system requirements, architecture, system models, and proposed technologies. Actual application development and system implementation have not yet started.
+## How it fits together
 
-## Intended Users
+The dashboard and the patient app never call each other. Both read and write
+the same Firebase project (`rehabplus-80675`): Firebase Auth for accounts,
+Cloud Firestore for all data, and Firebase Cloud Messaging for pushes. There
+is no SQL database.
 
-- Orthopedic Patients
-- Physical Therapists
+- The dashboard calls Firestore over its REST API with a service account, so
+  it runs on Vercel without the gRPC PHP extension.
+- A service account skips Firestore security rules, so the dashboard checks
+  permissions in PHP: role middleware on routes, and a check that a
+  therapist only reaches their own patients.
+- The Firebase project is on the free Spark plan with no Cloud Functions, so
+  the dashboard sends every push notification.
 
-## Planned Technologies
+`API_CONTRACT.md` on the `camera/monitoring` branch lists every Firestore path
+and field, and which program writes it.
 
-- Flutter – Android mobile application
-- React.js – Web-based therapist dashboard
-- Firebase – Cloud services and Cloud Firestore
-- MediaPipe – Pose estimation
+## Project structure
 
-## Project Scope
+```
+laravel-app/
+  app/Http/Controllers/  One controller per area (patients, messages, billing, ...)
+  app/Services/          Business logic and Firestore access, by area
+  app/Services/Firebase/ Firestore REST client, Auth, push, access tokens
+  resources/views/       Blade templates
+  resources/js/, css/    Dashboard scripts and styles (built by Vite)
+  routes/web.php         Every URL and the roles allowed to use it
+  config/clinic.php      Clinic name, address, and footer pages
+  tests/                 PHPUnit tests (Feature, Unit) and Vitest tests (js)
+  api/index.php          Vercel entry point
+  vercel.json            Vercel build and routing
+  docs/                  MESSAGING.md and DIAGNOSTICS.md
+.github/workflows/vercel-deploy.yml  Deploys laravel-app/ on every push
+diagrams/                Firestore schema diagram
+docs/                    Capstone Chapters 1 and 2
+```
 
-The proposed system focuses on supporting remote physical therapy monitoring through an Android mobile application and a web-based therapist dashboard. The system is designed to assist with selected orthopedic rehabilitation exercises and provide exercise-related information for therapist monitoring.
+The other files at the repository root (`app/`, `spark`, `public/`,
+`composer.json`, and so on) are an earlier CodeIgniter 4 prototype. They
+aren't built or deployed.
 
-## Repository Purpose
+## Run it locally
 
-This repository is used to organize the team's Capstone project documentation, system design materials, requirements, and development resources. Source code will be added to the repository during the implementation phase.
+Before you begin, install PHP 8.2 or later, Composer, and Node.js 22, and get
+a service-account key for the Firebase project from a team member. Keep the
+key outside the repository and never commit it.
 
-## Team Members
+1. Install the dependencies and create `.env`:
 
-- [Member 1 - Pauli, Richmond] – [GitHub Username - paulirichmond ]
-- [Member 2 - Alberto, Kenji] – [GitHub Username - Keshin0]
-- [Member 3 - Combes, Clarence Izaac] – [GitHub Username - rarararlll]
-- [Member 4 - Torrecampo, Rodel II] – [GitHub Username - sekendd]
-- [Member 5 - Pomarejos, Rob Thomas] – [GitHub Username - Haddeessss]
+   ```bash
+   cd laravel-app
+   composer run setup
+   ```
 
-## Project Status
+2. In `laravel-app/.env`, set `FIREBASE_API_KEY` and either
+   `FIREBASE_CREDENTIALS` (the path to the key file) or
+   `FIREBASE_CREDENTIALS_JSON` (the key's contents). `.env.example` explains
+   each variable.
 
-**Current Phase:** Capstone 1 – Planning and Documentation
+3. Start the web server, the log viewer, and Vite together:
 
-**Development Status:** Not yet started
->>>>>>> 04e24bb581e970353dae6955905475ca81aad9e0
+   ```bash
+   composer run dev
+   ```
+
+4. Open http://localhost:8000 and sign in with a staff account.
+
+## Test
+
+To run the PHP tests and the JavaScript tests from `laravel-app/`:
+
+```bash
+composer test
+npm test
+```
+
+## Deploy
+
+Pushing to `web/messaging` runs `.github/workflows/vercel-deploy.yml`, which
+deploys `laravel-app/` to Vercel. The workflow file lists the repository
+secrets it needs. `APP_KEY` and the `FIREBASE_*` variables are set in the
+Vercel project.
+
+## Team
+
+- Pauli, Richmond (paulirichmond)
+- Alberto, Kenji (Keshin0)
+- Combes, Clarence Izaac (rarararlll)
+- Torrecampo, Rodel II (sekendd)
+- Pomarejos, Rob Thomas (Haddeessss)
