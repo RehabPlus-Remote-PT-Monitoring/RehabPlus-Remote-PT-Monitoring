@@ -39,9 +39,8 @@
                     <label for="patient-search" class="form-label small fw-semibold">Search patients</label>
                     <div class="input-group">
                         <input id="patient-search" type="search" name="search" class="form-control" value="{{ $search }}" placeholder="Name or email">
-                        <button type="submit" class="btn btn-primary" aria-label="Search patients" title="Search">
-                            <i class="bi bi-search" aria-hidden="true"></i>
-                        </button>
+                        {{-- Decorative: the list filters as you type. --}}
+                        <span class="input-group-text" aria-hidden="true"><i class="bi bi-search"></i></span>
                     </div>
                 </div>
                 <div class="col-md-6">
@@ -64,7 +63,7 @@
                     </thead>
                     <tbody>
                         @forelse ($data as $patient)
-                            <tr>
+                            <tr data-patient-row data-search="{{ strtolower($patient['name'].' '.$patient['email']) }}">
                                 <td>
                                     <div class="d-flex align-items-center gap-3">
                                         <span class="rounded-circle d-inline-flex align-items-center justify-content-center text-white fw-bold" style="width:38px;height:38px;font-size:.8rem;background:#0e9aaa;flex-shrink:0;">{{ strtoupper(mb_substr($patient['name'], 0, 1)) }}</span>
@@ -92,16 +91,16 @@
                                         {{-- Opens the Messages tab on this patient's conversation: the therapist thread for PTs, the clinic thread for admins. --}}
                                         <a href="{{ route('messages.show', $patient['uid']) }}" class="btn btn-sm btn-outline-primary ms-1"><i class="bi bi-chat-dots me-1"></i>{{ $showArchived ? 'View messages' : 'Message' }}</a>
                                     @endif
-                                    @if ($canManage && $showArchived)
+                                    @if ($me->isAdmin() && $showArchived)
                                         <form method="POST" action="{{ route('patients.restore', $patient['uid']) }}" class="d-inline ms-1" data-confirm="Restore {{ $patient['name'] }}? Their app login is enabled again and they show up in the patient list.">@csrf<button type="submit" class="btn btn-sm btn-outline-success"><i class="bi bi-arrow-counterclockwise me-1"></i>Restore</button></form>
                                     @endif
-                                    @if ($canManage && ! $showArchived)
+                                    @if ($me->isAdmin() && ! $showArchived)
                                         <form method="POST" action="{{ route('patients.archive', $patient['uid']) }}" class="d-inline ms-1" data-confirm="Archive {{ $patient['name'] }}? Their app login is disabled; their records are kept and you can restore them later." data-confirm-danger>@csrf<button type="submit" class="btn btn-sm btn-outline-danger"><i class="bi bi-archive me-1"></i>Archive</button></form>
                                     @endif
                                     @if ($me->isAdmin())
                                         <form method="POST" action="{{ route('patients.destroy', $patient['uid']) }}" class="d-inline ms-1" data-confirm="Are you sure you want to delete this patient? This will permanently delete the patient's account, including all their records and conversations." data-confirm-danger>@csrf<button type="submit" class="btn btn-sm btn-outline-danger"><i class="bi bi-trash me-1"></i>Delete</button></form>
                                     @endif
-                                    @if ($canManage)
+                                    @if ($me->isAdmin())
                                         <a href="{{ route('patients.edit', $patient['uid']) }}" class="btn btn-sm btn-outline-primary ms-1">Edit</a>
                                     @endif
                                 </td>
@@ -109,6 +108,9 @@
                         @empty
                             <tr><td colspan="{{ $showArchived ? 6 : 5 }}" class="text-center text-muted py-5"><i class="bi bi-people fs-3 d-block mb-2 opacity-50"></i>No patients found.</td></tr>
                         @endforelse
+                        @if ($data !== [])
+                            <tr data-patient-search-empty hidden><td colspan="{{ $showArchived ? 6 : 5 }}" class="text-center text-muted py-4">No patients match what you typed.</td></tr>
+                        @endif
                     </tbody>
                 </table>
             </div>

@@ -51,6 +51,7 @@ class PatientController extends Controller
         $data = [
             'patient' => $patient,
             'canManage' => $this->patients->canManage($user, $patient),
+            'isAdmin' => $user->isAdmin(),
             'clinical' => $user->isClinician(),
         ];
 
@@ -111,7 +112,7 @@ class PatientController extends Controller
 
     public function edit(Request $request, string $uid): View
     {
-        $patient = $this->manageableOr403($request, $uid);
+        $patient = $this->adminOr403($request, $uid);
 
         return view('patients.form', [
             'patient' => $patient,
@@ -121,7 +122,7 @@ class PatientController extends Controller
 
     public function update(Request $request, string $uid): RedirectResponse
     {
-        $patient = $this->manageableOr403($request, $uid);
+        $patient = $this->adminOr403($request, $uid);
         $data = PatientValidation::profile($request);
         if (! $request->user()->isAdmin()) {
             unset($data['therapist_id']); // only admins reassign patients
@@ -139,14 +140,14 @@ class PatientController extends Controller
 
     public function archive(Request $request, string $uid): RedirectResponse
     {
-        $this->patients->setArchived($this->manageableOr403($request, $uid), true, $request->user());
+        $this->patients->setArchived($this->adminOr403($request, $uid), true, $request->user());
 
         return redirect()->route('patients.index')->with('success', 'Patient archived. Their app login is disabled; their records are kept.');
     }
 
     public function restore(Request $request, string $uid): RedirectResponse
     {
-        $this->patients->setArchived($this->manageableOr403($request, $uid), false);
+        $this->patients->setArchived($this->adminOr403($request, $uid), false);
 
         // Back to the page the button was pressed on: the archived list or the patient's page.
         return redirect()->back(fallback: route('patients.show', $uid))->with('success', 'Patient restored. They can sign in to the app again.');
@@ -172,7 +173,7 @@ class PatientController extends Controller
      */
     public function password(Request $request, string $uid): RedirectResponse
     {
-        $patient = $this->manageableOr403($request, $uid);
+        $patient = $this->adminOr403($request, $uid);
 
         if ($patient['archived']) {
             return redirect()->route('patients.show', $uid)->with('error', 'Restore this patient before resetting their password. Their app login is disabled.');
@@ -191,6 +192,15 @@ class PatientController extends Controller
     {
         $patient = $this->patients->find($request->user(), $uid);
         abort_unless($patient, 404);
+
+        return $patient;
+    }
+
+    /** Profile changes, archive, restore and password resets: administrators only. */
+    private function adminOr403(Request $request, string $uid): array
+    {
+        $patient = $this->findOr404($request, $uid);
+        abort_unless($request->user()->isAdmin(), 403, 'Only an administrator can change this patient\x27s profile, archive them, or reset their password.');
 
         return $patient;
     }

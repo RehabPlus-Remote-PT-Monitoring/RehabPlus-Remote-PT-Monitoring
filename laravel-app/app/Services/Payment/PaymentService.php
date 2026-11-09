@@ -50,10 +50,23 @@ class PaymentService
             throw ValidationException::withMessages(['session' => "Choose one of this patient's sessions."]);
         }
 
+        // The session fee, less any discount, plus tax on what remains. Stored so the receipt shows each step.
+        $fee = round((float) $data['fee'], 2);
+        $discount = round((float) ($data['discount'] ?? 0), 2);
+        if ($discount > $fee) {
+            throw ValidationException::withMessages(['discount' => 'The discount cannot be more than the session fee.']);
+        }
+        $taxRate = round((float) ($data['tax_rate'] ?? 0), 2);
+        $tax = round(($fee - $discount) * $taxRate / 100, 2);
+
         return $this->store->create(ClinicStore::PAYMENTS, [
             'patient' => $data['patient'],
             'session' => $data['session'],
-            'fee' => round((float) $data['fee'], 2),
+            'fee' => $fee,
+            'discount' => $discount,
+            'taxRate' => $taxRate,
+            'tax' => $tax,
+            'total' => round($fee - $discount + $tax, 2),
             'status' => $data['status'],
             'date' => CarbonImmutable::parse($data['date'])->toDateString(),
         ]);

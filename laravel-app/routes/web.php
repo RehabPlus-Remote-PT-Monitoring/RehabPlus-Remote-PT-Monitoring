@@ -144,9 +144,12 @@ Route::middleware(['auth.rehab'])->group(function () {
     Route::post('/appointments/{id}/status', [AppointmentController::class, 'changeStatus'])->name('appointments.status');
 
     Route::get('/billing', [PaymentController::class, 'index'])->name('billing');
-    Route::post('/billing', [PaymentController::class, 'store'])->name('billing.store');
-    Route::patch('/billing/{id}/status', [PaymentController::class, 'updateStatus'])->name('billing.status');
-    Route::delete('/billing/{id}', [PaymentController::class, 'delete'])->name('billing.delete');
+    // Recording, changing the status, and deleting payments: administrators only. Everyone can view the page.
+    Route::middleware(['role:admin'])->group(function () {
+        Route::post('/billing', [PaymentController::class, 'store'])->name('billing.store');
+        Route::patch('/billing/{id}/status', [PaymentController::class, 'updateStatus'])->name('billing.status');
+        Route::delete('/billing/{id}', [PaymentController::class, 'delete'])->name('billing.delete');
+    });
     Route::patch('/inventory/{inventory}/status', [InventoryController::class, 'updateStatus'])->name('inventory.status');
     Route::resource('inventory', InventoryController::class);
     Route::get('/schedule', [StaffScheduleController::class, 'index'])->name('schedule');

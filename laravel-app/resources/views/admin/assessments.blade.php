@@ -64,7 +64,7 @@
                             </div>
                             <div class="col-md-6">
                                 <label class="form-label small fw-semibold" for="a_date">Date</label>
-                                <input id="a_date" type="date" name="date" class="form-control" value="{{ old('date', now($tz)->format('Y-m-d')) }}" min="{{ $assessmentDates['min'] }}" max="{{ $assessmentDates['max'] }}" data-calendar-only required>
+                                <div class="input-group"><input id="a_date" type="date" name="date" class="form-control" value="{{ old('date', now($tz)->format('Y-m-d')) }}" min="{{ $assessmentDates['min'] }}" max="{{ $assessmentDates['max'] }}" data-calendar-only required><button type="button" class="btn btn-primary field-picker-button" data-date-open aria-label="Open calendar" title="Open calendar"><i class="bi bi-calendar3" aria-hidden="true"></i></button></div>
                             </div>
                             <div class="col-12">
                                 <label class="form-label small fw-semibold" for="a_notes">Findings</label>
@@ -88,7 +88,7 @@
                             </div>
                             <div class="col-md-6">
                                 <label class="form-label small fw-semibold" for="g_target">Target date</label>
-                                <input id="g_target" type="date" name="target_date" class="form-control" value="{{ old('target_date') }}" min="{{ $goalDates['min'] }}" max="{{ $goalDates['max'] }}" data-calendar-only>
+                                <div class="input-group"><input id="g_target" type="date" name="target_date" class="form-control" value="{{ old('target_date') }}" min="{{ $goalDates['min'] }}" max="{{ $goalDates['max'] }}" data-calendar-only><button type="button" class="btn btn-primary field-picker-button" data-date-open aria-label="Open calendar" title="Open calendar"><i class="bi bi-calendar3" aria-hidden="true"></i></button></div>
                             </div>
                             <div class="col-md-9">
                                 <label class="form-label small fw-semibold" for="g_title">Goal</label>

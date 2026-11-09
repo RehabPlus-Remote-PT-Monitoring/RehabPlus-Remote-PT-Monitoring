@@ -2,11 +2,13 @@
 
 namespace App\Http\Controllers;
 
+use App\Auth\StaffUser;
 use App\Helpers\UserValidation;
 use App\Services\User\UserService;
 use Illuminate\Http\Request;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\UploadedFile;
+use Illuminate\Validation\Rule;
 use Illuminate\View\View;
 
 /**
@@ -42,7 +44,15 @@ class ProfileController extends Controller
             'photo.max' => 'The picture must be 500 KB or smaller.',
         ]);
 
-        $change = ['name' => $data['name'], 'role' => $current['role']] + UserValidation::contact($request);
+        $role = $current['role'];
+        if ($current['role'] === StaffUser::ADMIN && $request->filled('role')) {
+            $role = $request->validate(['role' => [Rule::in(UserValidation::STAFF_ROLES)]])['role'];
+        }
+        if ($this->users->removesLastAdmin($current, $role)) {
+            return back()->withInput()->with('error', 'At least one active administrator must remain. Make another administrator first.');
+        }
+
+        $change = ['name' => $data['name'], 'role' => $role] + UserValidation::contact($request);
         if ($request->boolean('remove_photo')) {
             $change['photoUrl'] = '';
         } elseif ($request->hasFile('photo')) {

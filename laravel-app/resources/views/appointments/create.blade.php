@@ -83,14 +83,25 @@
                 <div class="col-md-6">
                     <label for="date" class="form-label small fw-semibold">Date</label>
                     @php($appointmentDates = \App\Helpers\AppointmentValidation::dates())
-                    <input id="date" type="date" name="date" class="form-control @error('date') is-invalid @enderror" value="{{ old('date', $appointment->date ?? '') }}" min="{{ $appointmentDates['min'] }}" max="{{ $appointmentDates['max'] }}" data-calendar-only required>
+                    <div class="input-group">
+                        <input id="date" type="date" name="date" class="form-control @error('date') is-invalid @enderror" value="{{ old('date', $appointment->date ?? '') }}" min="{{ $appointmentDates['min'] }}" max="{{ $appointmentDates['max'] }}" data-calendar-only required>
+                        <button type="button" class="btn btn-primary field-picker-button" data-date-open aria-label="Open calendar" title="Open calendar"><i class="bi bi-calendar3" aria-hidden="true"></i></button>
+                    </div>
                     @error('date')
                         <div class="invalid-feedback">{{ $message }}</div>
                     @enderror
                 </div>
                 <div class="col-md-6">
                     <label for="time" class="form-label small fw-semibold">Time</label>
-                    <input id="time" type="time" name="time" class="form-control @error('time') is-invalid @enderror" value="{{ old('time', $appointment->time ?? '') }}" required>
+                    <div class="input-group">
+                        <input id="time" type="text" name="time" class="form-control @error('time') is-invalid @enderror" list="time-options" value="{{ old('time', $appointment->time ?? '') }}" placeholder="e.g. 9:30 AM" autocomplete="off" required>
+                        <button type="button" class="btn btn-primary field-picker-button" data-list-open aria-label="Show times" title="Show times"><i class="bi bi-clock" aria-hidden="true"></i></button>
+                        <datalist id="time-options">
+                            @foreach (\App\Helpers\AppointmentValidation::timeOptions() as $option)
+                                <option value="{{ $option }}">
+                            @endforeach
+                        </datalist>
+                    </div>
                     @error('time')
                         <div class="invalid-feedback">{{ $message }}</div>
                     @enderror
@@ -98,13 +109,22 @@
 
                 <div class="col-md-6">
                     <label for="session" class="form-label small fw-semibold">Session</label>
-                    <input id="session" type="text" name="session" class="form-control @error('session') is-invalid @enderror" value="{{ old('session', $appointment->session ?? '') }}" required maxlength="100">
+                    <div class="input-group">
+                        <input id="session" type="text" name="session" class="form-control @error('session') is-invalid @enderror" list="session-options" value="{{ old('session', $appointment->session ?? '') }}" placeholder="Choose or type a session" autocomplete="off" required maxlength="100">
+                        <button type="button" class="btn btn-primary field-picker-button" data-list-open aria-label="Show sessions" title="Show sessions"><i class="bi bi-chevron-down" aria-hidden="true"></i></button>
+                        <datalist id="session-options">
+                            @foreach (\App\Helpers\AppointmentValidation::sessionOptions() as $option)
+                                <option value="{{ $option }}">
+                            @endforeach
+                        </datalist>
+                    </div>
                     @error('session')
                         <div class="invalid-feedback">{{ $message }}</div>
                     @enderror
                 </div>
                 <div class="col-md-6">
                     <label for="status" class="form-label small fw-semibold">Status</label>
+                    <div class="input-group">
                     <select id="status" name="status" class="form-select">
                         <option value="Upcoming" @selected($status === 'Upcoming')>Upcoming</option>
                         <option value="Completed" @selected($status === 'Completed')>Completed</option>
@@ -113,6 +133,8 @@
                             <option value="Cancelled" @selected($status === 'Cancelled')>Cancelled</option>
                         @endif
                     </select>
+                        <button type="button" class="btn btn-primary field-picker-button" data-select-open aria-label="Show statuses" title="Show statuses"><i class="bi bi-chevron-down" aria-hidden="true"></i></button>
+                    </div>
                 </div>
 
                 <div class="col-12">

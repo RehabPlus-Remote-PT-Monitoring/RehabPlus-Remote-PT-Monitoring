@@ -35,6 +35,10 @@
 
         <div class="d-flex align-items-center gap-2 gap-md-3">
             <span class="top-date d-none d-md-inline">{{ now()->format('F j, Y') }}</span>
+            <span class="top-clock d-none d-md-inline-flex" data-clock data-timezone="{{ config('app.timezone') }}" title="Current time">
+                <i class="bi bi-clock" aria-hidden="true"></i>
+                <span data-clock-text>{{ now()->setTimezone(config('app.timezone'))->format('g:i:s A') }}</span>
+            </span>
 
             @if (auth()->user()?->isTherapist())
                 {{-- Physical therapists: their upcoming appointments, set by the clinic. --}}

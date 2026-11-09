@@ -129,7 +129,7 @@ class UserManagementTest extends TestCase
         $this->assertSame('therapist', $this->docs['users/'.$this->authUsers['fran@rehabplus.com']['uid']]['role']);
     }
 
-    public function test_therapist_role_is_locked_and_rename_reaches_their_patients(): void
+    public function test_admin_can_change_a_therapist_to_administrator_and_the_rename_reaches_their_patients(): void
     {
         $this->staff('therapist', 'th1', 'Dr. Lee');
         $this->patientDoc('pat1', ['therapistId' => 'th1', 'therapistName' => 'Dr. Lee']);
@@ -138,11 +138,42 @@ class UserManagementTest extends TestCase
         $this->actingAs($this->staff('admin'))->put('/users/th1', ['name' => 'Dr. Lee-Santos', 'role' => 'admin', 'password' => 'brand-new-pw'])
             ->assertRedirect('/users');
 
-        $this->assertSame('therapist', $this->docs['users/th1']['role']);
+        $this->assertSame('admin', $this->docs['users/th1']['role']);
         $this->assertSame('Dr. Lee-Santos', $this->docs['users/th1']['name']);
         $this->assertSame('Dr. Lee-Santos', $this->docs['patients/pat1']['therapistName']);
         $this->assertSame('Dr. Other', $this->docs['patients/pat2']['therapistName']);
         $this->assertSame('brand-new-pw', $this->authUsers['th1@rehabplus.com']['password']);
+    }
+
+    public function test_the_role_list_leaves_out_the_current_role(): void
+    {
+        $this->staff('therapist', 'th1', 'Dr. Lee');
+
+        $this->actingAs($this->staff('admin'))->get('/users/th1/edit')->assertOk()
+            ->assertSee('Current: Physical Therapist')
+            ->assertDontSee('<option value="therapist"', false)
+            ->assertSee('<option value="admin"', false);
+    }
+
+    public function test_the_last_active_administrator_cannot_be_changed_to_therapist(): void
+    {
+        $admin = $this->staff('admin', 'adm', 'Ada Admin');
+
+        $this->actingAs($admin)->from('/users/adm/edit')->put('/users/adm', ['name' => 'Ada Admin', 'role' => 'therapist'])
+            ->assertRedirect('/users/adm/edit')
+            ->assertSessionHas('error');
+
+        $this->assertSame('admin', $this->docs['users/adm']['role']);
+    }
+
+    public function test_an_administrator_can_be_changed_to_therapist_when_another_administrator_remains(): void
+    {
+        $this->staff('admin', 'adm2', 'Second Admin');
+
+        $this->actingAs($this->staff('admin', 'adm', 'Ada Admin'))->put('/users/adm2', ['name' => 'Second Admin', 'role' => 'therapist'])
+            ->assertRedirect('/users');
+
+        $this->assertSame('therapist', $this->docs['users/adm2']['role']);
     }
 
     public function test_admin_cannot_change_own_role_or_disable_self(): void

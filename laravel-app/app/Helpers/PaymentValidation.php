@@ -24,6 +24,8 @@ class PaymentValidation
             'patient' => ['required', 'string', 'max:150'],
             'session' => ['required', 'string', 'max:150'],
             'fee' => ['required', 'numeric', 'min:0'],
+            'discount' => ['nullable', 'numeric', 'min:0'],
+            'tax_rate' => ['nullable', 'numeric', 'min:0', 'max:100'],
             'status' => ['required', 'in:Paid,Pending,Partial'],
             'date' => ['required', 'date_format:Y-m-d', 'after_or_equal:'.$dates['min'], 'before_or_equal:'.$dates['max']],
         ]);

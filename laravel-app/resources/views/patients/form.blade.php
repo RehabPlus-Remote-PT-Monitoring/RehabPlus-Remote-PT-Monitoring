@@ -72,7 +72,7 @@
                 @include('partials.phone-field', ['field' => 'phone', 'label' => 'Mobile number (for password reset texts)', 'country' => $phoneCountry, 'number' => $phoneNumber, 'initial' => $patient ? $phoneNumber : null, 'required' => false])
                 <div class="col-md-6">
                     <label for="dob" class="form-label small fw-semibold">Date of birth</label>
-                    <input id="dob" type="date" name="dob" class="form-control @error('dob') is-invalid @enderror" min="1900-01-01" max="{{ now()->toDateString() }}" data-calendar-only @if ($patient) data-initial="{{ $patient['dob'] ?? '' }}" @endif value="{{ old('dob', $patient['dob'] ?? '') }}">
+                    <div class="input-group"><input id="dob" type="date" name="dob" class="form-control @error('dob') is-invalid @enderror" min="1900-01-01" max="{{ now()->toDateString() }}" data-calendar-only @if ($patient) data-initial="{{ $patient['dob'] ?? '' }}" @endif value="{{ old('dob', $patient['dob'] ?? '') }}"><button type="button" class="btn btn-primary field-picker-button" data-date-open aria-label="Open calendar" title="Open calendar"><i class="bi bi-calendar3" aria-hidden="true"></i></button></div>
                     @error('dob')
                         <div class="invalid-feedback">{{ $message }}</div>
                     @enderror

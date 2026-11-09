@@ -501,6 +501,95 @@ html.dark-mode{
             display:inline-block;
         }
 
+        /* The clock beside the date in the top bar. */
+        .top-clock{
+            align-items:center;
+            gap:.4rem;
+            padding:.35rem .8rem;
+            border-radius:999px;
+            background:var(--primary-light);
+            color:var(--primary-dark);
+            font-size:.85rem;
+            font-weight:600;
+            font-variant-numeric:tabular-nums;
+            white-space:nowrap;
+        }
+
+        html.dark-mode body .top-clock{
+            background:rgba(20, 184, 166, .16);
+            color:#5eead4;
+        }
+
+        /* Date and time pickers: the calendar and clock icons are easy to spot and press. */
+        input[type="date"]::-webkit-calendar-picker-indicator,
+        input[type="time"]::-webkit-calendar-picker-indicator{
+            cursor:pointer;
+            padding:.25rem;
+            border-radius:6px;
+            background-color:var(--primary-light);
+        }
+
+        /* The suggestion list under a time or session field. */
+        .input-group{
+            position:relative;
+        }
+
+        /* A card keeps its corners clean, but must not cut off an open suggestion list. */
+        .card:has(.field-list){
+            overflow:visible;
+        }
+
+        .field-list{
+            position:absolute;
+            top:100%;
+            left:0;
+            right:0;
+            z-index:1050;
+            max-height:240px;
+            overflow-y:auto;
+            margin:4px 0 0;
+            padding:.25rem;
+            list-style:none;
+            background:var(--card);
+            border:1px solid var(--border);
+            border-radius:var(--radius-sm);
+            box-shadow:var(--shadow);
+        }
+
+        .field-list li{
+            padding:.45rem .7rem;
+            border-radius:6px;
+            color:var(--text);
+            cursor:pointer;
+        }
+
+        .field-list li:hover,
+        .field-list li:focus{
+            background:var(--primary-light);
+            outline:none;
+        }
+
+        /* Input groups stay on one line, so a button never drops below its field on a narrow screen. */
+        .input-group{
+            flex-wrap:nowrap;
+        }
+
+        .input-group > .form-control{
+            min-width:0;
+        }
+
+        /* Inside an input group, the picker button replaces the browser's own calendar icon. */
+        .input-group input[type="date"]::-webkit-calendar-picker-indicator{
+            display:none;
+        }
+
+        .field-picker-button{
+            display:inline-flex;
+            align-items:center;
+            justify-content:center;
+            min-width:44px;
+        }
+
         /* Physical therapists' bell: a round button with a count, and a panel of upcoming appointments. */
         .appt-alerts{
             position:relative;

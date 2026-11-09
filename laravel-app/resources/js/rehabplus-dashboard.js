@@ -6,6 +6,7 @@ import { applyPhoneLimits, keepDigitsOnly, keepPercent, refreshPhoneProblem, sho
 import { initPatientPickers } from './patient-picker.js';
 import { printReceipts } from './print-receipts.js';
 import { applyRoleDefaults } from './role-defaults.js';
+import { confirmRoleChange } from './role-change.js';
 import { initScheduleForm } from './schedule-form.js';
 import { initSessionPickers } from './session-picker.js';
 import { dragOffset, swipeCloses, swipeGesture } from './swipe.js';
@@ -24,12 +25,8 @@ function filterPatientRows() {
 }
 
 if (searchInput) {
-    searchInput.addEventListener('keyup', filterPatientRows);
-
-    document.getElementById('patientSearchButton')?.addEventListener('click', () => {
-        filterPatientRows();
-        searchInput.focus();
-    });
+    // Filters as you type, and when text is pasted in.
+    searchInput.addEventListener('input', filterPatientRows);
 }
 
 const chartData = window.rehabPlusDashboardData || {};
@@ -338,6 +335,23 @@ document.addEventListener('click', (event) => {
     }
 });
 
+// Patients list: the rows that match the search box are shown as you type.
+document.addEventListener('input', (event) => {
+    if (!event.target.matches?.('#patient-search')) {
+        return;
+    }
+    const term = event.target.value.trim().toLowerCase();
+    let shown = 0;
+
+    document.querySelectorAll('[data-patient-row]').forEach((row) => {
+        const match = row.dataset.search.includes(term);
+        row.hidden = !match;
+        shown += match ? 1 : 0;
+    });
+
+    document.querySelector('[data-patient-search-empty]')?.toggleAttribute('hidden', shown > 0);
+});
+
 // Account forms: as soon as an email is typed, check whether another account already uses it.
 // The browser also blocks saving while the email is taken; the server checks again on save.
 function clearEmailTaken(input) {
@@ -477,6 +491,10 @@ document.addEventListener('change', (event) => {
         applyRoleDefaults(event.target);
     }
 
+    if (event.target.matches?.('[data-role-change]')) {
+        confirmRoleChange(event.target);
+    }
+
     if (event.target.matches?.('[data-autosubmit]') && event.target.form) {
         event.target.form.requestSubmit(); // runs data-confirm and validation, unlike form.submit()
     }
@@ -501,3 +519,111 @@ function setHidden(ids, hidden) {
         document.getElementById(id)?.toggleAttribute('hidden', hidden);
     }
 }
+// My Profile: the chosen picture shows straight away, before the change is saved.
+document.addEventListener('change', (event) => {
+    const input = event.target;
+    const file = input.matches?.('[data-photo-input]') ? input.files?.[0] : null;
+    if (!file) {
+        return;
+    }
+
+    const form = input.form;
+    form.querySelector('[data-photo-preview]').src = URL.createObjectURL(file);
+    form.querySelector('[data-photo-preview]').hidden = false;
+    form.querySelector('[data-photo-initials]').hidden = true;
+});
+
+// The clock next to the date in the top bar, in the clinic's time zone.
+document.querySelectorAll('[data-clock]').forEach((clock) => {
+    const text = clock.querySelector('[data-clock-text]');
+    const format = new Intl.DateTimeFormat('en-US', {
+        timeZone: clock.dataset.timezone,
+        hour: 'numeric',
+        minute: '2-digit',
+        second: '2-digit',
+    });
+    setInterval(() => {
+        text.textContent = format.format(new Date());
+    }, 1000);
+});
+
+// The calendar button beside a date field: opens the date picker for that field.
+document.addEventListener('click', (event) => {
+    const button = event.target.closest?.('[data-date-open]');
+    if (!button) {
+        return;
+    }
+    const input = button.parentElement.querySelector('input');
+    if (input.showPicker) {
+        input.showPicker();
+    } else {
+        input.focus();
+    }
+});
+
+// The dropdown button beside a time or session field: shows its suggestions in a list under the field.
+function closeFieldLists(except = null) {
+    document.querySelectorAll(".field-list").forEach((list) => {
+        if (list !== except) {
+            list.remove();
+        }
+    });
+}
+
+document.addEventListener("click", (event) => {
+    const button = event.target.closest?.("[data-list-open]");
+    if (button) {
+        const group = button.parentElement;
+        const existing = group.querySelector(".field-list");
+        closeFieldLists();
+        if (existing) {
+            return;
+        }
+
+        const input = group.querySelector("input");
+        const options = document.getElementById(input.getAttribute("list"))?.querySelectorAll("option") ?? [];
+        const list = document.createElement("ul");
+        list.className = "field-list";
+        list.setAttribute("role", "listbox");
+
+        options.forEach((option) => {
+            const item = document.createElement("li");
+            item.textContent = option.value;
+            item.tabIndex = 0;
+            item.setAttribute("role", "option");
+            item.addEventListener("mousedown", (pick) => {
+                pick.preventDefault();
+                input.value = option.value;
+                input.dispatchEvent(new Event("input", { bubbles: true }));
+                input.dispatchEvent(new Event("change", { bubbles: true }));
+                list.remove();
+                input.focus();
+            });
+            list.append(item);
+        });
+
+        group.append(list);
+        return;
+    }
+
+    if (!event.target.closest?.(".field-list")) {
+        closeFieldLists();
+    }
+});
+
+document.addEventListener("keydown", (event) => {
+    if (event.key === "Escape") {
+        closeFieldLists();
+    }
+});
+
+// The dropdown button beside a select: opens the select's list of choices.
+document.addEventListener('click', (event) => {
+    const button = event.target.closest?.('[data-select-open]');
+    if (!button) {
+        return;
+    }
+    const select = button.parentElement.querySelector('select');
+    select.focus();
+    select.showPicker?.();
+});

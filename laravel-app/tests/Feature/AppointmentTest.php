@@ -64,7 +64,7 @@ class AppointmentTest extends TestCase
         $doc = $this->docs[$path];
         $this->assertSame('Emily Johnson', $doc['patient']);
         $this->assertSame('2026-10-20', $doc['date']);
-        $this->assertSame('09:30', $doc['time']);
+        $this->assertSame('9:30 AM', $doc['time']);
         $this->assertSame('+639175550101', $doc['contact']);
         $this->assertNull($doc['completed_at']);
         $this->assertArrayHasKey('createdAt', $doc);

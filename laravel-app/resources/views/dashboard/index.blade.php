@@ -60,9 +60,8 @@
             <span>Patient Recovery Overview</span>
             <div class="input-group table-search">
                 <input type="text" id="patientSearch" class="form-control" placeholder="Search patient...">
-                <button type="button" id="patientSearchButton" class="btn btn-primary" aria-label="Search patients" title="Search">
-                    <i class="bi bi-search" aria-hidden="true"></i>
-                </button>
+                {{-- Decorative: the list filters as you type. --}}
+                <span class="input-group-text" aria-hidden="true"><i class="bi bi-search"></i></span>
             </div>
         </div>
 

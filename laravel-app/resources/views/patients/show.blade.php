@@ -60,7 +60,7 @@
             @if ($canMessage && ! $patient['archived'])
                 <a href="{{ route('messages.show', $patient['uid']) }}" class="btn btn-outline-primary"><i class="bi bi-chat-dots me-1"></i>Message</a>
             @endif
-            @if ($canManage)
+            @if ($isAdmin)
                 <a href="{{ route('patients.edit', $patient['uid']) }}" class="btn btn-outline-secondary"><i class="bi bi-pencil me-1"></i>Edit</a>
                 @if ($patient['archived'])
                     <form method="POST" action="{{ route('patients.restore', $patient['uid']) }}" data-confirm="Restore {{ $patient['name'] }}? Their app login is enabled again and they show up in the patient list.">@csrf

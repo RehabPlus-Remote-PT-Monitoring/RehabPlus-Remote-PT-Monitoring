@@ -45,8 +45,7 @@ class PatientTest extends TestCase
 
         $this->actingAs($this->staff('therapist', 'thA', 'Dr. Ana'))->get('/patients')
             ->assertOk()
-            ->assertSee('action="http://localhost/patients/pOne/archive"', false)
-            ->assertDontSee('action="http://localhost/patients/pTwo/archive"', false);
+            ->assertDontSee('action="http://localhost/patients/pOne/archive"', false);
 
         $this->actingAs($this->staff('admin'))->get('/patients?archived=1')
             ->assertOk()
@@ -143,7 +142,7 @@ class PatientTest extends TestCase
 
         $this->actingAs($this->staff('therapist', 'thA', 'Dr. Ana'))->get('/patients?archived=1')
             ->assertOk()
-            ->assertSee('/patients/pOld/restore', false)
+            ->assertDontSee('/patients/pOld/restore', false)
             ->assertDontSee('/patients/pOld/delete', false);
     }
 
@@ -199,7 +198,7 @@ class PatientTest extends TestCase
         $this->actingAs($this->staff('admin'))->get('/patients')
             ->assertSee('data-autosubmit', false)
             ->assertSee('placeholder="Name or email"', false)
-            ->assertSee('aria-label="Search patients"', false)
+            ->assertSee("data-patient-row", false)->assertSee("data-search=", false)
             ->assertDontSee('>Filter<', false)
             ->assertDontSee('>Clear<', false);
     }
@@ -432,18 +431,14 @@ class PatientTest extends TestCase
         $this->actingAs($user)->get('/patients/pOne/edit')->assertNotFound();
     }
 
-    public function test_update_profile_and_admin_reassignment(): void
+    public function test_only_administrators_update_a_profile_and_reassign_therapists(): void
     {
         $this->actingAs($this->staff('therapist', 'thA', 'Dr. Ana'))
             ->put('/patients/pOne', ['name' => 'Olive Renamed', 'condition' => 'ACL reconstruction', 'phone' => '9175550101', 'therapist_id' => 'thB'])
-            ->assertRedirect('/patients/pOne');
+            ->assertForbidden();
 
-        $doc = $this->docs['patients/pOne'];
-        $this->assertSame('Olive Renamed', $doc['name']);
-        $this->assertSame('ACL reconstruction', $doc['condition']);
-        $this->assertSame('thA', $doc['therapistId'], 'only admins reassign');
-        $this->assertSame('Olive Renamed', $this->docs['users/pOne']['name']);
-        $this->assertSame('Olive Renamed', $this->authUsers['pOne@mail.com']['displayName'] ?? 'Olive Renamed');
+        $this->assertSame('Olive One', $this->docs['patients/pOne']['name']);
+        $this->assertSame('thA', $this->docs['patients/pOne']['therapistId']);
 
         $this->actingAs($this->staff('admin'))
             ->put('/patients/pOne', ['name' => 'Olive Renamed', 'condition' => 'ACL', 'therapist_id' => 'thB']);
@@ -497,7 +492,7 @@ class PatientTest extends TestCase
     public function test_archive_disables_login_and_restore_reenables(): void
     {
         $this->authUsers['pOne@mail.com'] = ['uid' => 'pOne', 'password' => 'x', 'disabled' => false, 'displayName' => 'Olive One'];
-        $user = $this->staff('therapist', 'thA', 'Dr. Ana');
+        $user = $this->staff('admin');
 
         $this->actingAs($user)->post('/patients/pOne/archive')->assertRedirect('/patients');
         $this->assertTrue($this->authUsers['pOne@mail.com']['disabled']);
@@ -509,12 +504,25 @@ class PatientTest extends TestCase
         $this->assertFalse($this->docs['patients/pOne']['archived']);
     }
 
-    public function test_the_patients_therapist_resets_the_password_and_sees_it_with_ways_to_contact_them(): void
+    public function test_a_therapist_cannot_edit_archive_or_reset_the_password_of_their_own_patient(): void
+    {
+        $therapist = $this->staff('therapist', 'thA', 'Dr. Ana');
+        $this->authUsers['pOne@mail.com'] = ['uid' => 'pOne', 'password' => 'old', 'disabled' => false, 'displayName' => 'Olive One'];
+
+        $this->actingAs($therapist)->get('/patients/pOne/edit')->assertForbidden();
+        $this->actingAs($therapist)->post('/patients/pOne/archive')->assertForbidden();
+        $this->actingAs($therapist)->post('/patients/pOne/password')->assertForbidden();
+
+        $this->assertFalse($this->docs['patients/pOne']['archived']);
+        $this->assertSame('old', $this->authUsers['pOne@mail.com']['password']);
+    }
+
+    public function test_an_administrator_resets_the_password_and_sees_it_with_ways_to_contact_them(): void
     {
         $this->authUsers['pOne@mail.com'] = ['uid' => 'pOne', 'password' => 'old', 'disabled' => false, 'displayName' => 'Olive One'];
         $this->docs['patients/pOne']['phone'] = '+639175550101';
 
-        $response = $this->actingAs($this->staff('therapist', 'thA', 'Dr. Ana'))->post('/patients/pOne/password');
+        $response = $this->actingAs($this->staff('admin'))->post('/patients/pOne/password');
         $response->assertRedirect('/patients/pOne');
 
         $password = $this->authUsers['pOne@mail.com']['password'];
@@ -533,13 +541,13 @@ class PatientTest extends TestCase
         $this->get('/patients/pOne')->assertOk()->assertDontSee($password);
     }
 
-    public function test_the_reset_password_button_is_only_for_people_who_manage_the_patient(): void
+    public function test_the_reset_password_button_is_only_for_administrators(): void
     {
         $this->authUsers['pOne@mail.com'] = ['uid' => 'pOne', 'password' => 'old', 'disabled' => false, 'displayName' => 'Olive One'];
         $action = 'action="http://localhost/patients/pOne/password"';
 
         $this->actingAs($this->staff('admin'))->get('/patients/pOne')->assertOk()->assertSee($action, false);
-        $this->actingAs($this->staff('therapist', 'thA', 'Dr. Ana'))->get('/patients/pOne')->assertOk()->assertSee($action, false);
+        $this->actingAs($this->staff('therapist', 'thA', 'Dr. Ana'))->get('/patients/pOne')->assertOk()->assertDontSee($action, false);
 
         $otherTherapist = $this->staff('therapist', 'thB', 'Dr. Ben');
         $this->actingAs($otherTherapist)->post('/patients/pOne/password')->assertNotFound();
@@ -687,7 +695,7 @@ class PatientTest extends TestCase
 
     public function test_changing_a_patient_asks_do_you_want_to_proceed_first(): void
     {
-        $therapist = $this->staff('therapist', 'thA', 'Dr. Ana');
+        $therapist = $this->staff('admin');
 
         // Edit form: lists the changed fields against the saved values.
         $this->actingAs($therapist)->get('/patients/pOne/edit')->assertOk()

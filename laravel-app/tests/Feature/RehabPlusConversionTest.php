@@ -89,9 +89,6 @@ class RehabPlusConversionTest extends TestCase
         $response = $this->actingAs($this->staff('therapist', 'th1'))->get('/billing')->assertOk();
 
         $this->assertSame([['name' => 'Mine', 'sessions' => ['Massage']]], $response->viewData('billablePatients'));
-
-        $this->post('/billing', ['patient' => 'Theirs', 'session' => 'Massage', 'fee' => '100', 'status' => 'Paid', 'date' => '2026-10-09'])
-            ->assertSessionHasErrors('patient');
     }
 
     public function test_billing_only_accepts_a_patient_with_an_appointment_and_their_own_session(): void

@@ -43,6 +43,27 @@ class ProfileTest extends TestCase
             ->assertSessionHasErrors('contact_email');
     }
 
+    public function test_an_administrator_can_change_their_own_role_when_another_administrator_remains(): void
+    {
+        $this->staff('admin', 'adm2', 'Second Admin');
+
+        $this->actingAs($this->staff('admin', 'adm', 'Ada Admin'))
+            ->put('/profile', ['name' => 'Ada Admin', 'role' => 'therapist'])
+            ->assertRedirect('/profile')
+            ->assertSessionHasNoErrors();
+
+        $this->assertSame('therapist', $this->docs['users/adm']['role']);
+    }
+
+    public function test_the_only_administrator_cannot_change_their_own_role(): void
+    {
+        $this->actingAs($this->staff('admin', 'adm', 'Ada Admin'))
+            ->put('/profile', ['name' => 'Ada Admin', 'role' => 'therapist'])
+            ->assertSessionHas('error');
+
+        $this->assertSame('admin', $this->docs['users/adm']['role']);
+    }
+
     public function test_name_is_saved_and_the_role_cannot_be_changed(): void
     {
         $this->staff('therapist', 'thA', 'Dr. Ana');

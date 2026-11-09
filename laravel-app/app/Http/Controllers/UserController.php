@@ -60,7 +60,13 @@ class UserController extends Controller
     public function update(Request $request, string $uid): RedirectResponse
     {
         $user = $this->staffOr404($uid);
-        $this->users->update($user, UserValidation::update($request, $user, $request->user()));
+        $data = UserValidation::update($request, $user, $request->user());
+
+        if ($this->users->removesLastAdmin($user, $data['role'])) {
+            return back()->withInput()->with('error', 'At least one active administrator must remain. Make another administrator first.');
+        }
+
+        $this->users->update($user, $data);
 
         return redirect()->route('users.index')->with('success', 'User updated.');
     }

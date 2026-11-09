@@ -5,7 +5,6 @@
 @section('content')
     @php
         $me = auth()->user();
-        $roleLocked = $user && ($user['role'] === 'therapist' || $user['uid'] === $me->id);
         $selectedRole = old('role', $user['role'] ?? 'therapist');
         $contact = \App\Helpers\PhoneNumber::parse($user['contactPhone'] ?? '');
         $contactCountry = old('phone_country', $contact['iso']);
@@ -13,7 +12,8 @@
     @endphp
     <div class="mb-3">
         <a href="{{ route('users.index') }}" class="back-link text-decoration-none small"><i class="bi bi-arrow-left me-1"></i>Back to staff accounts</a>
-        <p class="page-title mb-1 mt-1">{{ $user ? 'Edit '.$user['name'] : 'New Staff Account' }}</p>
+        <p class="text-muted small fw-semibold text-uppercase mb-0 mt-1" style="letter-spacing:.06em">{{ $user ? 'Edit staff account' : 'New staff account' }}</p>
+        <p class="page-title mb-1">{{ $user ? $user['name'] : 'New Staff Account' }}</p>
         @if ($user)
             <p class="page-subtitle mb-0">{{ $user['email'] }}</p>
         @endif
@@ -38,17 +38,17 @@
                 </div>
                 <div class="col-md-6">
                     <label for="role" class="form-label small fw-semibold">Role</label>
-                    @if ($roleLocked)
-                        <input type="text" class="form-control" value="{{ \App\Auth\StaffUser::ROLE_LABELS[$user['role']] }} (locked)" disabled>
-                        <div class="form-text">{{ $user['role'] === 'therapist' ? 'Therapist accounts keep their role because patients are assigned to them.' : 'You can\'t change your own role.' }}</div>
-                    @else
-                        <select id="role" name="role" class="form-select" @unless ($user) data-role-defaults @endunless>
-                            @foreach (\App\Auth\StaffUser::ROLE_LABELS as $value => $label)
+                    <select id="role" name="role" class="form-select" @unless ($user) data-role-defaults @endunless @if ($user) data-role-change data-current="{{ $user['role'] }}" data-current-label="{{ \App\Auth\StaffUser::ROLE_LABELS[$user['role']] }}" data-name="{{ $user['name'] }}" data-self="{{ $user['uid'] === $me->id ? 1 : 0 }}" @endif>
+                        @if ($user)
+                            <option value="" disabled @selected($selectedRole === $user['role'])>Current: {{ \App\Auth\StaffUser::ROLE_LABELS[$user['role']] }}</option>
+                        @endif
+                        @foreach (\App\Auth\StaffUser::ROLE_LABELS as $value => $label)
+                            @if (! $user || $value !== $user['role'])
                                 <option value="{{ $value }}" data-name="{{ $label }}" data-email="{{ $value }}@rehabplus.com" @selected($selectedRole === $value)>{{ $label }}</option>
-                            @endforeach
-                        </select>
-                        <div class="form-text">Physical therapists manage their own patients. Administrators can do everything, including managing staff accounts.</div>
-                    @endif
+                            @endif
+                        @endforeach
+                    </select>
+                    <div class="form-text">Physical therapists manage their own patients. Administrators can see all patients and manage staff accounts.</div>
                 </div>
 
                 @unless ($user)

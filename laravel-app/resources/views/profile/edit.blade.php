@@ -16,14 +16,12 @@
 
         <div class="card-body p-4">
             <div class="d-flex flex-column flex-sm-row align-items-sm-center gap-4 mb-4">
-                @if ($user['photoUrl'] !== '')
-                    <img src="{{ $user['photoUrl'] }}" alt="" class="home-staff-photo flex-shrink-0">
-                @else
-                    <div class="home-staff-initials flex-shrink-0" aria-hidden="true">{{ $initial }}</div>
-                @endif
+                {{-- Shows the chosen picture as soon as it is picked, before saving. --}}
+                <img @if ($user['photoUrl'] !== '') src="{{ $user['photoUrl'] }}" @endif alt="" class="home-staff-photo flex-shrink-0" data-photo-preview @if ($user['photoUrl'] === '') hidden @endif>
+                <div class="home-staff-initials flex-shrink-0" aria-hidden="true" data-photo-initials @if ($user['photoUrl'] !== '') hidden @endif>{{ $initial }}</div>
                 <div class="flex-grow-1">
                     <label for="photo" class="form-label small fw-semibold">Profile picture</label>
-                    <input id="photo" type="file" name="photo" accept="image/jpeg,image/png,image/webp" class="form-control @error('photo') is-invalid @enderror">
+                    <input id="photo" type="file" name="photo" accept="image/jpeg,image/png,image/webp" data-photo-input class="form-control @error('photo') is-invalid @enderror">
                     @error('photo')
                         <div class="invalid-feedback">{{ $message }}</div>
                     @enderror
@@ -47,8 +45,20 @@
                 </div>
                 <div class="col-md-6">
                     <label class="form-label small fw-semibold">Role</label>
-                    <input type="text" class="form-control" value="{{ \App\Auth\StaffUser::ROLE_LABELS[$user['role']] ?? $user['role'] }}" disabled>
-                    <div class="form-text">Only an administrator can change a role, on Staff Accounts.</div>
+                    @if ($user['role'] === 'admin')
+                        <select id="role" name="role" class="form-select" data-role-change data-current="admin" data-current-label="Administrator" data-name="{{ $user['name'] }}" data-self="1">
+                            <option value="" disabled selected>Current: Administrator</option>
+                            @foreach (\App\Auth\StaffUser::ROLE_LABELS as $value => $label)
+                                @if ($value !== 'admin')
+                                    <option value="{{ $value }}">{{ $label }}</option>
+                                @endif
+                            @endforeach
+                        </select>
+                        <div class="form-text">Changing your role changes what you can access. You will be asked to confirm.</div>
+                    @else
+                        <input type="text" class="form-control" value="{{ \App\Auth\StaffUser::ROLE_LABELS[$user['role']] ?? $user['role'] }}" disabled>
+                        <div class="form-text">Only an administrator can change a role.</div>
+                    @endif
                 </div>
                 <div class="col-md-6">
                     <label class="form-label small fw-semibold">Login email</label>

@@ -255,7 +255,7 @@ describe('patient search and theme', () => {
     test('typing filters the patient table', () => {
         const search = $('patientSearch');
         search.value = 'olive';
-        search.dispatchEvent(new KeyboardEvent('keyup'));
+        search.dispatchEvent(new Event('input'));
         const rows = document.querySelectorAll('#patientsTable tbody tr');
         expect(rows[0].style.display).toBe('');
         expect(rows[1].style.display).toBe('none');

@@ -66,9 +66,8 @@ class UserValidation
     }
 
     /**
-     * Name, role and optional new password. Therapist accounts keep their role
-     * (their patients are linked to them), and admins can't change their own
-     * role, so the clinic can't lose its last admin by accident.
+     * Name, role and optional new password. Leaving the role as it is keeps it.
+     * The last active administrator can't be changed to a therapist; see UserService::removesLastAdmin().
      */
     public static function update(Request $request, array $user, StaffUser $by): array
     {
@@ -78,7 +77,7 @@ class UserValidation
             'password' => 'nullable|string|min:'.FirebaseAdmin::MIN_PASSWORD.'|max:100',
         ]);
 
-        if ($user['role'] === StaffUser::THERAPIST || $user['uid'] === $by->id || empty($data['role'])) {
+        if (empty($data['role'])) {
             $data['role'] = $user['role'];
         }
         if (empty($data['password'])) {

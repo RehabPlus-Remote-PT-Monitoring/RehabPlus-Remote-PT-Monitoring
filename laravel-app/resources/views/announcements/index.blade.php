@@ -43,7 +43,7 @@
 
                 <div class="col-md-6">
                     <label for="show_until" class="form-label small fw-semibold">Show until (optional)</label>
-                    <input id="show_until" type="date" name="show_until" class="form-control @error('show_until') is-invalid @enderror" value="{{ old('show_until') }}" min="{{ now()->toDateString() }}">
+                    <div class="input-group"><input id="show_until" type="date" name="show_until" class="form-control @error('show_until') is-invalid @enderror" value="{{ old('show_until') }}" min="{{ now()->toDateString() }}"><button type="button" class="btn btn-primary field-picker-button" data-date-open aria-label="Open calendar" title="Open calendar"><i class="bi bi-calendar3" aria-hidden="true"></i></button></div>
                     @error('show_until')
                         <div class="invalid-feedback">{{ $message }}</div>
                     @enderror

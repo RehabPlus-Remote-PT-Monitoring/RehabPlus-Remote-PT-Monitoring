@@ -35,7 +35,7 @@
                     </div>
                     <div class="col-md-3">
                         <label class="form-label small fw-semibold" for="n_date">Date</label>
-                        <input id="n_date" type="date" name="date" class="form-control" value="{{ old('date', now($tz)->format('Y-m-d')) }}" min="{{ \App\Helpers\ClinicalValidation::assessmentDates()['min'] }}" max="{{ now($tz)->format('Y-m-d') }}" data-calendar-only required>
+                        <div class="input-group"><input id="n_date" type="date" name="date" class="form-control" value="{{ old('date', now($tz)->format('Y-m-d')) }}" min="{{ \App\Helpers\ClinicalValidation::assessmentDates()['min'] }}" max="{{ now($tz)->format('Y-m-d') }}" data-calendar-only required><button type="button" class="btn btn-primary field-picker-button" data-date-open aria-label="Open calendar" title="Open calendar"><i class="bi bi-calendar3" aria-hidden="true"></i></button></div>
                     </div>
                     <div class="col-12">
                         <label class="form-label small fw-semibold" for="n_text">Care plan / note</label>

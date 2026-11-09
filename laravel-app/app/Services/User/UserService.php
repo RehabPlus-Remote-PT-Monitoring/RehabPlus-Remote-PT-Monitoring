@@ -46,6 +46,22 @@ class UserService
         ));
     }
 
+    /**
+     * True when changing this account to  would leave no active administrator.
+     * At least one administrator must always be able to sign in and manage staff.
+     */
+    public function removesLastAdmin(array $user, string $newRole): bool
+    {
+        if ($user['role'] !== StaffUser::ADMIN || $newRole === StaffUser::ADMIN) {
+            return false;
+        }
+
+        $otherActiveAdmins = array_filter($this->staff(), fn ($u) => $u['role'] === StaffUser::ADMIN
+            && $u['uid'] !== $user['uid'] && $u['active'] && ! $u['archived']);
+
+        return count($otherActiveAdmins) === 0;
+    }
+
     public function find(string $uid): ?array
     {
         if (! FirestoreClient::isValidId($uid)) {
