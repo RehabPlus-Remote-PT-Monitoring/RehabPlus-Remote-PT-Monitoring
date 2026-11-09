@@ -11,6 +11,7 @@ import 'package:flutter/material.dart';
 
 import '../core/app_palette.dart';
 import '../widgets/dashboard_sidebar.dart';
+import 'ios_chrome.dart';
 
 /// SF Symbol (normal, selected) for each dashboard tab label.
 const Map<String, (String, String)> kTabSymbols = {
@@ -23,9 +24,19 @@ const Map<String, (String, String)> kTabSymbols = {
   'Profile': ('person.crop.circle', 'person.crop.circle.fill'),
 };
 
-/// Height to add to the page's bottom padding so the last items of a tab
-/// page can scroll clear of the floating glass bar.
-const double kGlassTabBarClearance = 64;
+/// [base] padding for a tab page's scroll view, plus room at the bottom
+/// for the floating glass tab bar on iPhone.
+///
+/// The dashboard Scaffold uses `extendBody`, so the page's MediaQuery
+/// bottom padding already equals the bar's real height (home indicator
+/// included). Scroll views that set their own padding don't pick that up
+/// by themselves, so they add it here. Android: [base] unchanged.
+EdgeInsets withTabBarClearance(BuildContext context, EdgeInsets base) {
+  if (!useIosChrome) return base;
+  return base.copyWith(
+    bottom: base.bottom + MediaQuery.paddingOf(context).bottom,
+  );
+}
 
 class GlassTabBar extends StatelessWidget {
   const GlassTabBar({

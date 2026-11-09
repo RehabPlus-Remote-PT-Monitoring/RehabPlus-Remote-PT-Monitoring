@@ -10,8 +10,10 @@
 //     coral  streaks, achievements and "today" highlights
 //     mint   completed / done
 //     amber  warnings
-//   For icons, dots and fills, not body text. On Android each returns the
-//   colour the call site used before ([fallback]).
+//   Light-mode shades are deep enough for text (WCAG AA 4.5:1 on white
+//   and on the pale green/orange chip tints); dark mode uses brighter
+//   tints. On Android each returns the colour the call site used before
+//   ([fallback]).
 
 import 'package:flutter/material.dart';
 
@@ -37,11 +39,11 @@ Gradient brandGradient(
 
 /// Supporting colours for the iPhone look (see the file comment).
 abstract final class AppAccents {
-  static const Color _coralLight = Color(0xFFFF7A59);
+  static const Color _coralLight = Color(0xFFB8401A);
   static const Color _coralDark = Color(0xFFFF9479);
-  static const Color _mintLight = Color(0xFF2EB88A);
+  static const Color _mintLight = Color(0xFF137A55);
   static const Color _mintDark = Color(0xFF5FD3A8);
-  static const Color _amberLight = Color(0xFFF5A623);
+  static const Color _amberLight = Color(0xFFA15C00);
   static const Color _amberDark = Color(0xFFFFC14D);
 
   /// Streaks, achievements, "today" highlights.

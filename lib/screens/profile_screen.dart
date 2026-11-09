@@ -16,6 +16,7 @@ import 'settings_screen.dart';
 import '../widgets/profile_avatar.dart';
 import '../core/responsive.dart';
 import '../ios/brand_colors.dart';
+import '../ios/glass_tab_bar.dart';
 
 class ProfileScreen extends StatefulWidget {
   const ProfileScreen({super.key});
@@ -121,6 +122,8 @@ class _ProfileScreenState extends State<ProfileScreen> {
                   color: primaryTeal,
                   onRefresh: _refresh,
                   child: SingleChildScrollView(
+                    // iPhone: room under Sign Out for the floating tab bar.
+                    padding: withTabBarClearance(context, EdgeInsets.zero),
                     // Always scrollable, so the pull works even when the
                     // cards fit on screen (big tablets, short profiles).
                     physics: const BouncingScrollPhysics(

@@ -165,9 +165,9 @@ class AppButton extends StatelessWidget {
 /// Asks a yes/no question. Returns true only when the user confirmed.
 ///
 /// Android: runs [material] (the screen's existing `showDialog`).
-/// iPhone: a native alert. If the native alert fails, the failure is
-/// logged and the Material dialog is shown instead, so the question is
-/// never silently skipped.
+/// iPhone: a native alert. If the native alert can't be shown (it returns
+/// no answer or throws), the Material dialog is shown instead, so the
+/// question is never silently skipped.
 Future<bool> showAppConfirm(
   BuildContext context, {
   required String title,
@@ -178,22 +178,46 @@ Future<bool> showAppConfirm(
   bool destructive = false,
 }) async {
   if (!useIosChrome) return await material() ?? false;
+  return confirmWithFallback(
+    native: () async {
+      final result = await CNAlert.show<bool>(
+        context: context,
+        title: title,
+        message: message,
+        actions: [
+          CNAlertAction(label: cancelLabel, value: false, isCancel: true),
+          CNAlertAction(
+            label: confirmLabel,
+            value: true,
+            isDestructive: destructive,
+            isDefault: !destructive,
+          ),
+        ],
+      );
+      // Cancel and confirm both carry a value; null means no alert.
+      return result?.value;
+    },
+    material: material,
+    title: title,
+  );
+}
+
+/// Runs [native]; when it gives no answer (null) or throws, logs it and
+/// runs [material] instead. Returns true only for an explicit yes.
+@visibleForTesting
+Future<bool> confirmWithFallback({
+  required Future<bool?> Function() native,
+  required Future<bool?> Function() material,
+  String title = '',
+}) async {
   try {
-    final result = await CNAlert.show<bool>(
-      context: context,
-      title: title,
-      message: message,
-      actions: [
-        CNAlertAction(label: cancelLabel, value: false, isCancel: true),
-        CNAlertAction(
-          label: confirmLabel,
-          value: true,
-          isDestructive: destructive,
-          isDefault: !destructive,
-        ),
-      ],
+    final answer = await native();
+    if (answer != null) return answer;
+    DiagnosticLogger.I.warn(
+      'IosChrome',
+      'Native alert gave no answer; showing the Material dialog',
+      {'title': title},
     );
-    return result?.value ?? false;
   } catch (e, st) {
     DiagnosticLogger.I.warn(
       'IosChrome',
@@ -202,6 +226,6 @@ Future<bool> showAppConfirm(
       e,
       st,
     );
-    return await material() ?? false;
   }
+  return await material() ?? false;
 }

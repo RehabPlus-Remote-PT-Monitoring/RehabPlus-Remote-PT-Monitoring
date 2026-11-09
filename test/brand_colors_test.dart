@@ -73,10 +73,10 @@ void main() {
       final context = await _contextFor(tester, Brightness.light);
       expect(
         AppAccents.coral(context, fallback: oldOrange),
-        const Color(0xFFFF7A59),
+        const Color(0xFFB8401A),
       );
-      expect(AppAccents.mint(context, fallback: a), const Color(0xFF2EB88A));
-      expect(AppAccents.amber(context, fallback: a), const Color(0xFFF5A623));
+      expect(AppAccents.mint(context, fallback: a), const Color(0xFF137A55));
+      expect(AppAccents.amber(context, fallback: a), const Color(0xFFA15C00));
     });
 
     testWidgets('accents use the dark values in dark mode', (tester) async {

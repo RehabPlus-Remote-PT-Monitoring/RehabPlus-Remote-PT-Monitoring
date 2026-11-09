@@ -230,10 +230,13 @@ class _DashboardScreenState extends State<DashboardScreen>
                 // Wide screens (landscape tablets) get two columns of
                 // cards; phones and portrait tablets keep one column in
                 // the same order as before.
-                padding: readablePadding(
+                padding: withTabBarClearance(
                   pageContext,
-                  const EdgeInsets.fromLTRB(16, 0, 16, 16),
-                  columnWidth,
+                  readablePadding(
+                    pageContext,
+                    const EdgeInsets.fromLTRB(16, 0, 16, 16),
+                    columnWidth,
+                  ),
                 ),
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
@@ -354,19 +357,13 @@ class _DashboardScreenState extends State<DashboardScreen>
 
     if (useIosChrome) {
       // iPhone: the native Liquid Glass tab bar floats over the page
-      // (extendBody), so the page's bottom padding is raised by the bar's
-      // clearance and the last items can still scroll above it.
+      // (extendBody). Scaffold then reports the bar's real height as the
+      // page's bottom padding; scroll views add it with
+      // withTabBarClearance so their last items scroll above the bar.
       return Scaffold(
         backgroundColor: context.palette.background,
         extendBody: true,
-        body: MediaQuery(
-          data: media.copyWith(
-            padding: media.padding.copyWith(
-              bottom: media.padding.bottom + kGlassTabBarClearance,
-            ),
-          ),
-          child: _buildPageArea(),
-        ),
+        body: _buildPageArea(),
         bottomNavigationBar: SafeArea(
           top: false,
           child: GlassTabBar(
