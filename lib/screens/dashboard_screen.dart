@@ -319,36 +319,39 @@ class _DashboardScreenState extends State<DashboardScreen>
     final media = MediaQuery.of(context);
     final showSidebar = media.size.width >= kSidebarBreakpoint;
 
-    if (showSidebar) {
-      // Landscape tablet: navigation on the left, no bottom bar. The page
-      // area gets a MediaQuery as wide as the space right of the sidebar,
-      // so readablePadding / isTwoColumn inside the pages measure what
-      // they really have, not the whole screen.
-      return Scaffold(
-        backgroundColor: context.palette.background,
-        body: Row(
-          crossAxisAlignment: CrossAxisAlignment.stretch,
-          children: [
+    // One tree for both layouts. The page area always sits in the same place
+    // (same GlobalKey, same MediaQuery wrapper), so crossing the sidebar
+    // breakpoint (rotation, split screen, fold) only changes its data. Moving
+    // it between different parents caused the "_dependents.isEmpty" crash.
+    //
+    // Landscape tablet: navigation on the left, no bottom bar. The page area
+    // gets a MediaQuery as wide as the space right of the sidebar, so
+    // readablePadding / isTwoColumn inside the pages measure what they really
+    // have, not the whole screen.
+    return Scaffold(
+      backgroundColor: context.palette.background,
+      body: Row(
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        children: [
+          if (showSidebar)
             DashboardSidebar(
               destinations: _destinations,
               selectedIndex: _bottomNavIndex,
               onSelect: _selectTab,
+            )
+          else
+            const SizedBox.shrink(),
+          Expanded(
+            child: MediaQuery(
+              data: showSidebar ? _pageAreaMedia(media) : media,
+              child: _buildPageArea(),
             ),
-            Expanded(
-              child: MediaQuery(
-                data: _pageAreaMedia(media),
-                child: _buildPageArea(),
-              ),
-            ),
-          ],
-        ),
-      );
-    }
-
-    return Scaffold(
-      backgroundColor: context.palette.background,
-      body: _buildPageArea(),
-      bottomNavigationBar: ReadableWidth(child: _buildBottomNav()),
+          ),
+        ],
+      ),
+      bottomNavigationBar: showSidebar
+          ? null
+          : ReadableWidth(child: _buildBottomNav()),
     );
   }
 

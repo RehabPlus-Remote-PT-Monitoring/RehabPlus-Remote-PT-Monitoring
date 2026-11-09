@@ -603,8 +603,16 @@ class _InfoRow extends StatelessWidget {
           Icon(icon, size: 17, color: palette.textMuted),
           const SizedBox(width: 12),
           Text(label, style: TextStyle(color: palette.textMuted, fontSize: 13)),
-          const Spacer(),
-          Text(value.isEmpty ? '—' : value, style: TextStyle(fontWeight: FontWeight.w600, fontSize: 13, color: palette.textPrimary)),
+          const SizedBox(width: 12),
+          // Expanded + wrapping: a long value (e.g. a condition) takes the
+          // rest of the row and wraps, instead of overflowing the card.
+          Expanded(
+            child: Text(
+              value.isEmpty ? '—' : value,
+              textAlign: TextAlign.end,
+              style: TextStyle(fontWeight: FontWeight.w600, fontSize: 13, color: palette.textPrimary),
+            ),
+          ),
         ],
       ),
     );

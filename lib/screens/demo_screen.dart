@@ -399,11 +399,11 @@ class _DemoScreenState extends State<DemoScreen> with TickerProviderStateMixin {
         ),
         const SizedBox(height: 12),
         _VideoCard(
-          title: 'Shoulder Rotation',
+          title: 'Side Raise',
           duration: '2:15',
           level: 'Intermediate',
           color: Color(0xFF4A90D9),
-          assetPath: 'assets/demo/shoulder_rotation_demo.mp4',
+          assetPath: 'assets/demo/side_raise_demo.mp4',
         ),
       ],
     );
@@ -908,6 +908,10 @@ class _VideoCardState extends State<_VideoCard> {
   /// endless spinner.
   bool _failed = false;
 
+  /// Width / height of the video. The demo videos are portrait (720x1600),
+  /// so assume that until the real value is read after loading.
+  double _videoAspect = 9 / 16;
+
   final DiagnosticLogger _logger = DiagnosticLogger.I;
 
   Color get _levelColor => switch (widget.level) {
@@ -952,12 +956,15 @@ class _VideoCardState extends State<_VideoCard> {
       'title': widget.title,
       'ms': stopwatch.elapsedMilliseconds,
     });
+    if (controller.value.aspectRatio > 0) {
+      _videoAspect = controller.value.aspectRatio;
+    }
     _vpCtrl = controller;
     _chewieCtrl = ChewieController(
       videoPlayerController: controller,
       autoPlay: true,
       looping: false,
-      aspectRatio: 16 / 9,
+      aspectRatio: _videoAspect,
       placeholder: Container(color: Colors.black),
       materialProgressColors: ChewieProgressColors(
         playedColor: primaryTeal,
@@ -968,6 +975,14 @@ class _VideoCardState extends State<_VideoCard> {
     );
     setState(() => _loaded = true);
     return true;
+  }
+
+  /// Height of the open player: the video's own shape at the card's width,
+  /// kept between 200 and 460 px so a portrait video stays readable without
+  /// taking over the whole list.
+  double get _playerHeight {
+    final width = MediaQuery.sizeOf(context).width - 64;
+    return (width / _videoAspect).clamp(200.0, 460.0);
   }
 
   Future<void> _togglePlayer() async {
@@ -1028,7 +1043,8 @@ class _VideoCardState extends State<_VideoCard> {
             child: AnimatedContainer(
               duration: const Duration(milliseconds: 350),
               curve: Curves.easeOutCubic,
-              height: _expanded ? 200 : 72,
+              width: double.infinity,
+              height: _expanded ? _playerHeight : 72,
               decoration: BoxDecoration(
                 color: _expanded
                     ? Colors.black
