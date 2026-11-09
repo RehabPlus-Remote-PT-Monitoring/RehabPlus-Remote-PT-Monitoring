@@ -29,15 +29,10 @@
         {{-- Stays: it replaces the conversation list, so the page would be blank without it. --}}
         <div class="alert alert-danger" data-keep>{{ $error }}</div>
     @else
-        <div class="row mb-3">
-            <div class="col-md-6">
-                <label for="conversation-search" class="form-label small fw-semibold">Search conversations</label>
-                <div class="input-group">
-                    <input id="conversation-search" type="search" class="form-control" placeholder="Name, role, or message">
-                    {{-- Decorative: the list filters as you type. --}}
-                    <span class="input-group-text" aria-hidden="true"><i class="bi bi-search"></i></span>
-                </div>
-            </div>
+        <div class="input-group mb-3">
+            <input id="conversation-search" type="search" class="form-control" placeholder="Search name, role, or message" aria-label="Search conversations">
+            {{-- Decorative: the list filters as you type. --}}
+            <span class="input-group-text" aria-hidden="true"><i class="bi bi-search"></i></span>
         </div>
 
         <div class="card shadow-sm border-0">
