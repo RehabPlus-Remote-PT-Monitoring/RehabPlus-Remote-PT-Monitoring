@@ -5,6 +5,7 @@ import '../core/diagnostic_logger.dart';
 import '../services/app_lock_service.dart';
 import '../core/responsive.dart';
 import 'app_lock_screen.dart';
+import '../ios/app_controls.dart';
 
 /// Settings > App lock: turn the PIN on/off, fingerprint/face shortcut,
 /// change PIN. Turning the lock off or changing the PIN first asks for the
@@ -151,7 +152,18 @@ class _AppLockSettingsScreenState extends State<AppLockSettingsScreen> {
         padding: readablePadding(context, const EdgeInsets.all(16)),
         children: [
           _card([
-            SwitchListTile(
+            // Native switch on iPhone; this exact SwitchListTile on Android.
+            AppSwitchTile(
+              value: enabled,
+              onChanged: _busy ? null : _togglePin,
+              leading: _leading(Icons.pin_outlined),
+              title: Text('PIN lock', style: _titleStyle),
+              subtitle: Text(
+                'Ask for a ${AppLockService.pinLength}-digit PIN before '
+                'showing your dashboard',
+                style: _subtitleStyle,
+              ),
+              material: () => SwitchListTile(
               value: enabled,
               onChanged: _busy ? null : _togglePin,
               activeThumbColor: Colors.white,
@@ -164,7 +176,26 @@ class _AppLockSettingsScreenState extends State<AppLockSettingsScreen> {
                 style: _subtitleStyle,
               ),
             ),
-            SwitchListTile(
+            ),
+            // Native switch on iPhone; this exact SwitchListTile on Android.
+            AppSwitchTile(
+              value: _lock.biometricsEnabled,
+              onChanged: (_busy || !enabled || !bioAvailable)
+                  ? null
+                  : _toggleBiometrics,
+              leading: _leading(Icons.fingerprint_rounded),
+              title: Text('Unlock with fingerprint', style: _titleStyle),
+              subtitle: Text(
+                switch (_biometricsAvailable) {
+                  null => 'Checking this phone…',
+                  false => 'Set up a fingerprint or face unlock in your '
+                      'phone\'s settings to use this',
+                  true when !enabled => 'Turn on the PIN lock first',
+                  true => 'A quicker way in; the PIN still works',
+                },
+                style: _subtitleStyle,
+              ),
+              material: () => SwitchListTile(
               value: _lock.biometricsEnabled,
               onChanged: (_busy || !enabled || !bioAvailable)
                   ? null
@@ -183,6 +214,7 @@ class _AppLockSettingsScreenState extends State<AppLockSettingsScreen> {
                 },
                 style: _subtitleStyle,
               ),
+            )
             ),
             ListTile(
               enabled: enabled && !_busy,

@@ -7,6 +7,7 @@ import '../services/app_lock_service.dart';
 import '../core/responsive.dart';
 import 'app_lock_screen.dart';
 import 'dashboard_screen.dart';
+import '../ios/app_controls.dart';
 
 /// Shown once after signing in (before the dashboard) when the app lock is
 /// off, so patients find it without digging through Settings:
@@ -204,7 +205,7 @@ class _AppLockOfferScreenState extends State<AppLockOfferScreen> {
                     ),
                   ),
                   const Spacer(flex: 2),
-                  FilledButton.icon(
+                  AppButton(label: pinStep ? 'Set up PIN' : 'Use fingerprint', onPressed: _busy ? null : (pinStep ? _setUpPin : _useBiometrics), material: () => FilledButton.icon(
                     onPressed: _busy
                         ? null
                         : (pinStep ? _setUpPin : _useBiometrics),
@@ -216,7 +217,7 @@ class _AppLockOfferScreenState extends State<AppLockOfferScreen> {
                       backgroundColor: darkTeal,
                       minimumSize: const Size.fromHeight(52),
                     ),
-                  ),
+                  )),
                   const SizedBox(height: 8),
                   TextButton(
                     onPressed: _busy

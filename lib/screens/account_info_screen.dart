@@ -7,6 +7,7 @@ import '../services/app_provider.dart';
 import '../widgets/profile_avatar.dart';
 import '../core/responsive.dart';
 import 'edit_profile_screen.dart';
+import '../ios/app_controls.dart';
 
 /// Privacy & Legal > Account Info: the patient's personal information, with a
 /// button to update it (name, phone and date of birth; the email is the login
@@ -128,7 +129,7 @@ class _AccountInfoScreenState extends State<AccountInfoScreen> {
                 const SizedBox(height: 20),
                 SizedBox(
                   height: 52,
-                  child: FilledButton.icon(
+                  child: AppButton(label: 'Update account information', onPressed: () => _update(context, profile), sfSymbol: 'pencil', material: () => FilledButton.icon(
                     onPressed: () => _update(context, profile),
                     icon: const Icon(Icons.edit_outlined, size: 20),
                     label: const Text(
@@ -144,7 +145,7 @@ class _AccountInfoScreenState extends State<AccountInfoScreen> {
                         borderRadius: BorderRadius.circular(16),
                       ),
                     ),
-                  ),
+                  )),
                 ),
               ],
             ),

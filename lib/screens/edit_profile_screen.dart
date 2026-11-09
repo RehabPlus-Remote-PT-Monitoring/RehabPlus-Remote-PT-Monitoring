@@ -11,6 +11,7 @@ import '../core/diagnostic_logger.dart';
 import '../services/profile_service.dart';
 import '../widgets/profile_avatar.dart';
 import '../core/responsive.dart';
+import '../ios/app_controls.dart';
 
 class ProfileData {
   final String name;
@@ -616,7 +617,7 @@ class _EditProfileScreenState extends State<EditProfileScreen>
   Widget _buildSaveButton() {
     return SizedBox(
       width: double.infinity,
-      child: ElevatedButton(
+      child: AppButton(label: _isSaving ? 'Saving…' : 'Save Changes', onPressed: _isSaving ? null : _save, material: () => ElevatedButton(
         onPressed: _isSaving ? null : _save,
         style: ElevatedButton.styleFrom(
           backgroundColor: primaryTeal,
@@ -640,7 +641,7 @@ class _EditProfileScreenState extends State<EditProfileScreen>
                 'Save Changes',
                 style: TextStyle(fontSize: 15, fontWeight: FontWeight.bold),
               ),
-      ),
+      )),
     );
   }
 }

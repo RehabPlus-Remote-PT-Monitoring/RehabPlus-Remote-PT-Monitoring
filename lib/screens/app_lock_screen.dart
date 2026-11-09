@@ -13,6 +13,7 @@ import '../services/app_lock_service.dart';
 import '../services/app_provider.dart';
 import '../core/responsive.dart';
 import 'login_page.dart';
+import '../ios/app_controls.dart';
 
 /// The PIN / fingerprint screens of the optional app lock
 /// (see AppLockService for the rules).
@@ -234,7 +235,16 @@ class _AppLockScreenState extends State<AppLockScreen> {
   }
 
   Future<void> _forgotPin() async {
-    final ok = await showDialog<bool>(
+    final ok = await showAppConfirm(
+      context,
+      title: 'Forgot your PIN?',
+      message: 'You\'ll be signed out. Sign in again with your email and '
+          'password, then you can set a new PIN in Settings.',
+      confirmLabel: 'Sign out',
+      cancelLabel: 'Cancel',
+      destructive: true,
+      // Android: this exact Material dialog.
+      material: () => showDialog<bool>(
       context: context,
       builder: (ctx) => AlertDialog(
         backgroundColor: ctx.palette.surface,
@@ -254,6 +264,7 @@ class _AppLockScreenState extends State<AppLockScreen> {
           ),
         ],
       ),
+    ),
     );
     if (ok == true) {
       await _signOutToLogin('Signed out. Sign in with your password.');

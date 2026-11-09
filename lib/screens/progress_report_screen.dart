@@ -10,6 +10,7 @@ import '../services/progress_report_loader.dart';
 import '../services/progress_stats.dart';
 import '../widgets/progress_charts.dart';
 import '../core/responsive.dart';
+import '../ios/app_controls.dart';
 
 const _primaryTeal = AppPalette.teal;
 const _darkTeal = AppPalette.darkTeal;
@@ -334,7 +335,13 @@ class _ProgressReportScreenState extends State<ProgressReportScreen> {
                 adaptiveMaxWidth(context),
               ),
               children: [
-                SegmentedButton<int>(
+                // Native segmented control on iPhone; this SegmentedButton on
+                // Android.
+                AppSegmented<int>(
+                  segments: [for (final d in _periods) (d, '$d days')],
+                  selected: _days,
+                  onChanged: _selectPeriod,
+                  material: () => SegmentedButton<int>(
                   segments: [
                     for (final d in _periods)
                       ButtonSegment(value: d, label: Text('$d days')),
@@ -347,6 +354,7 @@ class _ProgressReportScreenState extends State<ProgressReportScreen> {
                     selectedForegroundColor: Colors.white,
                     foregroundColor: _infoColor(context),
                   ),
+                ),
                 ),
                 const SizedBox(height: 14),
                 if (report == null)

@@ -10,6 +10,7 @@ import '../services/auth_service.dart';
 import '../core/responsive.dart';
 import 'consent_screen.dart';
 import 'forgot_password_screen.dart';
+import '../ios/app_controls.dart';
 
 /// Longest e-mail address allowed by the standards (RFC 5321).
 const int maxEmailLength = 254;
@@ -394,7 +395,7 @@ class _LoginPageState extends State<LoginPage> with TickerProviderStateMixin {
                                 SizedBox(
                                   width: double.infinity,
                                   height: 52,
-                                  child: ElevatedButton(
+                                  child: AppButton(label: _isLoading ? 'Signing in…' : 'Sign In', onPressed: _isLoading ? null : login, material: () => ElevatedButton(
                                     onPressed: _isLoading ? null : login,
                                     style: ElevatedButton.styleFrom(
                                       backgroundColor: const Color(0xFF1E8E92),
@@ -424,7 +425,7 @@ class _LoginPageState extends State<LoginPage> with TickerProviderStateMixin {
                                               ),
                                             ),
                                     ),
-                                  ),
+                                  )),
                                 ),
 
                                 const SizedBox(height: 22),

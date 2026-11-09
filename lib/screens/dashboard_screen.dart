@@ -29,6 +29,7 @@ import 'demo_screen.dart';
 import 'exercise_page.dart';
 import 'progress_report_screen.dart';
 import 'goals_screen.dart';
+import '../ios/app_controls.dart';
 
 class DashboardScreen extends StatefulWidget {
   const DashboardScreen({super.key});
@@ -1359,7 +1360,7 @@ class _DashboardScreenState extends State<DashboardScreen>
                   ],
                 ),
               ),
-              ElevatedButton(
+              AppButton(label: 'Contact', onPressed: () => _selectTab(2), material: () => ElevatedButton(
                 onPressed: () => setState(() {
                   _prevNavIndex = _bottomNavIndex;
                   _bottomNavIndex = 2;
@@ -1383,7 +1384,7 @@ class _DashboardScreenState extends State<DashboardScreen>
                     color: Colors.white,
                   ),
                 ),
-              ),
+              )),
             ],
           ),
         ],

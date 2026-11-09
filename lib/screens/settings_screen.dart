@@ -16,6 +16,7 @@ import '../core/responsive.dart';
 import 'app_lock_settings_screen.dart';
 import 'change_password_screen.dart';
 import 'messages_screen.dart';
+import '../ios/app_controls.dart';
 
 /// Firestore rules limit a chat message to 1000 characters.
 const int maxProblemReportLength = 1000;
@@ -740,15 +741,28 @@ class _SettingsScreenState extends State<SettingsScreen>
     ValueChanged<bool>? onChanged, {
     String? subtitle,
   }) {
-    return SwitchListTile(
+    final titleText = Text(title, style: _titleStyle);
+    final subtitleText =
+        subtitle == null ? null : Text(subtitle, style: _subtitleStyle);
+    const padding = EdgeInsets.symmetric(horizontal: 16);
+    // Native switch on iPhone; this exact SwitchListTile on Android.
+    return AppSwitchTile(
       value: value,
       onChanged: onChanged,
-      activeThumbColor: Colors.white,
-      activeTrackColor: primaryTeal,
-      contentPadding: const EdgeInsets.symmetric(horizontal: 16),
-      secondary: _leading(icon),
-      title: Text(title, style: _titleStyle),
-      subtitle: subtitle == null ? null : Text(subtitle, style: _subtitleStyle),
+      leading: _leading(icon),
+      title: titleText,
+      subtitle: subtitleText,
+      contentPadding: padding,
+      material: () => SwitchListTile(
+        value: value,
+        onChanged: onChanged,
+        activeThumbColor: Colors.white,
+        activeTrackColor: primaryTeal,
+        contentPadding: padding,
+        secondary: _leading(icon),
+        title: titleText,
+        subtitle: subtitleText,
+      ),
     );
   }
 
@@ -802,7 +816,13 @@ class _SettingsScreenState extends State<SettingsScreen>
           const SizedBox(height: 10),
           SizedBox(
             width: double.infinity,
-            child: SegmentedButton<T>(
+            // Native segmented control on iPhone; this SegmentedButton on
+            // Android.
+            child: AppSegmented<T>(
+              segments: [for (final e in options.entries) (e.key, e.value)],
+              selected: value,
+              onChanged: onChanged,
+              material: () => SegmentedButton<T>(
               segments: [
                 for (final e in options.entries)
                   ButtonSegment(value: e.key, label: Text(e.value)),
@@ -816,6 +836,7 @@ class _SettingsScreenState extends State<SettingsScreen>
                 foregroundColor: _valueTeal,
                 side: BorderSide(color: context.palette.divider),
               ),
+            ),
             ),
           ),
         ],

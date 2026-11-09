@@ -6,6 +6,7 @@ import '../core/app_palette.dart';
 import '../core/diagnostic_logger.dart';
 import '../core/responsive.dart';
 import '../services/auth_service.dart';
+import '../ios/app_controls.dart';
 
 // Reset with the temporary password the therapist gives the patient: the
 // patient types their email, that temporary password and a new password.
@@ -310,7 +311,7 @@ class _ForgotPasswordScreenState extends State<ForgotPasswordScreen>
               SizedBox(
                 width: double.infinity,
                 height: 52,
-                child: ElevatedButton(
+                child: AppButton(label: _isLoading ? 'Please wait…' : _buttonLabel, onPressed: _isLoading ? null : _onContinue, material: () => ElevatedButton(
                   onPressed: _isLoading ? null : _onContinue,
                   style: ElevatedButton.styleFrom(
                     backgroundColor: const Color(0xFF1E8E92),
@@ -336,7 +337,7 @@ class _ForgotPasswordScreenState extends State<ForgotPasswordScreen>
                                 letterSpacing: 0.5),
                           ),
                   ),
-                ),
+                )),
               ),
             ],
           ),

@@ -13,6 +13,7 @@ import '../core/responsive.dart';
 import 'app_lock_offer_screen.dart';
 import 'legal_document_screen.dart';
 import 'login_page.dart';
+import '../ios/app_controls.dart';
 
 /// Shown after sign-in until the patient accepts the current Terms and
 /// Conditions and Privacy Policy (and again whenever [LegalInfo.version]
@@ -125,7 +126,17 @@ class _ConsentScreenState extends State<ConsentScreen> {
 
   Future<void> _decline() async {
     if (_saving) return;
-    final confirmed = await showDialog<bool>(
+    final confirmed = await showAppConfirm(
+      context,
+      title: 'Decline and sign out?',
+      message: 'You need to accept the Terms and Conditions and Privacy Policy to '
+          'use RehabPlus. If you have questions, contact the clinic before '
+          'deciding.',
+      confirmLabel: 'Sign out',
+      cancelLabel: 'Go back',
+      destructive: true,
+      // Android: this exact Material dialog.
+      material: () => showDialog<bool>(
       context: context,
       builder: (ctx) => AlertDialog(
         title: const Text('Decline and sign out?'),
@@ -145,6 +156,7 @@ class _ConsentScreenState extends State<ConsentScreen> {
           ),
         ],
       ),
+    ),
     );
     if (confirmed != true || !mounted) return;
     _logger.info(_tag, 'Consent declined', {'version': LegalInfo.version});
@@ -420,7 +432,7 @@ class _ConsentScreenState extends State<ConsentScreen> {
             SizedBox(
               width: double.infinity,
               height: 50,
-              child: FilledButton(
+              child: AppButton(label: _saving ? 'Saving…' : 'Accept and continue', onPressed: _allChecked && !_saving ? _accept : null, material: () => FilledButton(
                 onPressed: _allChecked && !_saving ? _accept : null,
                 style: FilledButton.styleFrom(
                   backgroundColor: primaryTeal,
@@ -445,7 +457,7 @@ class _ConsentScreenState extends State<ConsentScreen> {
                           fontWeight: FontWeight.bold,
                         ),
                       ),
-              ),
+              )),
             ),
             TextButton(
               onPressed: _saving ? null : _decline,

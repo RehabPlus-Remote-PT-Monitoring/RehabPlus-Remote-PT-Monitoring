@@ -6,6 +6,7 @@ import 'package:chewie/chewie.dart';
 import '../core/app_palette.dart';
 import '../core/diagnostic_logger.dart';
 import '../core/responsive.dart';
+import '../ios/app_controls.dart';
 
 const String _tag = 'Demo';
 
@@ -617,7 +618,7 @@ class _DemoScreenState extends State<DemoScreen> with TickerProviderStateMixin {
               const SizedBox(width: 12),
               Expanded(
                 flex: 2,
-                child: ElevatedButton.icon(
+                child: AppButton(label: _activeStep < _steps.length - 1 ? 'Next Step' : 'Restart', onPressed: _nextStep, material: () => ElevatedButton.icon(
                   onPressed: _nextStep,
                   icon: Icon(
                     _activeStep < _steps.length - 1
@@ -637,7 +638,7 @@ class _DemoScreenState extends State<DemoScreen> with TickerProviderStateMixin {
                     ),
                     padding: const EdgeInsets.symmetric(vertical: 12),
                   ),
-                ),
+                )),
               ),
             ],
           ),

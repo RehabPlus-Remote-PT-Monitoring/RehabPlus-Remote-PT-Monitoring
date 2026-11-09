@@ -6,6 +6,7 @@ import '../core/diagnostic_logger.dart';
 import '../core/responsive.dart';
 import '../services/auth_service.dart';
 import 'forgot_password_screen.dart';
+import '../ios/app_controls.dart';
 
 /// Settings > Change password, in the style of Facebook's: the current
 /// password, the new one twice, a strength bar, and a link for people who
@@ -211,7 +212,7 @@ class _ChangePasswordScreenState extends State<ChangePasswordScreen> {
                 const SizedBox(height: 20),
                 SizedBox(
                   height: 52,
-                  child: ElevatedButton(
+                  child: AppButton(label: _saving ? 'Saving…' : 'Save changes', onPressed: canSave ? _save : null, material: () => ElevatedButton(
                     onPressed: canSave ? _save : null,
                     style: ElevatedButton.styleFrom(
                       backgroundColor: AppPalette.teal,
@@ -238,7 +239,7 @@ class _ChangePasswordScreenState extends State<ChangePasswordScreen> {
                               fontWeight: FontWeight.w700,
                             ),
                           ),
-                  ),
+                  )),
                 ),
               ],
             ),

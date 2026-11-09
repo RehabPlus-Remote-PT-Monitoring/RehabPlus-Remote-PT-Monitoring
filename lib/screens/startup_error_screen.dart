@@ -3,6 +3,7 @@ import 'package:flutter/material.dart';
 import '../core/app_palette.dart';
 import '../core/diagnostic_logger.dart';
 import '../core/responsive.dart';
+import '../ios/app_controls.dart';
 
 /// Shown instead of the splash's next screen when app startup failed (for
 /// example Firebase couldn't initialise). Lets the patient try again rather
@@ -64,7 +65,7 @@ class _StartupErrorScreenState extends State<StartupErrorScreen> {
                     style: TextStyle(color: context.palette.textSecondary),
                   ),
                   const SizedBox(height: 24),
-                  FilledButton.icon(
+                  AppButton(label: _retrying ? 'Trying again...' : 'Try again', onPressed: _retrying ? null : _retry, sfSymbol: 'arrow.clockwise', material: () => FilledButton.icon(
                     onPressed: _retrying ? null : _retry,
                     icon: _retrying
                         ? const SizedBox(
@@ -74,7 +75,7 @@ class _StartupErrorScreenState extends State<StartupErrorScreen> {
                           )
                         : const Icon(Icons.refresh_rounded),
                     label: Text(_retrying ? 'Trying again...' : 'Try again'),
-                  ),
+                  )),
                 ],
               ),
             ),
