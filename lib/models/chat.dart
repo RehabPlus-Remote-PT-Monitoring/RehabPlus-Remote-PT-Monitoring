@@ -140,3 +140,30 @@ Set<String> seenByStaff(List<ChatMessage> newestFirst, int? unreadForStaff) {
   }
   return seen;
 }
+
+/// Where the "New messages" divider goes: the id of the message it sits
+/// above, or null for no divider.
+///
+/// [unreadForPatient] is the thread's counter as it was when the chat
+/// opened (before opening reset it to 0). The dashboard adds 1 per staff
+/// reply, so the newest [unreadForPatient] staff messages are the new ones
+/// and the divider sits above the oldest of them. [newestFirst] is the list
+/// as the chat screen shows it.
+///
+/// If fewer staff messages are loaded than the counter says (the rest are
+/// further back), the divider sits above the oldest loaded one.
+String? newMessagesDividerId(
+  List<ChatMessage> newestFirst,
+  int unreadForPatient,
+) {
+  if (unreadForPatient <= 0) return null;
+  String? oldestUnread;
+  var left = unreadForPatient;
+  for (final msg in newestFirst) {
+    if (msg.fromPatient) continue;
+    oldestUnread = msg.id;
+    left--;
+    if (left == 0) break;
+  }
+  return oldestUnread;
+}

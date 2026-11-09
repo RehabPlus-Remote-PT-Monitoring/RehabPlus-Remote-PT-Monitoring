@@ -20,6 +20,8 @@ import 'firestore_diagnostics.dart';
 ///     failed" {thread, code, ms}
 ///   "Mark read synced / sync failed" {thread}
 ///   "Clinic phone loaded" {configured, fromCache}
+///   "Load older messages done|failed" {thread, limit, ms}; "Older messages
+///     page" {thread, docs, fromCache}
 class ChatService {
   FirebaseFirestore get _db => FirebaseFirestore.instance;
   final _logger = DiagnosticLogger.I;
@@ -61,6 +63,38 @@ class ChatService {
     data: {'thread': t.name},
     describe: describeQuery,
   ).map((snap) => _parseMessages(t, snap));
+
+  /// One page of messages older than the live window: up to [limit] sent at
+  /// or before [before], newest first. A one-shot read (no listener):
+  /// messages are never edited or deleted, so an old page can't go stale.
+  ///
+  /// `startAt` rather than `startAfter`, because another message may share
+  /// the boundary's exact `sentAt`; the repeated boundary message is
+  /// dropped by id when merged (see ChatPager). Throws when signed out or
+  /// when the read fails (e.g. offline with nothing cached).
+  Future<List<ChatMessage>> olderMessages(
+    ChatThread t, {
+    required DateTime before,
+    required int limit,
+  }) async {
+    final snap = await _logger.timed(
+      'ChatService',
+      'Load older messages',
+      () => _thread(t)
+          .collection('messages')
+          .orderBy('sentAt', descending: true)
+          .startAt([Timestamp.fromDate(before)])
+          .limit(limit)
+          .get(),
+      data: {'thread': t.name, 'limit': limit},
+    );
+    _logger.info('ChatService', 'Older messages page', {
+      'thread': t.name,
+      'docs': snap.docs.length,
+      'fromCache': snap.metadata.isFromCache,
+    });
+    return _parseMessages(t, snap);
+  }
 
   List<ChatMessage> _parseMessages(
     ChatThread t,

@@ -2,6 +2,7 @@ import 'dart:async';
 import 'dart:math' as math;
 
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 // `show`: the full intl library also exports a TextDirection that clashes
 // with Flutter's.
 import 'package:intl/intl.dart' show DateFormat;
@@ -12,9 +13,15 @@ import '../core/app_palette.dart';
 import '../core/diagnostic_logger.dart';
 import '../models/chat.dart';
 import '../services/app_provider.dart';
+import '../services/chat_pager.dart';
 import '../services/chat_service.dart';
+import '../services/chat_session_share.dart';
+import '../services/chat_timeline.dart';
 import '../core/responsive.dart';
 import '../ios/glass_tab_bar.dart';
+import '../widgets/chat_composer_surface.dart';
+import '../widgets/chat_session_share_sheet.dart';
+import '../widgets/chat_timeline_widgets.dart';
 
 const Color _primaryTeal = Color(0xFF23A8AA);
 const String _tag = 'Messages';
@@ -484,6 +491,23 @@ class _ChatDetailScreenState extends State<ChatDetailScreen> {
   /// staff have seen a message). Null until the summary first loads.
   int? _unreadForStaff;
 
+  /// Older pages loaded below the live window when the patient scrolls up.
+  late final ChatPager _pager;
+
+  /// `unreadForPatient` from the first summary, i.e. before opening the
+  /// chat reset it to 0: how many staff replies are new on this visit.
+  int? _unreadAtOpen;
+
+  /// The message the "New messages" divider sits above (null: none). Worked
+  /// out once, from the first messages shown after [_unreadAtOpen] is known,
+  /// and then kept for this visit: replies arriving while the chat is open
+  /// are read as they come, so they must not move it.
+  String? _newMessagesDividerId;
+  bool _dividerPlaced = false;
+
+  /// Start loading the next older page this close (in pixels) to the top.
+  static const double _loadOlderThreshold = 400;
+
   /// Starters for the clinic thread; they fill the box so the patient can
   /// add details before sending.
   static const _clinicPrompts = {
@@ -499,6 +523,14 @@ class _ChatDetailScreenState extends State<ChatDetailScreen> {
     super.initState();
     final thread = widget.thread.name;
     _logger.info(_tag, 'Chat opened', {'thread': thread});
+    _pager = ChatPager(
+      // Errors are caught and logged by the pager (the spinner then turns
+      // into a "try again" note).
+      loadPage: (before, limit) =>
+          _chat.olderMessages(widget.thread, before: before, limit: limit),
+      liveLimit: ChatService.messageLimit,
+      logTag: _tag,
+    );
     try {
       // ChatService logs the stream's start, first snapshot and errors.
       _messages = _chat.messages(widget.thread);
@@ -507,10 +539,17 @@ class _ChatDetailScreenState extends State<ChatDetailScreen> {
           .summary(widget.thread)
           .listen(
             (s) {
+              // The first summary is the count before markRead below resets
+              // it; later ones are already 0 or replies read as they come.
+              final firstSummary = _unreadAtOpen == null;
               // Drives the ticks; Firestore applies our own sends to the
               // summary locally too, so a new message starts as unseen.
-              if (mounted && s.unreadForStaff != _unreadForStaff) {
-                setState(() => _unreadForStaff = s.unreadForStaff);
+              if (mounted &&
+                  (firstSummary || s.unreadForStaff != _unreadForStaff)) {
+                setState(() {
+                  _unreadForStaff = s.unreadForStaff;
+                  _unreadAtOpen ??= s.unreadForPatient;
+                });
               }
               if (s.unreadForPatient > 0) {
                 _logger.verbose(_tag, 'Marking thread read', {
@@ -539,6 +578,7 @@ class _ChatDetailScreenState extends State<ChatDetailScreen> {
   @override
   void dispose() {
     _unreadSub?.cancel();
+    _pager.dispose();
     _textController.dispose();
     super.dispose();
   }
@@ -546,6 +586,14 @@ class _ChatDetailScreenState extends State<ChatDetailScreen> {
   void _send() {
     final text = _textController.text.trim();
     if (text.isEmpty) return;
+    if (_deliver(text)) _textController.clear();
+  }
+
+  /// Sends [text] (already trimmed, not empty) the one way every message
+  /// goes, typed or a shared session, so the thread preview and unread
+  /// counter are updated identically. Returns false (after telling the
+  /// patient) if it wasn't sent.
+  bool _deliver(String text) {
     if (text.length > _maxMessageLength) {
       // Possible with many emoji (each counts as 2+ units): the server
       // would reject it, so say so instead of failing silently.
@@ -555,7 +603,7 @@ class _ChatDetailScreenState extends State<ChatDetailScreen> {
           content: Text('That message is too long. Please shorten it.'),
         ),
       );
-      return;
+      return false;
     }
     try {
       // Not awaited: Firestore's offline cache queues it. ChatService logs
@@ -570,9 +618,67 @@ class _ChatDetailScreenState extends State<ChatDetailScreen> {
           content: Text('Could not send. Please sign in again.'),
         ),
       );
+      return false;
+    }
+    return true;
+  }
+
+  /// Long-press on a bubble: copies its text. The messenger is captured
+  /// before the await so the SnackBar still works if the chat closes.
+  Future<void> _copy(ChatMessage msg) async {
+    final messenger = ScaffoldMessenger.of(context);
+    try {
+      await Clipboard.setData(ClipboardData(text: msg.text));
+    } catch (e, st) {
+      _logger.warn(_tag, 'Copy failed', {'thread': widget.thread.name}, e, st);
+      messenger.showSnackBar(
+        const SnackBar(content: Text("Couldn't copy the message.")),
+      );
       return;
     }
-    _textController.clear();
+    // Logs the length only, never the text.
+    _logger.info(_tag, 'Message copied', {'length': msg.text.length});
+    try {
+      await HapticFeedback.selectionClick();
+    } catch (e, st) {
+      // Only the buzz is lost; the copy worked.
+      _logger.warn(_tag, 'Copy haptic failed', null, e, st);
+    }
+    messenger
+      ..hideCurrentSnackBar()
+      ..showSnackBar(
+        const SnackBar(
+          content: Text('Copied'),
+          duration: Duration(seconds: 1),
+        ),
+      );
+  }
+
+  /// Opens the recent-sessions sheet and sends the chosen session's summary
+  /// as an ordinary text message (no new message fields).
+  Future<void> _shareSession() async {
+    final history = context.read<AppProvider>().sessionHistory;
+    _logger.info(_tag, 'Share session opened', {'available': history.length});
+    final picked = await showChatSessionShareSheet(context, history);
+    if (picked == null || !mounted) return;
+    final text = sessionShareText(picked);
+    if (_deliver(text)) {
+      _logger.info(_tag, 'Session shared', {
+        'thread': widget.thread.name,
+        'exercise': picked.exerciseId,
+        'length': text.length,
+      });
+    }
+  }
+
+  /// Near the top of the reversed list (its end), fetch the next older page.
+  bool _onScroll(ScrollNotification notification) {
+    if (notification.metrics.extentAfter < _loadOlderThreshold &&
+        _pager.canLoadMore) {
+      // Never throws: the pager logs a failure and shows it in the footer.
+      unawaited(_pager.loadOlder());
+    }
+    return false;
   }
 
   void _usePrompt(String label, String prompt) {
@@ -580,6 +686,72 @@ class _ChatDetailScreenState extends State<ChatDetailScreen> {
     _textController
       ..text = prompt
       ..selection = TextSelection.collapsed(offset: prompt.length);
+  }
+
+  /// The conversation, newest at the bottom ([msgs] is newest first): day
+  /// separators, the "New messages" divider, the bubbles, and at the top a
+  /// footer for older pages.
+  Widget _buildMessageList(
+    BuildContext context,
+    List<ChatMessage> msgs,
+    double contentWidth,
+  ) {
+    final thread = widget.thread;
+    final seen = seenByStaff(msgs, _unreadForStaff);
+    final unreadAtOpen = _unreadAtOpen;
+    if (!_dividerPlaced && unreadAtOpen != null) {
+      // Placed once; see [_newMessagesDividerId].
+      _newMessagesDividerId = newMessagesDividerId(msgs, unreadAtOpen);
+      _dividerPlaced = true;
+    }
+    final now = DateTime.now();
+    return NotificationListener<ScrollNotification>(
+      onNotification: _onScroll,
+      child: ListView.builder(
+        reverse: true, // newest at the bottom, auto-scrolls
+        // Dragging the conversation puts the keyboard away (both platforms).
+        keyboardDismissBehavior: ScrollViewKeyboardDismissBehavior.onDrag,
+        padding: readablePadding(
+          context,
+          const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+          contentWidth,
+        ),
+        // One extra item at the end (the top of the screen) for the footer.
+        itemCount: msgs.length + 1,
+        itemBuilder: (context, i) {
+          if (i == msgs.length) {
+            return ChatHistoryFooter(
+              loading: _pager.loading,
+              // Only after scrolling back: a short chat needs no marker.
+              reachedStart: _pager.reachedStart && _pager.loadedOlder,
+              failed: _pager.lastLoadFailed,
+            );
+          }
+          final msg = msgs[i];
+          // List is newest-first, so the message shown above is i + 1.
+          final older = i + 1 < msgs.length ? msgs[i + 1] : null;
+          final newDay = startsNewDay(msg.sentAt, older?.sentAt);
+          // A new day always shows its first time; within a day, a time
+          // after every 10-minute pause.
+          final showTime =
+              newDay || msg.sentAt.difference(older!.sentAt).inMinutes >= 10;
+          return Column(
+            children: [
+              if (newDay) ChatDaySeparator(label: chatDayLabel(msg.sentAt, now)),
+              if (msg.id == _newMessagesDividerId)
+                const ChatNewMessagesDivider(),
+              _Bubble(
+                msg: msg,
+                icon: _threadIcon(thread),
+                showTime: showTime,
+                seen: seen.contains(msg.id),
+                onLongPress: () => _copy(msg),
+              ),
+            ],
+          );
+        },
+      ),
+    );
   }
 
   @override
@@ -676,8 +848,8 @@ class _ChatDetailScreenState extends State<ChatDetailScreen> {
                       child: CircularProgressIndicator(color: Colors.white),
                     );
                   }
-                  final msgs = snap.data!;
-                  if (msgs.isEmpty) {
+                  final live = snap.data!;
+                  if (live.isEmpty) {
                     return Center(
                       child: Padding(
                         padding: const EdgeInsets.all(32),
@@ -694,29 +866,14 @@ class _ChatDetailScreenState extends State<ChatDetailScreen> {
                       ),
                     );
                   }
-                  final seen = seenByStaff(msgs, _unreadForStaff);
-                  return ListView.builder(
-                    reverse: true, // newest at the bottom, auto-scrolls
-                    padding: readablePadding(
+                  // Rebuilt when an older page starts or finishes loading.
+                  return ListenableBuilder(
+                    listenable: _pager,
+                    builder: (context, _) => _buildMessageList(
                       context,
-                      const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+                      _pager.merge(live),
                       contentWidth,
                     ),
-                    itemCount: msgs.length,
-                    itemBuilder: (context, i) {
-                      final msg = msgs[i];
-                      // List is newest-first, so the message shown above is i + 1.
-                      final older = i + 1 < msgs.length ? msgs[i + 1] : null;
-                      final showTime =
-                          older == null ||
-                          msg.sentAt.difference(older.sentAt).inMinutes >= 10;
-                      return _Bubble(
-                        msg: msg,
-                        icon: _threadIcon(thread),
-                        showTime: showTime,
-                        seen: seen.contains(msg.id),
-                      );
-                    },
                   );
                 },
               ),
@@ -778,54 +935,71 @@ class _ChatDetailScreenState extends State<ChatDetailScreen> {
                 ),
               ),
 
-            // Input bar
+            // Input bar (Liquid Glass on iPhone, the flat bar on Android).
             ReadableWidth(
               maxWidth: contentWidth,
-              child: Container(
-                padding: const EdgeInsets.fromLTRB(12, 8, 8, 8),
-                color: palette.surfaceMuted,
-                child: SafeArea(
-                  top: false,
-                  child: Row(
-                    children: [
-                      Expanded(
-                        child: Container(
-                          padding: const EdgeInsets.symmetric(horizontal: 12),
-                          decoration: BoxDecoration(
-                            color: palette.surface,
-                            borderRadius: BorderRadius.circular(20),
-                            border: Border.all(color: palette.divider),
-                          ),
-                          child: TextField(
-                            controller: _textController,
-                            minLines: 1,
-                            maxLines: 4,
-                            maxLength: 1000,
-                            textCapitalization: TextCapitalization.sentences,
-                            style: TextStyle(color: palette.textPrimary),
-                            decoration: InputDecoration(
-                              hintText: 'Message',
-                              hintStyle: TextStyle(
-                                fontSize: 13,
-                                color: palette.textFaint,
-                              ),
-                              border: InputBorder.none,
-                              counterText: '',
-                              isDense: true,
-                              contentPadding: const EdgeInsets.symmetric(
-                                vertical: 10,
-                              ),
+              child: ChatComposerSurface(
+                child: Row(
+                  children: [
+                    // Sessions are what the therapist reviews; the clinic
+                    // desk has no use for them.
+                    if (thread == ChatThread.therapist)
+                      IconButton(
+                        tooltip: 'Share a session',
+                        onPressed: _shareSession,
+                        icon: const Icon(
+                          Icons.insights_outlined,
+                          color: _primaryTeal,
+                        ),
+                      ),
+                    Expanded(
+                      child: Container(
+                        padding: const EdgeInsets.symmetric(horizontal: 12),
+                        decoration: BoxDecoration(
+                          color: palette.surface,
+                          borderRadius: BorderRadius.circular(20),
+                          border: Border.all(color: palette.divider),
+                        ),
+                        child: TextField(
+                          controller: _textController,
+                          minLines: 1,
+                          maxLines: 4,
+                          maxLength: 1000,
+                          textCapitalization: TextCapitalization.sentences,
+                          style: TextStyle(color: palette.textPrimary),
+                          decoration: InputDecoration(
+                            hintText: 'Message',
+                            hintStyle: TextStyle(
+                              fontSize: 13,
+                              color: palette.textFaint,
+                            ),
+                            border: InputBorder.none,
+                            counterText: '',
+                            isDense: true,
+                            contentPadding: const EdgeInsets.symmetric(
+                              vertical: 10,
                             ),
                           ),
                         ),
                       ),
-                      IconButton(
-                        tooltip: 'Send',
-                        onPressed: _send,
-                        icon: const Icon(Icons.send_rounded, color: _primaryTeal),
-                      ),
-                    ],
-                  ),
+                    ),
+                    // Dimmed and disabled while the box is empty or only
+                    // spaces (rebuilt as the patient types).
+                    ValueListenableBuilder<TextEditingValue>(
+                      valueListenable: _textController,
+                      builder: (context, value, _) {
+                        final canSend = value.text.trim().isNotEmpty;
+                        return IconButton(
+                          tooltip: 'Send',
+                          onPressed: canSend ? _send : null,
+                          icon: Icon(
+                            Icons.send_rounded,
+                            color: canSend ? _primaryTeal : palette.textFaint,
+                          ),
+                        );
+                      },
+                    ),
+                  ],
                 ),
               ),
             ),
@@ -844,11 +1018,15 @@ class _Bubble extends StatelessWidget {
   /// Staff have opened the conversation since this (patient) message.
   final bool seen;
 
+  /// Long-press on the bubble (copies the text).
+  final VoidCallback? onLongPress;
+
   const _Bubble({
     required this.msg,
     required this.icon,
     required this.showTime,
     this.seen = false,
+    this.onLongPress,
   });
 
   /// Like other messaging apps: a clock while it's still uploading, one tick
@@ -879,7 +1057,8 @@ class _Bubble extends StatelessWidget {
           Padding(
             padding: const EdgeInsets.symmetric(vertical: 16),
             child: Text(
-              DateFormat("EEE 'at' h:mm a").format(msg.sentAt).toUpperCase(),
+              // Time only: the day is on the separator above.
+              DateFormat.jm().format(msg.sentAt).toUpperCase(),
               style: TextStyle(
                 fontSize: 10,
                 fontWeight: FontWeight.bold,
@@ -905,21 +1084,24 @@ class _Bubble extends StatelessWidget {
                 const SizedBox(width: 8),
               ],
               Flexible(
-                child: Container(
-                  padding: const EdgeInsets.symmetric(
-                    horizontal: 16,
-                    vertical: 12,
-                  ),
-                  decoration: BoxDecoration(
-                    color: mine ? _primaryTeal : palette.surface,
-                    borderRadius: BorderRadius.circular(20),
-                  ),
-                  child: Text(
-                    msg.text,
-                    style: TextStyle(
-                      color: mine ? Colors.white : palette.textPrimary,
-                      fontSize: 13,
-                      fontWeight: FontWeight.w500,
+                child: GestureDetector(
+                  onLongPress: onLongPress,
+                  child: Container(
+                    padding: const EdgeInsets.symmetric(
+                      horizontal: 16,
+                      vertical: 12,
+                    ),
+                    decoration: BoxDecoration(
+                      color: mine ? _primaryTeal : palette.surface,
+                      borderRadius: BorderRadius.circular(20),
+                    ),
+                    child: Text(
+                      msg.text,
+                      style: TextStyle(
+                        color: mine ? Colors.white : palette.textPrimary,
+                        fontSize: 13,
+                        fontWeight: FontWeight.w500,
+                      ),
                     ),
                   ),
                 ),
