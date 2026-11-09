@@ -3,6 +3,7 @@ import 'dart:math' as math;
 
 import 'package:collection/collection.dart';
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart' show HapticFeedback;
 import 'package:intl/intl.dart' show DateFormat;
 import 'package:phosphor_flutter/phosphor_flutter.dart';
 import 'package:provider/provider.dart';
@@ -19,6 +20,8 @@ import '../widgets/dashboard_sidebar.dart';
 import '../widgets/profile_avatar.dart';
 import '../widgets/unread_badge.dart';
 import '../core/responsive.dart';
+import '../ios/glass_tab_bar.dart';
+import '../ios/ios_chrome.dart';
 import 'messages_screen.dart';
 import 'profile_screen.dart';
 import 'notification_page.dart';
@@ -308,6 +311,8 @@ class _DashboardScreenState extends State<DashboardScreen>
 
   void _selectTab(int index) {
     if (index == _bottomNavIndex) return;
+    // iPhone: the light tick iOS apps give on a tab change.
+    if (useIosChrome) HapticFeedback.selectionClick();
     setState(() {
       _prevNavIndex = _bottomNavIndex;
       _bottomNavIndex = index;
@@ -341,6 +346,32 @@ class _DashboardScreenState extends State<DashboardScreen>
               ),
             ),
           ],
+        ),
+      );
+    }
+
+    if (useIosChrome) {
+      // iPhone: the native Liquid Glass tab bar floats over the page
+      // (extendBody), so the page's bottom padding is raised by the bar's
+      // clearance and the last items can still scroll above it.
+      return Scaffold(
+        backgroundColor: context.palette.background,
+        extendBody: true,
+        body: MediaQuery(
+          data: media.copyWith(
+            padding: media.padding.copyWith(
+              bottom: media.padding.bottom + kGlassTabBarClearance,
+            ),
+          ),
+          child: _buildPageArea(),
+        ),
+        bottomNavigationBar: SafeArea(
+          top: false,
+          child: GlassTabBar(
+            destinations: _destinations,
+            currentIndex: _bottomNavIndex,
+            onTap: _selectTab,
+          ),
         ),
       );
     }
