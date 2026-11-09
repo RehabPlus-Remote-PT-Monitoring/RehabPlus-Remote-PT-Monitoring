@@ -29,7 +29,7 @@ Future<void> _loadRoboto() async {
   await loader.load();
 }
 
-// Has an outside demo link, but no creator consent yet, so it stays hidden.
+// Has an outside demo link with creator consent, so it shows.
 final _withLink = availableExercises.firstWhere(
   (c) => c.type == ExerciseType.kneeExtension,
 );
@@ -64,7 +64,7 @@ void main() {
     await tester.pumpAndSettle();
   }
 
-  testWidgets('a video without creator consent stays hidden', (tester) async {
+  testWidgets('a video with creator consent shows the Open video card', (tester) async {
     await pumpCard(tester, _withLink);
 
     await tester.tap(find.text('How to do it'));
@@ -72,8 +72,10 @@ void main() {
 
     expect(find.byType(ExerciseDemoSheet), findsOneWidget);
     expect(find.text(_withLink.title), findsWidgets);
-    expect(find.text('Demo video coming soon.'), findsOneWidget);
-    expect(find.text('Open video'), findsNothing);
+    expect(find.text('Watch the demo'), findsOneWidget);
+    expect(find.text('Open video'), findsOneWidget);
+    expect(find.text('Video by Physitrack'), findsOneWidget);
+    expect(find.text('Demo video coming soon.'), findsNothing);
     expect(find.text('Start exercise'), findsOneWidget);
     expect(tester.takeException(), isNull);
   });
