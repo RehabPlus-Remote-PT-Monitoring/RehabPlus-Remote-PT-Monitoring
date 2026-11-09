@@ -18,7 +18,7 @@
                     <i class="bi bi-archive me-1"></i>Archived Patients
                 </a>
             @endif
-            @if ($me->isClinician())
+            @if ($me->isAdmin())
                 <a href="{{ route('patients.create') }}" class="btn btn-primary">
                     <i class="bi bi-plus-lg me-1"></i>Add Patient
                 </a>

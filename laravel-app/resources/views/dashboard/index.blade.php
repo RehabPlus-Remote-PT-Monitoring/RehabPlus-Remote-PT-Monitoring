@@ -15,7 +15,7 @@
                     Post announcement
                 </a>
             @endif
-            @if (auth()->user()->isClinician())
+            @if (auth()->user()->isAdmin())
                 <a href="{{ route('patients.create') }}" class="btn btn-primary d-flex align-items-center gap-2">
                     <i class="bi bi-plus-lg"></i>
                     Add Patient

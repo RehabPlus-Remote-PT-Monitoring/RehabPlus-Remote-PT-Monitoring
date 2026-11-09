@@ -18,7 +18,7 @@
     </div>
 
     @if (! $patients)
-        <div class="alert alert-info">No patients yet. <a href="{{ route('patients.create') }}">Add a patient</a> to write therapy notes.</div>
+        <div class="alert alert-info">No patients yet.@if (auth()->user()->isAdmin()) <a href="{{ route('patients.create') }}">Add a patient</a> to write therapy notes.@endif</div>
     @else
         <form method="POST" action="{{ route('notes.store') }}" class="card shadow-sm mb-4 border-0">
             @csrf

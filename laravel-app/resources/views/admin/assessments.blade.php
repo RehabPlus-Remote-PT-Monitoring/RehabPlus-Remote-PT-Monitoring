@@ -38,7 +38,7 @@
     </div>
 
     @if (! $patients)
-        <div class="alert alert-info">No patients yet. <a href="{{ route('patients.create') }}">Add a patient</a> to record assessments and goals.</div>
+        <div class="alert alert-info">No patients yet.@if (auth()->user()->isAdmin()) <a href="{{ route('patients.create') }}">Add a patient</a> to record assessments and goals.@endif</div>
     @else
         <div class="row g-4 mb-4">
             <div class="col-xl-6">

@@ -247,10 +247,21 @@ class PatientTest extends TestCase
         $this->assertSame('', $this->docs["patients/{$uid}"]['addressBarangay']);
     }
 
-    public function test_therapist_creates_patient_with_app_login_assigned_to_them(): void
+    public function test_therapists_cannot_add_patients(): void
     {
-        $response = $this->actingAs($this->staff('therapist', 'thA', 'Dr. Ana'))
-            ->post('/patients', $this->newPatient());
+        $this->actingAs($this->staff('therapist', 'thA', 'Dr. Ana'));
+
+        $this->get('/patients/create')->assertForbidden();
+        $this->post('/patients', $this->newPatient())->assertForbidden();
+
+        $this->assertSame([], $this->commits);
+        $this->assertArrayNotHasKey('nina@rehabplus.com', $this->authUsers);
+    }
+
+    public function test_admin_creates_patient_with_app_login_assigned_to_the_chosen_therapist(): void
+    {
+        $response = $this->actingAs($this->staff('admin'))
+            ->post('/patients', $this->newPatient(['therapist_id' => 'thA']));
 
         // Firebase Auth login with the temporary password; its uid keys everything else.
         $uid = $this->authUsers['nina@rehabplus.com']['uid'];
@@ -345,9 +356,15 @@ class PatientTest extends TestCase
         $this->assertSame('Dr. Ben', $doc['therapistName']);
     }
 
-    public function test_therapists_and_administrators_can_open_the_add_patient_form(): void
+    public function test_only_administrators_see_the_add_patient_form_and_button(): void
     {
-        $this->actingAs($this->staff('therapist'))->get('/patients/create')->assertOk();
+        $this->actingAs($this->staff('therapist'))->get('/dashboard')->assertOk()
+            ->assertDontSee('Add Patient');
+        $this->actingAs($this->staff('therapist'))->get('/patients')->assertOk()
+            ->assertDontSee('Add Patient');
+
+        $this->actingAs($this->staff('admin'))->get('/dashboard')->assertOk()
+            ->assertSee('Add Patient');
 
         $this->actingAs($this->staff('admin'))->get('/patients/create')
             ->assertSee('placeholder="Patient"', false)

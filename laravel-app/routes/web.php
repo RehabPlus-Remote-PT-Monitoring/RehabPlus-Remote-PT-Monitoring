@@ -93,9 +93,12 @@ Route::middleware(['auth.rehab'])->group(function () {
 
     // Patients (Firestore). Everyone sees the list (therapists: their own);
     // the controller checks who may change each patient.
-    Route::middleware(['role:admin,therapist'])->group(function () {
+    // Adding a patient is administrators only.
+    Route::middleware(['role:admin'])->group(function () {
         Route::get('/patients/create', [PatientController::class, 'create'])->name('patients.create');
         Route::post('/patients', [PatientController::class, 'store'])->name('patients.store');
+    });
+    Route::middleware(['role:admin,therapist'])->group(function () {
         Route::get('/patients/temporary-password', [PatientController::class, 'temporaryPassword'])->name('patients.temporary-password');
         Route::get('/email-check', [EmailCheckController::class, 'show'])->name('email-check');
     });
