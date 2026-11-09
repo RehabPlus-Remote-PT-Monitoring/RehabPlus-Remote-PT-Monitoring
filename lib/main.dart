@@ -6,6 +6,7 @@ import 'core/app_diagnostics.dart';
 import 'core/app_keys.dart';
 import 'core/app_palette.dart';
 import 'core/diagnostic_logger.dart';
+import 'core/frame_stats.dart';
 import 'firebase_options.dart';
 import 'services/app_lock_service.dart';
 import 'services/app_provider.dart';
@@ -23,6 +24,9 @@ void main() {
   WidgetsFlutterBinding.ensureInitialized();
   // First, so that errors during startup are captured and logged too.
   AppDiagnostics.install();
+  // One 'Frame window' log line per 10 s of drawing (lib/core/frame_stats.dart),
+  // so stutter can be read from the device log.
+  FrameStats.install();
 
   final provider = AppProvider();
   // Draw the animated splash straight away; Firebase and the patient's data
@@ -125,6 +129,9 @@ class RehabPlusApp extends StatefulWidget {
 }
 
 class _RehabPlusAppState extends State<RehabPlusApp> {
+  /// Names the screen on top in the frame-timing log.
+  final _frameStatsObserver = FrameStatsRouteObserver();
+
   /// Created once: the app rebuilds when a setting such as the theme
   /// changes, and that must not start a second startup.
   late final Future<Widget> _firstScreen = widget._firstScreen();
@@ -147,7 +154,10 @@ class _RehabPlusAppState extends State<RehabPlusApp> {
       navigatorKey: navigatorKey,
       // iPhone only: keeps Liquid Glass controls from showing through
       // dialogs and sheets.
-      navigatorObservers: appNavigatorObservers(ios: useIosChrome),
+      navigatorObservers: [
+        ...appNavigatorObservers(ios: useIosChrome),
+        _frameStatsObserver,
+      ],
       scaffoldMessengerKey: messengerKey,
       debugShowCheckedModeBanner: false,
       // Settings > Appearance > Theme: light, dark or the phone's setting.

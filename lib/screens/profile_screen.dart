@@ -17,6 +17,7 @@ import '../widgets/profile_avatar.dart';
 import '../core/responsive.dart';
 import '../ios/brand_colors.dart';
 import '../ios/glass_tab_bar.dart';
+import '../widgets/profile_info_row.dart';
 
 class ProfileScreen extends StatefulWidget {
   const ProfileScreen({super.key});
@@ -152,10 +153,10 @@ class _ProfileScreenState extends State<ProfileScreen> {
                                       title: 'Personal Info',
                                       icon: Icons.person_outline_rounded,
                                       items: [
-                                        _InfoRow(icon: Icons.person_outline, label: 'Full Name', value: _profile.name),
-                                        _InfoRow(icon: Icons.email_outlined, label: 'Email', value: _profile.email),
-                                        _InfoRow(icon: Icons.phone_outlined, label: 'Phone', value: _profile.phone),
-                                        _InfoRow(icon: Icons.cake_outlined, label: 'Date of Birth', value: _profile.dob),
+                                        ProfileInfoRow(icon: Icons.person_outline, label: 'Full Name', value: _profile.name),
+                                        ProfileInfoRow(icon: Icons.email_outlined, label: 'Email', value: _profile.email),
+                                        ProfileInfoRow(icon: Icons.phone_outlined, label: 'Phone', value: _profile.phone),
+                                        ProfileInfoRow(icon: Icons.cake_outlined, label: 'Date of Birth', value: _profile.dob),
                                       ],
                                     ),
                                     const SizedBox(height: 14),
@@ -163,9 +164,9 @@ class _ProfileScreenState extends State<ProfileScreen> {
                                       title: 'Rehab Info',
                                       icon: Icons.medical_services_outlined,
                                       items: [
-                                        _InfoRow(icon: Icons.medical_services_outlined, label: 'Condition', value: _profile.condition),
-                                        _InfoRow(icon: Icons.person_pin_outlined, label: 'Therapist', value: _profile.therapist),
-                                        _InfoRow(
+                                        ProfileInfoRow(icon: Icons.medical_services_outlined, label: 'Condition', value: _profile.condition),
+                                        ProfileInfoRow(icon: Icons.person_pin_outlined, label: 'Therapist', value: _profile.therapist),
+                                        ProfileInfoRow(
                                           icon: Icons.calendar_today_outlined,
                                           label: 'Program Start',
                                           value: _profile.programStart == null
@@ -334,7 +335,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
 
   Widget _vDivider() => Container(width: 1, height: 36, color: context.palette.divider);
 
-  Widget _buildInfoCard({required String title, required IconData icon, required List<_InfoRow> items}) {
+  Widget _buildInfoCard({required String title, required IconData icon, required List<ProfileInfoRow> items}) {
     final palette = context.palette;
     return Padding(
       padding: const EdgeInsets.symmetric(horizontal: 16),
@@ -592,25 +593,3 @@ class _ProfileScreenState extends State<ProfileScreen> {
   }
 }
 
-class _InfoRow extends StatelessWidget {
-  final IconData icon;
-  final String label, value;
-  const _InfoRow({required this.icon, required this.label, required this.value});
-
-  @override
-  Widget build(BuildContext context) {
-    final palette = context.palette;
-    return Padding(
-      padding: const EdgeInsets.symmetric(vertical: 8),
-      child: Row(
-        children: [
-          Icon(icon, size: 17, color: palette.textMuted),
-          const SizedBox(width: 12),
-          Text(label, style: TextStyle(color: palette.textMuted, fontSize: 13)),
-          const Spacer(),
-          Text(value.isEmpty ? '—' : value, style: TextStyle(fontWeight: FontWeight.w600, fontSize: 13, color: palette.textPrimary)),
-        ],
-      ),
-    );
-  }
-}
