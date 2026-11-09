@@ -14,6 +14,53 @@
 // - [isPoseStale]: whether a skeleton is too old to draw (it would trail
 //   behind the patient or cover only part of them).
 
+/// How fast the camera runs and how often a frame may be analysed, per
+/// platform. Pick with [pipelineRatesFor].
+class PipelineRates {
+  const PipelineRates({required this.cameraFps, required this.minFrameIntervalMs});
+
+  /// Fixed camera frame rate to ask for, or null for the camera's default
+  /// (usually 30 fps). It also sets the PREVIEW's frame rate, so a low cap
+  /// makes the video itself look choppy.
+  final int? cameraFps;
+
+  /// Minimum time between two analysed frames ([FrameThrottle]).
+  final int minFrameIntervalMs;
+}
+
+/// Android: many of our phones are low-end (ML Kit 60-450 ms per frame), so
+/// the camera is held at 15 fps to save CPU. The interval (50 ms) is
+/// deliberately SHORTER than the 66.7 ms between 15 fps frames: with a
+/// 66 ms interval, a frame delivered a few ms early (normal timing jitter)
+/// was thrown away and analysis fell to ~8-10 fps. On a phone that ignores
+/// the cap and runs at 30 fps, 50 ms still takes every second frame (15/s).
+///
+/// iOS: iPhones run ML Kit in a few tens of ms, so the camera keeps its
+/// default 30 fps (smooth preview) and every frame may be analysed when
+/// ML Kit keeps up. 25 ms is under the 33 ms frame gap for the same jitter
+/// reason. Back-pressure (one frame in ML Kit at a time) still limits the
+/// rate on a slower iPhone.
+PipelineRates pipelineRatesFor({required bool isIOS}) => isIOS
+    ? const PipelineRates(cameraFps: null, minFrameIntervalMs: 25)
+    : const PipelineRates(cameraFps: 15, minFrameIntervalMs: 50);
+
+/// Lets a frame through at most once per [minIntervalMs].
+class FrameThrottle {
+  FrameThrottle(this.minIntervalMs);
+
+  final int minIntervalMs;
+  int? _lastTakenMs;
+
+  /// True (and remembers [nowMs]) when enough time has passed since the
+  /// last frame that was let through.
+  bool tryTake(int nowMs) {
+    final last = _lastTakenMs;
+    if (last != null && nowMs - last < minIntervalMs) return false;
+    _lastTakenMs = nowMs;
+    return true;
+  }
+}
+
 /// A skeleton older than this (capture time to now) is hidden rather than
 /// drawn in the wrong place.
 const int maxPoseAgeMs = 600;

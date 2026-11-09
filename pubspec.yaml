@@ -50,6 +50,14 @@ dev_dependencies:
   # Generates launcher icons for every platform from assets/icon/ (config: flutter_launcher_icons.yaml)
   flutter_launcher_icons: ^0.14.4
 
+# Patched copy of ML Kit's shared plugin (third_party/README.md explains the
+# change). Upstream built a new Core Image context for EVERY camera frame on
+# iOS, which made the skeleton lag on iPhone. Drop this override once the
+# upstream package reuses its context.
+dependency_overrides:
+  google_mlkit_commons:
+    path: third_party/google_mlkit_commons
+
 flutter:
   uses-material-design: true
   assets:

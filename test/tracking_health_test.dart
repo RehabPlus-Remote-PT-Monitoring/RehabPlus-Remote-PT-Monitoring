@@ -116,4 +116,45 @@ void main() {
       expect(h.update(10000), isFalse); // grace period restarts here
     });
   });
+
+  group('FrameThrottle / pipelineRatesFor', () {
+    /// Simulates a camera delivering frames every [periodMs] with a
+    /// repeating -4/+4 ms timing jitter and counts how many get analysed in
+    /// one second.
+    int analysedPerSecond(int minIntervalMs, double periodMs) {
+      final throttle = FrameThrottle(minIntervalMs);
+      var taken = 0;
+      for (var i = 0; (i * periodMs) < 1000; i++) {
+        final jitter = i.isEven ? -4 : 4;
+        final t = (i * periodMs).round() + jitter + 100;
+        if (throttle.tryTake(t)) taken++;
+      }
+      return taken;
+    }
+
+    test('first frame always passes, then one per interval', () {
+      final throttle = FrameThrottle(50);
+      expect(throttle.tryTake(0), isTrue);
+      expect(throttle.tryTake(49), isFalse);
+      expect(throttle.tryTake(50), isTrue);
+    });
+
+    test('a 66 ms cap on a jittery 15 fps camera loses frames (old bug)', () {
+      expect(analysedPerSecond(66, 1000 / 15), lessThan(10));
+    });
+
+    test('Android rates keep every frame of a jittery 15 fps camera', () {
+      final rates = pipelineRatesFor(isIOS: false);
+      expect(rates.cameraFps, 15);
+      expect(analysedPerSecond(rates.minFrameIntervalMs, 1000 / 15), 15);
+      // A phone that ignores the cap (30 fps) is still held to ~15.
+      expect(analysedPerSecond(rates.minFrameIntervalMs, 1000 / 30), 15);
+    });
+
+    test('iOS keeps the default 30 fps camera and analyses every frame', () {
+      final rates = pipelineRatesFor(isIOS: true);
+      expect(rates.cameraFps, isNull);
+      expect(analysedPerSecond(rates.minFrameIntervalMs, 1000 / 30), 30);
+    });
+  });
 }

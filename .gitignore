@@ -88,3 +88,6 @@ firebase-debug.log
 
 # Node
 node_modules/
+
+# Lockfiles generated inside vendored packages (the app lockfile is the one that counts)
+third_party/*/pubspec.lock

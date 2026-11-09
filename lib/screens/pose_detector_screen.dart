@@ -9,8 +9,9 @@
 //   camera plugin  --CameraImage-->  _onCameraFrame
 //     - drops the frame if the screen is gone, the session is over, the
 //       frame belongs to an old camera (switch / pause), ML Kit is still
-//       busy with the previous frame (back-pressure) or the ~15 fps cap
-//       hasn't elapsed yet. Every drop is counted by reason.
+//       busy with the previous frame (back-pressure) or the analysis cap
+//       (FrameThrottle, per platform: see pipelineRatesFor) hasn't elapsed
+//       yet. Every drop is counted by reason.
 //   _processFrame
 //     - wraps the NV21 bytes for ML Kit WITHOUT copying them (Android
 //       delivers NV21 as one plane), awaits ML Kit, then runs the form
@@ -158,16 +159,21 @@ class _PoseDetectorScreenState extends State<PoseDetectorScreen>
   // TUNING
   // ---------------------------------------------------------------------
 
-  /// Pose analysis cap (ms between processed frames). ~15 fps.
-  static const int _minFrameIntervalMs = 66;
+  /// Camera fps and analysis interval for this platform (Android: camera
+  /// held at 15 fps for low-end phones; iOS: default 30 fps and every frame
+  /// ML Kit can keep up with). Why the numbers: [pipelineRatesFor] in
+  /// lib/services/tracking_health.dart.
+  static final PipelineRates _rates = pipelineRatesFor(isIOS: Platform.isIOS);
+  static int get _minFrameIntervalMs => _rates.minFrameIntervalMs;
 
-  /// Camera frame rate requested from the camera. Analysis is capped at
-  /// ~15 fps above, so frames beyond 15 per second are thrown away; asking
-  /// the camera for 15 saves CPU on phones that would otherwise run at 30.
-  /// Most Android cameras support a fixed 15 fps range; if this one rejects
-  /// it, [_useFpsCap] turns off and the camera is restarted without it.
-  static const int _cameraFps = 15;
+  /// Fixed camera frame rate to request, or null for the camera default.
+  /// If the camera rejects it, [_useFpsCap] turns off and the camera is
+  /// restarted without it.
+  static int? get _cameraFps => _rates.cameraFps;
   bool _useFpsCap = true;
+
+  /// Analysis cap: at most one frame per [_minFrameIntervalMs].
+  final FrameThrottle _frameThrottle = FrameThrottle(_minFrameIntervalMs);
 
   /// Slow-tracking helpers (lib/services/tracking_health.dart): rep timing by
   /// capture time, the "tracking is slow" warning, and hiding stale
@@ -520,6 +526,7 @@ class _PoseDetectorScreenState extends State<PoseDetectorScreen>
       'repVibration': _settings.repVibration,
       'showSkeleton': _settings.showSkeleton,
       'minFrameIntervalMs': _minFrameIntervalMs,
+      'cameraFps': _cameraFps,
     });
     unawaited(
       Vibration.hasVibrator()
@@ -682,7 +689,9 @@ class _PoseDetectorScreenState extends State<PoseDetectorScreen>
         return;
       }
       final isPermissionError = e.code.startsWith('CameraAccess');
-      if (_useFpsCap && !isPermissionError && e.code != 'NoCamera') {
+      if (_useFpsCap &&
+          _cameraFps != null &&
+          !isPermissionError && e.code != 'NoCamera') {
         // This camera may not support a fixed 15 fps range. Retry once
         // without the cap before showing an error.
         _useFpsCap = false;
@@ -967,8 +976,6 @@ class _PoseDetectorScreenState extends State<PoseDetectorScreen>
     }
   }
 
-  int _lastFrameMs = -_minFrameIntervalMs;
-
   /// Camera stream callback. Decides cheaply whether to analyse this frame.
   /// Must never throw: an exception here would surface in the camera
   /// plugin's stream.
@@ -999,11 +1006,10 @@ class _PoseDetectorScreenState extends State<PoseDetectorScreen>
       return;
     }
 
-    if (nowMs - _lastFrameMs < _minFrameIntervalMs) {
+    if (!_frameThrottle.tryTake(nowMs)) {
       _stats.onSkippedThrottle();
       return;
     }
-    _lastFrameMs = nowMs;
 
     if (!_firstFrameLogged) {
       _firstFrameLogged = true;
