@@ -4,7 +4,7 @@ namespace App\Console\Commands;
 
 use App\Auth\FirebaseUserProvider;
 use App\Auth\StaffUser;
-use App\Rules\OfficialEmailDomain;
+use App\Rules\StaffEmailDomain;
 use App\Services\Firebase\FirebaseAdmin;
 use App\Services\Firebase\FirebaseException;
 use App\Services\Firebase\FirestoreClient;
@@ -32,8 +32,8 @@ class MakeAdmin extends Command
 
             return self::FAILURE;
         }
-        if (! OfficialEmailDomain::allows($email)) {
-            $this->error(OfficialEmailDomain::MESSAGE);
+        if (! StaffEmailDomain::allows($email)) {
+            $this->error(StaffEmailDomain::MESSAGE);
 
             return self::FAILURE;
         }

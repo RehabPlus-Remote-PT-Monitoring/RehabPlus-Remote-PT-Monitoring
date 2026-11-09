@@ -408,8 +408,12 @@ async function checkEmail(input) {
         showEmailMessage(input, 'Enter a valid email address.');
         return;
     }
-    if (!/@rehabplus\.com$/i.test(email)) {
-        showEmailMessage(input, 'Invalid email domain. Account creation is strictly restricted to official @rehabplus.com email addresses.');
+    // data-email-domains lists the allowed domains (staff: rehabplus.com and gmail.com); patients only rehabplus.com.
+    const domains = (input.dataset.emailDomains || 'rehabplus.com').split(' ');
+    const domain = email.slice(email.lastIndexOf('@') + 1).toLowerCase();
+    if (!domains.includes(domain)) {
+        showEmailMessage(input, input.dataset.emailDomainMessage
+            || 'Invalid email domain. Account creation is strictly restricted to official @rehabplus.com email addresses.');
         return;
     }
 

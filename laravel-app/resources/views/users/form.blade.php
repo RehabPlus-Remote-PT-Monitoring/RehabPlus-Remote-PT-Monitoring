@@ -55,10 +55,11 @@
                     <div class="col-md-6" data-email-wrap>
                         <label for="email" class="form-label small fw-semibold">Email</label>
                         <div class="input-group">
-                            <input id="email" type="email" name="email" class="form-control @error('email') is-invalid @enderror" value="{{ old('email') }}" placeholder="{{ $selectedRole }}@rehabplus.com" required maxlength="150" autocomplete="off" data-email-check="{{ route('email-check') }}">
+                            <input id="email" type="email" name="email" class="form-control @error('email') is-invalid @enderror" value="{{ old('email') }}" placeholder="{{ $selectedRole }}@rehabplus.com" required maxlength="150" autocomplete="off" data-email-domains="{{ implode(' ', \App\Rules\StaffEmailDomain::DOMAINS) }}" data-email-domain-message="{{ \App\Rules\StaffEmailDomain::MESSAGE }}" data-email-check="{{ route('email-check') }}">
                             <span class="input-group-text" data-email-status aria-hidden="true"></span>
                         </div>
                         <div class="form-text text-danger" data-email-feedback></div>
+                        <div class="form-text">Use @rehabplus.com or Gmail. Forgot-password codes are sent to this email.</div>
                         @error('email')
                             <div class="invalid-feedback d-block">{{ $message }}</div>
                         @enderror

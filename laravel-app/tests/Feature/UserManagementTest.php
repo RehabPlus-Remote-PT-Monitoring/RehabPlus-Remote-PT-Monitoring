@@ -2,7 +2,7 @@
 
 namespace Tests\Feature;
 
-use App\Rules\OfficialEmailDomain;
+use App\Rules\StaffEmailDomain;
 use App\Services\User\EmailAvailability;
 use Tests\Support\FakeFirebase;
 use Tests\TestCase;
@@ -90,14 +90,26 @@ class UserManagementTest extends TestCase
         $this->assertSame([], $this->commits);
     }
 
-    public function test_staff_account_must_use_the_clinic_domain(): void
+    public function test_staff_account_can_use_gmail_so_reset_codes_arrive(): void
+    {
+        $this->actingAs($this->staff('admin'))->post('/users', [
+            'name' => 'Gmail User', 'email' => 'Someone16@Gmail.com', 'password' => 'long-enough', 'role' => 'therapist',
+        ])->assertSessionHasNoErrors();
+
+        $this->assertArrayHasKey('someone16@gmail.com', $this->authUsers);
+        $this->get('/users/create')->assertOk()
+            ->assertSee('data-email-domains="rehabplus.com gmail.com"', false)
+            ->assertSee('Forgot-password codes are sent to this email.');
+    }
+
+    public function test_staff_account_must_use_the_clinic_domain_or_gmail(): void
     {
         $this->actingAs($this->staff('admin'))->from('/users/create')->post('/users', [
-            'name' => 'Gmail User', 'email' => 'someone@gmail.com', 'password' => 'long-enough', 'role' => 'therapist',
-        ])->assertRedirect('/users/create')->assertSessionHasErrors(['email' => OfficialEmailDomain::MESSAGE]);
+            'name' => 'Yahoo User', 'email' => 'someone@yahoo.com', 'password' => 'long-enough', 'role' => 'therapist',
+        ])->assertRedirect('/users/create')->assertSessionHasErrors(['email' => StaffEmailDomain::MESSAGE]);
 
-        $this->get('/users/create')->assertOk()->assertSee('invalid-feedback', false)->assertSee(OfficialEmailDomain::MESSAGE);
-        $this->assertArrayNotHasKey('someone@gmail.com', $this->authUsers);
+        $this->get('/users/create')->assertOk()->assertSee('invalid-feedback', false)->assertSee(StaffEmailDomain::MESSAGE);
+        $this->assertArrayNotHasKey('someone@yahoo.com', $this->authUsers);
         $this->assertSame([], $this->commits);
     }
 
