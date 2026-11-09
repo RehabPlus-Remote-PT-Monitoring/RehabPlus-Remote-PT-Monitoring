@@ -225,6 +225,35 @@ html.dark-mode{
             background-color:transparent !important;
         }
 
+        /* Filled badges keep their colour in dark mode, so unread counts stay visible (red for messages). */
+        html.dark-mode body .badge.bg-danger{
+            background-color:#ef4444 !important;
+            color:#fff !important;
+        }
+
+        html.dark-mode body .badge.bg-primary,
+        html.dark-mode body .badge.bg-success,
+        html.dark-mode body .badge.bg-info,
+        html.dark-mode body .badge.bg-warning{
+            color:#0f172a !important;
+        }
+
+        html.dark-mode body .badge.bg-primary{
+            background-color:#14b8a6 !important;
+        }
+
+        html.dark-mode body .badge.bg-success{
+            background-color:#22c55e !important;
+        }
+
+        html.dark-mode body .badge.bg-info{
+            background-color:#38bdf8 !important;
+        }
+
+        html.dark-mode body .badge.bg-warning{
+            background-color:#fbbf24 !important;
+        }
+
         html.dark-mode body .card-body,
         html.dark-mode body #patientsTable,
         html.dark-mode body #patientsTable thead,
