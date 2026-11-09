@@ -590,6 +590,11 @@ html.dark-mode{
             min-width:44px;
         }
 
+        /* The status select shows one arrow: the teal button beside it, as on the time and session fields. */
+        .status-select{
+            background-image:none !important;
+        }
+
         /* Physical therapists' bell: a round button with a count, and a panel of upcoming appointments. */
         .appt-alerts{
             position:relative;
@@ -3025,3 +3030,83 @@ html.dark-mode{
             color:var(--text);
         }
 
+
+/* DAILY INSIGHTS: the "Today at a glance" card at the top of the dashboard. */
+
+.daily-hero{
+    display:flex;
+    align-items:center;
+    justify-content:space-between;
+    gap:1.5rem;
+    padding:1.75rem 2rem;
+    border-radius:var(--radius);
+    background:linear-gradient(135deg,#0d9488 0%,#0891b2 100%);
+    color:#fff;
+    box-shadow:var(--shadow);
+    overflow:hidden;
+    position:relative;
+}
+
+.daily-hero-main{
+    position:relative;
+    z-index:1;
+    min-width:0;
+}
+
+.daily-hero-greeting{
+    font-size:.8rem;
+    font-weight:600;
+    letter-spacing:.08em;
+    text-transform:uppercase;
+    opacity:.85;
+}
+
+.daily-hero-name{
+    font-size:1.75rem;
+    font-weight:700;
+    margin:0 0 .25rem;
+    color:#fff;
+}
+
+.daily-hero-date{
+    opacity:.9;
+    font-size:.95rem;
+}
+
+.daily-hero-summary{
+    font-size:1rem;
+    font-weight:500;
+}
+
+.daily-hero-quote{
+    font-style:italic;
+    opacity:.9;
+    font-size:.92rem;
+}
+
+.daily-hero-icon{
+    font-size:5rem;
+    opacity:.22;
+    flex:0 0 auto;
+    position:relative;
+    z-index:0;
+}
+
+
+
+
+
+
+@media (max-width: 575.98px){
+    .daily-hero{
+        padding:1.35rem 1.25rem;
+    }
+
+    .daily-hero-name{
+        font-size:1.4rem;
+    }
+
+    .daily-hero-icon{
+        display:none;
+    }
+}

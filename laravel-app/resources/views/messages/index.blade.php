@@ -3,6 +3,12 @@
 @section('title', 'Messages')
 
 @section('content')
+    @php($tagStyles = [
+        'patient' => 'bg-success-subtle text-success',
+        'admin' => 'bg-danger-subtle text-danger',
+        'therapist' => 'bg-info-subtle text-info',
+    ])
+
     <div class="d-flex justify-content-between align-items-center mb-4">
         <div>
             <p class="page-title mb-1">Messages</p>
@@ -23,28 +29,46 @@
         {{-- Stays: it replaces the conversation list, so the page would be blank without it. --}}
         <div class="alert alert-danger" data-keep>{{ $error }}</div>
     @else
+        <div class="row mb-3">
+            <div class="col-md-6">
+                <label for="conversation-search" class="form-label small fw-semibold">Search conversations</label>
+                <div class="input-group">
+                    <input id="conversation-search" type="search" class="form-control" placeholder="Name, role, or message">
+                    {{-- Decorative: the list filters as you type. --}}
+                    <span class="input-group-text" aria-hidden="true"><i class="bi bi-search"></i></span>
+                </div>
+            </div>
+        </div>
+
         <div class="card shadow-sm border-0">
             <div class="list-group list-group-flush">
                 @forelse ($conversations as $c)
-                    <a href="{{ route('messages.show', $c['patientUid']) }}"
-                       class="list-group-item list-group-item-action d-flex align-items-center gap-3 py-3 {{ $c['unread'] ? 'fw-semibold' : '' }}">
-                        <div class="user-avatar flex-shrink-0">{{ strtoupper(mb_substr($c['patientName'], 0, 1)) }}</div>
-                        <div class="flex-grow-1 min-w-0">
-                            <div class="d-flex justify-content-between">
-                                <span>{{ $c['patientName'] }}</span>
-                                <small class="text-muted">{{ $c['lastMessageAt']?->setTimezone(config('app.timezone'))->diffForHumans() }}</small>
+                    <a href="{{ $c['url'] }}"
+                       class="list-group-item list-group-item-action py-3 {{ $c['unread'] ? 'fw-semibold' : '' }}"
+                       data-conversation-row
+                       data-search="{{ strtolower($c['name'].' '.$c['tag'].' '.($c['lastMessage'] ?? '')) }}">
+                        <div class="d-flex align-items-center gap-3">
+                            <div class="user-avatar flex-shrink-0">{{ strtoupper(mb_substr($c['name'], 0, 1)) }}</div>
+                            <div class="flex-grow-1 min-w-0">
+                                <div class="d-flex justify-content-between align-items-center gap-2">
+                                    <span class="d-flex align-items-center gap-2 min-w-0">
+                                        <span class="text-truncate">{{ $c['name'] }}</span>
+                                        <span class="badge rounded-pill {{ $tagStyles[$c['tagTone']] ?? 'bg-light text-dark' }} flex-shrink-0">{{ $c['tag'] }}</span>
+                                    </span>
+                                    <small class="text-muted flex-shrink-0">{{ $c['lastMessageAt']?->setTimezone(config('app.timezone'))->diffForHumans() }}</small>
+                                </div>
+                                <div class="text-muted small text-truncate">
+                                    @if ($c['lastMessage'])
+                                        {{ $c['fromMe'] ? 'You: ' : '' }}{{ $c['lastMessage'] }}
+                                    @else
+                                        No messages yet{{ $c['subtitle'] ? ' · '.$c['subtitle'] : '' }}
+                                    @endif
+                                </div>
                             </div>
-                            <div class="text-muted small text-truncate">
-                                @if ($c['lastMessage'])
-                                    {{ $c['lastSenderRole'] === 'staff' ? 'You: ' : '' }}{{ $c['lastMessage'] }}
-                                @else
-                                    No messages yet{{ $c['condition'] ? ' · '.$c['condition'] : '' }}
-                                @endif
-                            </div>
+                            @if ($c['unread'])
+                                <span class="badge rounded-pill bg-danger flex-shrink-0" aria-label="{{ $c['unread'] }} unread">{{ $c['unread'] }}</span>
+                            @endif
                         </div>
-                        @if ($c['unread'])
-                            <span class="badge rounded-pill bg-danger">{{ $c['unread'] }}</span>
-                        @endif
                     </a>
                 @empty
                     <div class="text-center text-muted py-5">
@@ -56,6 +80,27 @@
                     </div>
                 @endforelse
             </div>
+            @if ($conversations !== [])
+                <div class="text-center text-muted py-4" data-conversation-search-empty hidden>No conversations match what you typed.</div>
+            @endif
         </div>
+
+        <script nonce="{{ Vite::cspNonce() }}">
+            (() => {
+                // The list filters live as you type, like the patient search.
+                const input = document.getElementById('conversation-search');
+                const empty = document.querySelector('[data-conversation-search-empty]');
+                input?.addEventListener('input', () => {
+                    const term = input.value.trim().toLowerCase();
+                    let shown = 0;
+                    document.querySelectorAll('[data-conversation-row]').forEach((row) => {
+                        const match = row.dataset.search.includes(term);
+                        row.hidden = !match;
+                        shown += match ? 1 : 0;
+                    });
+                    empty?.toggleAttribute('hidden', shown > 0);
+                });
+            })();
+        </script>
     @endif
 @endsection

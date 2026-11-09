@@ -1,10 +1,11 @@
 import { beforeEach, describe, expect, test, vi } from 'vitest';
 import { initAppointmentAlerts, markAlertsSeen, showUnseenCount } from '../../resources/js/appointment-alerts.js';
 
-function bell(ids, key = 'appt-alerts-seen:th1') {
+function bell(ids, key = 'appt-alerts-seen:th1', notices = 0) {
     const root = document.createElement('details');
     root.dataset.apptAlerts = '';
     root.dataset.seenKey = key;
+    root.dataset.noticeCount = String(notices);
     root.innerHTML = `<summary><span data-appt-alerts-count hidden></span></summary>
         ${ids.map((id) => `<a data-appt-alert-id="${id}"></a>`).join('')}`;
     document.body.replaceChildren(root);
@@ -70,6 +71,38 @@ describe('appointment bell', () => {
         blocked.mockRestore();
 
         expect(count(root).textContent).toBe('1');
+    });
+
+    test('unopened notices add to the count', () => {
+        const root = bell(['a'], 'appt-alerts-seen:th1', 2);
+        showUnseenCount(root);
+
+        expect(count(root).textContent).toBe('3');
+    });
+
+    test('notices alone show a count', () => {
+        const root = bell([], 'appt-alerts-seen:th1', 1);
+        showUnseenCount(root);
+
+        expect(count(root).textContent).toBe('1');
+        expect(count(root).hidden).toBe(false);
+    });
+
+    test('opening the bell clears the appointments but not the notices', () => {
+        const root = bell(['a'], 'appt-alerts-seen:th1', 2);
+        showUnseenCount(root);
+        markAlertsSeen(root);
+
+        expect(count(root).textContent).toBe('2');
+        expect(count(root).hidden).toBe(false);
+    });
+
+    test('nothing to show when no notices and every appointment is seen', () => {
+        markAlertsSeen(bell(['a']));
+        const next = bell(['a'], 'appt-alerts-seen:th1', 0);
+        showUnseenCount(next);
+
+        expect(count(next).hidden).toBe(true);
     });
 
     test('opening the bell on the page marks them seen', () => {

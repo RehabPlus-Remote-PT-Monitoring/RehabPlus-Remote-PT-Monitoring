@@ -2,6 +2,7 @@
 
 use App\Http\Controllers\AnnouncementController;
 use App\Http\Controllers\AppointmentController;
+use App\Http\Controllers\NoticeController;
 use App\Http\Controllers\AuthController;
 use App\Http\Controllers\ClinicalRecordController;
 use App\Http\Controllers\CronController;
@@ -11,6 +12,7 @@ use App\Http\Controllers\InfoPageController;
 use App\Http\Controllers\InventoryController;
 use App\Http\Controllers\LandingController;
 use App\Http\Controllers\MessageController;
+use App\Http\Controllers\StaffChatController;
 use App\Http\Controllers\PasswordResetController;
 use App\Http\Controllers\EmailCheckController;
 use App\Http\Controllers\PatientController;
@@ -133,15 +135,28 @@ Route::middleware(['auth.rehab'])->group(function () {
     Route::get('/messages/{patientUid}/status', [MessageController::class, 'status'])->name('messages.status');
     Route::post('/messages/{patientUid}', [MessageController::class, 'reply'])->name('messages.reply');
 
+    // Staff-to-staff messages (in the same Messages tab): administrators and physical therapists.
+    Route::middleware(['role:admin,therapist'])->group(function () {
+        Route::get('/messages/staff/{uid}', [StaffChatController::class, 'show'])->name('staff-chat.show');
+        Route::post('/messages/staff/{uid}', [StaffChatController::class, 'send'])->name('staff-chat.send');
+    });
+
     // Clinic operations (Firestore top-level collections, see ClinicStore).
+    Route::get('/notices/{id}', [NoticeController::class, 'open'])->name('notices.open');
     Route::get('/appointments', [AppointmentController::class, 'index'])->name('appointments.index');
-    Route::get('/appointments/create', [AppointmentController::class, 'create'])->name('appointments.create');
-    Route::post('/appointments', [AppointmentController::class, 'store'])->name('appointments.store');
+    // Declared before /appointments/{id} so "create" isn't read as an appointment id.
+    Route::middleware(['role:admin'])->group(function () {
+        Route::get('/appointments/create', [AppointmentController::class, 'create'])->name('appointments.create');
+    });
     Route::get('/appointments/{id}', [AppointmentController::class, 'show'])->name('appointments.show');
-    Route::get('/appointments/{id}/edit', [AppointmentController::class, 'edit'])->name('appointments.edit');
-    Route::put('/appointments/{id}', [AppointmentController::class, 'update'])->name('appointments.update');
-    Route::delete('/appointments/{id}', [AppointmentController::class, 'delete'])->name('appointments.delete');
-    Route::post('/appointments/{id}/status', [AppointmentController::class, 'changeStatus'])->name('appointments.status');
+    Route::post('/appointments/{id}/request', [AppointmentController::class, 'requestChange'])->name('appointments.request');
+    Route::middleware(['role:admin'])->group(function () {
+        Route::post('/appointments', [AppointmentController::class, 'store'])->name('appointments.store');
+        Route::get('/appointments/{id}/edit', [AppointmentController::class, 'edit'])->name('appointments.edit');
+        Route::put('/appointments/{id}', [AppointmentController::class, 'update'])->name('appointments.update');
+        Route::delete('/appointments/{id}', [AppointmentController::class, 'delete'])->name('appointments.delete');
+        Route::post('/appointments/{id}/status', [AppointmentController::class, 'changeStatus'])->name('appointments.status');
+    });
 
     Route::get('/billing', [PaymentController::class, 'index'])->name('billing');
     // Recording, changing the status, and deleting payments: administrators only. Everyone can view the page.

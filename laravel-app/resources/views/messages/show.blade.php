@@ -7,7 +7,10 @@
     <div class="d-flex justify-content-between align-items-center mb-3">
         <div>
             <a href="{{ route('messages.index', $archived ? ['archived' => 1] : []) }}" class="back-link text-decoration-none small"><i class="bi bi-arrow-left me-1"></i>All conversations</a>
-            <p class="page-title mb-0 mt-1">{{ $patient['name'] ?? 'Unnamed patient' }}</p>
+            <p class="page-title mb-0 mt-1 d-flex align-items-center gap-2">
+                {{ $patient['name'] ?? 'Unnamed patient' }}
+                <span class="badge rounded-pill bg-success-subtle text-success fs-6 fw-normal">Patient</span>
+            </p>
             <p class="page-subtitle mb-0">
                 {{ $thread === 'therapist' ? 'Therapist conversation' : 'Clinic conversation' }}{{ ! empty($patient['condition']) ? ' · '.$patient['condition'] : '' }}
             </p>

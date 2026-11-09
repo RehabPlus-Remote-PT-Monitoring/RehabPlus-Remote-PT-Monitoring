@@ -10,6 +10,7 @@ use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Http\Response;
+use Illuminate\Support\Facades\Cache;
 use Illuminate\View\View;
 
 /**
@@ -34,7 +35,7 @@ class MessageController extends Controller
         }
 
         try {
-            $data = $this->messaging->inbox($request->user(), $archived) + $data;
+            $data['conversations'] = $this->messaging->allConversations($request->user(), $archived);
         } catch (FirebaseException $e) {
             report($e);
             $data['error'] = 'Could not load conversations from Firebase. Try again in a moment.';
@@ -142,6 +143,9 @@ class MessageController extends Controller
             report($e);
             abort(503, 'Could not reach Firebase. Try again in a moment.');
         }
+
+        // The Messages tab badge is cached for 30 seconds; drop it so the opened chat is no longer counted.
+        Cache::forget('messages-unread:'.auth()->id());
 
         return [MessagingService::withReadReceipts($messages, $summary), MessagingService::version($summary)];
     }

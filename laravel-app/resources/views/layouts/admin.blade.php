@@ -40,24 +40,38 @@
                 <span data-clock-text>{{ now()->setTimezone(config('app.timezone'))->format('g:i:s A') }}</span>
             </span>
 
-            @if (auth()->user()?->isTherapist())
-                {{-- Physical therapists: their upcoming appointments, set by the clinic. --}}
-                <details class="appt-alerts" data-appt-alerts data-seen-key="appt-alerts-seen:{{ auth()->id() }}">
-                    <summary class="theme-toggle appt-alerts-toggle" title="Your upcoming appointments" aria-label="Your upcoming appointments">
+            @if (auth()->user())
+                {{-- The bell: notices from the clinic and administrators, and for therapists their upcoming appointments. --}}
+                <details class="appt-alerts" data-appt-alerts data-notice-count="{{ count($staffNotices) }}" data-seen-key="appt-alerts-seen:{{ auth()->id() }}">
+                    <summary class="theme-toggle appt-alerts-toggle" title="Notifications" aria-label="Notifications">
                         <i class="bi bi-bell-fill"></i>
-                        {{-- appointment-alerts.js shows this with the number not seen yet. --}}
+                        {{-- appointment-alerts.js fills this in: the unread notices plus the appointments not seen yet. --}}
                         <span class="appt-alerts-count" data-appt-alerts-count hidden></span>
                     </summary>
                     <div class="appt-alerts-panel">
-                        <p class="appt-alerts-title">Your upcoming appointments</p>
-                        @forelse ($appointmentAlerts as $alert)
-                            <a href="{{ route('appointments.show', $alert->id) }}" class="appt-alerts-item" data-appt-alert-id="{{ $alert->id }}">
-                                <span class="fw-semibold">{{ $alert->patient }}</span>
-                                <span class="small text-muted">{{ \Carbon\CarbonImmutable::parse($alert->date)->format('M j, Y') }} · {{ $alert->time }} · {{ $alert->session }}</span>
+                        <p class="appt-alerts-title">Notifications</p>
+                        @foreach ($staffNotices as $notice)
+                            <a href="{{ route('notices.open', $notice['id']) }}" class="appt-alerts-item appt-alerts-notice">
+                                <span class="fw-semibold">{{ $notice['title'] }}</span>
+                                <span class="small text-muted appt-alerts-body">{{ $notice['body'] }}</span>
+                                @if ($notice['fromName'] !== '')
+                                    <span class="small text-muted">From {{ $notice['fromName'] }}</span>
+                                @endif
                             </a>
-                        @empty
-                            <p class="small text-muted mb-0">No upcoming appointments.</p>
-                        @endforelse
+                        @endforeach
+                        @if (auth()->user()->isTherapist())
+                            <p class="appt-alerts-title mt-2">Your upcoming appointments</p>
+                            @forelse ($appointmentAlerts as $alert)
+                                <a href="{{ route('appointments.show', $alert->id) }}" class="appt-alerts-item" data-appt-alert-id="{{ $alert->id }}">
+                                    <span class="fw-semibold">{{ $alert->patient }}</span>
+                                    <span class="small text-muted">{{ \Carbon\CarbonImmutable::parse($alert->date)->format('M j, Y') }} · {{ $alert->time }} · {{ $alert->session }}</span>
+                                </a>
+                            @empty
+                                <p class="small text-muted mb-0">No upcoming appointments.</p>
+                            @endforelse
+                        @elseif ($staffNotices === [])
+                            <p class="small text-muted mb-0">Nothing new.</p>
+                        @endif
                     </div>
                 </details>
             @endif
@@ -132,6 +146,7 @@
                     <a class="nav-link {{ request()->is('messages*') ? 'active' : '' }}" href="{{ route('messages.index') }}">
                         <i class="bi bi-chat-dots-fill"></i>
                         Messages
+                        @if ($messagesUnread > 0)<span class="badge rounded-pill bg-danger ms-2" aria-label="{{ $messagesUnread }} unread messages">{{ $messagesUnread }}</span>@endif
                     </a>
                 </li>
                 <li class="nav-item">

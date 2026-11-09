@@ -88,6 +88,9 @@
                                 </td>
                             @endif
                             <td class="text-end pe-4 text-nowrap">
+                                @if (! $showArchived && $user['active'] && ! $user['archived'] && $user['uid'] !== $me->id)
+                                    <a href="{{ route('staff-chat.show', $user['uid']) }}" class="btn btn-sm btn-outline-secondary me-1"><i class="bi bi-chat-dots me-1"></i>Message</a>
+                                @endif
                                 <a href="{{ route('users.edit', $user['uid']) }}" class="btn btn-sm btn-outline-primary">Edit</a>
                                 @if ($user['uid'] !== $me->id)
                                     @if ($showArchived)

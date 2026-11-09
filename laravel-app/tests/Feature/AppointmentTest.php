@@ -90,10 +90,9 @@ class AppointmentTest extends TestCase
             ->assertDontSee('Otto Archived')
             ->assertSee('name="patient"', false);
 
+        // Physical therapists can't schedule, so the form (and its patient list) is admin-only.
         $this->actingAs($this->staff('therapist', 'thA'))->get('/appointments/create')
-            ->assertOk()
-            ->assertSee('Olive One')
-            ->assertDontSee('Tom Two');
+            ->assertForbidden();
     }
 
     public function test_cancelled_is_only_offered_when_editing(): void

@@ -125,7 +125,7 @@
                 <div class="col-md-6">
                     <label for="status" class="form-label small fw-semibold">Status</label>
                     <div class="input-group">
-                    <select id="status" name="status" class="form-select">
+                    <select id="status" name="status" class="form-select status-select">
                         <option value="Upcoming" @selected($status === 'Upcoming')>Upcoming</option>
                         <option value="Completed" @selected($status === 'Completed')>Completed</option>
                         {{-- A new appointment can't already be cancelled; cancelling is done when editing it. --}}

@@ -6,6 +6,7 @@ use App\Auth\StaffUser;
 use App\Services\Firebase\FirebaseException;
 use App\Services\Firebase\FirestoreClient;
 use App\Services\Firebase\PatientNotifier;
+use App\Services\StaffChat\StaffChatService;
 use App\Services\User\StaffDirectory;
 use Carbon\CarbonImmutable;
 use Illuminate\Support\Str;
@@ -40,8 +41,12 @@ class MessagingService
      */
     public const CLOCK_SKEW_MINUTES = 60;
 
-    public function __construct(private FirestoreClient $db, private PatientNotifier $notifier, private StaffDirectory $directory)
-    {
+    public function __construct(
+        private FirestoreClient $db,
+        private PatientNotifier $notifier,
+        private StaffDirectory $directory,
+        private StaffChatService $staffChats,
+    ) {
     }
 
     /** The thread this user answers, or null if they can't use messaging. */
@@ -153,6 +158,70 @@ class MessagingService
                 'sentAt' => $m['sentAt'] ?? $m['createdAt'] ?? null,
             ];
         }, $messages));
+    }
+
+    /** Unread messages across this person's conversations, for the Messages tab. Zero if they can't be read. */
+    public function unreadTotal(StaffUser $user): int
+    {
+        try {
+            $patients = array_sum(array_column($this->inbox($user)['conversations'], 'unread'));
+        } catch (FirebaseException $e) {
+            report($e);
+            $patients = 0;
+        }
+
+        try {
+            $staff = $this->staffChats->unreadTotal($user);
+        } catch (FirebaseException $e) {
+            report($e);
+            $staff = 0;
+        }
+
+        return $patients + $staff;
+    }
+
+    /**
+     * The Messages tab's list: patient conversations and staff conversations
+     * together, unread first, then the most recent. Staff chats are only in the
+     * inbox, not the archive.
+     *
+     * Each row: name, tag (who it is), subtitle, lastMessage, lastMessageAt,
+     * fromMe (the last message was yours), unread and the page it opens.
+     *
+     * @return list<array<string, mixed>>
+     */
+    public function allConversations(StaffUser $user, bool $archived = false): array
+    {
+        $rows = array_map(fn (array $c) => [
+            'name' => $c['patientName'],
+            'tag' => 'Patient',
+            'tagTone' => 'patient',
+            'subtitle' => $c['condition'] ?? '',
+            'lastMessage' => $c['lastMessage'],
+            'lastMessageAt' => $c['lastMessageAt'],
+            'fromMe' => $c['lastSenderRole'] === 'staff',
+            'unread' => $c['unread'],
+            'url' => route('messages.show', $c['patientUid']),
+        ], $this->inbox($user, $archived)['conversations']);
+
+        if (! $archived) {
+            $rows = array_merge($rows, array_map(fn (array $p) => [
+                'name' => $p['name'],
+                'tag' => $p['roleLabel'],
+                'tagTone' => $p['role'],
+                'subtitle' => '',
+                'lastMessage' => $p['lastMessage'],
+                'lastMessageAt' => $p['lastMessageAt'],
+                'fromMe' => $p['lastFromMe'],
+                'unread' => $p['unread'],
+                'url' => route('staff-chat.show', $p['uid']),
+            ], $this->staffChats->people($user)));
+        }
+
+        usort($rows, fn ($a, $b) => [$b['unread'] > 0, $b['lastMessageAt']?->getTimestamp() ?? 0, $a['name']]
+            <=> [$a['unread'] > 0, $a['lastMessageAt']?->getTimestamp() ?? 0, $b['name']]);
+
+        return $rows;
     }
 
     /**

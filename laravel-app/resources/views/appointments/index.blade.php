@@ -5,7 +5,9 @@
 @section('content')
     <div class="d-flex justify-content-between align-items-center mb-4">
         <div><p class="page-title mb-1">Appointments</p></div>
-        <a href="{{ route('appointments.create') }}" class="btn btn-primary"><i class="bi bi-plus-lg me-1"></i>Schedule Appointment</a>
+        @if (auth()->user()->isAdmin())
+            <a href="{{ route('appointments.create') }}" class="btn btn-primary"><i class="bi bi-plus-lg me-1"></i>Schedule Appointment</a>
+        @endif
     </div>
 
     <div class="row g-4 mb-4">
@@ -21,6 +23,6 @@
     </div>
 
     <div class="card shadow-sm border-0">
-        <div class="card-body p-0"><div class="table-responsive"><table class="table table-hover mb-0 align-middle"><thead class="table-light"><tr><th>Patient</th><th>Therapist</th><th>Session</th><th>Date</th><th>Status</th><th>Actions</th></tr></thead><tbody>@forelse($appointments as $appointment)<tr><td>{{ $appointment->patient }}</td><td>{{ $appointment->therapist }}</td><td>{{ $appointment->session }}</td><td>{{ \Carbon\Carbon::parse($appointment->date)->format('M d, Y') }} @ {{ $appointment->time }}</td><td><span class="badge {{ $appointment->status === 'Completed' ? 'bg-success-subtle text-success' : ($appointment->status === 'Pending' ? 'bg-warning-subtle text-warning' : 'bg-info-subtle text-info') }}">{{ $appointment->status }}</span></td><td><a href="{{ route('appointments.show', $appointment->id) }}" class="btn btn-sm btn-outline-secondary me-1">View</a><a href="{{ route('appointments.edit', $appointment->id) }}" class="btn btn-sm btn-outline-primary me-1">Edit</a><form method="POST" action="{{ route('appointments.delete', $appointment->id) }}" data-confirm="Delete appointment?" class="d-inline">@csrf @method('DELETE')<button type="submit" class="btn btn-sm btn-outline-danger">Delete</button></form></td></tr>@empty<tr><td colspan="6" class="text-center text-muted py-4">No appointments available.</td></tr>@endforelse</tbody></table></div></div>
+        <div class="card-body p-0"><div class="table-responsive"><table class="table table-hover mb-0 align-middle"><thead class="table-light"><tr><th>Patient</th><th>Therapist</th><th>Session</th><th>Date</th><th>Status</th><th>Actions</th></tr></thead><tbody>@forelse($appointments as $appointment)<tr><td>{{ $appointment->patient }}</td><td>{{ $appointment->therapist }}</td><td>{{ $appointment->session }}</td><td>{{ \Carbon\Carbon::parse($appointment->date)->format('M d, Y') }} @ {{ $appointment->time }}</td><td><span class="badge {{ $appointment->status === 'Completed' ? 'bg-success-subtle text-success' : ($appointment->status === 'Pending' ? 'bg-warning-subtle text-warning' : 'bg-info-subtle text-info') }}">{{ $appointment->status }}</span></td><td><a href="{{ route('appointments.show', $appointment->id) }}" class="btn btn-sm btn-outline-secondary me-1">View</a>@if (auth()->user()->isAdmin())<a href="{{ route('appointments.edit', $appointment->id) }}" class="btn btn-sm btn-outline-primary me-1">Edit</a><form method="POST" action="{{ route('appointments.delete', $appointment->id) }}" data-confirm="Delete appointment?" class="d-inline">@csrf @method('DELETE')<button type="submit" class="btn btn-sm btn-outline-danger">Delete</button></form>@endif</td></tr>@empty<tr><td colspan="6" class="text-center text-muted py-4">No appointments available.</td></tr>@endforelse</tbody></table></div></div>
     </div>
 @endsection

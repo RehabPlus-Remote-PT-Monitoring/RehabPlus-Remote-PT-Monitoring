@@ -32,6 +32,11 @@ class AppointmentService
             fn () => $this->store->all(ClinicStore::APPOINTMENTS),
             fn () => $this->patients->visible($user),
         ]);
+        // A physical therapist sees their own appointments.
+        if ($user->isTherapist()) {
+            $appointments = $appointments->where('therapistId', $user->id);
+        }
+
         $appointments = $appointments->sortBy(fn (ClinicRecord $a) => $a->date.' '.$a->time)
             ->map(fn (ClinicRecord $a) => $this->presented($a))
             ->values();

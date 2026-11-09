@@ -24,6 +24,20 @@
         </div>
     </div>
 
+    @if ($daily)
+        <section class="daily-hero mb-4" aria-labelledby="dailyHeroName">
+            <div class="daily-hero-main">
+                <p class="daily-hero-greeting mb-1">{{ $daily['greeting'] }}</p>
+                <h2 id="dailyHeroName" class="daily-hero-name">Hello, {{ $daily['name'] }}!</h2>
+                <p class="daily-hero-date mb-3"><i class="bi bi-calendar3 me-2"></i>{{ $daily['dateLabel'] }}</p>
+                <p class="daily-hero-summary mb-2"><i class="bi bi-info-circle-fill me-2"></i>{{ $daily['summary'] }}</p>
+                <p class="daily-hero-quote mb-0"><i class="bi bi-stars me-2"></i>{{ $daily['quote'] }}</p>
+            </div>
+            <i class="bi {{ $daily['greetingIcon'] }} daily-hero-icon" aria-hidden="true"></i>
+        </section>
+
+    @endif
+
     <div class="row g-4 mb-4">
         <x-admin.stat-card label="Total Patients" :value="$totalPatients" icon="bi-people-fill" tone="info" />
         <x-admin.stat-card label="Avg Compliance" :value="$avgCompliance . '%'" icon="bi-clipboard2-check-fill" tone="success" />

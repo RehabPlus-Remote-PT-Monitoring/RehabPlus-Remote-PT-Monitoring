@@ -11,10 +11,14 @@
             </a>
             <h1 class="page-title mb-1">Appointment Details</h1>
         </div>
-        <a href="{{ route('appointments.edit', $appointment->id) }}" class="btn btn-primary">
-            <i class="bi bi-pencil me-2"></i>Edit
-        </a>
+        @if (auth()->user()->isAdmin())
+            <a href="{{ route('appointments.edit', $appointment->id) }}" class="btn btn-primary">
+                <i class="bi bi-pencil me-2"></i>Edit
+            </a>
+        @endif
     </div>
+
+    @include('partials.flash')
 
     <div class="card border-0 shadow-sm">
         <div class="card-body p-4">
@@ -66,4 +70,24 @@
             </div>
         </div>
     </div>
+
+    @if ($canRequest)
+        <div class="card border-0 shadow-sm mt-4">
+            <div class="card-body p-4">
+                <h2 class="h5 mb-1">Request a change</h2>
+                <p class="text-muted small mb-3">Send the clinic admin a request to move or change this appointment. They will see your message in their notifications.</p>
+                <form method="POST" action="{{ route('appointments.request', $appointment->id) }}">
+                    @csrf
+                    <div class="mb-3">
+                        <label for="request-message" class="form-label">Reason and what you need changed</label>
+                        <textarea id="request-message" name="message" class="form-control @error('message') is-invalid @enderror" rows="3" maxlength="500" required minlength="5" placeholder="e.g. Patient asked to move to 2:00 PM because of a work schedule.">{{ old('message') }}</textarea>
+                        @error('message')
+                            <div class="invalid-feedback">{{ $message }}</div>
+                        @enderror
+                    </div>
+                    <button type="submit" class="btn btn-outline-primary"><i class="bi bi-send me-2"></i>Send request</button>
+                </form>
+            </div>
+        </div>
+    @endif
 @endsection

@@ -4,6 +4,8 @@ namespace App\Providers;
 
 use App\Auth\FirebaseUserProvider;
 use App\Services\Appointment\AppointmentService;
+use App\Services\Messaging\MessagingService;
+use App\Services\Notice\StaffNoticeService;
 use App\Services\Firebase\FirebaseAdmin;
 use App\Services\Firebase\FirebaseException;
 use App\Services\Firebase\FirebaseMetrics;
@@ -13,6 +15,7 @@ use App\Services\Firebase\GoogleAccessToken;
 use App\Services\User\StaffDirectory;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
+use Illuminate\Support\Facades\Cache;
 use Illuminate\Support\Facades\View;
 use Illuminate\Support\ServiceProvider;
 
@@ -60,6 +63,16 @@ class AppServiceProvider extends ServiceProvider
                 }
             }
             $view->with('appointmentAlerts', $alerts);
+
+            // Notices for the bell, and the unread count for the Messages tab. The count is kept for 30 seconds
+            // so that pages don't read every conversation each time.
+            $notices = [];
+            $messagesUnread = 0;
+            if ($user !== null) {
+                $notices = app(StaffNoticeService::class)->unreadFor($user->id);
+                $messagesUnread = Cache::remember('messages-unread:'.$user->id, 30, fn () => app(MessagingService::class)->unreadTotal($user));
+            }
+            $view->with('staffNotices', $notices)->with('messagesUnread', $messagesUnread);
         });
 
         // A query-string value as trimmed text. Anything that isn't a plain

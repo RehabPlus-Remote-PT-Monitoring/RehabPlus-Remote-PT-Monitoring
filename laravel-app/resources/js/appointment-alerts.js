@@ -1,9 +1,10 @@
 /*
- * The therapist's appointment bell. The red number counts appointments they
- * haven't seen yet: opening the bell clears it, and it comes back only for a
- * new appointment. What's been seen is remembered in this browser.
+ * The bell at the top of the dashboard. The red number is the notices not yet
+ * opened (data-notice-count, from the server) plus the appointments not seen
+ * yet. Opening the bell clears the appointment part only; a notice clears when
+ * it's clicked. What's been seen is remembered in this browser.
  *
- *   <details data-appt-alerts data-seen-key="appt-alerts-seen:uid">
+ *   <details data-appt-alerts data-notice-count="2" data-seen-key="appt-alerts-seen:uid">
  *     <span data-appt-alerts-count hidden></span>
  *     <a data-appt-alert-id="abc">...</a>
  *   </details>
@@ -23,17 +24,19 @@ function seenIds(key) {
     }
 }
 
-/** Shows how many appointments haven't been seen, or nothing when all have. */
+/** Shows the notices not yet opened plus the appointments not yet seen, or nothing when there are none. */
 export function showUnseenCount(bell) {
     const seen = seenIds(bell.dataset.seenKey);
-    const unseen = alertIds(bell).filter((id) => !seen.includes(id)).length;
+    const unseenAppointments = alertIds(bell).filter((id) => !seen.includes(id)).length;
+    const notices = Number(bell.dataset.noticeCount || 0);
+    const total = notices + unseenAppointments;
     const count = bell.querySelector('[data-appt-alerts-count]');
 
-    count.textContent = String(unseen);
-    count.hidden = unseen === 0;
+    count.textContent = String(total);
+    count.hidden = total === 0;
 }
 
-/** Remembers the listed appointments as seen and clears the number. */
+/** Remembers the listed appointments as seen. Notices stay counted until they're opened. */
 export function markAlertsSeen(bell) {
     try {
         localStorage.setItem(bell.dataset.seenKey, JSON.stringify(alertIds(bell)));
@@ -41,7 +44,7 @@ export function markAlertsSeen(bell) {
         // Not remembered, so the number returns on the next page.
     }
 
-    bell.querySelector('[data-appt-alerts-count]').hidden = true;
+    showUnseenCount(bell);
 }
 
 export function initAppointmentAlerts() {

@@ -60,6 +60,7 @@ class DashboardOverviewService
                 // Movement accuracy minus a pain penalty, kept in 0-100.
                 'recovery_score' => $stats['total'] ? max(0, min(100, round($stats['accuracy'] - $stats['avgPain'] * 5, 1))) : 0,
                 'last_session_at' => $stats['lastSessionAt'],
+                'created_at' => $patient['createdAt'] ?? null,
             ];
         }, $patients);
 
