@@ -54,4 +54,7 @@ flutter:
   uses-material-design: true
   assets:
     - assets/successSound.mp3
+    # App Demo screen: the two exercise videos, bundled with the app.
+    - assets/demo/knee_extension_demo.mp4
+    - assets/demo/shoulder_rotation_demo.mp4
     - assets/legal/

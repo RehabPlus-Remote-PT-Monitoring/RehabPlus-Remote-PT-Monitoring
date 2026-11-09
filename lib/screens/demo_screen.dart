@@ -395,7 +395,7 @@ class _DemoScreenState extends State<DemoScreen> with TickerProviderStateMixin {
           duration: '3:24',
           level: 'Beginner',
           color: Color(0xFF23A8AA),
-          videoUrl: 'https://www.w3schools.com/html/mov_bbb.mp4',
+          assetPath: 'assets/demo/knee_extension_demo.mp4',
         ),
         const SizedBox(height: 12),
         _VideoCard(
@@ -403,7 +403,7 @@ class _DemoScreenState extends State<DemoScreen> with TickerProviderStateMixin {
           duration: '2:15',
           level: 'Intermediate',
           color: Color(0xFF4A90D9),
-          videoUrl: 'https://www.w3schools.com/html/movie.mp4',
+          assetPath: 'assets/demo/shoulder_rotation_demo.mp4',
         ),
       ],
     );
@@ -874,15 +874,20 @@ class _ExerciseStep {
 
 // ── VIDEO CARD ────────────────────────────────────────────────────────────────
 class _VideoCard extends StatefulWidget {
-  final String title, duration, level, videoUrl;
+  final String title, duration, level;
+  /// A video bundled with the app (assets/...). Used for the demo videos.
+  final String? assetPath;
+  /// An HTTPS video on the web. Exactly one of [assetPath] / [videoUrl] is set.
+  final String? videoUrl;
   final Color color;
   const _VideoCard({
     required this.title,
     required this.duration,
     required this.level,
     required this.color,
-    required this.videoUrl,
-  });
+    this.assetPath,
+    this.videoUrl,
+  }) : assert((assetPath == null) != (videoUrl == null));
 
   @override
   State<_VideoCard> createState() => _VideoCardState();
@@ -915,14 +920,19 @@ class _VideoCardState extends State<_VideoCard> {
   /// video couldn't be loaded.
   Future<bool> _initVideo() async {
     if (_loaded) return true;
-    final uri = Uri.parse(widget.videoUrl);
-    // Only ever stream over HTTPS.
-    if (uri.scheme != 'https') {
-      _logger.error(_tag, 'Refusing non-HTTPS demo video', {'scheme': uri.scheme});
-      return false;
-    }
     final stopwatch = Stopwatch()..start();
-    final controller = VideoPlayerController.networkUrl(uri);
+    final VideoPlayerController controller;
+    if (widget.assetPath != null) {
+      controller = VideoPlayerController.asset(widget.assetPath!);
+    } else {
+      final uri = Uri.parse(widget.videoUrl!);
+      // Only ever stream over HTTPS.
+      if (uri.scheme != 'https') {
+        _logger.error(_tag, 'Refusing non-HTTPS demo video', {'scheme': uri.scheme});
+        return false;
+      }
+      controller = VideoPlayerController.networkUrl(uri);
+    }
     try {
       await controller.initialize();
     } catch (e, st) {
