@@ -157,6 +157,9 @@ class AppButton extends StatelessWidget {
       config: CNButtonConfig(
         style: prominent ? CNButtonStyle.prominentGlass : CNButtonStyle.glass,
         minHeight: 48,
+        // The native label is a plain string, so apply the phone's and the
+        // in-app Settings > Text size scale here (17 pt = iOS body size).
+        labelFontSize: MediaQuery.textScalerOf(context).scale(17),
       ),
     );
   }

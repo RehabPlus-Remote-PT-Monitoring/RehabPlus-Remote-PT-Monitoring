@@ -54,6 +54,9 @@ class GlassTabBar extends StatelessWidget {
   Widget build(BuildContext context) {
     return CNTabBar(
       tint: AppPalette.teal,
+      // A little smaller than the system default (25 pt): the user asked
+      // for lighter-looking tab icons.
+      iconSize: 20,
       currentIndex: currentIndex,
       onTap: onTap,
       items: [

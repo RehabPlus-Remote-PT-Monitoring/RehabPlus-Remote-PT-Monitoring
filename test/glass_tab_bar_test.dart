@@ -42,6 +42,8 @@ void main() {
       'Profile',
     ]);
     expect(bar.currentIndex, 2);
+    // A little smaller than the system default (25) so the bar feels lighter.
+    expect(bar.iconSize, 20);
     bar.onTap(3);
     expect(tapped, 3);
     // The package's fallback bar schedules a short internal timer.

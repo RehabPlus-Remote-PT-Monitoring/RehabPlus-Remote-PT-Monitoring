@@ -32,7 +32,9 @@ class ProfileAvatar extends StatelessWidget {
     final avatar = _avatar(context);
     final tag = heroTag;
     if (tag == null || !useIosChrome) return avatar;
-    return Hero(tag: tag, child: avatar);
+    // transitionOnUserGestures: the avatar also glides while the patient
+    // swipes back from the screen edge, not only on the Back button.
+    return Hero(tag: tag, transitionOnUserGestures: true, child: avatar);
   }
 
   Widget _avatar(BuildContext context) {

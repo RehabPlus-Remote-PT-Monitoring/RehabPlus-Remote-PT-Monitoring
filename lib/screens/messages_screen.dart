@@ -14,6 +14,7 @@ import '../models/chat.dart';
 import '../services/app_provider.dart';
 import '../services/chat_service.dart';
 import '../core/responsive.dart';
+import '../ios/glass_tab_bar.dart';
 
 const Color _primaryTeal = Color(0xFF23A8AA);
 const String _tag = 'Messages';
@@ -298,7 +299,8 @@ class _MessagesScreenState extends State<MessagesScreen> {
         ],
       ),
       body: ListView.separated(
-        padding: readablePadding(context),
+        // iPhone: room at the bottom for the floating glass tab bar.
+        padding: withTabBarClearance(context, readablePadding(context)),
         itemCount: ChatThread.values.length,
         separatorBuilder: (_, _) =>
             const Divider(indent: 72, height: 1, thickness: 0.5),
