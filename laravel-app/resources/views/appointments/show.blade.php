@@ -5,7 +5,7 @@
 @section('content')
     <div class="d-flex justify-content-between align-items-center mb-4">
         <div>
-            <a href="{{ route('appointments.index') }}" class="text-muted small text-decoration-none d-inline-flex align-items-center gap-1 mb-2">
+            <a href="{{ route('appointments.index') }}" class="back-link small text-decoration-none d-inline-flex align-items-center gap-1 mb-2">
                 <i class="bi bi-arrow-left"></i>
                 Back to Appointments
             </a>

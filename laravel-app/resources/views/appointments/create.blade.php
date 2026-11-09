@@ -8,7 +8,7 @@
     @php($contactCountry = old('contact_country', $contact['iso']))
     @php($contactNumber = old('contact', $contact['national']))
     <div class="mb-3">
-        <a href="{{ route('appointments.index') }}" class="text-decoration-none small">
+        <a href="{{ route('appointments.index') }}" class="back-link text-decoration-none small">
             <i class="bi bi-arrow-left me-1"></i>Back to appointments
         </a>
         <p class="page-title mb-1 mt-1">{{ $appointment ? 'Edit Appointment' : 'Schedule Appointment' }}</p>
