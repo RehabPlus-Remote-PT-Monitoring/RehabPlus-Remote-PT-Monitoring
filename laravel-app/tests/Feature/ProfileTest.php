@@ -131,4 +131,16 @@ class ProfileTest extends TestCase
         $this->assertSame('Dr. Ben', $this->docs['users/thB']['name']);
         $this->assertSame('Hijacked', $this->docs['users/thA']['name']);
     }
+
+    public function test_recovery_email_is_saved_on_my_profile_and_a_reminder_shows_until_there_is_one(): void
+    {
+        $user = $this->staff('therapist', 'thA', 'Dr. Ana');
+
+        $this->actingAs($user)->get('/profile')->assertOk()->assertSee('data-no-recovery-email', false);
+
+        $this->put('/profile', ['name' => 'Dr. Ana', 'recovery_email' => 'ana.private@gmail.com'])->assertSessionHasNoErrors();
+        $this->assertSame('ana.private@gmail.com', $this->docs['users/thA']['recoveryEmail']);
+
+        $this->get('/profile')->assertOk()->assertDontSee('data-no-recovery-email', false);
+    }
 }

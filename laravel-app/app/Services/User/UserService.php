@@ -4,7 +4,7 @@ namespace App\Services\User;
 
 use App\Auth\FirebaseUserProvider;
 use App\Auth\StaffUser;
-use App\Rules\StaffEmailDomain;
+use App\Rules\OfficialEmailDomain;
 use App\Services\Firebase\FirebaseAdmin;
 use App\Services\Firebase\FirebaseException;
 use App\Services\Firebase\FirestoreClient;
@@ -86,8 +86,8 @@ class UserService
      */
     public function create(array $data): string
     {
-        if (! StaffEmailDomain::allows($data['email'])) {
-            throw new \InvalidArgumentException(StaffEmailDomain::MESSAGE);
+        if (! OfficialEmailDomain::allows($data['email'])) {
+            throw new \InvalidArgumentException(OfficialEmailDomain::MESSAGE);
         }
 
         $uid = $this->admin->createUser($data['email'], $data['password'], $data['name']);
@@ -99,6 +99,7 @@ class UserService
                 'email' => strtolower($data['email']),
                 'contactPhone' => $data['contactPhone'] ?? '',
                 'contactEmail' => $data['contactEmail'] ?? '',
+                'recoveryEmail' => $data['recoveryEmail'] ?? '',
                 'active' => true,
             ], serverTimestamps: ['createdAt']),
         ]);
@@ -113,7 +114,7 @@ class UserService
     public function update(array $user, array $data): void
     {
         $fields = ['name' => $data['name'], 'role' => $data['role']];
-        foreach (['photoUrl', 'contactPhone', 'contactEmail'] as $key) {
+        foreach (['photoUrl', 'contactPhone', 'contactEmail', 'recoveryEmail'] as $key) {
             if (array_key_exists($key, $data)) {
                 $fields[$key] = $data[$key];
             }
@@ -236,6 +237,7 @@ class UserService
             'photoUrl' => StaffDirectory::safePhotoUrl($doc['photoUrl'] ?? null),
             'contactPhone' => (string) ($doc['contactPhone'] ?? ''),
             'contactEmail' => (string) ($doc['contactEmail'] ?? ''),
+            'recoveryEmail' => (string) ($doc['recoveryEmail'] ?? ''),
             'archived' => (bool) ($doc['archived'] ?? false),
             'archivedAt' => $doc['archivedAt'] ?? null,
             'archivedByName' => (string) ($doc['archivedByName'] ?? ''),

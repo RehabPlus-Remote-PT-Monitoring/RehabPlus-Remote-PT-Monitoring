@@ -2,6 +2,7 @@
 
 namespace Tests\Feature;
 
+use App\Auth\StaffUser;
 use App\Mail\PasswordResetCode;
 use App\Services\Auth\PasswordResetService;
 use Illuminate\Routing\Middleware\ThrottleRequests;
@@ -9,10 +10,52 @@ use Illuminate\Support\Facades\Mail;
 use Tests\Support\FakeFirebase;
 use Tests\TestCase;
 
-/** Forgot password: emailed 6-digit code, then a new Firebase password. */
+/** Forgot password: a 6-digit code emailed to the personal email, then a new Firebase password. */
 class PasswordResetTest extends TestCase
 {
-    use FakeFirebase;
+    use FakeFirebase {
+        staff as accountWithoutPersonalEmail;
+    }
+
+    /** Staff here have a personal email saved, since that's where the code goes. */
+    protected function staff(string $role, ?string $uid = null, ?string $name = null, ?string $email = null): StaffUser
+    {
+        $user = $this->accountWithoutPersonalEmail($role, $uid, $name, $email);
+        $this->docs["users/{$user->id}"]['contactEmail'] = strtolower("personal.{$user->id}@gmail.com");
+
+        return $user;
+    }
+
+    public function test_the_code_goes_to_the_personal_email_not_the_login(): void
+    {
+        $this->staff('therapist', 'thUid', 'Dr. Reyes', 'reyes@rehabplus.com');
+
+        $this->post('/forgot-password', ['email' => 'reyes@rehabplus.com'])
+            ->assertSessionHas('success', fn ($m) => str_contains($m, 'recovery email'));
+
+        Mail::assertSent(PasswordResetCode::class, fn ($m) => $m->hasTo('personal.thuid@gmail.com') && ! $m->hasTo('reyes@rehabplus.com'));
+        $this->assertSame(1, Mail::sent(PasswordResetCode::class)->count());
+        $this->assertSame('reyes@rehabplus.com', Mail::sent(PasswordResetCode::class)->first()->loginEmail);
+    }
+
+    public function test_no_personal_email_means_no_code_but_the_same_answer(): void
+    {
+        $this->accountWithoutPersonalEmail('therapist', 'noMail', 'No Mail', 'nomail@rehabplus.com');
+
+        $this->post('/forgot-password', ['email' => 'nomail@rehabplus.com'])
+            ->assertRedirect('/forgot-password/verify')
+            ->assertSessionHas('success', fn ($m) => str_contains($m, self::SENT));
+
+        Mail::assertNothingSent();
+        $this->assertNull($this->resetDoc('nomail@rehabplus.com'));
+    }
+
+    public function test_the_page_says_where_the_code_goes(): void
+    {
+        $this->get('/forgot-password')->assertOk()
+            ->assertSee('Login Email')
+            ->assertSee('recovery email saved on your account');
+    }
 
     private const SENT = 'If an account exists for that email';
 
@@ -267,10 +310,13 @@ class PasswordResetTest extends TestCase
         $this->assertSame('secret-pass', $this->authUsers['admin@clinic.com']['password']);
     }
 
+    /** The latest code for this login, which is emailed to the account's personal email. */
     private function sentCode(string $email): string
     {
-        $mail = Mail::sent(PasswordResetCode::class, fn ($m) => $m->hasTo($email))->last();
-        $this->assertNotNull($mail, "No reset code was emailed to {$email}.");
+        $uid = $this->authUsers[$email]['uid'];
+        $personal = $this->docs["users/{$uid}"]['contactEmail'];
+        $mail = Mail::sent(PasswordResetCode::class, fn ($m) => $m->hasTo($personal))->last();
+        $this->assertNotNull($mail, "No reset code was emailed to {$personal} for {$email}.");
 
         return $mail->code;
     }
@@ -278,5 +324,16 @@ class PasswordResetTest extends TestCase
     private function resetDoc(string $email): ?array
     {
         return $this->docs['passwordResets/'.hash('sha256', $email)] ?? null;
+    }
+
+    public function test_the_recovery_email_comes_before_the_personal_email(): void
+    {
+        $this->staff('therapist', 'thUid', 'Dr. Reyes', 'reyes@rehabplus.com');
+        $this->docs['users/thUid']['recoveryEmail'] = 'Reyes.Private@Gmail.com';
+
+        $this->post('/forgot-password', ['email' => 'reyes@rehabplus.com']);
+
+        Mail::assertSent(PasswordResetCode::class, fn ($m) => $m->hasTo('reyes.private@gmail.com'));
+        Mail::assertNotSent(PasswordResetCode::class, fn ($m) => $m->hasTo('personal.thuid@gmail.com'));
     }
 }

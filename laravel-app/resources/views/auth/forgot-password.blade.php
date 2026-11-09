@@ -75,9 +75,9 @@
 
                 <p class="login-subtitle">
                     @if ($step === 'email')
-                        Enter your account email and we'll send you a 6-digit code
+                        Enter your login email. We'll send a 6-digit code to the recovery email saved on your account.
                     @elseif ($step === 'code')
-                        Enter the 6-digit code sent to <strong>{{ $email }}</strong>
+                        Enter the 6-digit code sent to the recovery email for <strong>{{ $email }}</strong>
                     @else
                         Choose a new password for <strong>{{ $email }}</strong>
                     @endif
@@ -105,7 +105,7 @@
 
                         <div>
                             <label class="form-label" for="email">
-                                Email Address
+                                Login Email
                             </label>
 
                             <div class="input-group">

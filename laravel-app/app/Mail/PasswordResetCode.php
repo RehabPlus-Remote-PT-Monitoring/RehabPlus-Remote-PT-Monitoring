@@ -9,7 +9,8 @@ use Illuminate\Mail\Mailables\Envelope;
 /** The 6-digit "forgot password" code (see PasswordResetService). */
 class PasswordResetCode extends Mailable
 {
-    public function __construct(public string $code, public string $name, public int $minutes)
+    /** $loginEmail: the account being reset, shown in the email since it goes to a personal address. */
+    public function __construct(public string $code, public string $name, public int $minutes, public string $loginEmail = '')
     {
     }
 

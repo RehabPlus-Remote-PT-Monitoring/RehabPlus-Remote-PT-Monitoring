@@ -19,7 +19,7 @@ use Illuminate\View\View;
 class PasswordResetController extends Controller
 {
     /** Same wording whether or not the email has an account. */
-    private const SENT = 'If an account exists for that email, we\'ve sent a 6-digit code to it.';
+    private const SENT = 'If an account exists for that email, we\'ve sent a 6-digit code to the recovery email saved on it.';
 
     public function __construct(private PasswordResetService $resets)
     {

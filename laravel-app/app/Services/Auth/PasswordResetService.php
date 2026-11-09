@@ -167,12 +167,29 @@ class PasswordResetService
         return strtolower(trim($email));
     }
 
+    /**
+     * The code goes to the account's private recovery email, or, when that's blank,
+     * its personal contact email (both on My Profile). Never to the login email:
+     * logins are @rehabplus.com addresses, which aren't real inboxes. An account
+     * with neither gets no code. The page says the same either way, so it never
+     * reveals which accounts exist.
+     */
     private function sendIfStaff(string $email): void
     {
         $uid = $this->admin->uidForEmail($email);
-        $user = $uid ? StaffUser::fromDocument($this->db->get("users/{$uid}")) : null;
+        $profile = $uid ? $this->db->get("users/{$uid}") : null;
+        $user = $profile ? StaffUser::fromDocument($profile) : null;
         if (! $user) {
             $this->audit('not_staff', $email);
+
+            return;
+        }
+
+        $sendTo = collect([$profile['recoveryEmail'] ?? '', $profile['contactEmail'] ?? ''])
+            ->map(fn ($address) => strtolower(trim((string) $address)))
+            ->first(fn (string $address) => filter_var($address, FILTER_VALIDATE_EMAIL) !== false);
+        if ($sendTo === null) {
+            $this->audit('no_recovery_email', $email, $uid);
 
             return;
         }
@@ -210,7 +227,7 @@ class PasswordResetService
             'tokenExpiresAt' => null,
         ])]);
 
-        Mail::to($email)->send(new PasswordResetCode($code, $user->name, self::CODE_MINUTES));
+        Mail::to($sendTo)->send(new PasswordResetCode($code, $user->name, self::CODE_MINUTES, $email));
         $this->audit('code_sent', $email, $uid);
     }
 

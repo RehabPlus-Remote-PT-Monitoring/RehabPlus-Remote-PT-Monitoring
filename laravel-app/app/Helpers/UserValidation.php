@@ -6,7 +6,6 @@ use App\Auth\StaffUser;
 use App\Helpers\PhoneNumber;
 use App\Rules\EmailNotTaken;
 use App\Rules\OfficialEmailDomain;
-use App\Rules\StaffEmailDomain;
 use App\Services\Firebase\FirebaseAdmin;
 use Closure;
 use Illuminate\Http\Request;
@@ -25,13 +24,13 @@ class UserValidation
     {
         $data = $request->validate([
             'name' => 'required|string|min:2|max:100',
-            'email' => ['required', 'email', 'max:150', new StaffEmailDomain, new EmailNotTaken],
+            'email' => ['required', 'email', 'max:150', new OfficialEmailDomain, new EmailNotTaken],
             'password' => 'required|string|min:'.FirebaseAdmin::MIN_PASSWORD.'|max:100',
             'role' => ['nullable', Rule::in(self::STAFF_ROLES)],
         ]);
         $data['role'] ??= StaffUser::THERAPIST;
 
-        return $data + self::contact($request);
+        return $data + self::contact($request) + self::recovery($request);
     }
 
     /**
@@ -67,6 +66,26 @@ class UserValidation
     }
 
     /**
+     * The private recovery email: where forgot-password codes go. Never shown on the
+     * website. Optional; when blank, codes go to the personal contact email instead.
+     * It has to be a real inbox, so not the @rehabplus.com login address.
+     *
+     * @return array{recoveryEmail: string}
+     */
+    public static function recovery(Request $request): array
+    {
+        $data = $request->validate([
+            'recovery_email' => ['nullable', 'email', 'max:150', function (string $attribute, mixed $value, Closure $fail) {
+                if (is_string($value) && OfficialEmailDomain::allows($value)) {
+                    $fail('Use an email you can open, such as Gmail. The @rehabplus.com address is for logging in.');
+                }
+            }],
+        ]);
+
+        return ['recoveryEmail' => strtolower(trim((string) ($data['recovery_email'] ?? '')))];
+    }
+
+    /**
      * Name, role and optional new password. Leaving the role as it is keeps it.
      * The last active administrator can't be changed to a therapist; see UserService::removesLastAdmin().
      */
@@ -85,6 +104,6 @@ class UserValidation
             unset($data['password']);
         }
 
-        return $data + self::contact($request);
+        return $data + self::contact($request) + self::recovery($request);
     }
 }

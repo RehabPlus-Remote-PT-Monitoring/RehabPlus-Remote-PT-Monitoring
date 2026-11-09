@@ -52,7 +52,7 @@ class ProfileController extends Controller
             return back()->withInput()->with('error', 'At least one active administrator must remain. Make another administrator first.');
         }
 
-        $change = ['name' => $data['name'], 'role' => $role] + UserValidation::contact($request);
+        $change = ['name' => $data['name'], 'role' => $role] + UserValidation::contact($request) + UserValidation::recovery($request);
         if ($request->boolean('remove_photo')) {
             $change['photoUrl'] = '';
         } elseif ($request->hasFile('photo')) {

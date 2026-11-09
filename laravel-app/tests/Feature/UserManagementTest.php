@@ -2,7 +2,7 @@
 
 namespace Tests\Feature;
 
-use App\Rules\StaffEmailDomain;
+use App\Rules\OfficialEmailDomain;
 use App\Services\User\EmailAvailability;
 use Tests\Support\FakeFirebase;
 use Tests\TestCase;
@@ -39,7 +39,7 @@ class UserManagementTest extends TestCase
         $this->assertSame('long-enough', $this->authUsers['new@rehabplus.com']['password']);
         $this->assertSame([
             'role' => 'therapist', 'name' => 'Dr. New', 'email' => 'new@rehabplus.com',
-            'contactPhone' => '+639171234567', 'contactEmail' => 'dr.new@gmail.com', 'active' => true,
+            'contactPhone' => '+639171234567', 'contactEmail' => 'dr.new@gmail.com', 'recoveryEmail' => '', 'active' => true,
         ], array_diff_key($this->docs["users/{$uid}"], ['createdAt' => 1]));
     }
 
@@ -90,26 +90,14 @@ class UserManagementTest extends TestCase
         $this->assertSame([], $this->commits);
     }
 
-    public function test_staff_account_can_use_gmail_so_reset_codes_arrive(): void
-    {
-        $this->actingAs($this->staff('admin'))->post('/users', [
-            'name' => 'Gmail User', 'email' => 'Someone16@Gmail.com', 'password' => 'long-enough', 'role' => 'therapist',
-        ])->assertSessionHasNoErrors();
-
-        $this->assertArrayHasKey('someone16@gmail.com', $this->authUsers);
-        $this->get('/users/create')->assertOk()
-            ->assertSee('data-email-domains="rehabplus.com gmail.com"', false)
-            ->assertSee('Forgot-password codes are sent to this email.');
-    }
-
-    public function test_staff_account_must_use_the_clinic_domain_or_gmail(): void
+    public function test_staff_account_must_use_the_clinic_domain(): void
     {
         $this->actingAs($this->staff('admin'))->from('/users/create')->post('/users', [
-            'name' => 'Yahoo User', 'email' => 'someone@yahoo.com', 'password' => 'long-enough', 'role' => 'therapist',
-        ])->assertRedirect('/users/create')->assertSessionHasErrors(['email' => StaffEmailDomain::MESSAGE]);
+            'name' => 'Gmail User', 'email' => 'someone@gmail.com', 'password' => 'long-enough', 'role' => 'therapist',
+        ])->assertRedirect('/users/create')->assertSessionHasErrors(['email' => OfficialEmailDomain::MESSAGE]);
 
-        $this->get('/users/create')->assertOk()->assertSee('invalid-feedback', false)->assertSee(StaffEmailDomain::MESSAGE);
-        $this->assertArrayNotHasKey('someone@yahoo.com', $this->authUsers);
+        $this->get('/users/create')->assertOk()->assertSee('invalid-feedback', false)->assertSee(OfficialEmailDomain::MESSAGE);
+        $this->assertArrayNotHasKey('someone@gmail.com', $this->authUsers);
         $this->assertSame([], $this->commits);
     }
 
@@ -343,5 +331,28 @@ class UserManagementTest extends TestCase
 
         $this->assertArrayNotHasKey('boss@yahoo.com', $this->authUsers);
         $this->assertSame([], $this->commits);
+    }
+
+    public function test_recovery_email_is_saved_and_never_shown_on_the_website(): void
+    {
+        $this->actingAs($this->staff('admin'))->post('/users', [
+            'name' => 'Dr. Quiet', 'email' => 'quiet@rehabplus.com', 'password' => 'long-enough', 'role' => 'therapist',
+            'recovery_email' => 'Quiet.Private@Gmail.com',
+        ])->assertSessionHasNoErrors();
+
+        $uid = $this->authUsers['quiet@rehabplus.com']['uid'];
+        $this->assertSame('quiet.private@gmail.com', $this->docs["users/{$uid}"]['recoveryEmail']);
+        $this->get("/users/{$uid}/edit")->assertOk()->assertSee('value="quiet.private@gmail.com"', false);
+
+        auth()->logout();
+        $this->get('/')->assertOk()->assertSee('Dr. Quiet')->assertDontSee('quiet.private@gmail.com');
+    }
+
+    public function test_recovery_email_cannot_be_the_clinic_login_address(): void
+    {
+        $this->actingAs($this->staff('admin'))->post('/users', [
+            'name' => 'Dr. Loop', 'email' => 'loop@rehabplus.com', 'password' => 'long-enough', 'role' => 'therapist',
+            'recovery_email' => 'loop@rehabplus.com',
+        ])->assertSessionHasErrors('recovery_email');
     }
 }

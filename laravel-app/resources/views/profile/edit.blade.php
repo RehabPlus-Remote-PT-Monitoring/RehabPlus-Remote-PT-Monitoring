@@ -81,6 +81,22 @@
                     @enderror
                     <div class="form-text">A personal email, such as Gmail.</div>
                 </div>
+                <div class="col-12">
+                    <hr class="my-2">
+                    <p class="small fw-semibold mb-1">Password recovery</p>
+                    <p class="form-text mt-0">Private. Never shown on the website.</p>
+                </div>
+                <div class="col-md-6">
+                    <label for="recovery_email" class="form-label small fw-semibold">Recovery email</label>
+                    <input id="recovery_email" type="email" name="recovery_email" class="form-control @error('recovery_email') is-invalid @enderror" value="{{ old('recovery_email', $user['recoveryEmail'] ?? '') }}" placeholder="name@gmail.com" maxlength="150">
+                    @error('recovery_email')
+                        <div class="invalid-feedback">{{ $message }}</div>
+                    @enderror
+                    <div class="form-text">Forgot-password codes are sent here. If it's blank, they go to the personal contact email.</div>
+                    @if (($user['recoveryEmail'] ?? '') === '' && ($user['contactEmail'] ?? '') === '')
+                        <div class="form-text text-warning" data-no-recovery-email>Add an email here so you can reset your password if you forget it.</div>
+                    @endif
+                </div>
             </div>
         </div>
         <div class="card-footer bg-transparent text-end">

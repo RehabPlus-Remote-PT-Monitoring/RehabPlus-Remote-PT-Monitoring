@@ -17,7 +17,7 @@
                             <p style="margin:0 0 16px; font-size:15px;">Hi {{ $name !== '' ? $name : 'there' }},</p>
 
                             <p style="margin:0 0 16px; font-size:15px; line-height:1.5;">
-                                Use this code to reset your RehabPlus dashboard password:
+                                Use this code to reset your RehabPlus dashboard password{{ $loginEmail !== '' ? ' for '.$loginEmail : '' }}:
                             </p>
 
                             <p style="margin:0 0 16px; padding:16px; background:#f0fdfa; border-radius:12px; text-align:center; font-size:32px; font-weight:800; letter-spacing:8px;">
