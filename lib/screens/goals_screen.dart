@@ -8,6 +8,7 @@ import '../core/diagnostic_logger.dart';
 import '../models/therapy_goal.dart';
 import '../services/goal_service.dart';
 import '../core/responsive.dart';
+import '../ios/brand_colors.dart';
 
 /// Profile > My Goals: the rehab goals the therapist set on the clinic
 /// dashboard, with their progress. Read-only; the patient is told to ask
@@ -134,9 +135,9 @@ class _GoalsScreenState extends State<GoalsScreen> {
 
   Widget _header(BuildContext context) {
     return Container(
-      decoration: const BoxDecoration(
-        gradient: LinearGradient(
-          colors: AppPalette.headerGradient,
+      decoration: BoxDecoration(
+        gradient: brandGradient(
+          AppPalette.headerGradient,
           begin: Alignment.topLeft,
           end: Alignment.bottomRight,
         ),
@@ -188,9 +189,12 @@ class _GoalCard extends StatelessWidget {
     final overdue = goal.isOverdue(DateTime.now());
     final stopped = goal.status == GoalStatus.discontinued;
     final accent = switch (goal.status) {
-      GoalStatus.achieved => _achievedGreen,
+      GoalStatus.achieved =>
+        AppAccents.mint(context, fallback: _achievedGreen),
       GoalStatus.discontinued => palette.textMuted,
-      GoalStatus.active => overdue ? _overdueOrange : AppPalette.teal,
+      GoalStatus.active => overdue
+          ? AppAccents.amber(context, fallback: _overdueOrange)
+          : AppPalette.teal,
     };
 
     return Opacity(

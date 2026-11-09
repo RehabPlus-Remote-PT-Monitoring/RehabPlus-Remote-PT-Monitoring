@@ -13,6 +13,7 @@ import 'package:flutter/material.dart';
 import 'package:phosphor_flutter/phosphor_flutter.dart';
 
 import '../core/app_palette.dart';
+import '../ios/brand_colors.dart';
 
 /// One tab of the dashboard, shared by the bottom bar and the sidebar.
 class DashboardDestination {
@@ -85,7 +86,7 @@ class DashboardSidebar extends StatelessWidget {
         Container(
           padding: const EdgeInsets.all(6),
           decoration: BoxDecoration(
-            gradient: const LinearGradient(colors: [_teal, _darkTeal]),
+            gradient: brandGradient([_teal, _darkTeal]),
             borderRadius: BorderRadius.circular(10),
           ),
           child: PhosphorIcon(
@@ -140,8 +141,8 @@ class _SidebarRow extends StatelessWidget {
           padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
           decoration: BoxDecoration(
             gradient: selected
-                ? const LinearGradient(
-                    colors: [DashboardSidebar._teal, DashboardSidebar._darkTeal],
+                ? brandGradient(
+                    [DashboardSidebar._teal, DashboardSidebar._darkTeal],
                   )
                 : null,
             borderRadius: BorderRadius.circular(16),

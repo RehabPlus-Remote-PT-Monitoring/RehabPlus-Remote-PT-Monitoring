@@ -30,6 +30,7 @@ import 'exercise_page.dart';
 import 'progress_report_screen.dart';
 import 'goals_screen.dart';
 import '../ios/app_controls.dart';
+import '../ios/brand_colors.dart';
 
 class DashboardScreen extends StatefulWidget {
   const DashboardScreen({super.key});
@@ -444,9 +445,9 @@ class _DashboardScreenState extends State<DashboardScreen>
     final profile = context.watch<AppProvider>().profile;
     final name = profile?.name ?? '';
     return Container(
-      decoration: const BoxDecoration(
-        gradient: LinearGradient(
-          colors: [darkTeal, Color(0xFF1A8587), primaryTeal],
+      decoration: BoxDecoration(
+        gradient: brandGradient(
+          [darkTeal, Color(0xFF1A8587), primaryTeal],
           begin: Alignment.topLeft,
           end: Alignment.bottomRight,
         ),
@@ -643,7 +644,7 @@ class _DashboardScreenState extends State<DashboardScreen>
         _chip(
           PhosphorIcons.bellSimple(),
           'Alerts',
-          const Color(0xFFFF6B35),
+          AppAccents.coral(context, fallback: const Color(0xFFFF6B35)),
           hasBadge: true,
           onTap: () => setState(() {
             _prevNavIndex = _bottomNavIndex;
@@ -783,8 +784,8 @@ class _DashboardScreenState extends State<DashboardScreen>
                   vertical: 5,
                 ),
                 decoration: BoxDecoration(
-                  gradient: const LinearGradient(
-                    colors: [primaryTeal, darkTeal],
+                  gradient: brandGradient(
+                    [primaryTeal, darkTeal],
                   ),
                   borderRadius: BorderRadius.circular(20),
                 ),
@@ -892,8 +893,8 @@ class _DashboardScreenState extends State<DashboardScreen>
                       heightFactor: 1,
                       child: DecoratedBox(
                         decoration: BoxDecoration(
-                          gradient: const LinearGradient(
-                            colors: [primaryTeal, darkTeal],
+                          gradient: brandGradient(
+                            [primaryTeal, darkTeal],
                           ),
                           borderRadius: BorderRadius.circular(10),
                           boxShadow: [
@@ -1004,7 +1005,7 @@ class _DashboardScreenState extends State<DashboardScreen>
           cur.activeDays - prev.activeDays,
           signed(cur.activeDays - prev.activeDays),
           PhosphorIcons.calendarCheck(),
-          const Color(0xFFFF6B35),
+          AppAccents.coral(context, fallback: const Color(0xFFFF6B35)),
         ),
         const SizedBox(width: 10),
         _buildStatCard(
@@ -1472,8 +1473,8 @@ class _DashboardScreenState extends State<DashboardScreen>
                       bottom: 0,
                       child: DecoratedBox(
                         decoration: BoxDecoration(
-                          gradient: const LinearGradient(
-                            colors: [primaryTeal, darkTeal],
+                          gradient: brandGradient(
+                            [primaryTeal, darkTeal],
                           ),
                           borderRadius: BorderRadius.circular(16),
                           boxShadow: [

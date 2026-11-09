@@ -12,6 +12,7 @@ import '../services/profile_service.dart';
 import '../widgets/profile_avatar.dart';
 import '../core/responsive.dart';
 import '../ios/app_controls.dart';
+import '../ios/brand_colors.dart';
 
 class ProfileData {
   final String name;
@@ -393,9 +394,9 @@ class _EditProfileScreenState extends State<EditProfileScreen>
 
   Widget _buildHeader(BuildContext context) {
     return Container(
-      decoration: const BoxDecoration(
-        gradient: LinearGradient(
-          colors: [darkTeal, Color(0xFF1A8587), primaryTeal],
+      decoration: BoxDecoration(
+        gradient: brandGradient(
+          [darkTeal, Color(0xFF1A8587), primaryTeal],
           begin: Alignment.topLeft,
           end: Alignment.bottomRight,
         ),
@@ -459,7 +460,7 @@ class _EditProfileScreenState extends State<EditProfileScreen>
             onTap: _isSaving ? null : _choosePhoto,
             child: Stack(
               children: [
-                ProfileAvatar(photo: _photo, size: 96),
+                ProfileAvatar(photo: _photo, size: 96, heroTag: 'profile-avatar'),
                 Positioned(
                   bottom: 0,
                   right: 0,

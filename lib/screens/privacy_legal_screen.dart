@@ -6,6 +6,7 @@ import '../legal/legal_info.dart';
 import '../core/responsive.dart';
 import 'account_info_screen.dart';
 import 'legal_document_screen.dart';
+import '../ios/brand_colors.dart';
 
 /// Profile > Privacy & Legal: the patient's account information, the Terms
 /// and Conditions and the Privacy Policy.
@@ -102,9 +103,9 @@ class _PrivacyLegalScreenState extends State<PrivacyLegalScreen> {
 
   Widget _header(BuildContext context) {
     return Container(
-      decoration: const BoxDecoration(
-        gradient: LinearGradient(
-          colors: [darkTeal, Color(0xFF1A8587), primaryTeal],
+      decoration: BoxDecoration(
+        gradient: brandGradient(
+          [darkTeal, Color(0xFF1A8587), primaryTeal],
           begin: Alignment.topLeft,
           end: Alignment.bottomRight,
         ),

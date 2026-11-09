@@ -7,6 +7,7 @@ import '../core/diagnostic_logger.dart';
 import '../core/responsive.dart';
 import '../services/auth_service.dart';
 import '../ios/app_controls.dart';
+import '../ios/brand_colors.dart';
 
 // Reset with the temporary password the therapist gives the patient: the
 // patient types their email, that temporary password and a new password.
@@ -167,9 +168,9 @@ class _ForgotPasswordScreenState extends State<ForgotPasswordScreen>
   Widget build(BuildContext context) {
     return Scaffold(
       body: Container(
-        decoration: const BoxDecoration(
-          gradient: LinearGradient(
-            colors: [Color(0xFF0D6E71), Color(0xFF1E8E92), Color(0xFF2FB8BD)],
+        decoration: BoxDecoration(
+          gradient: brandGradient(
+            [Color(0xFF0D6E71), Color(0xFF1E8E92), Color(0xFF2FB8BD)],
             begin: Alignment.topLeft,
             end: Alignment.bottomRight,
           ),
@@ -407,8 +408,8 @@ class _ForgotPasswordScreenState extends State<ForgotPasswordScreen>
               width: 80,
               height: 80,
               decoration: BoxDecoration(
-                gradient: const LinearGradient(
-                    colors: [Color(0xFF23A8AA), Color(0xFF0D6E71)]),
+                gradient: brandGradient(
+                    [Color(0xFF23A8AA), Color(0xFF0D6E71)]),
                 shape: BoxShape.circle,
                 boxShadow: [
                   BoxShadow(

@@ -7,6 +7,7 @@ import '../core/responsive.dart';
 import '../services/auth_service.dart';
 import 'forgot_password_screen.dart';
 import '../ios/app_controls.dart';
+import '../ios/brand_colors.dart';
 
 /// Settings > Change password, in the style of Facebook's: the current
 /// password, the new one twice, a strength bar, and a link for people who
@@ -289,9 +290,9 @@ class _ChangePasswordScreenState extends State<ChangePasswordScreen> {
 
   Widget _header(BuildContext context) {
     return Container(
-      decoration: const BoxDecoration(
-        gradient: LinearGradient(
-          colors: AppPalette.headerGradient,
+      decoration: BoxDecoration(
+        gradient: brandGradient(
+          AppPalette.headerGradient,
           begin: Alignment.topLeft,
           end: Alignment.bottomRight,
         ),

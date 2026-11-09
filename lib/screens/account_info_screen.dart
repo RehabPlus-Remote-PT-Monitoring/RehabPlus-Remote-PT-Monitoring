@@ -8,6 +8,7 @@ import '../widgets/profile_avatar.dart';
 import '../core/responsive.dart';
 import 'edit_profile_screen.dart';
 import '../ios/app_controls.dart';
+import '../ios/brand_colors.dart';
 
 /// Privacy & Legal > Account Info: the patient's personal information, with a
 /// button to update it (name, phone and date of birth; the email is the login
@@ -87,7 +88,7 @@ class _AccountInfoScreenState extends State<AccountInfoScreen> {
             child: ListView(
               padding: readablePadding(context, const EdgeInsets.fromLTRB(16, 20, 16, 24)),
               children: [
-                Center(child: ProfileAvatar(photo: profile.photo, size: 88)),
+                Center(child: ProfileAvatar(photo: profile.photo, size: 88, heroTag: 'profile-avatar')),
                 const SizedBox(height: 20),
                 Container(
                   padding: const EdgeInsets.symmetric(
@@ -157,9 +158,9 @@ class _AccountInfoScreenState extends State<AccountInfoScreen> {
 
   Widget _header(BuildContext context) {
     return Container(
-      decoration: const BoxDecoration(
-        gradient: LinearGradient(
-          colors: [darkTeal, Color(0xFF1A8587), primaryTeal],
+      decoration: BoxDecoration(
+        gradient: brandGradient(
+          [darkTeal, Color(0xFF1A8587), primaryTeal],
           begin: Alignment.topLeft,
           end: Alignment.bottomRight,
         ),

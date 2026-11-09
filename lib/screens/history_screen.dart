@@ -12,6 +12,7 @@ import '../services/app_provider.dart';
 import '../services/progress_stats.dart';
 import '../models/session.dart';
 import '../core/responsive.dart';
+import '../ios/brand_colors.dart';
 
 /// Card shadow for this screen. Light mode keeps the design's soft glow in
 /// the card's own colour; on a dark page a coloured glow reads as a smudge,
@@ -292,9 +293,9 @@ class _HistoryScreenState extends State<HistoryScreen>
   // ── HEADER ──────────────────────────────────────────────────────────────────
   Widget _buildHeader() {
     return Container(
-      decoration: const BoxDecoration(
-        gradient: LinearGradient(
-          colors: AppPalette.headerGradient,
+      decoration: BoxDecoration(
+        gradient: brandGradient(
+          AppPalette.headerGradient,
           begin: Alignment.topLeft,
           end: Alignment.bottomRight,
         ),
@@ -430,7 +431,7 @@ class _HistoryScreenState extends State<HistoryScreen>
               padding: const EdgeInsets.symmetric(horizontal: 18),
               decoration: BoxDecoration(
                 gradient: selected
-                    ? const LinearGradient(colors: [primaryTeal, darkTeal])
+                    ? brandGradient([primaryTeal, darkTeal])
                     : null,
                 color: selected ? null : palette.surface,
                 borderRadius: BorderRadius.circular(20),
@@ -735,7 +736,7 @@ class _SessionCard extends StatelessWidget {
     final color = compliance >= 0.8
         ? const Color(0xFF23A8AA)
         : compliance >= 0.5
-            ? Colors.orange
+            ? AppAccents.amber(context, fallback: Colors.orange)
             : Colors.red;
 
     final palette = context.palette;
@@ -808,7 +809,7 @@ class _SessionCard extends StatelessWidget {
                       BarChartGroupData(x: e.key, barRods: [
                         BarChartRodData(
                           toY: e.value * 100,
-                          color: e.value >= 0.8 ? const Color(0xFF23A8AA) : e.value >= 0.5 ? Colors.orange : Colors.red,
+                          color: e.value >= 0.8 ? const Color(0xFF23A8AA) : e.value >= 0.5 ? AppAccents.amber(context, fallback: Colors.orange) : Colors.red,
                           width: 14,
                           borderRadius: BorderRadius.circular(6),
                         ),

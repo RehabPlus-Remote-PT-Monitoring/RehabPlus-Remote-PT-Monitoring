@@ -14,6 +14,7 @@ import '../services/app_provider.dart';
 import '../core/responsive.dart';
 import 'login_page.dart';
 import '../ios/app_controls.dart';
+import '../ios/brand_colors.dart';
 
 /// The PIN / fingerprint screens of the optional app lock
 /// (see AppLockService for the rules).
@@ -281,9 +282,9 @@ class _AppLockScreenState extends State<AppLockScreen> {
   @override
   Widget build(BuildContext context) {
     final body = Container(
-      decoration: const BoxDecoration(
-        gradient: LinearGradient(
-          colors: [_darkTeal, _midTeal, _lightTeal],
+      decoration: BoxDecoration(
+        gradient: brandGradient(
+          [_darkTeal, _midTeal, _lightTeal],
           begin: Alignment.topLeft,
           end: Alignment.bottomRight,
         ),

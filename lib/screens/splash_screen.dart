@@ -7,6 +7,7 @@ import 'package:phosphor_flutter/phosphor_flutter.dart';
 
 import '../core/diagnostic_logger.dart';
 import 'login_page.dart';
+import '../ios/brand_colors.dart';
 
 /// Animated startup screen, then a crossfade into [next] (the login page or,
 /// when already signed in, the dashboard). [next] is a future: the app's
@@ -269,10 +270,10 @@ class _SplashScreenState extends State<SplashScreen>
               // Black fades to the same teal gradient as the login page.
               Opacity(
                 opacity: reveal,
-                child: const DecoratedBox(
+                child: DecoratedBox(
                   decoration: BoxDecoration(
-                    gradient: LinearGradient(
-                      colors: [
+                    gradient: brandGradient(
+                      [
                         Color(0xFF0D6E71),
                         Color(0xFF1E8E92),
                         Color(0xFF2FB8BD),

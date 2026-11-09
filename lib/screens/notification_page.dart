@@ -10,6 +10,7 @@ import '../models/chat.dart';
 import '../services/notification_service.dart';
 import '../core/responsive.dart';
 import 'messages_screen.dart';
+import '../ios/brand_colors.dart';
 
 /// Icon and colours per notification type.
 class _Visual {
@@ -233,9 +234,9 @@ class _NotificationPageState extends State<NotificationPage> {
 
   Widget _buildHeader(BuildContext context) {
     return Container(
-      decoration: const BoxDecoration(
-        gradient: LinearGradient(
-          colors: [darkTeal, Color(0xFF1A8587), primaryTeal],
+      decoration: BoxDecoration(
+        gradient: brandGradient(
+          [darkTeal, Color(0xFF1A8587), primaryTeal],
           begin: Alignment.topLeft,
           end: Alignment.bottomRight,
         ),
@@ -331,7 +332,7 @@ class _NotificationPageState extends State<NotificationPage> {
                 padding: const EdgeInsets.symmetric(vertical: 10),
                 decoration: BoxDecoration(
                   gradient: selected
-                      ? const LinearGradient(colors: [primaryTeal, darkTeal])
+                      ? brandGradient([primaryTeal, darkTeal])
                       : null,
                   borderRadius: BorderRadius.circular(12),
                   boxShadow: selected

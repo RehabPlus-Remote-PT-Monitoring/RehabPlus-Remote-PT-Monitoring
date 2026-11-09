@@ -11,6 +11,7 @@ import '../services/progress_stats.dart';
 import '../widgets/progress_charts.dart';
 import '../core/responsive.dart';
 import '../ios/app_controls.dart';
+import '../ios/brand_colors.dart';
 
 const _primaryTeal = AppPalette.teal;
 const _darkTeal = AppPalette.darkTeal;
@@ -18,12 +19,18 @@ const _darkTeal = AppPalette.darkTeal;
 /// Semantic colours (good / info / caution / warning). The light-mode
 /// shades are too dark to read on the dark page, so dark mode uses lighter
 /// tints of the same hues.
-Color _goodColor(BuildContext context) =>
-    context.isDarkMode ? const Color(0xFF81C784) : const Color(0xFF2E7D32);
+Color _goodColor(BuildContext context) => AppAccents.mint(
+  context,
+  fallback:
+      context.isDarkMode ? const Color(0xFF81C784) : const Color(0xFF2E7D32),
+);
 Color _infoColor(BuildContext context) =>
     context.isDarkMode ? const Color(0xFF4DD0E1) : _darkTeal;
-Color _cautionColor(BuildContext context) =>
-    context.isDarkMode ? const Color(0xFFFFD54F) : const Color(0xFFF9A825);
+Color _cautionColor(BuildContext context) => AppAccents.amber(
+  context,
+  fallback:
+      context.isDarkMode ? const Color(0xFFFFD54F) : const Color(0xFFF9A825),
+);
 Color _warningColor(BuildContext context) =>
     context.isDarkMode ? const Color(0xFFFF8A65) : const Color(0xFFD84315);
 
@@ -476,9 +483,9 @@ class _ProgressReportScreenState extends State<ProgressReportScreen> {
 
   Widget _header() {
     return Container(
-      decoration: const BoxDecoration(
-        gradient: LinearGradient(
-          colors: AppPalette.headerGradient,
+      decoration: BoxDecoration(
+        gradient: brandGradient(
+          AppPalette.headerGradient,
           begin: Alignment.topLeft,
           end: Alignment.bottomRight,
         ),

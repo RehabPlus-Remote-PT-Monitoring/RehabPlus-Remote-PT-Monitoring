@@ -17,6 +17,7 @@ import 'app_lock_settings_screen.dart';
 import 'change_password_screen.dart';
 import 'messages_screen.dart';
 import '../ios/app_controls.dart';
+import '../ios/brand_colors.dart';
 
 /// Firestore rules limit a chat message to 1000 characters.
 const int maxProblemReportLength = 1000;
@@ -623,9 +624,9 @@ class _SettingsScreenState extends State<SettingsScreen>
   Widget _header() {
     final inset = readableInset(context, adaptiveMaxWidth(context));
     return Container(
-      decoration: const BoxDecoration(
-        gradient: LinearGradient(
-          colors: AppPalette.headerGradient,
+      decoration: BoxDecoration(
+        gradient: brandGradient(
+          AppPalette.headerGradient,
           begin: Alignment.topLeft,
           end: Alignment.bottomRight,
         ),

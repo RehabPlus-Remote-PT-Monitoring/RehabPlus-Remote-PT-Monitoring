@@ -7,6 +7,7 @@ import '../core/app_palette.dart';
 import '../core/diagnostic_logger.dart';
 import '../core/responsive.dart';
 import '../ios/app_controls.dart';
+import '../ios/brand_colors.dart';
 
 const String _tag = 'Demo';
 
@@ -206,9 +207,9 @@ class _DemoScreenState extends State<DemoScreen> with TickerProviderStateMixin {
 
   Widget _buildHeader(BuildContext context) {
     return Container(
-      decoration: const BoxDecoration(
-        gradient: LinearGradient(
-          colors: [darkTeal, Color(0xFF1A8587), primaryTeal],
+      decoration: BoxDecoration(
+        gradient: brandGradient(
+          [darkTeal, Color(0xFF1A8587), primaryTeal],
           begin: Alignment.topLeft,
           end: Alignment.bottomRight,
         ),
@@ -530,8 +531,8 @@ class _DemoScreenState extends State<DemoScreen> with TickerProviderStateMixin {
                     width: 52,
                     height: 52,
                     decoration: BoxDecoration(
-                      gradient: const LinearGradient(
-                        colors: [primaryTeal, darkTeal],
+                      gradient: brandGradient(
+                        [primaryTeal, darkTeal],
                       ),
                       borderRadius: BorderRadius.circular(14),
                     ),
@@ -652,8 +653,8 @@ class _DemoScreenState extends State<DemoScreen> with TickerProviderStateMixin {
     return Container(
       padding: const EdgeInsets.all(20),
       decoration: BoxDecoration(
-        gradient: const LinearGradient(
-          colors: [darkTeal, Color(0xFF1A8587), primaryTeal],
+        gradient: brandGradient(
+          [darkTeal, Color(0xFF1A8587), primaryTeal],
           begin: Alignment.topLeft,
           end: Alignment.bottomRight,
         ),

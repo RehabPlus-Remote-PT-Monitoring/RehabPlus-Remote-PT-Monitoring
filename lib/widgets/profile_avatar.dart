@@ -3,6 +3,7 @@ import 'dart:typed_data';
 import 'package:flutter/material.dart';
 
 import '../core/diagnostic_logger.dart';
+import '../ios/ios_chrome.dart';
 
 /// The patient's round profile picture, or a person icon when none is set
 /// (or when the stored bytes can't be decoded).
@@ -12,6 +13,7 @@ class ProfileAvatar extends StatelessWidget {
     required this.photo,
     required this.size,
     this.onHeader = false,
+    this.heroTag,
   });
 
   final Uint8List? photo;
@@ -20,8 +22,20 @@ class ProfileAvatar extends StatelessWidget {
   /// Drawn on the teal profile header (translucent ring instead of a shadow).
   final bool onHeader;
 
+  /// iPhone only: with a tag, the avatar glides from one page to the next
+  /// (Profile -> Account info / Edit profile) instead of popping in. Use
+  /// the same tag on both pages and only one tagged avatar per page.
+  final Object? heroTag;
+
   @override
   Widget build(BuildContext context) {
+    final avatar = _avatar(context);
+    final tag = heroTag;
+    if (tag == null || !useIosChrome) return avatar;
+    return Hero(tag: tag, child: avatar);
+  }
+
+  Widget _avatar(BuildContext context) {
     final image = photo;
     final placeholder = Icon(Icons.person, size: size * 0.52, color: Colors.white);
     return Container(

@@ -3,6 +3,7 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:rehabplus/core/app_palette.dart';
 import 'package:rehabplus/ios/brand_colors.dart';
 import 'package:rehabplus/ios/ios_chrome.dart';
+import 'package:rehabplus/widgets/profile_avatar.dart';
 
 /// Pumps a MaterialApp with [brightness] and returns a context inside it.
 Future<BuildContext> _contextFor(
@@ -86,6 +87,36 @@ void main() {
       );
       expect(AppAccents.mint(context, fallback: a), const Color(0xFF5FD3A8));
       expect(AppAccents.amber(context, fallback: a), const Color(0xFFFFC14D));
+    });
+  });
+
+  group('ProfileAvatar hero (iPhone only)', () {
+    Future<void> pumpAvatar(WidgetTester tester, {String? heroTag}) =>
+        tester.pumpWidget(
+          MaterialApp(
+            home: ProfileAvatar(photo: null, size: 64, heroTag: heroTag),
+          ),
+        );
+
+    testWidgets('iPhone: a tagged avatar flies between pages', (tester) async {
+      debugUseIosChromeOverride = true;
+      await pumpAvatar(tester, heroTag: 'profile-avatar');
+      expect(
+        find.byWidgetPredicate((w) => w is Hero && w.tag == 'profile-avatar'),
+        findsOneWidget,
+      );
+    });
+
+    testWidgets('iPhone: no tag, no hero', (tester) async {
+      debugUseIosChromeOverride = true;
+      await pumpAvatar(tester);
+      expect(find.byType(Hero), findsNothing);
+    });
+
+    testWidgets('Android: unchanged, no hero even with a tag', (tester) async {
+      debugUseIosChromeOverride = false;
+      await pumpAvatar(tester, heroTag: 'profile-avatar');
+      expect(find.byType(Hero), findsNothing);
     });
   });
 }

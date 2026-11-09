@@ -15,6 +15,7 @@ import 'privacy_legal_screen.dart';
 import 'settings_screen.dart';
 import '../widgets/profile_avatar.dart';
 import '../core/responsive.dart';
+import '../ios/brand_colors.dart';
 
 class ProfileScreen extends StatefulWidget {
   const ProfileScreen({super.key});
@@ -211,9 +212,9 @@ class _ProfileScreenState extends State<ProfileScreen> {
   Widget _buildHeader() {
     final inset = readableInset(context, adaptiveMaxWidth(context));
     return Container(
-      decoration: const BoxDecoration(
-        gradient: LinearGradient(
-          colors: [darkTeal, Color(0xFF1A8587), primaryTeal],
+      decoration: BoxDecoration(
+        gradient: brandGradient(
+          [darkTeal, Color(0xFF1A8587), primaryTeal],
           begin: Alignment.topLeft,
           end: Alignment.bottomRight,
         ),
@@ -252,7 +253,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
               const SizedBox(height: 20),
               Row(
                 children: [
-                  ProfileAvatar(photo: _profile.photo, size: 64, onHeader: true),
+                  ProfileAvatar(photo: _profile.photo, size: 64, onHeader: true, heroTag: 'profile-avatar'),
                   const SizedBox(width: 16),
                   Column(
                     crossAxisAlignment: CrossAxisAlignment.start,

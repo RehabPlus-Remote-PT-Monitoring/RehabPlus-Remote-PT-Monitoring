@@ -5,6 +5,7 @@ import '../core/app_palette.dart';
 import '../core/diagnostic_logger.dart';
 import '../legal/legal_info.dart';
 import '../core/responsive.dart';
+import '../ios/brand_colors.dart';
 
 /// Shows one of the legal documents in assets/legal/ (Terms and Conditions or
 /// Privacy Policy), with the clinic details filled in.
@@ -114,9 +115,9 @@ class _LegalDocumentScreenState extends State<LegalDocumentScreen> {
 
   Widget _header(BuildContext context) {
     return Container(
-      decoration: const BoxDecoration(
-        gradient: LinearGradient(
-          colors: [darkTeal, Color(0xFF1A8587), primaryTeal],
+      decoration: BoxDecoration(
+        gradient: brandGradient(
+          [darkTeal, Color(0xFF1A8587), primaryTeal],
           begin: Alignment.topLeft,
           end: Alignment.bottomRight,
         ),

@@ -11,6 +11,7 @@ import '../core/responsive.dart';
 import 'consent_screen.dart';
 import 'forgot_password_screen.dart';
 import '../ios/app_controls.dart';
+import '../ios/brand_colors.dart';
 
 /// Longest e-mail address allowed by the standards (RFC 5321).
 const int maxEmailLength = 254;
@@ -182,9 +183,9 @@ class _LoginPageState extends State<LoginPage> with TickerProviderStateMixin {
     final palette = context.palette;
     return Scaffold(
       body: Container(
-        decoration: const BoxDecoration(
-          gradient: LinearGradient(
-            colors: [Color(0xFF0D6E71), Color(0xFF1E8E92), Color(0xFF2FB8BD)],
+        decoration: BoxDecoration(
+          gradient: brandGradient(
+            [Color(0xFF0D6E71), Color(0xFF1E8E92), Color(0xFF2FB8BD)],
             begin: Alignment.topLeft,
             end: Alignment.bottomRight,
           ),

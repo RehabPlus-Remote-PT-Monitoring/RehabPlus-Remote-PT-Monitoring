@@ -14,6 +14,7 @@ import 'app_lock_offer_screen.dart';
 import 'legal_document_screen.dart';
 import 'login_page.dart';
 import '../ios/app_controls.dart';
+import '../ios/brand_colors.dart';
 
 /// Shown after sign-in until the patient accepts the current Terms and
 /// Conditions and Privacy Policy (and again whenever [LegalInfo.version]
@@ -302,9 +303,9 @@ class _ConsentScreenState extends State<ConsentScreen> {
   Widget _header() {
     return Container(
       width: double.infinity,
-      decoration: const BoxDecoration(
-        gradient: LinearGradient(
-          colors: [darkTeal, Color(0xFF1A8587), primaryTeal],
+      decoration: BoxDecoration(
+        gradient: brandGradient(
+          [darkTeal, Color(0xFF1A8587), primaryTeal],
           begin: Alignment.topLeft,
           end: Alignment.bottomRight,
         ),
