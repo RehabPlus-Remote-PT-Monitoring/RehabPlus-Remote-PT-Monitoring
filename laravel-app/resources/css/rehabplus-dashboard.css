@@ -3110,3 +3110,50 @@ html.dark-mode{
         display:none;
     }
 }
+
+/* MESSAGES LIST: unread conversations stand out from the ones already read. */
+
+.conversation-unread{
+    background:rgba(20,184,166,.10);
+    box-shadow:inset 4px 0 0 var(--primary-strong);
+}
+
+.conversation-unread:hover{
+    background:rgba(20,184,166,.16);
+}
+
+.conversation-unread .conversation-name{
+    font-weight:700;
+    color:var(--text);
+}
+
+.conversation-unread .conversation-preview{
+    font-weight:600;
+    color:var(--text);
+}
+
+.conversation-read .conversation-name{
+    font-weight:500;
+    color:var(--text);
+}
+
+.conversation-read .conversation-preview{
+    color:var(--muted);
+}
+
+.conversation-new{
+    background:var(--primary-strong);
+    color:#fff;
+    font-weight:600;
+    padding:.4em .85em;
+}
+
+.conversation-seen{
+    font-size:.78rem;
+    color:var(--muted);
+    white-space:nowrap;
+}
+
+.conversation-seen i{
+    color:var(--primary-strong);
+}

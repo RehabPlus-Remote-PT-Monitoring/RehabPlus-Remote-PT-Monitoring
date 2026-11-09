@@ -141,6 +141,20 @@ class StaffChatTest extends TestCase
             ->assertSee('data-conversation-row', false);
     }
 
+    public function test_unread_conversations_are_marked_and_the_count_is_shown(): void
+    {
+        $this->patientDoc('pAnna', ['name' => 'Anna Cruz', 'therapistId' => 'thA']);
+        // Administrators answer the clinic thread of each patient.
+        $this->docs['patients/pAnna/threads/clinic'] = ['lastMessage' => 'Can I book Tuesday?', 'lastMessageAt' => \Carbon\CarbonImmutable::now(), 'lastSenderRole' => 'patient', 'unreadForStaff' => 2];
+        $this->docs['staffChats/adm1__thA'] = ['lastMessage' => 'Ok', 'lastMessageAt' => \Carbon\CarbonImmutable::now(), 'lastSenderId' => 'thA', 'unread_adm1' => 0];
+
+        $this->actingAs($this->staff('admin', 'adm1', 'Front Desk'))->get('/messages')->assertOk()
+            ->assertSee('conversation-unread')
+            ->assertSee('2 new')
+            ->assertSee('conversation-read')
+            ->assertSee('Read</span>', false);
+    }
+
     public function test_the_staff_conversation_shows_the_role_and_a_way_back_to_messages(): void
     {
         $this->actingAs($this->staff('admin', 'adm1', 'Front Desk'))->get('/messages/staff/thA')->assertOk()

@@ -44,7 +44,7 @@
             <div class="list-group list-group-flush">
                 @forelse ($conversations as $c)
                     <a href="{{ $c['url'] }}"
-                       class="list-group-item list-group-item-action py-3 {{ $c['unread'] ? 'fw-semibold' : '' }}"
+                       class="list-group-item list-group-item-action py-3 {{ $c['unread'] ? 'conversation-unread' : 'conversation-read' }}"
                        data-conversation-row
                        data-search="{{ strtolower($c['name'].' '.$c['tag'].' '.($c['lastMessage'] ?? '')) }}">
                         <div class="d-flex align-items-center gap-3">
@@ -52,12 +52,12 @@
                             <div class="flex-grow-1 min-w-0">
                                 <div class="d-flex justify-content-between align-items-center gap-2">
                                     <span class="d-flex align-items-center gap-2 min-w-0">
-                                        <span class="text-truncate">{{ $c['name'] }}</span>
+                                        <span class="conversation-name text-truncate">{{ $c['name'] }}</span>
                                         <span class="badge rounded-pill {{ $tagStyles[$c['tagTone']] ?? 'bg-light text-dark' }} flex-shrink-0">{{ $c['tag'] }}</span>
                                     </span>
                                     <small class="text-muted flex-shrink-0">{{ $c['lastMessageAt']?->setTimezone(config('app.timezone'))->diffForHumans() }}</small>
                                 </div>
-                                <div class="text-muted small text-truncate">
+                                <div class="conversation-preview small text-truncate">
                                     @if ($c['lastMessage'])
                                         {{ $c['fromMe'] ? 'You: ' : '' }}{{ $c['lastMessage'] }}
                                     @else
@@ -66,7 +66,9 @@
                                 </div>
                             </div>
                             @if ($c['unread'])
-                                <span class="badge rounded-pill bg-danger flex-shrink-0" aria-label="{{ $c['unread'] }} unread">{{ $c['unread'] }}</span>
+                                <span class="conversation-new badge rounded-pill flex-shrink-0" aria-label="{{ $c['unread'] }} unread">{{ $c['unread'] }} new</span>
+                            @elseif ($c['lastMessage'])
+                                <span class="conversation-seen flex-shrink-0" title="Read" aria-label="Read"><i class="bi bi-check2-all"></i> Read</span>
                             @endif
                         </div>
                     </a>
