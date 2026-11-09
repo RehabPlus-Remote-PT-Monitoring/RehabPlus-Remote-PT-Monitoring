@@ -17,6 +17,7 @@ import 'screens/dashboard_screen.dart';
 import 'screens/login_page.dart';
 import 'screens/splash_screen.dart';
 import 'screens/startup_error_screen.dart';
+import 'ios/ios_chrome.dart';
 
 void main() {
   WidgetsFlutterBinding.ensureInitialized();
@@ -138,16 +139,15 @@ class _RehabPlusAppState extends State<RehabPlusApp> {
   }
 
   Widget _app() {
-    // Every normal page change (MaterialPageRoute) is a plain fade on all
-    // platforms. A slide on top of each page's own entrance animation is what
-    // made the moves feel slow and busy.
-    final pageTransitions = PageTransitionsTheme(builders: {
-      for (final platform in TargetPlatform.values)
-        platform: const FadeForwardsPageTransitionsBuilder(),
-    });
+    // Page changes: the plain fade on Android, the iOS slide with back
+    // swipe on iPhone (lib/ios/ios_chrome.dart explains both).
+    final pageTransitions = appPageTransitions(ios: useIosChrome);
     return MaterialApp(
       title: 'RehabPlus',
       navigatorKey: navigatorKey,
+      // iPhone only: keeps Liquid Glass controls from showing through
+      // dialogs and sheets.
+      navigatorObservers: appNavigatorObservers(ios: useIosChrome),
       scaffoldMessengerKey: messengerKey,
       debugShowCheckedModeBanner: false,
       // Settings > Appearance > Theme: light, dark or the phone's setting.
