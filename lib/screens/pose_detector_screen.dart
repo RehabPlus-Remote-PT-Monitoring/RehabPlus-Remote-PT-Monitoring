@@ -67,9 +67,15 @@ import '../services/app_provider.dart';
 import '../services/app_settings.dart';
 import '../services/camera_rotation.dart';
 import '../services/cast_service.dart';
+import '../services/exercise_feedback.dart';
 import '../services/exercise_geometry.dart';
 import '../services/form_checker.dart';
 import '../services/tracking_health.dart';
+import '../widgets/exercise_controls.dart';
+import '../widgets/exercise_hints.dart';
+import '../widgets/exercise_range_gauge.dart';
+import '../widgets/exercise_session_summary.dart';
+import '../widgets/exercise_standing_guide.dart';
 import '../widgets/pose_painter.dart';
 
 class PoseDetectorScreen extends StatefulWidget {
@@ -109,6 +115,16 @@ class _PoseDetectorScreenState extends State<PoseDetectorScreen>
 
   /// True between AppLifecycleState.inactive/paused and resumed.
   bool _appInBackground = false;
+
+  /// True while the patient has tapped Pause. The camera keeps running (a
+  /// restart is slow and would replay the countdown); frames are simply
+  /// skipped, so nothing is counted and the hold timer doesn't run. See
+  /// [_pauseByUser] / [_resumeByUser].
+  bool _userPaused = false;
+
+  /// "Step back / move closer" advice, from the last processed pose (see
+  /// framingHintFor). Kept between frames for its hysteresis.
+  FramingHint _framing = FramingHint.ok;
 
   /// True while a camera switch is tearing down / rebuilding (double-tap
   /// guard: the init flag alone leaves a gap during the dispose).
@@ -807,6 +823,68 @@ class _PoseDetectorScreenState extends State<PoseDetectorScreen>
     _cancelCycle();
   }
 
+  /// Framing advice for this frame. Only judged while a body is found and
+  /// counting has started (during the countdown the patient is still
+  /// walking into place). Logs changes only, never every frame.
+  FramingHint _nextFramingHint(List<Pose> poses, Size uprightImageSize) {
+    final next = (poses.isEmpty || _countingDown)
+        ? FramingHint.ok
+        : framingHintFor(
+            poses.first.landmarks,
+            uprightImageSize,
+            previous: _framing,
+            minLikelihood: _thresholds.minLikelihood,
+          );
+    if (next != _framing) {
+      _log.info('PoseForm', 'Framing hint changed', {
+        'from': _framing.name,
+        'to': next.name,
+        'reps': _repCounter,
+      });
+    }
+    return next;
+  }
+
+  /// Pause button. Keeps the camera open (frames are skipped in
+  /// [_onCameraFrame]), throws away the rep in progress so half a movement
+  /// can't be judged after the break, and stops the hold timer. A counted
+  /// hold stays counted.
+  void _pauseByUser() {
+    if (_userPaused || _isSessionComplete || _countingDown) return;
+    _log.info('RepCycle', 'Paused by patient', {
+      'reps': _repCounter,
+      'rejected': _rejectedReps,
+      'cycleActive': _cycleActive,
+      'holdS': _round2(_holdElapsed),
+    });
+    _resetTracking();
+    setState(() {
+      _userPaused = true;
+      _holdStart = null;
+      _lostSince = null;
+      _holdElapsed = 0.0;
+      _flash = null;
+      _flashUntil = null;
+      _form = FormResult.ok;
+      _wasWrong = false;
+      _framing = FramingHint.ok;
+      _detectedPoses = [];
+    });
+  }
+
+  /// Resume button: counting starts again from a clean rep cycle.
+  void _resumeByUser() {
+    if (!_userPaused) return;
+    _log.info('RepCycle', 'Resumed by patient', {
+      'reps': _repCounter,
+      'rejected': _rejectedReps,
+    });
+    // Also restarts the tracking-speed window, so the frames skipped while
+    // paused don't show the "tracking is slow" banner.
+    _resetTracking();
+    setState(() => _userPaused = false);
+  }
+
   /// "Cast screen" button: opens the phone's cast settings so the patient
   /// can mirror this screen to a TV or laptop and read it from where they
   /// stand. Leaving for Settings pauses the app, which releases the camera;
@@ -988,6 +1066,7 @@ class _PoseDetectorScreenState extends State<PoseDetectorScreen>
     if (!mounted ||
         _isSessionComplete ||
         _detectorClosing ||
+        _userPaused ||
         gen != _cameraGeneration) {
       _stats.onSkippedInactive();
       return;
@@ -1031,7 +1110,8 @@ class _PoseDetectorScreenState extends State<PoseDetectorScreen>
   /// slow-tracking banner also appears while ML Kit is stuck on one frame
   /// and no results are arriving at all.
   void _updateTrackingHealth(int nowMs) {
-    if (!mounted || _isSessionComplete) return;
+    // While paused no frames are analysed on purpose: that is not slowness.
+    if (!mounted || _isSessionComplete || _userPaused) return;
     if (!_trackingHealth.update(nowMs)) return;
     _log.info(
       'PosePipeline',
@@ -1102,7 +1182,12 @@ class _PoseDetectorScreenState extends State<PoseDetectorScreen>
 
       // The world may have changed while ML Kit was busy: screen closed,
       // session finished, or the camera was switched / paused (stale frame).
-      if (!mounted || _isSessionComplete || gen != _cameraGeneration) {
+      // A Pause tapped while this frame was inside ML Kit: drop the result
+      // so nothing is counted after the tap.
+      if (!mounted ||
+          _isSessionComplete ||
+          _userPaused ||
+          gen != _cameraGeneration) {
         _stats.onResultDiscarded();
         return;
       }
@@ -1156,6 +1241,7 @@ class _PoseDetectorScreenState extends State<PoseDetectorScreen>
       }
 
       if (!mounted) return;
+      final framing = _nextFramingHint(poses, swap ? Size(h, w) : Size(w, h));
       final skeletonStale = isPoseStale(
         capturedMs: capturedMs,
         nowMs: _frameClock.elapsedMilliseconds,
@@ -1167,6 +1253,7 @@ class _PoseDetectorScreenState extends State<PoseDetectorScreen>
         _imageSize = swap ? Size(h, w) : Size(w, h);
         _rotation = rotation;
         _form = form;
+        _framing = framing;
       });
       _scheduleSkeletonExpiry(capturedMs);
       if (_settings.voiceCues) {
@@ -2423,6 +2510,9 @@ class _PoseDetectorScreenState extends State<PoseDetectorScreen>
       builder: (dialogContext) => StatefulBuilder(
         builder: (dialogContext, setDialogState) => AlertDialog(
           backgroundColor: dialogContext.palette.surface,
+          // The summary made the content taller: scroll at large text sizes
+          // and in landscape instead of overflowing.
+          scrollable: true,
           shape: RoundedRectangleBorder(
             borderRadius: BorderRadius.circular(20),
           ),
@@ -2463,6 +2553,11 @@ class _PoseDetectorScreenState extends State<PoseDetectorScreen>
                   style: const TextStyle(color: Colors.redAccent, fontSize: 12),
                 ),
               ],
+              const SizedBox(height: 12),
+              ExerciseSessionSummary(
+                scores: List<double>.unmodifiable(_repScores),
+                unit: exercise.isHold ? 'holds' : 'reps',
+              ),
               const Divider(height: 28),
               Text(
                 'How much pain do you feel now? ($pain/10)',
@@ -2742,6 +2837,24 @@ class _PoseDetectorScreenState extends State<PoseDetectorScreen>
 
     final form = _effectiveForm;
     final isCorrect = !form.isWrong;
+    final poseFound = _detectedPoses.isNotEmpty;
+    final framingMessage = (poseFound && !_countingDown && !_userPaused)
+        ? framingHintMessage(_framing)
+        : null;
+    final whyRed = isCorrect
+        ? null
+        : whyRedSummary(form.issues.map((i) => i.code));
+    final tempoCue =
+        (!exercise.isHold && poseFound && !_countingDown && !form.isNotInFrame)
+        ? tempoCueText(
+            tempoPhaseFor(
+              cycleActive: _cycleActive,
+              reachedTarget: _stage == "up",
+              atTarget: _atTarget,
+              awaitingRest: _awaitRest,
+            ),
+          )
+        : null;
 
     return PopScope(
       canPop: _isSessionComplete,
@@ -2798,6 +2911,19 @@ class _PoseDetectorScreenState extends State<PoseDetectorScreen>
                     issues: form.issues,
                   ),
                 ),
+              ),
+
+            // Faint "stand here" outline until the camera finds the body.
+            if (!_userPaused &&
+                showStandingGuide(
+                  poseFound: poseFound,
+                  countingDown: _countingDown,
+                  notInFrame: form.isNotInFrame,
+                ))
+              ExerciseStandingGuide(
+                caption: _countingDown
+                    ? null
+                    : standingGuideCaption(exercise.cameraView),
               ),
 
             if (_countingDown)
@@ -2869,6 +2995,15 @@ class _PoseDetectorScreenState extends State<PoseDetectorScreen>
                     const SizedBox(height: 6),
                     _SetupTip(text: exercise.setupTip, hint: castHint),
                   ],
+                  if (framingMessage != null) ...[
+                    const SizedBox(height: 6),
+                    ExerciseHintBanner(
+                      icon: _framing == FramingHint.tooClose
+                          ? Icons.zoom_out_rounded
+                          : Icons.zoom_in_rounded,
+                      text: framingMessage,
+                    ),
+                  ],
                   if (_trackingHealth.isSlow && !_countingDown) ...[
                     const SizedBox(height: 6),
                     _SlowTrackingBanner(casting: _isCasting),
@@ -2930,40 +3065,58 @@ class _PoseDetectorScreenState extends State<PoseDetectorScreen>
                             ),
                           ],
                         ),
-                        Column(
-                          mainAxisSize: MainAxisSize.min,
-                          children: [
-                            Text(
-                              exercise.isHold ? "HOLD" : "ANGLE",
-                              style: const TextStyle(
-                                color: Colors.white54,
-                                fontSize: 12,
+                        if (exercise.isHold)
+                          Column(
+                            mainAxisSize: MainAxisSize.min,
+                            children: [
+                              const Text(
+                                "HOLD",
+                                style: TextStyle(
+                                  color: Colors.white54,
+                                  fontSize: 12,
+                                ),
+                              ),
+                              Text(
+                                "${_holdElapsed.toStringAsFixed(1)} / ${exercise.holdSeconds}s",
+                                style: TextStyle(
+                                  color: isCorrect
+                                      ? Colors.greenAccent
+                                      : Colors.redAccent,
+                                  fontSize: 28,
+                                  fontWeight: FontWeight.bold,
+                                ),
+                              ),
+                            ],
+                          )
+                        else
+                          // Rest..target gauge instead of the bare angle.
+                          Expanded(
+                            child: Padding(
+                              padding: const EdgeInsets.only(left: 16),
+                              child: ExerciseRangeGauge(
+                                angle: _currentAngle == 0.0
+                                    ? null
+                                    : _currentAngle,
+                                restAngle: _restAngle,
+                                targetAngle: exercise.targetAngle,
+                                isCorrect: isCorrect,
                               ),
                             ),
-                            Text(
-                              exercise.isHold
-                                  ? "${_holdElapsed.toStringAsFixed(1)} / ${exercise.holdSeconds}s"
-                                  : "${_currentAngle.round()}°",
-                              style: TextStyle(
-                                color: isCorrect
-                                    ? Colors.greenAccent
-                                    : Colors.redAccent,
-                                fontSize: 28,
-                                fontWeight: FontWeight.bold,
-                              ),
-                            ),
-                          ],
-                        ),
+                          ),
                       ],
                     ),
-                    if (!isCorrect) ...[
+                    if (tempoCue != null) ...[
+                      const SizedBox(height: 8),
+                      ExerciseTempoCue(text: tempoCue),
+                    ],
+                    if (whyRed != null) ...[
                       const SizedBox(height: 8),
                       Text(
-                        'Why red: ${form.issues.map((i) => i.code.name).join(', ')}',
+                        whyRed,
                         textAlign: TextAlign.center,
                         style: const TextStyle(
                           color: Colors.white70,
-                          fontSize: 11,
+                          fontSize: 12,
                         ),
                       ),
                     ],
@@ -2978,10 +3131,24 @@ class _PoseDetectorScreenState extends State<PoseDetectorScreen>
                         ),
                       ),
                     ],
+                    const SizedBox(height: 12),
+                    ExerciseSessionControls(
+                      canPause: !_countingDown && !_userPaused,
+                      onPause: _pauseByUser,
+                      onEnd: () => unawaited(_confirmEndEarly()),
+                    ),
                   ],
                 ),
               ),
             ),
+
+            if (_userPaused)
+              Positioned.fill(
+                child: ExercisePausedOverlay(
+                  onResume: _resumeByUser,
+                  onEnd: () => unawaited(_confirmEndEarly()),
+                ),
+              ),
           ],
         ),
       ),
