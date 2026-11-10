@@ -2399,7 +2399,10 @@ class _PoseDetectorScreenState extends State<PoseDetectorScreen>
 
     var pain = 0;
     var saving = false;
-    final noteController = TextEditingController();
+    // Kept here, not in a controller: the field owns its controller (see
+    // _SessionNoteField), so nothing is disposed while the dialog is still
+    // animating out.
+    var note = '';
 
     showDialog(
       context: context,
@@ -2487,16 +2490,9 @@ class _PoseDetectorScreenState extends State<PoseDetectorScreen>
                 ],
               ),
               const SizedBox(height: 8),
-              TextField(
-                controller: noteController,
+              _SessionNoteField(
                 enabled: !saving,
-                maxLines: 2,
-                maxLength: 300,
-                decoration: const InputDecoration(
-                  hintText: 'Anything to tell your therapist? (optional)',
-                  border: OutlineInputBorder(),
-                  isDense: true,
-                ),
+                onChanged: (value) => note = value,
               ),
             ],
           ),
@@ -2509,11 +2505,11 @@ class _PoseDetectorScreenState extends State<PoseDetectorScreen>
                       // button: only the first one may save and navigate.
                       if (saving) return;
                       setDialogState(() => saving = true);
-                      final note = noteController.text.trim();
+                      final trimmedNote = note.trim();
                       try {
                         await _saveSession(
                           painLevel: pain,
-                          painNote: note.isEmpty ? null : note,
+                          painNote: trimmedNote.isEmpty ? null : trimmedNote,
                           endedEarly: endedEarly,
                         );
                       } catch (e, st) {
@@ -2555,7 +2551,7 @@ class _PoseDetectorScreenState extends State<PoseDetectorScreen>
           ],
         ),
       ),
-    ).whenComplete(noteController.dispose);
+    );
   }
 
   InputImage? _inputImageFromCameraImage(
@@ -3226,6 +3222,47 @@ class _FormBanner extends StatelessWidget {
             ),
           ],
         ),
+      ),
+    );
+  }
+}
+
+/// The "anything to tell your therapist?" box in the session-complete dialog.
+/// It owns its [TextEditingController] and disposes it with the widget, so
+/// the controller lives as long as the field is on screen, including while
+/// the dialog animates out. Disposing it when the dialog future completes
+/// broke the closing animation ("used after being disposed").
+class _SessionNoteField extends StatefulWidget {
+  const _SessionNoteField({required this.enabled, required this.onChanged});
+
+  final bool enabled;
+  final ValueChanged<String> onChanged;
+
+  @override
+  State<_SessionNoteField> createState() => _SessionNoteFieldState();
+}
+
+class _SessionNoteFieldState extends State<_SessionNoteField> {
+  final TextEditingController _controller = TextEditingController();
+
+  @override
+  void dispose() {
+    _controller.dispose();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return TextField(
+      controller: _controller,
+      enabled: widget.enabled,
+      maxLines: 2,
+      maxLength: 300,
+      onChanged: widget.onChanged,
+      decoration: const InputDecoration(
+        hintText: 'Anything to tell your therapist? (optional)',
+        border: OutlineInputBorder(),
+        isDense: true,
       ),
     );
   }
