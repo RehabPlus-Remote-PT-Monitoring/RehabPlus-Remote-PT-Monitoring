@@ -19,10 +19,10 @@ import '../services/chat_session_share.dart';
 import '../services/chat_timeline.dart';
 import '../services/progress_stats.dart' show CalendarDays;
 import '../core/responsive.dart';
-import '../ios/glass_tab_bar.dart';
 import '../widgets/chat_composer_surface.dart';
 import '../widgets/chat_session_share_sheet.dart';
 import '../widgets/chat_timeline_widgets.dart';
+import '../core/tab_bar_clearance.dart';
 
 const Color _primaryTeal = Color(0xFF23A8AA);
 const String _tag = 'Messages';
@@ -323,7 +323,7 @@ class _MessagesScreenState extends State<MessagesScreen> {
         ],
       ),
       body: ListView.separated(
-        // iPhone: room at the bottom for the floating glass tab bar.
+        // Room at the bottom for the tab bar the list scrolls behind.
         padding: withTabBarClearance(context, readablePadding(context)),
         itemCount: ChatThread.values.length,
         separatorBuilder: (_, _) =>

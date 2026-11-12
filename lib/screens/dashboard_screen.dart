@@ -22,6 +22,7 @@ import '../widgets/unread_badge.dart';
 import '../core/responsive.dart';
 import '../ios/glass_tab_bar.dart';
 import '../ios/ios_chrome.dart';
+import '../core/tab_bar_clearance.dart';
 import 'messages_screen.dart';
 import 'profile_screen.dart';
 import 'notification_page.dart';
@@ -356,17 +357,20 @@ class _DashboardScreenState extends State<DashboardScreen>
     // readablePadding / isTwoColumn inside the pages measure what they really
     // have, not the whole screen.
     //
-    // iPhone (no sidebar): the native Liquid Glass tab bar floats over the
-    // page (extendBody). Scaffold then reports the bar's real height as the
-    // page's bottom padding; scroll views add it with withTabBarClearance so
-    // their last items scroll above the bar. The page area therefore reads
-    // its MediaQuery from INSIDE the Scaffold body (the Builder below), not
-    // from `media`, which sits above the Scaffold and lacks that padding.
+    // Phones (no sidebar): the pages are drawn behind the bottom bar
+    // (extendBody), so its rounded top corners (Android) or the floating
+    // Liquid Glass tab bar (iPhone) show the page underneath instead of a
+    // flat cut-off edge. Scaffold then reports the bar's real height as the
+    // page's bottom padding; scroll views add it with withTabBarClearance
+    // (lib/core/tab_bar_clearance.dart) so their last items scroll above the
+    // bar. The page area therefore reads its MediaQuery from INSIDE the
+    // Scaffold body (the Builder below), not from `media`, which sits above
+    // the Scaffold and lacks that padding.
     final floatGlassTabBar = useIosChrome && !showSidebar;
 
     return Scaffold(
       backgroundColor: context.palette.background,
-      extendBody: floatGlassTabBar,
+      extendBody: !showSidebar,
       body: Row(
         crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [

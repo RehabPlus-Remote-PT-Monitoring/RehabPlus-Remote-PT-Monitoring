@@ -14,6 +14,7 @@ import '../widgets/exercise_demo_sheet.dart';
 import '../widgets/today_checklist_sheet.dart';
 import '../widgets/unread_badge.dart';
 import '../core/responsive.dart';
+import '../core/tab_bar_clearance.dart';
 import 'notification_page.dart';
 import 'pose_detector_screen.dart';
 
@@ -281,13 +282,16 @@ class _ExercisePageState extends State<ExercisePage> {
                             physics: const BouncingScrollPhysics(
                               parent: AlwaysScrollableScrollPhysics(),
                             ),
-                            padding: readablePadding(
+                            padding: withTabBarClearance(
                               context,
-                              const EdgeInsets.symmetric(
-                                horizontal: 20,
-                                vertical: 8,
+                              readablePadding(
+                                context,
+                                const EdgeInsets.symmetric(
+                                  horizontal: 20,
+                                  vertical: 8,
+                                ),
+                                adaptiveMaxWidth(context),
                               ),
-                              adaptiveMaxWidth(context),
                             ),
                             children: [
                               _buildSectionHeader('Your Plan', exercises.length),

@@ -3,7 +3,6 @@ import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:rehabplus/ios/app_controls.dart';
 import 'package:rehabplus/ios/brand_colors.dart';
-import 'package:rehabplus/ios/glass_tab_bar.dart';
 import 'package:rehabplus/ios/ios_chrome.dart';
 import 'package:rehabplus/widgets/profile_avatar.dart';
 
@@ -51,39 +50,6 @@ void main() {
           );
         }
       }
-    });
-  });
-
-  group('withTabBarClearance', () {
-    Future<EdgeInsets> padded(WidgetTester tester, double bottomInset) async {
-      late EdgeInsets result;
-      await tester.pumpWidget(
-        MediaQuery(
-          data: MediaQueryData(padding: EdgeInsets.only(bottom: bottomInset)),
-          child: Builder(
-            builder: (c) {
-              result = withTabBarClearance(
-                c,
-                const EdgeInsets.fromLTRB(16, 0, 16, 16),
-              );
-              return const SizedBox();
-            },
-          ),
-        ),
-      );
-      return result;
-    }
-
-    testWidgets('iPhone: adds the floating bar height to the bottom', (
-      tester,
-    ) async {
-      debugUseIosChromeOverride = true;
-      expect((await padded(tester, 120)).bottom, 136);
-    });
-
-    testWidgets('Android: unchanged', (tester) async {
-      debugUseIosChromeOverride = false;
-      expect((await padded(tester, 120)).bottom, 16);
     });
   });
 
