@@ -39,17 +39,10 @@ class ChatMessage {
     this.pending = false,
   });
 
-  /// Builds a message from its Firestore document. Throws [FormatException]
-  /// when `text` is missing (there is nothing to show). A missing `sentAt`
-  /// falls back to now; the query orders by `sentAt`, so in practice only
-  /// a malformed document lacks it.
-  factory ChatMessage.fromFirestore(
-    String id,
-    Map<String, dynamic> d, {
-    bool pending = false,
-  }) => _fromReader(id, FieldReader(d), pending);
-
-  /// Like [ChatMessage.fromFirestore], but never throws.
+  /// Builds a message from its Firestore document. Never throws: a document
+  /// without `text` (nothing to show) comes back as [Parsed.failed]. A
+  /// missing `sentAt` falls back to now; the query orders by `sentAt`, so in
+  /// practice only a malformed document lacks it.
   static Parsed<ChatMessage> parse(
     String id,
     Map<String, dynamic> d, {

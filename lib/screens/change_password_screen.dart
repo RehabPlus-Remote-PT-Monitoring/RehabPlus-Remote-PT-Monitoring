@@ -90,21 +90,40 @@ class _ChangePasswordScreenState extends State<ChangePasswordScreen> {
     }
     FocusScope.of(context).unfocus();
     setState(() => _saving = true);
+    // The passwords are never logged; AuthService logs the Firebase code.
+    final stopwatch = Stopwatch()..start();
+    _logger.info(_tag, 'Password change requested');
     try {
       await AuthService.I.changePassword(
         currentPassword: _currentCtrl.text,
         newPassword: _newCtrl.text,
       );
-      _logger.info(_tag, 'Password changed');
+      _logger.info(_tag, 'Password changed', {
+        'ms': stopwatch.elapsedMilliseconds,
+      });
       if (!mounted) return;
       Navigator.pop(context, true);
     } on AuthFailure catch (e) {
-      if (!mounted) return;
-      setState(() {
-        _saving = false;
-        _error = e.message;
+      _logger.warn(_tag, 'Password change rejected', {
+        'ms': stopwatch.elapsedMilliseconds,
       });
+      _showError(e.message);
+    } catch (e, st) {
+      // AuthService turns Firebase errors into AuthFailure; anything else
+      // (a plugin bug) must still stop the spinner instead of leaving the
+      // Save button stuck forever.
+      _logger.error(_tag, 'Password change crashed', null, e, st);
+      _showError('Could not change your password. Please try again.');
     }
+  }
+
+  /// Stops the spinner and shows [message] above the Save button.
+  void _showError(String message) {
+    if (!mounted) return;
+    setState(() {
+      _saving = false;
+      _error = message;
+    });
   }
 
   void _openForgot() {

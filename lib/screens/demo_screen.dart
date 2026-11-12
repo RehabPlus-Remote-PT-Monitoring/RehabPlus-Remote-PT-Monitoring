@@ -35,14 +35,14 @@ class _DemoScreenState extends State<DemoScreen> with TickerProviderStateMixin {
   late final AnimationController _pulseCtrl;
   late final Animation<double> _pulse;
 
-  final List<_DemoFeature> _features = [
+  // Fixed demo content: const, so it's built once, not per screen.
+  static const List<_DemoFeature> _features = [
     _DemoFeature(
       icon: PhosphorIconsRegular.chartLineUp,
       color: Color(0xFF23A8AA),
       title: 'Track Progress',
       subtitle:
           'Monitor your weekly recovery with visual charts and day-by-day check-ins.',
-      preview: _PreviewType.progress,
     ),
     _DemoFeature(
       icon: PhosphorIconsRegular.barbell,
@@ -50,7 +50,6 @@ class _DemoScreenState extends State<DemoScreen> with TickerProviderStateMixin {
       title: 'Exercise Plans',
       subtitle:
           'Follow guided rehab exercises assigned by your therapist with step-by-step instructions.',
-      preview: _PreviewType.exercise,
     ),
     _DemoFeature(
       icon: PhosphorIconsRegular.chatCircle,
@@ -58,7 +57,6 @@ class _DemoScreenState extends State<DemoScreen> with TickerProviderStateMixin {
       title: 'Message Therapist',
       subtitle:
           'Stay connected with your therapist through real-time messaging and quick updates.',
-      preview: _PreviewType.messages,
     ),
     _DemoFeature(
       icon: PhosphorIconsRegular.bell,
@@ -66,11 +64,10 @@ class _DemoScreenState extends State<DemoScreen> with TickerProviderStateMixin {
       title: 'Smart Reminders',
       subtitle:
           'Never miss a session with personalized notifications and progress alerts.',
-      preview: _PreviewType.notifications,
     ),
   ];
 
-  final List<_ExerciseStep> _steps = [
+  static const List<_ExerciseStep> _steps = [
     _ExerciseStep(
       'Starting Position',
       'Stand straight, feet shoulder-width apart. Keep your back neutral.',
@@ -850,19 +847,15 @@ class _FeatureCard extends StatelessWidget {
 }
 
 // ── DATA MODELS ───────────────────────────────────────────────────────────────
-enum _PreviewType { progress, exercise, messages, notifications }
-
 class _DemoFeature {
   final PhosphorIconData icon;
   final Color color;
   final String title, subtitle;
-  final _PreviewType preview;
   const _DemoFeature({
     required this.icon,
     required this.color,
     required this.title,
     required this.subtitle,
-    required this.preview,
   });
 }
 
@@ -875,19 +868,18 @@ class _ExerciseStep {
 // ── VIDEO CARD ────────────────────────────────────────────────────────────────
 class _VideoCard extends StatefulWidget {
   final String title, duration, level;
-  /// A video bundled with the app (assets/...). Used for the demo videos.
-  final String? assetPath;
-  /// An HTTPS video on the web. Exactly one of [assetPath] / [videoUrl] is set.
-  final String? videoUrl;
+
+  /// A video bundled with the app (assets/...), so the demo works offline
+  /// and never streams anything.
+  final String assetPath;
   final Color color;
   const _VideoCard({
     required this.title,
     required this.duration,
     required this.level,
     required this.color,
-    this.assetPath,
-    this.videoUrl,
-  }) : assert((assetPath == null) != (videoUrl == null));
+    required this.assetPath,
+  });
 
   @override
   State<_VideoCard> createState() => _VideoCardState();
@@ -925,18 +917,9 @@ class _VideoCardState extends State<_VideoCard> {
   Future<bool> _initVideo() async {
     if (_loaded) return true;
     final stopwatch = Stopwatch()..start();
-    final VideoPlayerController controller;
-    if (widget.assetPath != null) {
-      controller = VideoPlayerController.asset(widget.assetPath!);
-    } else {
-      final uri = Uri.parse(widget.videoUrl!);
-      // Only ever stream over HTTPS.
-      if (uri.scheme != 'https') {
-        _logger.error(_tag, 'Refusing non-HTTPS demo video', {'scheme': uri.scheme});
-        return false;
-      }
-      controller = VideoPlayerController.networkUrl(uri);
-    }
+    // Created only when the patient taps the card (not for every card on
+    // screen), so closed cards hold no decoder or native player.
+    final controller = VideoPlayerController.asset(widget.assetPath);
     try {
       await controller.initialize();
     } catch (e, st) {

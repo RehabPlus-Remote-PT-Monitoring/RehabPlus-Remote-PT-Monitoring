@@ -4,6 +4,7 @@ import 'package:intl/intl.dart' show DateFormat;
 import 'package:provider/provider.dart';
 
 import '../core/app_palette.dart';
+import '../core/diagnostic_logger.dart';
 import '../models/exercise_model.dart';
 import '../models/session.dart';
 import '../screens/pose_detector_screen.dart';
@@ -11,6 +12,7 @@ import '../services/app_provider.dart';
 import '../services/progress_stats.dart';
 
 const Color _primaryTeal = Color(0xFF23A8AA);
+const String _tag = 'TodayPlan';
 
 /// Bottom sheet: today's prescribed exercises with a tick for each one done,
 /// plus weekly progress. Exercises not scheduled today are listed below.
@@ -20,6 +22,9 @@ class TodayChecklistSheet extends StatelessWidget {
   const TodayChecklistSheet({super.key, required this.exercises});
 
   static Future<void> show(BuildContext context, List<ExerciseConfig> exercises) {
+    DiagnosticLogger.I.info(_tag, 'Sheet opened', {
+      'exercises': exercises.length,
+    });
     return showModalBottomSheet(
       context: context,
       isScrollControlled: true,
@@ -92,9 +97,15 @@ class TodayChecklistSheet extends StatelessWidget {
             ? null
             : TextButton(
                 onPressed: () {
-                  Navigator.pop(context);
-                  Navigator.push(
-                    context,
+                  DiagnosticLogger.I.info(_tag, 'Exercise started from plan', {
+                    'exercise': e.type.name,
+                    'dueToday': dueToday,
+                  });
+                  // Look the navigator up once, before popping: after pop()
+                  // this sheet's context belongs to a route on its way out.
+                  final navigator = Navigator.of(context);
+                  navigator.pop();
+                  navigator.push(
                     MaterialPageRoute(
                       builder: (_) => PoseDetectorScreen(selectedExercise: e),
                     ),

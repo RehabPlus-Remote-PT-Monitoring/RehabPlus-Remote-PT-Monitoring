@@ -8,8 +8,22 @@ import '../core/diagnostic_logger.dart';
 import '../models/app_notification.dart';
 import '../models/chat.dart';
 import '../services/notification_service.dart';
+import '../services/progress_stats.dart' show CalendarDays;
 import '../core/responsive.dart';
 import 'messages_screen.dart';
+
+/// Time label for a notification: the time today, "Yesterday", the weekday
+/// within a week, otherwise the date. Calendar days, not 24-hour blocks, so
+/// "Yesterday" stays right across a daylight-saving change (a 23-hour day
+/// used to count as 0 days and show a weekday).
+@visibleForTesting
+String notificationTimeLabel(DateTime t, DateTime now) {
+  final days = CalendarDays.between(t, now);
+  if (days == 0) return DateFormat.jm().format(t);
+  if (days == 1) return 'Yesterday';
+  if (days < 7) return DateFormat.EEEE().format(t);
+  return DateFormat.MMMd().format(t);
+}
 
 /// Icon and colours per notification type.
 class _Visual {
@@ -103,7 +117,20 @@ class _NotificationPageState extends State<NotificationPage> {
     _stream = _service.watch();
   }
 
+  /// The snapshot list and filter [_derive] last worked from. The
+  /// StreamBuilder calls [_derive] on every rebuild (a filter tap, the
+  /// "mark all" spinner, a theme change), but the lists only need
+  /// recomputing when the snapshot or the filter actually changed.
+  List<AppNotification>? _derivedFrom;
+  int _derivedFilter = -1;
+
   void _derive(List<AppNotification> all) {
+    if (identical(all, _derivedFrom) &&
+        _selectedFilterIndex == _derivedFilter) {
+      return;
+    }
+    _derivedFrom = all;
+    _derivedFilter = _selectedFilterIndex;
     _notifications = all;
     _unreadCount = all.where((n) => !n.read).length;
     _filtered = switch (_selectedFilterIndex) {
@@ -111,6 +138,12 @@ class _NotificationPageState extends State<NotificationPage> {
       2 => all.where((n) => !n.read).toList(),
       _ => all,
     };
+    _logger.verbose(_tag, 'List updated', {
+      'total': all.length,
+      'unread': _unreadCount,
+      'shown': _filtered.length,
+      'filter': _selectedFilterIndex,
+    });
   }
 
   Future<void> _markAllRead() async {
@@ -132,16 +165,6 @@ class _NotificationPageState extends State<NotificationPage> {
     } finally {
       if (mounted) setState(() => _markingAll = false);
     }
-  }
-
-  String _time(DateTime t) {
-    final now = DateTime.now();
-    final today = DateUtils.dateOnly(now);
-    final days = today.difference(DateUtils.dateOnly(t)).inDays;
-    if (days == 0) return DateFormat.jm().format(t);
-    if (days == 1) return 'Yesterday';
-    if (days < 7) return DateFormat.EEEE().format(t);
-    return DateFormat.MMMd().format(t);
   }
 
   void _open(AppNotification n) {
@@ -417,7 +440,7 @@ class _NotificationPageState extends State<NotificationPage> {
                       ),
                       const SizedBox(width: 8),
                       Text(
-                        _time(item.createdAt),
+                        notificationTimeLabel(item.createdAt, DateTime.now()),
                         style: TextStyle(
                           fontSize: 11,
                           color: palette.textMuted,

@@ -20,6 +20,33 @@ class ProfileAvatar extends StatelessWidget {
   /// Drawn on the teal profile header (translucent ring instead of a shadow).
   final bool onHeader;
 
+  /// Photos whose decode failure was already logged. Flutter calls the error
+  /// builder again on every rebuild of every avatar showing the same broken
+  /// photo (profile header, account info, ...), which would repeat the same
+  /// warning many times; one record per photo is enough. An Expando holds
+  /// its keys weakly, so this never keeps a (personal) photo in memory.
+  static final Expando<bool> _reported = Expando('ProfileAvatar.reported');
+
+  /// Logs a photo that can't be decoded, once per photo. Returns whether it
+  /// logged (for tests).
+  @visibleForTesting
+  static bool reportUndecodablePhoto(
+    Uint8List photo,
+    Object error,
+    StackTrace? stackTrace,
+  ) {
+    if (_reported[photo] == true) return false;
+    _reported[photo] = true;
+    DiagnosticLogger.I.warn(
+      'ProfileAvatar',
+      'Profile photo could not be decoded',
+      {'bytes': photo.length},
+      error,
+      stackTrace,
+    );
+    return true;
+  }
+
   @override
   Widget build(BuildContext context) {
     final image = photo;
@@ -63,13 +90,7 @@ class ProfileAvatar extends StatelessWidget {
                 // A corrupt or unsupported image falls back to the icon
                 // instead of Flutter's broken-image box.
                 errorBuilder: (context, error, stackTrace) {
-                  DiagnosticLogger.I.warn(
-                    'ProfileAvatar',
-                    'Profile photo could not be decoded',
-                    {'bytes': image.length},
-                    error,
-                    stackTrace,
-                  );
+                  reportUndecodablePhoto(image, error, stackTrace);
                   return placeholder;
                 },
               ),

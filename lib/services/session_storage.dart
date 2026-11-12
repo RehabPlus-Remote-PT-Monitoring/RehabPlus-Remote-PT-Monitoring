@@ -12,7 +12,7 @@ import 'firestore_diagnostics.dart';
 /// without signal is kept locally and uploaded when the phone reconnects.
 ///
 /// Log events (tag 'SessionStorage'):
-///   "Load sessions done/failed" {uid, ms, code}
+///   "Load sessions done/failed" {uid, ms, code}; "Load skipped: signed out"
 ///   "Loaded sessions" {uid, count, docs, skipped, repaired, fromCache}
 ///   "Malformed session skipped" {id, reason}; "Session repaired" {id, fields}
 ///   "Session queued" {id, exerciseId, reps, endedEarly}
@@ -48,24 +48,16 @@ class SessionStorage {
       ? null
       : _db.collection('patients').doc(uid).collection('sessions');
 
-  /// All sessions, newest first, or an empty list when signed out or when
-  /// they can't be loaded (the error is logged). Prefer [fetchSessions] when
-  /// a failure must be told apart from "no sessions".
-  Future<List<ExerciseSession>> loadSessions() async {
-    try {
-      return await fetchSessions();
-    } catch (_) {
-      return []; // already logged by fetchSessions
-    }
-  }
-
   /// All sessions, newest first; empty when signed out. Throws when they
   /// can't be read. Malformed documents are skipped (and logged), so one
   /// bad record never hides the rest of the history.
   Future<List<ExerciseSession>> fetchSessions() async {
     final uid = FirebaseAuth.instance.currentUser?.uid;
     final col = _sessionsOf(uid);
-    if (col == null) return [];
+    if (col == null) {
+      _logger.info('SessionStorage', 'Load skipped: signed out');
+      return [];
+    }
 
     // Falls back to the local cache automatically when offline.
     final snap = await _logger.timed(
@@ -149,7 +141,7 @@ class SessionStorage {
 
     // Not awaited: the returned future only completes once the server
     // confirms, which never happens while offline. The write is already in
-    // the local cache, so loadSessions() sees it immediately.
+    // the local cache, so fetchSessions() sees it immediately.
     logUnawaitedWrite(
       col.doc(session.id).set(session.toFirestore()),
       tag: 'SessionStorage',

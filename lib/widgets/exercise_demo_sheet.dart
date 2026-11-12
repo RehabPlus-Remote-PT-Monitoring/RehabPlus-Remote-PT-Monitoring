@@ -47,10 +47,21 @@ class _ExerciseDemoSheetState extends State<ExerciseDemoSheet> {
   /// The video could not be loaded (bad URL, no internet).
   bool _failed = false;
 
+  /// Set once "Start exercise" is tapped: a second tap during the sheet's
+  /// closing animation would otherwise push a second camera screen.
+  bool _starting = false;
+
   @override
   void initState() {
     super.initState();
-    final url = exerciseDemoVideoUrls[widget.config.type];
+    final type = widget.config.type;
+    final url = exerciseDemoVideoUrls[type];
+    final link = exerciseDemoLinks[type];
+    DiagnosticLogger.I.info(_tag, 'Demo sheet opened', {
+      'type': type.name,
+      'hasVideo': url != null,
+      'hasLink': link != null && link.authorConsent,
+    });
     if (url != null) _initVideo(url);
   }
 
@@ -118,14 +129,31 @@ class _ExerciseDemoSheetState extends State<ExerciseDemoSheet> {
 
   /// Opens an outside demo video (YouTube etc.) in the browser or app.
   Future<void> _openLink(String url) async {
+    final type = widget.config.type.name;
     final uri = Uri.tryParse(url);
-    if (uri == null || uri.scheme != 'https') return;
+    if (uri == null || uri.scheme != 'https') {
+      // Only a typo in exercise_demo_videos.dart can cause this.
+      DiagnosticLogger.I.error(_tag, 'Refusing non-HTTPS demo link', {
+        'type': type,
+        'scheme': uri?.scheme,
+      });
+      return;
+    }
+    DiagnosticLogger.I.info(_tag, 'Opening demo link', {
+      'type': type,
+      'host': uri.host,
+    });
     bool opened;
     try {
       opened = await launchUrl(uri, mode: LaunchMode.externalApplication);
+      if (!opened) {
+        DiagnosticLogger.I.warn(_tag, 'No app could open the demo link', {
+          'type': type,
+        });
+      }
     } catch (e, st) {
       DiagnosticLogger.I.warn(_tag, 'Opening the demo link failed', {
-        'type': widget.config.type.name,
+        'type': type,
       }, e, st);
       opened = false;
     }
@@ -314,6 +342,11 @@ class _ExerciseDemoSheetState extends State<ExerciseDemoSheet> {
               width: double.infinity,
               child: ElevatedButton.icon(
                 onPressed: () {
+                  if (_starting) return;
+                  _starting = true;
+                  DiagnosticLogger.I.info(_tag, 'Exercise started from demo', {
+                    'type': config.type.name,
+                  });
                   final nav = Navigator.of(context);
                   nav.pop();
                   nav.push(

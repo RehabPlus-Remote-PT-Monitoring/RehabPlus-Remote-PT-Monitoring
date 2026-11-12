@@ -265,12 +265,18 @@ class PosePainter extends CustomPainter {
       final w = tp.width + pad * 2;
       final h = tp.height + pad * 2;
 
+      // Keep the bubble 8 px inside the canvas. On a canvas narrower or
+      // shorter than the bubble (split screen, a layout mid-resize) the
+      // upper limit would fall below the lower one, and clamp() throws when
+      // it does, so the upper limit never goes below 8.
+      final maxLeft = max(8.0, size.width - w - 8.0);
+      final maxTop = max(8.0, size.height - h - 8.0);
       final onLeftHalf = target.dx < size.width / 2;
       final left = (onLeftHalf ? target.dx + 28 : target.dx - 28 - w)
-          .clamp(8.0, size.width - w - 8.0)
+          .clamp(8.0, maxLeft)
           .toDouble();
       final top = (slot == 0 ? target.dy - h - 24 : target.dy + 24)
-          .clamp(8.0, size.height - h - 8.0)
+          .clamp(8.0, maxTop)
           .toDouble();
 
       final rect = RRect.fromRectAndRadius(

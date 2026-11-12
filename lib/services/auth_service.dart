@@ -20,11 +20,12 @@ class AuthFailure implements Exception {
 /// users/{uid} document whose `role` decides access. Only `patient` accounts
 /// may use the mobile app.
 ///
-/// Log events (tag 'AuthService'): "Sign-in started/succeeded", "Sign-in
-/// failed" {code}, "Rejected non-patient login" {role}, "Password reset
-/// sent/failed" {code}, "Reset code sent/failed" {code}, "Reset code
-/// accepted/rejected", "Password changed", "Signed out". E-mail addresses,
-/// phone numbers, codes and passwords are never logged.
+/// Log events (tag 'AuthService'): "Sign-in started/succeeded" {uid, ms,
+/// fromCache}, "Sign-in failed" {code, ms}, "Rejected non-patient login"
+/// {role, profileExists}, "Rejected inactive account", "Current password
+/// check failed" {code}, "Password change failed" {code}, "Password changed"
+/// / "Password changed in app" {uid}, "Signed out" {uid}. E-mail addresses,
+/// passwords and tokens are never logged.
 class AuthService {
   AuthService._();
   static final AuthService I = AuthService._();
@@ -39,8 +40,6 @@ class AuthService {
   /// of starting a second one (two parallel attempts would race on the role
   /// check and could sign the user out under the first).
   Future<void>? _signingIn;
-
-  User? get currentUser => _auth.currentUser;
 
   /// The signed-in user's uid, or null.
   String? get currentUid => _auth.currentUser?.uid;
@@ -144,20 +143,6 @@ class AuthService {
     });
   }
 
-  /// Sends a password-reset e-mail. Errors are logged (code only) and
-  /// re-thrown for the screen to explain.
-  Future<void> sendPasswordReset(String email) async {
-    try {
-      await _auth.sendPasswordResetEmail(email: email);
-      _logger.info('AuthService', 'Password reset sent');
-    } catch (e, st) {
-      _logger.warn('AuthService', 'Password reset failed', {
-        ...firebaseErrorData(e),
-      }, e, st);
-      rethrow;
-    }
-  }
-
   // ── Password reset with a temporary password ──────────────────────────
   //
   // The clinic sets a temporary password on the dashboard and gives it to
@@ -174,42 +159,24 @@ class AuthService {
     required String newPassword,
   }) async {
     await signIn(email, temporaryPassword);
-    try {
-      await setNewPassword(newPassword);
-    } catch (_) {
-      await _signOutQuietly();
-      rethrow;
-    }
-  }
-
-  /// Sets [newPassword] on the signed-in account, then signs out. Throws
-  /// [AuthFailure] (still signed in, so the patient can try another password).
-  Future<void> setNewPassword(String newPassword) async {
     final user = _auth.currentUser;
     if (user == null) {
       throw const AuthFailure('Please try again.');
     }
     try {
-      await user.updatePassword(newPassword);
-    } on FirebaseAuthException catch (e, st) {
-      _logger.warn('AuthService', 'Password change failed', {'code': e.code},
-          e, st);
-      throw AuthFailure(switch (e.code) {
-        'weak-password' =>
-          'Choose a stronger password (at least $minPasswordLength characters).',
-        'requires-recent-login' => 'Please try again.',
-        'network-request-failed' => 'No internet connection.',
-        _ => 'Could not change the password. Please try again.',
-      });
-    } catch (e, st) {
-      _logger.error('AuthService', 'Password change crashed',
-          firebaseErrorData(e), e, st);
-      throw const AuthFailure(
-        'Could not change the password. Please try again.',
+      // Just signed in, so "requires-recent-login" can't really happen;
+      // asking the patient to retry is the honest answer if it does.
+      await _updatePassword(
+        user,
+        newPassword,
+        recentLoginMessage: 'Please try again.',
       );
+      _logger.info('AuthService', 'Password changed', {'uid': user.uid});
+    } finally {
+      // Success or not, the patient signs in again themselves: with the new
+      // password, or with the temporary one to try another new password.
+      await _signOutQuietly();
     }
-    _logger.info('AuthService', 'Password changed', {'uid': user.uid});
-    await _signOutQuietly();
   }
 
   /// Changes the password of the signed-in patient. Firebase wants a recent
@@ -246,6 +213,22 @@ class AuthService {
           firebaseErrorData(e), e, st);
       throw const AuthFailure('Could not check your password. Please try again.');
     }
+    await _updatePassword(
+      user,
+      newPassword,
+      recentLoginMessage: 'Please enter your current password again.',
+    );
+    _logger.info('AuthService', 'Password changed in app', {'uid': user.uid});
+  }
+
+  /// Sets [newPassword] on [user]. Throws [AuthFailure] with a message for
+  /// the form; [recentLoginMessage] is shown when Firebase wants a fresher
+  /// sign-in, which each caller explains differently.
+  Future<void> _updatePassword(
+    User user,
+    String newPassword, {
+    required String recentLoginMessage,
+  }) async {
     try {
       await user.updatePassword(newPassword);
     } on FirebaseAuthException catch (e, st) {
@@ -254,8 +237,7 @@ class AuthService {
       throw AuthFailure(switch (e.code) {
         'weak-password' =>
           'Choose a stronger password (at least $minPasswordLength characters).',
-        'requires-recent-login' =>
-          'Please enter your current password again.',
+        'requires-recent-login' => recentLoginMessage,
         'network-request-failed' => 'No internet connection.',
         _ => 'Could not change the password. Please try again.',
       });
@@ -266,9 +248,7 @@ class AuthService {
         'Could not change the password. Please try again.',
       );
     }
-    _logger.info('AuthService', 'Password changed in app', {'uid': user.uid});
   }
-
 
   Future<void> signOut() async {
     final uid = currentUid;
@@ -298,18 +278,3 @@ class AuthService {
 
 /// Firebase's minimum password length.
 const int minPasswordLength = 6;
-
-
-/// Turns what a patient types into the +country-code form Firebase
-/// needs, or null when it can't be a mobile number. Numbers without a
-/// country code are taken as Philippine (09171234567 -> +639171234567).
-String? toE164(String input) {
-  final cleaned = input.replaceAll(RegExp(r'[\s\-().]'), '');
-  if (RegExp(r'^\+\d{8,15}$').hasMatch(cleaned)) return cleaned;
-  if (RegExp(r'^09\d{9}$').hasMatch(cleaned)) {
-    return '+63${cleaned.substring(1)}';
-  }
-  if (RegExp(r'^639\d{9}$').hasMatch(cleaned)) return '+$cleaned';
-  if (RegExp(r'^9\d{9}$').hasMatch(cleaned)) return '+63$cleaned';
-  return null;
-}

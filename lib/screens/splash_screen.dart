@@ -222,7 +222,11 @@ class _SplashScreenState extends State<SplashScreen>
       textScaler: scaler,
       maxLines: 1,
     )..layout();
-    return painter.size;
+    final size = painter.size;
+    // TextPainter holds a native paragraph; free it now rather than waiting
+    // for the garbage collector (and the leak tracker's complaint).
+    painter.dispose();
+    return size;
   }
 
   @override

@@ -5,6 +5,7 @@ import 'package:intl/intl.dart' show DateFormat;
 import 'package:provider/provider.dart';
 
 import '../core/app_palette.dart';
+import '../core/diagnostic_logger.dart';
 import '../models/exercise_model.dart';
 import '../services/app_provider.dart';
 import '../services/prescription_service.dart';
@@ -25,6 +26,8 @@ class ExercisePage extends StatefulWidget {
 
 class _ExercisePageState extends State<ExercisePage> {
   static const Color primaryTeal = Color(0xFF23A8AA);
+  static const String _tag = 'ExercisePage';
+  final DiagnosticLogger _logger = DiagnosticLogger.I;
   static const Color lightTealBg = Color(0xFFE8F7F7);
 
   /// Pale teal for the background circles and count chip. The light pastel
@@ -46,15 +49,34 @@ class _ExercisePageState extends State<ExercisePage> {
   /// Last successfully loaded plan, for the checklist sheet.
   List<ExerciseConfig> _assigned = const [];
 
+  /// Loads the plan. Errors are rethrown so the FutureBuilder shows the
+  /// "Couldn't load your plan" message; PrescriptionService logs the
+  /// Firestore details, this logs what the page did with the result.
   Future<List<ExerciseConfig>> _loadAssignedExercises() async {
-    final list = await _prescriptions.loadAssignedExercises();
+    final List<ExerciseConfig> list;
+    try {
+      list = await _prescriptions.loadAssignedExercises();
+    } catch (e, st) {
+      _logger.warn(_tag, 'Plan failed to load; showing the retry message', null, e, st);
+      rethrow;
+    }
+    _logger.info(_tag, 'Plan shown', {'assigned': list.length});
     if (mounted) setState(() => _assigned = list);
     return list;
   }
 
+  /// Pull-to-refresh and the Refresh button. Never throws: a failed load is
+  /// already shown by the FutureBuilder, and an error escaping from here
+  /// (RefreshIndicator / onPressed don't catch) used to surface as an
+  /// uncaught async error every time the patient refreshed offline.
   Future<void> _refresh() async {
+    _logger.info(_tag, 'Refreshing the plan');
     setState(() => _exercisesFuture = _loadAssignedExercises());
-    await _exercisesFuture;
+    try {
+      await _exercisesFuture;
+    } catch (_) {
+      // Logged in _loadAssignedExercises; the page shows the message.
+    }
   }
 
   // How close the patient is to the prescribed sessions per week for this
@@ -600,13 +622,29 @@ class _AnimatedExerciseCardState extends State<AnimatedExerciseCard>
     }
   }
 
-  void _startExercise() {
-    Navigator.push(
-      context,
-      MaterialPageRoute(
-        builder: (context) => PoseDetectorScreen(selectedExercise: widget.config),
-      ),
-    );
+  /// True while the exercise screen pushed by this card is open. A quick
+  /// double tap used to push two camera screens, which then fought over the
+  /// camera.
+  bool _opening = false;
+
+  Future<void> _startExercise() async {
+    if (_opening) return;
+    _opening = true;
+    DiagnosticLogger.I.info('ExercisePage', 'Exercise opened', {
+      'type': widget.config.type.name,
+      'inPlan': widget.progress != null,
+    });
+    try {
+      await Navigator.push(
+        context,
+        MaterialPageRoute(
+          builder: (context) =>
+              PoseDetectorScreen(selectedExercise: widget.config),
+        ),
+      );
+    } finally {
+      _opening = false;
+    }
   }
 
   void _showDemo() => ExerciseDemoSheet.show(context, widget.config);

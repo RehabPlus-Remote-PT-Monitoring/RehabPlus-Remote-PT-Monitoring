@@ -1,6 +1,5 @@
 import 'package:firebase_auth/firebase_auth.dart';
-import 'package:flutter/material.dart';
-import 'package:provider/provider.dart';
+import 'package:flutter/foundation.dart';
 
 import '../core/diagnostic_logger.dart';
 import '../models/session.dart';
@@ -238,23 +237,32 @@ class AppProvider extends ChangeNotifier {
   /// The default sign-out steps. Push and reminder cleanup are best-effort:
   /// their failure must never stop the actual sign-out.
   static Future<void> _signOutOfServices() async {
-    final logger = DiagnosticLogger.I;
-    // Before auth sign-out: removing the device token needs the user's auth.
-    await PushService.I.unregister(); // never throws
+    // Both before auth sign-out (removing the device token needs the user's
+    // auth) and independent of each other, so they run in parallel: the
+    // token delete is a network round trip, the reminder is local.
+    await Future.wait([
+      PushService.I.unregister(), // never throws
+      _cancelReminderQuietly(),
+    ]);
+    // The PIN stays saved for this patient (it comes back when they sign in
+    // again) but is dropped from memory so the next person doesn't get it.
+    AppLockService.I.forget();
+    await AuthService.I.signOut();
+  }
+
+  /// Turns the phone's daily reminder off (it belongs to this patient).
+  /// Never throws: a failure is logged and sign-out continues.
+  static Future<void> _cancelReminderQuietly() async {
     try {
       if (AppSettings.I.reminderEnabled) {
         await ReminderService.I.cancel();
         await AppSettings.I.setReminderEnabled(false);
       }
     } catch (e, st) {
-      logger.warn('AppProvider', 'Sign-out step failed', {
+      DiagnosticLogger.I.warn('AppProvider', 'Sign-out step failed', {
         'step': 'reminder',
       }, e, st);
     }
-    // The PIN stays saved for this patient (it comes back when they sign in
-    // again) but is dropped from memory so the next person doesn't get it.
-    AppLockService.I.forget();
-    await AuthService.I.signOut();
   }
 
   /// True (and logged) when a result started under [epoch] for [uid] no
@@ -302,9 +310,4 @@ class AppProvider extends ChangeNotifier {
     _epoch++;
     super.dispose();
   }
-}
-
-/// Extension for easy access in widgets
-extension AppProviderExtensions on BuildContext {
-  AppProvider get appProvider => read<AppProvider>();
 }

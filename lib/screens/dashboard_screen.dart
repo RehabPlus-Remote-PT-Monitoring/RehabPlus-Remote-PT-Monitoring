@@ -100,10 +100,11 @@ class _DashboardScreenState extends State<DashboardScreen>
     ).animate(CurvedAnimation(parent: _cardsCtrl, curve: Curves.easeOutCubic));
 
     _headerCtrl.forward();
-    Future.delayed(
-      const Duration(milliseconds: 250),
-      () => _cardsCtrl.forward(),
-    );
+    // Guarded: leaving Home within 250 ms disposes the controller, and
+    // forward() on a disposed controller throws.
+    Future.delayed(const Duration(milliseconds: 250), () {
+      if (mounted) _cardsCtrl.forward();
+    });
 
     WidgetsBinding.instance.addObserver(this);
     _scheduleClockRefresh();
@@ -116,16 +117,32 @@ class _DashboardScreenState extends State<DashboardScreen>
   // ── THE THERAPIST'S PLAN (for "followed X% of your plan") ───────────────────
   List<Prescription> _plan = const [];
 
+  /// Bumped by every [_loadPlan] call. Resuming the app twice quickly starts
+  /// two loads; only the newest may update [_plan], so a slow older response
+  /// can't overwrite a newer plan.
+  int _planLoadGeneration = 0;
+
   Future<void> _loadPlan() async {
+    final generation = ++_planLoadGeneration;
     try {
       final assigned = await PrescriptionService().loadAssignedExercises();
       if (!mounted) return;
-      setState(() {
-        _plan = [
-          for (final e in assigned)
-            if (e.prescription != null) e.prescription!,
-        ];
+      if (generation != _planLoadGeneration) {
+        DiagnosticLogger.I.verbose('Dashboard', 'Stale plan load ignored', {
+          'generation': generation,
+          'latest': _planLoadGeneration,
+        });
+        return;
+      }
+      final plan = [
+        for (final e in assigned)
+          if (e.prescription != null) e.prescription!,
+      ];
+      DiagnosticLogger.I.info('Dashboard', 'Plan loaded', {
+        'assigned': assigned.length,
+        'prescriptions': plan.length,
       });
+      setState(() => _plan = plan);
     } catch (e, st) {
       // Offline or not signed in: the report falls back to active days.
       DiagnosticLogger.I.warn(

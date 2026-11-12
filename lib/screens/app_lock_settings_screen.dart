@@ -102,6 +102,9 @@ class _AppLockSettingsScreenState extends State<AppLockSettingsScreen> {
 
   Future<void> _changePin() => _guarded(() async {
     if (!await _confirmCurrentPin()) return;
+    // The PIN screen was open: this screen may have been closed meanwhile,
+    // and the next push needs a mounted context.
+    if (!mounted) return;
     if (await _chooseNewPin(changing: true)) _snack('PIN changed.');
   });
 

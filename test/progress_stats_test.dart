@@ -16,7 +16,8 @@ void main() {
   // Friday 16 Oct 2026, 3 pm.
   final now = DateTime(2026, 10, 16, 15);
 
-  group('currentWeek', () {
+  // The week tracker and the stat cards come from ProgressStats.overview.
+  group('overview week', () {
     test('marks days with a session, Monday first', () {
       final sessions = [
         _session(DateTime(2026, 10, 12, 8)), // Mon
@@ -24,7 +25,7 @@ void main() {
         _session(DateTime(2026, 10, 15, 9)), // Thu
         _session(DateTime(2026, 10, 11, 9)), // previous Sunday: excluded
       ];
-      expect(ProgressStats.currentWeek(sessions, now), [
+      expect(ProgressStats.overview(sessions, now).week, [
         true,
         false,
         false,
@@ -36,11 +37,11 @@ void main() {
     });
 
     test('is all false with no sessions', () {
-      expect(ProgressStats.currentWeek([], now), List.filled(7, false));
+      expect(ProgressStats.overview([], now).week, List.filled(7, false));
     });
   });
 
-  group('period', () {
+  group('overview periods', () {
     final sessions = [
       _session(DateTime(2026, 10, 16, 9), minutes: 12), // today
       _session(DateTime(2026, 10, 16, 14), minutes: 8), // today
@@ -56,14 +57,14 @@ void main() {
     ];
 
     test('last 7 days includes today and the 6 days before', () {
-      final p = ProgressStats.period(sessions, now, days: 7);
+      final p = ProgressStats.overview(sessions, now).periodFor(7).current;
       expect(p.sessions, 3);
       expect(p.activeDays, 2);
       expect(p.time, const Duration(minutes: 35));
     });
 
     test('previous 7 days for trends', () {
-      final p = ProgressStats.period(sessions, now, days: 7, periodsAgo: 1);
+      final p = ProgressStats.overview(sessions, now).periodFor(7).previous;
       expect(p.sessions, 2);
       expect(p.activeDays, 2);
       expect(p.time, const Duration(minutes: 25));
@@ -78,13 +79,13 @@ void main() {
         targetReps: 10,
         targetSets: 1,
       );
-      final p = ProgressStats.period([open], now, days: 7);
+      final p = ProgressStats.overview([open], now).periodFor(7).current;
       expect(p.sessions, 1);
       expect(p.time, Duration.zero);
     });
   });
 
-  group('checklist', () {
+  group('checklist activity', () {
     final sessions = [
       _session(DateTime(2026, 10, 16, 9)), // today (Fri)
       _session(DateTime(2026, 10, 13, 9)), // Tue this week
@@ -100,21 +101,22 @@ void main() {
       ),
     ];
 
-    test('doneOn counts only completed sessions that day', () {
-      expect(ProgressStats.doneOn(sessions, 'kneeExtension', now), isTrue);
-      expect(ProgressStats.doneOn(sessions, 'bicepCurl', now), isFalse);
+    test('done today counts only completed sessions that day', () {
+      final activity = ProgressStats.activity(sessions, now);
+      expect(activity.isDoneToday('kneeExtension'), isTrue);
+      expect(activity.isDoneToday('bicepCurl'), isFalse);
+      // Wednesday 14 Oct had no session.
       expect(
-        ProgressStats.doneOn(sessions, 'kneeExtension', DateTime(2026, 10, 14)),
+        ProgressStats.activity(sessions, DateTime(2026, 10, 14, 12))
+            .isDoneToday('kneeExtension'),
         isFalse,
       );
     });
 
-    test('completedThisWeek starts on Monday', () {
-      expect(
-        ProgressStats.completedThisWeek(sessions, 'kneeExtension', now),
-        2,
-      );
-      expect(ProgressStats.completedThisWeek(sessions, 'bicepCurl', now), 0);
+    test('this week starts on Monday', () {
+      final activity = ProgressStats.activity(sessions, now);
+      expect(activity.weekCount('kneeExtension'), 2);
+      expect(activity.weekCount('bicepCurl'), 0);
     });
   });
 

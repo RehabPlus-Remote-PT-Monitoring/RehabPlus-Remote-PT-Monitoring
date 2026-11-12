@@ -186,11 +186,19 @@ class ProgressReport {
     }
 
     // ── Totals ──────────────────────────────────────────────────────────
+    // Each session's form score and pain are read once here and reused by
+    // the period average, the chart buckets and the per-exercise rows
+    // (safeFormScore walks every rep score, so reading it three times per
+    // session tripled the cost of the longest step).
     var time = Duration.zero;
     var repsDone = 0;
     var repsTarget = 0;
     var endedEarly = 0;
     final activeDayOffsets = <int>{};
+    final curForm = <double?>[]; // parallel to `cur`
+    final curPain = <double?>[]; // parallel to `cur`
+    final periodForm = _Mean();
+    final periodPain = _Mean();
     for (var i = 0; i < cur.length; i++) {
       final s = cur[i];
       time += s.countedDuration;
@@ -198,6 +206,12 @@ class ProgressReport {
       repsTarget += s.safeTargetReps;
       if (s.endedEarly) endedEarly++;
       activeDayOffsets.add(curDaysAgo[i]);
+      final form = s.safeFormScore;
+      final pain = s.safePain;
+      curForm.add(form);
+      curPain.add(pain);
+      periodForm.addNullable(form);
+      periodPain.addNullable(pain);
     }
 
     // ── Chart buckets, oldest first, the last one ending today ──────────
@@ -213,8 +227,8 @@ class ProgressReport {
       final b = curDaysAgo[i] ~/ bucket;
       if (b >= count) continue; // can't happen; defensive
       bucketSessions[b]++;
-      bucketForm[b].addNullable(cur[i].safeFormScore);
-      bucketPain[b].addNullable(cur[i].safePain);
+      bucketForm[b].addNullable(curForm[i]);
+      bucketPain[b].addNullable(curPain[i]);
     }
     final points = <ProgressPoint>[
       for (var b = count - 1; b >= 0; b--)
@@ -229,8 +243,11 @@ class ProgressReport {
 
     // ── Per exercise, most practised first ──────────────────────────────
     final byName = <String, _ExerciseTotals>{};
-    for (final s in cur) {
-      byName.putIfAbsent(s.exerciseName, _ExerciseTotals.new).add(s);
+    for (var i = 0; i < cur.length; i++) {
+      final s = cur[i];
+      byName
+          .putIfAbsent(s.exerciseName, _ExerciseTotals.new)
+          .add(s.startTime, form: curForm[i], pain: curPain[i]);
     }
     final exercises = [
       for (final e in byName.entries)
@@ -252,9 +269,9 @@ class ProgressReport {
     // ── The therapist's plan ────────────────────────────────────────────
     final (planned, plannedDone) = _plan(prescriptions, cur, start, today);
 
-    final formScore = _form(cur);
+    final formScore = periodForm.value;
     final previousFormScore = _form(prev);
-    final pain = _pain(cur);
+    final pain = periodPain.value;
     final previousPain = _pain(prev);
 
     final (status, findings) = _assess(
@@ -541,11 +558,13 @@ class _ExerciseTotals {
   final form = _Mean();
   final pain = _Mean();
 
-  void add(ExerciseSession s) {
+  /// [form] and [pain] are the session's already-sanitised values
+  /// (safeFormScore / safePain), passed in so they are computed only once.
+  void add(DateTime startTime, {required double? form, required double? pain}) {
     sessions++;
     final last = lastDone;
-    if (last == null || s.startTime.isAfter(last)) lastDone = s.startTime;
-    form.addNullable(s.safeFormScore);
-    pain.addNullable(s.safePain);
+    if (last == null || startTime.isAfter(last)) lastDone = startTime;
+    this.form.addNullable(form);
+    this.pain.addNullable(pain);
   }
 }

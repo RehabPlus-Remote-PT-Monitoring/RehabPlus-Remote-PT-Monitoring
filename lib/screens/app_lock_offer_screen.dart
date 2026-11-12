@@ -121,12 +121,28 @@ class _AppLockOfferScreenState extends State<AppLockOfferScreen> {
 
   Future<void> _notNow() async {
     if (_busy) return;
+    // Busy until we leave: a double tap used to run this twice and push the
+    // dashboard twice.
+    setState(() => _busy = true);
+    _logger.info(_tag, 'Offer declined (not now)');
+    // Never throws (a storage failure is logged by the service); the worst
+    // case is that the offer shows again at the next sign-in.
     await _lock.dismissSetupOffer(widget.uid);
     _finish(null);
   }
 
+  /// True once [_finish] has replaced this screen, so a second tap (Skip is
+  /// not covered by [_busy]) can't push the dashboard twice.
+  bool _left = false;
+
   void _finish(String? message) {
-    if (!mounted) return;
+    if (!mounted || _left) return;
+    _left = true;
+    _logger.info(_tag, 'Leaving the offer', {
+      'step': _step.name,
+      'lockOn': _lock.isEnabled,
+      'biometricsOn': _lock.biometricsEnabled,
+    });
     final messenger = ScaffoldMessenger.of(context);
     Navigator.of(context).pushReplacement(
       PageRouteBuilder<void>(

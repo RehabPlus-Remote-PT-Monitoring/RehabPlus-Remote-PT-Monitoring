@@ -13,6 +13,7 @@ import '../core/diagnostic_logger.dart';
 import '../models/chat.dart';
 import '../services/app_provider.dart';
 import '../services/chat_service.dart';
+import '../services/progress_stats.dart' show CalendarDays;
 import '../core/responsive.dart';
 
 const Color _primaryTeal = Color(0xFF23A8AA);
@@ -21,7 +22,23 @@ const String _tag = 'Messages';
 /// Firestore rules limit a message to 1000 characters. Dart's String.length
 /// counts UTF-16 units, which is never less than the rules' count, so a
 /// message that passes this check always passes the rule.
-const int _maxMessageLength = 1000;
+const int _maxMessageLength = ChatMessage.maxTextLength;
+
+/// Time label for a thread's last message: the time today, "Yesterday",
+/// the weekday within a week, otherwise the date.
+///
+/// Days are counted as calendar days ([CalendarDays.between]), not as
+/// 24-hour blocks: across a daylight-saving change "yesterday" is only 23
+/// hours before midnight, and `Duration.inDays` used to call it 0 days,
+/// so it showed a weekday instead of "Yesterday".
+@visibleForTesting
+String threadTimeLabel(DateTime t, DateTime now) {
+  final daysAgo = CalendarDays.between(t, now);
+  if (daysAgo == 0) return DateFormat.jm().format(t);
+  if (daysAgo == 1) return 'Yesterday';
+  if (daysAgo < 7) return DateFormat.E().format(t);
+  return DateFormat.MMMd().format(t);
+}
 
 /// Keeps only what a phone dialer understands (digits, and + at the start),
 /// so a badly entered clinic number can't smuggle other characters into the
@@ -347,16 +364,6 @@ class _ThreadTileState extends State<_ThreadTile> {
     }
   }
 
-  String _time(DateTime t) {
-    final now = DateTime.now();
-    final today = DateUtils.dateOnly(now);
-    final day = DateUtils.dateOnly(t);
-    if (day == today) return DateFormat.jm().format(t);
-    if (today.difference(day).inDays == 1) return 'Yesterday';
-    if (today.difference(day).inDays < 7) return DateFormat.E().format(t);
-    return DateFormat.MMMd().format(t);
-  }
-
   @override
   Widget build(BuildContext context) {
     final thread = widget.thread;
@@ -421,7 +428,7 @@ class _ThreadTileState extends State<_ThreadTile> {
             children: [
               if (s.lastMessageAt != null)
                 Text(
-                  _time(s.lastMessageAt!),
+                  threadTimeLabel(s.lastMessageAt!, DateTime.now()),
                   style: TextStyle(fontSize: 11, color: palette.textMuted),
                 ),
               const SizedBox(height: 6),
@@ -515,7 +522,20 @@ class _ChatDetailScreenState extends State<ChatDetailScreen> {
                   'thread': thread,
                   'unread': s.unreadForPatient,
                 });
-                _chat.markRead(widget.thread);
+                try {
+                  _chat.markRead(widget.thread);
+                } catch (e, st) {
+                  // Throws synchronously when signed out (a cached snapshot
+                  // can still arrive mid sign-out). Inside a stream callback
+                  // that would be an uncaught error; the badge simply stays.
+                  _logger.warn(
+                    _tag,
+                    'Mark read failed',
+                    {'thread': thread},
+                    e,
+                    st,
+                  );
+                }
               }
             },
             // Without this a listener error would be an uncaught error.
@@ -798,7 +818,7 @@ class _ChatDetailScreenState extends State<ChatDetailScreen> {
                             controller: _textController,
                             minLines: 1,
                             maxLines: 4,
-                            maxLength: 1000,
+                            maxLength: _maxMessageLength,
                             textCapitalization: TextCapitalization.sentences,
                             style: TextStyle(color: palette.textPrimary),
                             decoration: InputDecoration(

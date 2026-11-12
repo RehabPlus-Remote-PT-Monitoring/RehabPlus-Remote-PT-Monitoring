@@ -20,12 +20,42 @@ class StartupErrorScreen extends StatefulWidget {
 class _StartupErrorScreenState extends State<StartupErrorScreen> {
   bool _retrying = false;
 
+  @override
+  void initState() {
+    super.initState();
+    // main.dart logs why startup failed; this marks what the patient sees.
+    DiagnosticLogger.I.info('Startup', 'Startup error screen shown');
+  }
+
   Future<void> _retry() async {
+    // The button is disabled while retrying; this also covers a fast double
+    // tap that lands before the rebuild.
+    if (_retrying) return;
     setState(() => _retrying = true);
-    DiagnosticLogger.I.info('Startup', 'Retrying startup');
-    final next = await widget.onRetry();
+    final logger = DiagnosticLogger.I;
+    final stopwatch = Stopwatch()..start();
+    logger.info('Startup', 'Retrying startup');
+    Widget next;
+    try {
+      next = await widget.onRetry();
+    } catch (e, st) {
+      // onRetry normally reports failure by returning another error screen;
+      // if it throws instead, stay here with the button usable again rather
+      // than spinning forever.
+      logger.error('Startup', 'Startup retry crashed', {
+        'ms': stopwatch.elapsedMilliseconds,
+      }, e, st);
+      if (mounted) setState(() => _retrying = false);
+      return;
+    }
     if (!mounted) return;
-    if (next is StartupErrorScreen) {
+    final failedAgain = next is StartupErrorScreen;
+    logger.info('Startup', 'Startup retry finished', {
+      'ms': stopwatch.elapsedMilliseconds,
+      'ok': !failedAgain,
+      'next': next.runtimeType.toString(),
+    });
+    if (failedAgain) {
       // Failed again: stay here and let the patient retry once more.
       setState(() => _retrying = false);
       return;

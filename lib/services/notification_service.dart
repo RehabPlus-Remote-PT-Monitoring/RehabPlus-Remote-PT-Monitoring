@@ -14,7 +14,8 @@ import 'firestore_diagnostics.dart';
 ///     stopped" {docs, fromCache, ms}
 ///   "Malformed notification skipped" {id, reason}
 ///   "Mark read synced / sync failed" {id}
-///   "Mark all read" {count, batches}; "Mark all read synced / failed"
+///   "Mark all read" {count, batches}; "Mark all read synced / failed";
+///     "Mark all read dropped" {reason} (signed out during the query)
 ///   "Session completed entry synced / sync failed" {sessionId}
 class NotificationService {
   FirebaseFirestore get _db => FirebaseFirestore.instance;
@@ -97,6 +98,14 @@ class NotificationService {
       () => col.where('read', isEqualTo: false).get(),
     );
     if (unread.docs.isEmpty) return;
+    // Signed out (or another patient signed in) during the query: these are
+    // the previous patient's entries, and the rules would refuse the writes.
+    if (_col?.path != col.path) {
+      _logger.info('NotificationService', 'Mark all read dropped', {
+        'reason': 'user changed',
+      });
+      return;
+    }
 
     var batches = 0;
     for (var start = 0; start < unread.docs.length; start += _maxBatchWrites) {
