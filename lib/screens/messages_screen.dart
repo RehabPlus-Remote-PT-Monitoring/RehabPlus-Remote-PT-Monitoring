@@ -59,7 +59,7 @@ String _threadTitle(BuildContext context, ChatThread thread) {
 
 String _threadSubtitle(ChatThread thread) => switch (thread) {
   ChatThread.therapist => 'Questions about your exercises or progress',
-  ChatThread.clinic => 'Appointments, home visits and app support',
+  ChatThread.clinic => 'Appointments and app support',
 };
 
 /// Background of the grey contact avatars: grey 300 in light mode (white
@@ -495,8 +495,6 @@ class _ChatDetailScreenState extends State<ChatDetailScreen> {
   static const _clinicPrompts = {
     'Book clinic visit':
         "I'd like to book a clinic visit. My preferred date and time: ",
-    'Request home visit':
-        "I'd like to request a home visit. My address and preferred date: ",
     'Report a problem': "I'd like to report a problem with the app: ",
   };
 
@@ -702,7 +700,7 @@ class _ChatDetailScreenState extends State<ChatDetailScreen> {
                         padding: const EdgeInsets.all(32),
                         child: Text(
                           thread == ChatThread.clinic
-                              ? 'Message the clinic to book a visit, request a home visit, or get help with the app.'
+                              ? 'Message the clinic to book a visit or get help with the app.'
                               : 'Send your therapist a message about your exercises or how you feel.',
                           textAlign: TextAlign.center,
                           style: const TextStyle(
