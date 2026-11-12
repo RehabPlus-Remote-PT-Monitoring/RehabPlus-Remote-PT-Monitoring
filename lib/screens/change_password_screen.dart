@@ -6,6 +6,7 @@ import '../core/diagnostic_logger.dart';
 import '../core/responsive.dart';
 import '../services/auth_service.dart';
 import 'forgot_password_screen.dart';
+import '../widgets/header_column.dart';
 
 /// Settings > Change password, in the style of Facebook's: the current
 /// password, the new one twice, a strength bar, and a link for people who
@@ -139,11 +140,12 @@ class _ChangePasswordScreenState extends State<ChangePasswordScreen> {
     final canSave = !_saving && _problem() == null;
     return Scaffold(
       backgroundColor: palette.background,
-      body: Column(
+      body: HeaderColumn(
         children: [
           _header(context),
           Expanded(
             child: ListView(
+              clipBehavior: Clip.none, // HeaderColumn: scrolls under the header corners
               padding: readablePadding(
                 context,
                 const EdgeInsets.fromLTRB(16, 20, 16, 24),

@@ -13,6 +13,7 @@ import '../core/responsive.dart';
 import 'app_lock_offer_screen.dart';
 import 'legal_document_screen.dart';
 import 'login_page.dart';
+import '../widgets/header_column.dart';
 
 /// Shown after sign-in until the patient accepts the current Terms and
 /// Conditions and Privacy Policy (and again whenever [LegalInfo.version]
@@ -181,11 +182,12 @@ class _ConsentScreenState extends State<ConsentScreen> {
       canPop: false,
       child: Scaffold(
         backgroundColor: palette.background,
-        body: Column(
+        body: HeaderColumn(
           children: [
             _header(),
             Expanded(
               child: ListView(
+                clipBehavior: Clip.none, // HeaderColumn: scrolls under the header corners
                 padding: readablePadding(context, const EdgeInsets.fromLTRB(16, 20, 16, 16)),
                 children: [
                   _card(
@@ -278,8 +280,13 @@ class _ConsentScreenState extends State<ConsentScreen> {
                 ],
               ),
             ),
-            ReadableWidth(
-              child: _buttons(),
+            // Opaque, because the list above paints past its bottom edge
+            // (clipBehavior: Clip.none, for the header corners).
+            ColoredBox(
+              color: palette.background,
+              child: ReadableWidth(
+                child: _buttons(),
+              ),
             ),
           ],
         ),

@@ -6,6 +6,7 @@ import 'package:chewie/chewie.dart';
 import '../core/app_palette.dart';
 import '../core/diagnostic_logger.dart';
 import '../core/responsive.dart';
+import '../widgets/header_column.dart';
 
 const String _tag = 'Demo';
 
@@ -154,7 +155,7 @@ class _DemoScreenState extends State<DemoScreen> with TickerProviderStateMixin {
   Widget build(BuildContext context) {
     return Scaffold(
       backgroundColor: context.palette.background,
-      body: Column(
+      body: HeaderColumn(
         children: [
           SlideTransition(
             position: _headerSlide,
@@ -169,6 +170,7 @@ class _DemoScreenState extends State<DemoScreen> with TickerProviderStateMixin {
               child: FadeTransition(
                 opacity: _contentFade,
                 child: SingleChildScrollView(
+                  clipBehavior: Clip.none, // HeaderColumn: scrolls under the header corners
                   padding: readablePadding(
                     context,
                     const EdgeInsets.fromLTRB(16, 20, 16, 24),

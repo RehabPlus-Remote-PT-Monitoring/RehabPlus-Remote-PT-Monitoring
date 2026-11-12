@@ -11,6 +11,7 @@ import '../core/diagnostic_logger.dart';
 import '../services/profile_service.dart';
 import '../widgets/profile_avatar.dart';
 import '../core/responsive.dart';
+import '../widgets/header_column.dart';
 
 class ProfileData {
   final String name;
@@ -313,7 +314,7 @@ class _EditProfileScreenState extends State<EditProfileScreen>
   Widget build(BuildContext context) {
     return Scaffold(
       backgroundColor: context.palette.background,
-      body: Column(
+      body: HeaderColumn(
         children: [
           _buildHeader(context),
           Expanded(
@@ -324,6 +325,7 @@ class _EditProfileScreenState extends State<EditProfileScreen>
                 child: Form(
                   key: _formKey,
                   child: SingleChildScrollView(
+                    clipBehavior: Clip.none, // HeaderColumn: scrolls under the header corners
                     padding: readablePadding(context, const EdgeInsets.fromLTRB(16, 20, 16, 32)),
                     child: Column(
                       crossAxisAlignment: CrossAxisAlignment.start,

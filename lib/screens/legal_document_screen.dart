@@ -5,6 +5,7 @@ import '../core/app_palette.dart';
 import '../core/diagnostic_logger.dart';
 import '../legal/legal_info.dart';
 import '../core/responsive.dart';
+import '../widgets/header_column.dart';
 
 /// Shows one of the legal documents in assets/legal/ (Terms and Conditions or
 /// Privacy Policy), with the clinic details filled in.
@@ -80,7 +81,7 @@ class _LegalDocumentScreenState extends State<LegalDocumentScreen> {
   Widget build(BuildContext context) {
     return Scaffold(
       backgroundColor: context.palette.background,
-      body: Column(
+      body: HeaderColumn(
         children: [
           _header(context),
           Expanded(
@@ -96,6 +97,7 @@ class _LegalDocumentScreenState extends State<LegalDocumentScreen> {
                   return const Center(child: CircularProgressIndicator());
                 }
                 return SingleChildScrollView(
+                  clipBehavior: Clip.none, // HeaderColumn: scrolls under the header corners
                   padding: readablePadding(context, const EdgeInsets.fromLTRB(20, 20, 20, 32)),
                   child: SelectionArea(
                     child: LegalText(snap.data!),

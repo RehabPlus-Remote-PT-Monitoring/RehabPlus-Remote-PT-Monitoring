@@ -7,6 +7,7 @@ import '../services/app_provider.dart';
 import '../widgets/profile_avatar.dart';
 import '../core/responsive.dart';
 import 'edit_profile_screen.dart';
+import '../widgets/header_column.dart';
 
 /// Privacy & Legal > Account Info: the patient's personal information, with a
 /// button to update it (name, phone and date of birth; the email is the login
@@ -76,11 +77,12 @@ class _AccountInfoScreenState extends State<AccountInfoScreen> {
     final palette = context.palette;
     return Scaffold(
       backgroundColor: palette.background,
-      body: Column(
+      body: HeaderColumn(
         children: [
           _header(context),
           Expanded(
             child: ListView(
+              clipBehavior: Clip.none, // HeaderColumn: scrolls under the header corners
               padding: readablePadding(context, const EdgeInsets.fromLTRB(16, 20, 16, 24)),
               children: [
                 Center(child: ProfileAvatar(photo: profile.photo, size: 88)),

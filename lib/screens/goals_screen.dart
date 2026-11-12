@@ -8,6 +8,7 @@ import '../core/diagnostic_logger.dart';
 import '../models/therapy_goal.dart';
 import '../services/goal_service.dart';
 import '../core/responsive.dart';
+import '../widgets/header_column.dart';
 
 /// Profile > My Goals: the rehab goals the therapist set on the clinic
 /// dashboard, with their progress. Read-only; the patient is told to ask
@@ -39,7 +40,7 @@ class _GoalsScreenState extends State<GoalsScreen> {
     final palette = context.palette;
     return Scaffold(
       backgroundColor: palette.background,
-      body: Column(
+      body: HeaderColumn(
         children: [
           _header(context),
           Expanded(
@@ -78,6 +79,7 @@ class _GoalsScreenState extends State<GoalsScreen> {
     final active = goals.where((g) => g.status == GoalStatus.active).length;
     final achieved = goals.where((g) => g.status == GoalStatus.achieved).length;
     return ListView(
+      clipBehavior: Clip.none, // HeaderColumn: scrolls under the header corners
       padding: readablePadding(context, const EdgeInsets.fromLTRB(16, 20, 16, 24)),
       children: [
         Text(

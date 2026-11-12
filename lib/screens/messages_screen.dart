@@ -592,6 +592,47 @@ class _ChatDetailScreenState extends State<ChatDetailScreen> {
     _textController.clear();
   }
 
+  /// One quick-start chip under the clinic chat (e.g. "Book clinic visit").
+  /// Tapping it fills the message box with [prompt]. The label shrinks with
+  /// "…" rather than wrapping, so the chips always stay on one row.
+  Widget _clinicPromptChip(String label, String prompt) {
+    final palette = context.palette;
+    final isProblem = label.contains('problem');
+    return GestureDetector(
+      onTap: () => _usePrompt(label, prompt),
+      child: Container(
+        padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+        decoration: BoxDecoration(
+          color: palette.surface.withValues(alpha: 0.9),
+          borderRadius: BorderRadius.circular(12),
+        ),
+        child: Row(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Icon(
+              isProblem ? Icons.bug_report : Icons.calendar_today,
+              size: 14,
+              color: isProblem ? Colors.redAccent : _primaryTeal,
+            ),
+            const SizedBox(width: 4),
+            Flexible(
+              child: Text(
+                label,
+                maxLines: 1,
+                overflow: TextOverflow.ellipsis,
+                style: TextStyle(
+                  fontSize: 11,
+                  fontWeight: FontWeight.bold,
+                  color: palette.textPrimary,
+                ),
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
   void _usePrompt(String label, String prompt) {
     _logger.info(_tag, 'Prompt chip used', {'prompt': label});
     _textController
@@ -748,49 +789,17 @@ class _ChatDetailScreenState extends State<ChatDetailScreen> {
                     horizontal: 12,
                     vertical: 6,
                   ),
-                  child: Wrap(
-                    spacing: 8,
-                    runSpacing: 6,
-                    children: _clinicPrompts.entries.map((e) {
-                      return GestureDetector(
-                        onTap: () => _usePrompt(e.key, e.value),
-                        child: Container(
-                          padding: const EdgeInsets.symmetric(
-                            horizontal: 12,
-                            vertical: 6,
-                          ),
-                          decoration: BoxDecoration(
-                            color: palette.surface.withValues(alpha: 0.9),
-                            borderRadius: BorderRadius.circular(12),
-                          ),
-                          child: Row(
-                            mainAxisSize: MainAxisSize.min,
-                            children: [
-                              Icon(
-                                e.key.contains('problem')
-                                    ? Icons.bug_report
-                                    : e.key.contains('home')
-                                    ? Icons.home_outlined
-                                    : Icons.calendar_today,
-                                size: 14,
-                                color: e.key.contains('problem')
-                                    ? Colors.redAccent
-                                    : _primaryTeal,
-                              ),
-                              const SizedBox(width: 4),
-                              Text(
-                                e.key,
-                                style: TextStyle(
-                                  fontSize: 11,
-                                  fontWeight: FontWeight.bold,
-                                  color: palette.textPrimary,
-                                ),
-                              ),
-                            ],
-                          ),
-                        ),
-                      );
-                    }).toList(),
+                  // One row, side by side: each chip shrinks (text ends in
+                  // "…") on very narrow screens instead of wrapping onto a
+                  // second line.
+                  child: Row(
+                    children: [
+                      for (final e in _clinicPrompts.entries) ...[
+                        if (e.key != _clinicPrompts.keys.first)
+                          const SizedBox(width: 8),
+                        Flexible(child: _clinicPromptChip(e.key, e.value)),
+                      ],
+                    ],
                   ),
                 ),
               ),

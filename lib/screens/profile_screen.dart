@@ -16,6 +16,7 @@ import 'settings_screen.dart';
 import '../widgets/profile_avatar.dart';
 import '../core/responsive.dart';
 import '../core/tab_bar_clearance.dart';
+import '../widgets/header_column.dart';
 
 class ProfileScreen extends StatefulWidget {
   const ProfileScreen({super.key});
@@ -113,7 +114,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
           // Pulling the cards down shows the spinning refresh circle (as on
           // the Exercises tab) instead of dragging the whole page, header
           // included, down with the finger.
-          body: Column(
+          body: HeaderColumn(
             children: [
               _buildHeader(),
               Expanded(
@@ -121,6 +122,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
                   color: primaryTeal,
                   onRefresh: _refresh,
                   child: SingleChildScrollView(
+                    clipBehavior: Clip.none, // HeaderColumn: scrolls under the header corners
                     // Room under Sign Out for the bottom bar.
                     padding: withTabBarClearance(context, EdgeInsets.zero),
                     // Always scrollable, so the pull works even when the
