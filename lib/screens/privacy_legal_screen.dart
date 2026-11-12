@@ -7,6 +7,7 @@ import '../core/responsive.dart';
 import 'account_info_screen.dart';
 import 'legal_document_screen.dart';
 import '../ios/brand_colors.dart';
+import '../widgets/header_column.dart';
 
 /// Profile > Privacy & Legal: the patient's account information, the Terms
 /// and Conditions and the Privacy Policy.
@@ -38,11 +39,12 @@ class _PrivacyLegalScreenState extends State<PrivacyLegalScreen> {
     final palette = context.palette;
     return Scaffold(
       backgroundColor: palette.background,
-      body: Column(
+      body: HeaderColumn(
         children: [
           _header(context),
           Expanded(
             child: ListView(
+              clipBehavior: Clip.none, // HeaderColumn: scrolls under the header corners
               padding: readablePadding(context, const EdgeInsets.fromLTRB(16, 20, 16, 24)),
               children: [
                 Container(

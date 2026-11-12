@@ -144,7 +144,7 @@ an older or hand-made document can't break a page.
 ### `patients/{uid}/threads/{threadId}`: conversation summary
 
 Each patient has two conversations: `threadId` is **`therapist`** (their
-assigned therapist) or **`clinic`** (front desk: clinic visits, home-visit
+assigned therapist) or **`clinic`** (front desk: clinic visits,
 requests, app problems). The doc is created on the first message.
 
 | Field | Type | Notes |
@@ -176,7 +176,7 @@ Messages are never edited or deleted.
 
 To list conversations needing a reply, query the `threads` collection group
 for `unreadForStaff > 0`. The first time, Firestore returns an error with a
-link to create the collection-group index this needs. Open it once. Appointment and home-visit requests arrive as
+link to create the collection-group index this needs. Open it once. Appointment and other requests arrive as
 messages in the `clinic` thread.
 
 ### Clinical records: assessments and notes (clinic-only), goals (patient can read)

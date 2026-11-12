@@ -32,6 +32,7 @@ import 'progress_report_screen.dart';
 import 'goals_screen.dart';
 import '../ios/app_controls.dart';
 import '../ios/brand_colors.dart';
+import '../widgets/header_column.dart';
 
 class DashboardScreen extends StatefulWidget {
   const DashboardScreen({super.key});
@@ -230,7 +231,7 @@ class _DashboardScreenState extends State<DashboardScreen>
       prescriptions: _plan,
     );
 
-    return Column(
+    return HeaderColumn(
       children: [
         SlideTransition(
           position: _headerSlide,
@@ -248,6 +249,7 @@ class _DashboardScreenState extends State<DashboardScreen>
                 // Wide screens (landscape tablets) get two columns of
                 // cards; phones and portrait tablets keep one column in
                 // the same order as before.
+                clipBehavior: Clip.none, // HeaderColumn: scrolls under the header corners
                 padding: withTabBarClearance(
                   pageContext,
                   readablePadding(

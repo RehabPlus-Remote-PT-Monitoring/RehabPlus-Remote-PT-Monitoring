@@ -12,6 +12,7 @@ import '../widgets/progress_charts.dart';
 import '../core/responsive.dart';
 import '../ios/app_controls.dart';
 import '../ios/brand_colors.dart';
+import '../widgets/header_column.dart';
 
 const _primaryTeal = AppPalette.teal;
 const _darkTeal = AppPalette.darkTeal;
@@ -330,12 +331,13 @@ class _ProgressReportScreenState extends State<ProgressReportScreen> {
 
     return Scaffold(
       backgroundColor: context.palette.background,
-      body: Column(
+      body: HeaderColumn(
         children: [
           _header(),
           Expanded(
             child: ListView(
               // Wide screens get the two-column width (see _reportBody).
+              clipBehavior: Clip.none, // HeaderColumn: scrolls under the header corners
               padding: readablePadding(
                 context,
                 const EdgeInsets.fromLTRB(16, 16, 16, 32),

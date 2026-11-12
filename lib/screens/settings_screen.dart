@@ -18,6 +18,7 @@ import 'change_password_screen.dart';
 import 'messages_screen.dart';
 import '../ios/app_controls.dart';
 import '../ios/brand_colors.dart';
+import '../widgets/header_column.dart';
 
 /// Firestore rules limit a chat message to 1000 characters.
 const int maxProblemReportLength = 1000;
@@ -373,13 +374,14 @@ class _SettingsScreenState extends State<SettingsScreen>
 
     return Scaffold(
       backgroundColor: palette.background,
-      body: Column(
+      body: HeaderColumn(
         children: [
           _header(),
           Expanded(
             child: ListView(
               // Full width so the empty sides still scroll; the padding
               // centres the cards (two columns' worth on wide screens).
+              clipBehavior: Clip.none, // HeaderColumn: scrolls under the header corners
               padding: readablePadding(
                 context,
                 const EdgeInsets.fromLTRB(16, 16, 16, 32),

@@ -131,7 +131,7 @@ The group repo (`paulirichmond/...`) is behind on both branches; push there only
 4. **Messaging**
    - Data lives at `patients/{uid}/threads/{therapist|clinic}/messages`.
    - Unread counters are kept for both sides.
-   - Clinic prompt chips: book visit, home visit, report a problem.
+   - Clinic prompt chips: book visit, report a problem.
    - On the dashboard, therapists answer the `therapist` thread of their own patients; admins and front desk answer the `clinic` thread.
 5. **Push**
    - The device token is saved to `patients/{uid}/devices/{token}`.

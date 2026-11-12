@@ -66,7 +66,7 @@ String _threadTitle(BuildContext context, ChatThread thread) {
 
 String _threadSubtitle(ChatThread thread) => switch (thread) {
   ChatThread.therapist => 'Questions about your exercises or progress',
-  ChatThread.clinic => 'Appointments, home visits and app support',
+  ChatThread.clinic => 'Appointments and app support',
 };
 
 /// Background of the grey contact avatars: grey 300 in light mode (white
@@ -520,8 +520,6 @@ class _ChatDetailScreenState extends State<ChatDetailScreen> {
   static const _clinicPrompts = {
     'Book clinic visit':
         "I'd like to book a clinic visit. My preferred date and time: ",
-    'Request home visit':
-        "I'd like to request a home visit. My address and preferred date: ",
     'Report a problem': "I'd like to report a problem with the app: ",
   };
 
@@ -701,6 +699,47 @@ class _ChatDetailScreenState extends State<ChatDetailScreen> {
     return false;
   }
 
+  /// One quick-start chip under the clinic chat (e.g. "Book clinic visit").
+  /// Tapping it fills the message box with [prompt]. The label shrinks with
+  /// "…" rather than wrapping, so the chips always stay on one row.
+  Widget _clinicPromptChip(String label, String prompt) {
+    final palette = context.palette;
+    final isProblem = label.contains('problem');
+    return GestureDetector(
+      onTap: () => _usePrompt(label, prompt),
+      child: Container(
+        padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+        decoration: BoxDecoration(
+          color: palette.surface.withValues(alpha: 0.9),
+          borderRadius: BorderRadius.circular(12),
+        ),
+        child: Row(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Icon(
+              isProblem ? Icons.bug_report : Icons.calendar_today,
+              size: 14,
+              color: isProblem ? Colors.redAccent : _primaryTeal,
+            ),
+            const SizedBox(width: 4),
+            Flexible(
+              child: Text(
+                label,
+                maxLines: 1,
+                overflow: TextOverflow.ellipsis,
+                style: TextStyle(
+                  fontSize: 11,
+                  fontWeight: FontWeight.bold,
+                  color: palette.textPrimary,
+                ),
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
   void _usePrompt(String label, String prompt) {
     _logger.info(_tag, 'Prompt chip used', {'prompt': label});
     _textController
@@ -875,7 +914,7 @@ class _ChatDetailScreenState extends State<ChatDetailScreen> {
                         padding: const EdgeInsets.all(32),
                         child: Text(
                           thread == ChatThread.clinic
-                              ? 'Message the clinic to book a visit, request a home visit, or get help with the app.'
+                              ? 'Message the clinic to book a visit or get help with the app.'
                               : 'Send your therapist a message about your exercises or how you feel.',
                           textAlign: TextAlign.center,
                           style: const TextStyle(
@@ -908,49 +947,17 @@ class _ChatDetailScreenState extends State<ChatDetailScreen> {
                     horizontal: 12,
                     vertical: 6,
                   ),
-                  child: Wrap(
-                    spacing: 8,
-                    runSpacing: 6,
-                    children: _clinicPrompts.entries.map((e) {
-                      return GestureDetector(
-                        onTap: () => _usePrompt(e.key, e.value),
-                        child: Container(
-                          padding: const EdgeInsets.symmetric(
-                            horizontal: 12,
-                            vertical: 6,
-                          ),
-                          decoration: BoxDecoration(
-                            color: palette.surface.withValues(alpha: 0.9),
-                            borderRadius: BorderRadius.circular(12),
-                          ),
-                          child: Row(
-                            mainAxisSize: MainAxisSize.min,
-                            children: [
-                              Icon(
-                                e.key.contains('problem')
-                                    ? Icons.bug_report
-                                    : e.key.contains('home')
-                                    ? Icons.home_outlined
-                                    : Icons.calendar_today,
-                                size: 14,
-                                color: e.key.contains('problem')
-                                    ? Colors.redAccent
-                                    : _primaryTeal,
-                              ),
-                              const SizedBox(width: 4),
-                              Text(
-                                e.key,
-                                style: TextStyle(
-                                  fontSize: 11,
-                                  fontWeight: FontWeight.bold,
-                                  color: palette.textPrimary,
-                                ),
-                              ),
-                            ],
-                          ),
-                        ),
-                      );
-                    }).toList(),
+                  // One row, side by side: each chip shrinks (text ends in
+                  // "…") on very narrow screens instead of wrapping onto a
+                  // second line.
+                  child: Row(
+                    children: [
+                      for (final e in _clinicPrompts.entries) ...[
+                        if (e.key != _clinicPrompts.keys.first)
+                          const SizedBox(width: 8),
+                        Flexible(child: _clinicPromptChip(e.key, e.value)),
+                      ],
+                    ],
                   ),
                 ),
               ),

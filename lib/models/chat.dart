@@ -10,7 +10,7 @@ enum ChatThread {
   /// The patient's assigned therapist.
   therapist,
 
-  /// Clinic front desk: appointments, home visits, app problems.
+  /// Clinic front desk: appointments and app problems.
   clinic;
 
   /// The thread called [name] ('therapist' / 'clinic'), or null for anything
