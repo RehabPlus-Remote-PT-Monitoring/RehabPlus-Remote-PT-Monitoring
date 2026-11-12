@@ -569,9 +569,19 @@ class _PoseDetectorScreenState extends State<PoseDetectorScreen>
     );
   }
 
+  /// True while an isCasting() call is waiting on the platform channel, so
+  /// a slow native answer can't pile up one extra call every 3 seconds.
+  bool _castPollInFlight = false;
+
   Future<void> _pollCasting() async {
-    if (_appInBackground || _isSessionComplete) return;
-    final casting = await _castService.isCasting();
+    if (_appInBackground || _isSessionComplete || _castPollInFlight) return;
+    _castPollInFlight = true;
+    final bool casting;
+    try {
+      casting = await _castService.isCasting(); // never throws
+    } finally {
+      _castPollInFlight = false;
+    }
     if (!mounted || casting == _isCasting) return;
     _log.info('Cast', casting ? 'Casting started' : 'Casting stopped', {
       'trackingFps': _round1(
@@ -1280,6 +1290,16 @@ class _PoseDetectorScreenState extends State<PoseDetectorScreen>
         );
       }
     } finally {
+      // The "taking unusually long" warning fired for this frame: say how
+      // long it really took, so the log shows the stall ended (and wasn't
+      // a hang that killed tracking for the rest of the session).
+      if (_stallReported) {
+        _log.info('PosePipeline', 'ML Kit call finished after a stall', {
+          'busyMs': _frameClock.elapsedMilliseconds - _processingStartedMs,
+          'gen': gen,
+        });
+        _stallReported = false;
+      }
       _isProcessing = false;
       inFlight.complete();
       if (identical(_inFlightFrame, inFlight)) _inFlightFrame = null;
@@ -1405,6 +1425,23 @@ class _PoseDetectorScreenState extends State<PoseDetectorScreen>
   // _rawFaults  : instantaneous, used for rep validation (catches flailing)
   // _mergeExtraFaults : debounced, used for the red skeleton / banner
   // ---------------------------------------------------------------------
+
+  /// Every analysed frame needs [_rawFaults] twice, for the same landmark
+  /// map: once debounced for the banner ([_mergeExtraFaults]) and once raw
+  /// for rep validation ([_advanceRepCycle]). It is a pure function of the
+  /// map, so the second call reuses the first result instead of measuring
+  /// all the angles again. Keyed on the map's identity: ML Kit hands every
+  /// frame a new map, so a new frame can never get an old frame's faults.
+  Map<PoseLandmarkType, PoseLandmark>? _rawFaultsInput;
+  List<FormIssue> _rawFaultsResult = const [];
+
+  List<FormIssue> _rawFaultsFor(Map<PoseLandmarkType, PoseLandmark> lm) {
+    if (!identical(lm, _rawFaultsInput)) {
+      _rawFaultsInput = lm;
+      _rawFaultsResult = _rawFaults(lm);
+    }
+    return _rawFaultsResult;
+  }
 
   List<FormIssue> _rawFaults(Map<PoseLandmarkType, PoseLandmark> lm) {
     final out = <FormIssue>[];
@@ -1655,7 +1692,7 @@ class _PoseDetectorScreenState extends State<PoseDetectorScreen>
     if (base.isNotInFrame) return base;
 
     final now = DateTime.now().millisecondsSinceEpoch;
-    for (final i in _rawFaults(lm)) {
+    for (final i in _rawFaultsFor(lm)) {
       final last = _xLast[i.code];
       if (last == null || now - last > 300) _xFirst[i.code] = now;
       _xLast[i.code] = now;
@@ -1963,7 +2000,7 @@ class _PoseDetectorScreenState extends State<PoseDetectorScreen>
       isValidRep: isValidRep,
       isRest: isRestPosition,
       form: form,
-      instantFaults: _rawFaults(landmarks),
+      instantFaults: _rawFaultsFor(landmarks),
     );
 
     _checkCompletion();
@@ -2479,7 +2516,16 @@ class _PoseDetectorScreenState extends State<PoseDetectorScreen>
       endedEarly: endedEarly,
     );
 
-    if (!mounted) return;
+    if (!mounted) {
+      // Not expected (the dialog that calls this sits on top of the
+      // screen), but never drop a session without a trace.
+      _log.warn('PoseSession', 'Session not saved: screen already closed', {
+        'exercise': exercise.type.name,
+        'reps': _repCounter,
+        'endedEarly': endedEarly,
+      });
+      return;
+    }
     await _log.timed(
       'PoseSession',
       'Save session',
@@ -3208,7 +3254,6 @@ class PosePipelineStats {
   int _totalLatencyMaxUs = 0;
 
   int get totalErrors => _totalErrors;
-  int get totalProcessed => _totalProcessed;
 
   void onReceived() {
     _received++;
@@ -3452,7 +3497,6 @@ class _SessionNoteFieldState extends State<_SessionNoteField> {
   }
 }
 
-/// "Where to stand" reminder under the form banner (see [_showSetupTip]).
 /// Amber note shown while pose tracking runs slowly (see TrackingHealth):
 /// the skeleton may disappear and reps may count late. Names casting as the
 /// likely cause when the screen is being cast, since on low-end phones that
@@ -3496,6 +3540,7 @@ class _SlowTrackingBanner extends StatelessWidget {
   }
 }
 
+/// "Where to stand" reminder under the form banner (see [_showSetupTip]).
 class _SetupTip extends StatelessWidget {
   final String text;
 

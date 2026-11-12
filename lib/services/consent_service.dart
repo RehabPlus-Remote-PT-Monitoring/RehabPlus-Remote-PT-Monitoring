@@ -1,5 +1,8 @@
+import 'dart:async';
+
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
+import 'package:flutter/foundation.dart' show visibleForTesting;
 import 'package:shared_preferences/shared_preferences.dart';
 
 import '../core/diagnostic_logger.dart';
@@ -23,7 +26,8 @@ class ConsentFailure implements Exception {
 /// already accepted isn't blocked when they're offline.
 ///
 /// Log events (tag 'ConsentService'): "Consent check" {uid, version,
-/// accepted, source: phone|server|cache}, "Consent check failed" {code},
+/// accepted, source: phone|server|cache, pendingWrite}, "Consent check
+/// failed" {code},
 /// "Consent recorded" {version, alreadyOnServer, ms}, "Saving consent
 /// failed" {code}.
 class ConsentService {
@@ -60,13 +64,18 @@ class ConsentService {
     }
     try {
       final snap = await _doc(uid).get();
-      if (snap.exists) await _remember(prefs, uid);
+      final accepted = isRecordConfirmed(
+        exists: snap.exists,
+        hasPendingWrites: snap.metadata.hasPendingWrites,
+      );
+      if (accepted) await _remember(prefs, uid);
       _logConsentCheck(
         uid,
-        accepted: snap.exists,
+        accepted: accepted,
         source: snap.metadata.isFromCache ? 'cache' : 'server',
+        pendingWrite: snap.metadata.hasPendingWrites,
       );
-      return snap.exists;
+      return accepted;
     } catch (e, st) {
       // Can't check (e.g. offline on a new phone): ask again rather than let
       // someone in without a record of their consent.
@@ -82,12 +91,26 @@ class ConsentService {
     String uid, {
     required bool accepted,
     required String source,
+    bool pendingWrite = false,
   }) => _logger.info('ConsentService', 'Consent check', {
     'uid': uid,
     'version': LegalInfo.version,
     'accepted': accepted,
     'source': source,
+    if (pendingWrite) 'pendingWrite': true,
   });
+
+  /// Whether a consent document read from Firestore proves the clinic has
+  /// the record. A document that only exists as a local, not-yet-synced
+  /// write (an earlier attempt that timed out offline) does NOT: Firestore
+  /// serves it from the cache as if it existed, and trusting it would let
+  /// the patient in without a record the clinic can see. The queued write
+  /// still syncs on its own once the phone is back online.
+  @visibleForTesting
+  static bool isRecordConfirmed({
+    required bool exists,
+    required bool hasPendingWrites,
+  }) => exists && !hasPendingWrites;
 
   /// Records that the patient accepted the Terms, the Privacy Policy, the
   /// processing of their health information and the use of the camera.
@@ -111,7 +134,14 @@ class ConsentService {
       final doc = _doc(uid);
       // Already recorded (e.g. on another phone): the record can't be
       // overwritten, so just remember it here.
-      alreadyOnServer = (await doc.get()).exists;
+      final existing = await doc.get();
+      if (existing.exists && existing.metadata.hasPendingWrites) {
+        // An earlier attempt is still queued offline. Writing again would
+        // reach the server as an update, which the rules refuse; wait for
+        // the connection instead (the queued write syncs by itself).
+        throw TimeoutException('Earlier consent write not yet synced');
+      }
+      alreadyOnServer = existing.exists;
       if (!alreadyOnServer) {
         // Awaited, with a timeout: the patient must not get in without a
         // consent record that actually reached the clinic.

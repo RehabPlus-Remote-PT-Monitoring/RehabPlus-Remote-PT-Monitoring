@@ -223,16 +223,18 @@ class _SettingsScreenState extends State<SettingsScreen>
 
   Future<void> _pickReminderTime() async {
     if (_busyReminder) return;
-    final current = TimeOfDay(
-      hour: _settings.reminderMinutes ~/ 60,
-      minute: _settings.reminderMinutes % 60,
-    );
-    final picked = await showTimePicker(context: context, initialTime: current);
-    if (picked == null) return;
-    final minutes = picked.hour * 60 + picked.minute;
-    _logger.info(_tag, 'Setting changed', {'key': 'reminderMinutes', 'value': minutes});
+    // Busy from the moment the clock opens: a quick double tap used to stack
+    // two time pickers, because the flag was only set after picking.
     _busyReminder = true;
     try {
+      final current = TimeOfDay(
+        hour: _settings.reminderMinutes ~/ 60,
+        minute: _settings.reminderMinutes % 60,
+      );
+      final picked = await showTimePicker(context: context, initialTime: current);
+      if (picked == null) return;
+      final minutes = picked.hour * 60 + picked.minute;
+      _logger.info(_tag, 'Setting changed', {'key': 'reminderMinutes', 'value': minutes});
       await _settings.setReminderMinutes(minutes);
       if (_settings.reminderEnabled) await ReminderService.I.schedule(minutes);
     } catch (e, st) {
@@ -322,8 +324,9 @@ class _SettingsScreenState extends State<SettingsScreen>
         try {
           final info = await PackageInfo.fromPlatform();
           version = '${info.version} (${info.buildNumber})';
-        } catch (_) {
-          version = 'unknown'; // already logged by _loadVersion
+        } catch (e, st) {
+          _logger.warn(_tag, 'App version unavailable for the report', null, e, st);
+          version = 'unknown';
         }
       }
 

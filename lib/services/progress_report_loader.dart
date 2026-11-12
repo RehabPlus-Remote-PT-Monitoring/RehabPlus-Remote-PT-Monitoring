@@ -343,7 +343,23 @@ class ProgressReportLoader {
         onBackgroundResult();
       },
       onError: (Object e, StackTrace st) {
-        if (_disposed || generation != _generation) return;
+        if (_disposed || generation != _generation) {
+          // Nobody will show this result, but a failing build is still a
+          // bug worth seeing in the log (with its stack).
+          _log.warn(
+            _tag,
+            'Discarded report build failed',
+            {
+              'owner': owner,
+              'days': days,
+              'reason': _disposed ? 'disposed' : 'inputs_changed',
+              'ms': stopwatch.elapsedMilliseconds,
+            },
+            e,
+            st,
+          );
+          return;
+        }
         _pending.remove(days);
         _failed.add(days);
         _log.error(

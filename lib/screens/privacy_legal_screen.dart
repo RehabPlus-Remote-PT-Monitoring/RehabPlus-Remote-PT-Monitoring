@@ -15,17 +15,14 @@ import '../ios/brand_colors.dart';
 class PrivacyLegalScreen extends StatefulWidget {
   const PrivacyLegalScreen({super.key});
 
-  static const Color primaryTeal = Color(0xFF23A8AA);
-  static const Color darkTeal = Color(0xFF0D6E71);
-
   @override
   State<PrivacyLegalScreen> createState() => _PrivacyLegalScreenState();
 }
 
 class _PrivacyLegalScreenState extends State<PrivacyLegalScreen> {
   static const String _tag = 'PrivacyLegal';
-  static const Color primaryTeal = PrivacyLegalScreen.primaryTeal;
-  static const Color darkTeal = PrivacyLegalScreen.darkTeal;
+  static const Color primaryTeal = Color(0xFF23A8AA);
+  static const Color darkTeal = Color(0xFF0D6E71);
 
   @override
   void initState() {

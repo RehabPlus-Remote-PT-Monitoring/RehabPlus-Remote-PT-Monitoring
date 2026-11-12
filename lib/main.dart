@@ -107,7 +107,19 @@ class RehabPlusApp extends StatefulWidget {
       DiagnosticLogger.I.error('Startup', 'Startup failed', null, e, st);
       return StartupErrorScreen(
         onRetry: () {
-          final provider = navigatorKey.currentContext!.read<AppProvider>();
+          DiagnosticLogger.I.info('Startup', 'Startup retry requested');
+          // The navigator's context sits under the ChangeNotifierProvider
+          // from main(), so it can reach the same AppProvider. It is always
+          // there once the error screen is visible; the check only turns a
+          // would-be null crash into a logged failure that keeps the error
+          // screen (and its Try again button) up.
+          final navigatorContext = navigatorKey.currentContext;
+          if (navigatorContext == null) {
+            return _screenAfter(
+              Future.error(StateError('Startup retry: navigator is not mounted')),
+            );
+          }
+          final provider = navigatorContext.read<AppProvider>();
           return _screenAfter(runStartUp(provider));
         },
       );

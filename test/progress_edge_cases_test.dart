@@ -42,9 +42,56 @@ ExerciseSession session(
 DateTime daysAgo(int d, [int hour = 9]) =>
     DateTime(now.year, now.month, now.day - d, hour);
 
+/// The 7-day window from [ProgressStats.overview]: [previous] = the 7 days
+/// before it.
+PeriodStats week7(
+  List<ExerciseSession> sessions,
+  DateTime at, {
+  bool previous = false,
+}) {
+  final p = ProgressStats.overview(sessions, at, windows: const [7]);
+  return previous ? p.periodFor(7).previous : p.periodFor(7).current;
+}
+
+/// Test oracle: one window computed the slow, obvious way (a calendar-day
+/// range per session), to check the single-pass [ProgressStats.overview].
+PeriodStats referencePeriod(
+  List<ExerciseSession> sessions,
+  DateTime at, {
+  required int days,
+  int periodsAgo = 0,
+}) {
+  final tomorrow = CalendarDays.addDays(CalendarDays.startOf(at), 1);
+  final end = CalendarDays.addDays(tomorrow, -days * periodsAgo);
+  final start = CalendarDays.addDays(end, -days);
+  final inWindow = [
+    for (final s in sessions)
+      if (!s.startTime.isBefore(start) && s.startTime.isBefore(end)) s,
+  ];
+  return PeriodStats(
+    activeDays: {
+      for (final s in inWindow) CalendarDays.startOf(s.startTime),
+    }.length,
+    sessions: inWindow.length,
+    time: inWindow.fold(Duration.zero, (t, s) => t + s.countedDuration),
+  );
+}
+
+/// Test oracle for [ProgressOverview.week].
+List<bool> referenceWeek(List<ExerciseSession> sessions, DateTime at) {
+  final today = CalendarDays.startOf(at);
+  final monday = CalendarDays.addDays(today, -(today.weekday - 1));
+  return [
+    for (var i = 0; i < 7; i++)
+      sessions.any(
+        (s) => CalendarDays.startOf(s.startTime) == CalendarDays.addDays(monday, i),
+      ),
+  ];
+}
+
 void main() {
   group('empty input', () {
-    test('report, overview, period and activity are all empty', () {
+    test('report, overview and activity are all empty', () {
       final r = ProgressReport.build(const [], now, days: 90);
       expect(r.status, ProgressStatus.noData);
       expect(r.sessions, 0);
@@ -60,7 +107,7 @@ void main() {
       // Unknown window: zeros, not a crash.
       expect(o.periodFor(12).previous.time, Duration.zero);
 
-      expect(ProgressStats.period(const [], now, days: 7).sessions, 0);
+      expect(week7(const [], now).sessions, 0);
       expect(ProgressStats.activity(const [], now).doneToday, isEmpty);
       expect(ProgressStats.countByExerciseSince(const [], now), isEmpty);
     });
@@ -71,14 +118,14 @@ void main() {
       expect(r0.sessions, 1); // today
       final rNeg = ProgressReport.build([session(daysAgo(0))], now, days: -5);
       expect(rNeg.days, ProgressReport.minDays);
-      expect(
-        ProgressStats.period([session(daysAgo(0))], now, days: 0),
-        isA<PeriodStats>(),
+      // Window lengths below 1 are dropped: empty totals, no exception.
+      final o = ProgressStats.overview(
+        [session(daysAgo(0))],
+        now,
+        windows: const [0, -3],
       );
-      expect(
-        ProgressStats.period([session(daysAgo(0))], now, days: 0).sessions,
-        0,
-      );
+      expect(o.periods, isEmpty);
+      expect(o.periodFor(0).current.sessions, 0);
     });
   });
 
@@ -90,8 +137,8 @@ void main() {
       );
       expect(s.countedDuration, Duration.zero);
       expect(ProgressReport.build([s], now, days: 7).time, Duration.zero);
-      expect(ProgressStats.period([s], now, days: 7).time, Duration.zero);
-      expect(ProgressStats.period([s], now, days: 7).sessions, 1);
+      expect(week7([s], now).time, Duration.zero);
+      expect(week7([s], now).sessions, 1);
     });
 
     test('missing end time counts no time', () {
@@ -109,7 +156,6 @@ void main() {
       expect(r.formScore!.isFinite, isTrue);
       expect(r.points.where((p) => p.formScore != null), hasLength(1));
       expect(sessions[1].safeFormScore, isNull);
-      expect(sessions[1].safeCompliance, 0);
       // The finding text must be built without throwing on round().
       expect(r.findings, isNotEmpty);
     });
@@ -200,7 +246,7 @@ void main() {
 
       final r = ProgressReport.build(sessions, now, days: 7);
       expect(r.sessions, 1);
-      expect(ProgressStats.period(sessions, now, days: 7).sessions, 1);
+      expect(week7(sessions, now).sessions, 1);
       expect(
         ProgressStats.overview(sessions, now).periodFor(7).current.sessions,
         1,
@@ -236,13 +282,8 @@ void main() {
         final r = ProgressReport.build(sessions, now, days: 7);
         expect(r.sessions, 1);
         expect(r.points.first.sessions, 1);
-        final stats = ProgressStats.period(sessions, now, days: 7);
-        final previous = ProgressStats.period(
-          sessions,
-          now,
-          days: 7,
-          periodsAgo: 1,
-        );
+        final stats = week7(sessions, now);
+        final previous = week7(sessions, now, previous: true);
         expect(stats.sessions, 1);
         expect(previous.sessions, 1);
       },
@@ -258,8 +299,8 @@ void main() {
         local.points.map((p) => p.sessions).toList(),
       );
       expect(
-        ProgressStats.currentWeek([session(asUtc)], now),
-        ProgressStats.currentWeek([session(localTime)], now),
+        ProgressStats.overview([session(asUtc)], now).week,
+        ProgressStats.overview([session(localTime)], now).week,
       );
       // `now` given in UTC means the same local day.
       expect(
@@ -291,9 +332,9 @@ void main() {
         expect(p.start.hour, 0, reason: 'bucket starts at local midnight');
       }
 
-      expect(ProgressStats.period(sessions, tuesday, days: 7).sessions, 3);
+      expect(week7(sessions, tuesday).sessions, 3);
       // Week of Mon 2 Nov: Monday only; Sunday 1 Nov was last week.
-      expect(ProgressStats.currentWeek(sessions, tuesday), [
+      expect(ProgressStats.overview(sessions, tuesday).week, [
         true,
         false,
         false,
@@ -323,7 +364,7 @@ void main() {
     });
   });
 
-  group('overview matches the single-window functions', () {
+  group('overview matches a simple reference implementation', () {
     test('for every window and both periods', () {
       final sessions = [
         for (var d = 0; d < 200; d += 3)
@@ -331,10 +372,10 @@ void main() {
         session(daysAgo(0, 20)),
       ];
       final o = ProgressStats.overview(sessions, now);
-      expect(o.week, ProgressStats.currentWeek(sessions, now));
+      expect(o.week, referenceWeek(sessions, now));
       for (final w in [7, 30, 90]) {
         for (final ago in [0, 1]) {
-          final expected = ProgressStats.period(
+          final expected = referencePeriod(
             sessions,
             now,
             days: w,
@@ -364,8 +405,7 @@ void main() {
       expect(activity.weekCount('a'), 1);
       expect(activity.weekCount('b'), 1);
       expect(activity.weekCount('missing'), 0);
-      expect(ProgressStats.completedThisWeek(sessions, 'a', now), 1);
-      expect(ProgressStats.doneOn(sessions, 'b', now), isFalse);
+      expect(activity.isDoneToday('b'), isFalse); // ended early
     });
   });
 

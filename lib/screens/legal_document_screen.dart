@@ -33,17 +33,14 @@ class LegalDocumentScreen extends StatefulWidget {
   final String title;
   final String asset;
 
-  static const Color primaryTeal = Color(0xFF23A8AA);
-  static const Color darkTeal = Color(0xFF0D6E71);
-
   @override
   State<LegalDocumentScreen> createState() => _LegalDocumentScreenState();
 }
 
 class _LegalDocumentScreenState extends State<LegalDocumentScreen> {
   static const String _tag = 'LegalDocument';
-  static const Color primaryTeal = LegalDocumentScreen.primaryTeal;
-  static const Color darkTeal = LegalDocumentScreen.darkTeal;
+  static const Color primaryTeal = Color(0xFF23A8AA);
+  static const Color darkTeal = Color(0xFF0D6E71);
 
   final DiagnosticLogger _logger = DiagnosticLogger.I;
 

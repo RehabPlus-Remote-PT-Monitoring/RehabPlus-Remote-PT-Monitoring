@@ -18,17 +18,14 @@ import '../ios/brand_colors.dart';
 class AccountInfoScreen extends StatefulWidget {
   const AccountInfoScreen({super.key});
 
-  static const Color primaryTeal = Color(0xFF23A8AA);
-  static const Color darkTeal = Color(0xFF0D6E71);
-
   @override
   State<AccountInfoScreen> createState() => _AccountInfoScreenState();
 }
 
 class _AccountInfoScreenState extends State<AccountInfoScreen> {
   static const String _tag = 'AccountInfo';
-  static const Color primaryTeal = AccountInfoScreen.primaryTeal;
-  static const Color darkTeal = AccountInfoScreen.darkTeal;
+  static const Color primaryTeal = Color(0xFF23A8AA);
+  static const Color darkTeal = Color(0xFF0D6E71);
 
   final DiagnosticLogger _logger = DiagnosticLogger.I;
 

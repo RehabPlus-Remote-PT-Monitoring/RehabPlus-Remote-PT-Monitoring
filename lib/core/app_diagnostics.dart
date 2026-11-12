@@ -84,8 +84,10 @@ class AppDiagnostics {
     try {
       final info = await PackageInfo.fromPlatform();
       version = '${info.version}+${info.buildNumber}';
-    } catch (_) {
-      // Not fatal: only used for the log line below.
+    } catch (e, st) {
+      // Not fatal: the version is only used for the log line below, which
+      // then says 'unknown'. Logged so a missing version is explained.
+      logger.warn(_tag, 'Could not read the app version', null, e, st);
     }
 
     logger.info(_tag, 'App started', {

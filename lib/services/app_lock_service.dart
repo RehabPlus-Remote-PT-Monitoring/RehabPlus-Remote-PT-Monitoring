@@ -1,5 +1,6 @@
 import 'dart:convert';
 import 'dart:math';
+import 'dart:typed_data';
 
 import 'package:crypto/crypto.dart';
 import 'package:firebase_auth/firebase_auth.dart';
@@ -7,6 +8,7 @@ import 'package:flutter/widgets.dart';
 import 'package:flutter_secure_storage/flutter_secure_storage.dart';
 import 'package:local_auth/local_auth.dart';
 
+import '../core/background.dart';
 import '../core/diagnostic_logger.dart';
 
 /// Optional app lock: a 4-digit PIN (with fingerprint/face as a shortcut)
@@ -43,7 +45,11 @@ import '../core/diagnostic_logger.dart';
 /// "Loaded" {enabled, biometrics, failedAttempts}, "PIN set", "PIN removed",
 /// "Locked" {reason, awayS}, "Unlocked" {method}, "Wrong PIN"
 /// {failedAttempts}, "Too many wrong PINs", "Biometric result" {result},
+/// "Discarded stale load" / "Discarded stale PIN check" {reason} (the
+/// patient signed out or the lock changed while it was running),
 /// "Storage read failed"/"Storage write failed" (with the exception).
+/// Hashing runs on a background isolate ("PIN hash create/verify done"
+/// {where, ms}, tag 'Background').
 class AppLockService extends ChangeNotifier with WidgetsBindingObserver {
   AppLockService({
     AppLockStore? store,
@@ -112,7 +118,6 @@ class AppLockService extends ChangeNotifier with WidgetsBindingObserver {
 
   bool get isEnabled => _pinRecord != null;
   bool get biometricsEnabled => isEnabled && _biometricsEnabled;
-  int get failedAttempts => _failedAttempts;
   int get attemptsLeft => max(0, maxAttempts - _failedAttempts);
 
   /// True while the PIN must be entered before the app can be used.
@@ -130,17 +135,29 @@ class AppLockService extends ChangeNotifier with WidgetsBindingObserver {
   /// after each sign-in. Never throws.
   Future<void> load() async {
     _locked = false;
+    final uid = _currentUid();
     try {
-      if (!_isSignedIn()) {
+      if (uid == null) {
         _pinRecord = null;
         _biometricsEnabled = false;
         _failedAttempts = 0;
       } else {
         await _migrateLegacyKeys();
-        _pinRecord = await _store.read(_key(_kPin)!);
-        _biometricsEnabled = await _store.read(_key(_kBiometrics)!) == 'true';
-        _failedAttempts =
-            int.tryParse(await _store.read(_key(_kFailed)!) ?? '') ?? 0;
+        // The three values are independent, so read them in parallel.
+        final values = await Future.wait([
+          _store.read(_key(_kPin)!),
+          _store.read(_key(_kBiometrics)!),
+          _store.read(_key(_kFailed)!),
+        ]);
+        // Signed out (or someone else signed in) while reading: these values
+        // belong to the previous patient and must not be applied.
+        if (_currentUid() != uid) {
+          _logger.info(_tag, 'Discarded stale load', {'reason': 'user changed'});
+          return;
+        }
+        _pinRecord = values[0];
+        _biometricsEnabled = values[1] == 'true';
+        _failedAttempts = int.tryParse(values[2] ?? '') ?? 0;
       }
       if (_pinRecord != null && !PinHasher.isValidRecord(_pinRecord!)) {
         // Unreadable record (e.g. a future format): turn the lock off
@@ -248,7 +265,11 @@ class AppLockService extends ChangeNotifier with WidgetsBindingObserver {
       throw ArgumentError('The PIN must be $pinLength digits');
     }
     if (!_isSignedIn()) throw StateError('No patient signed in');
-    final record = PinHasher.create(pin);
+    final uid = _currentUid();
+    final record = await PinHasher.createInBackground(pin);
+    // The patient signed out while the PIN was being hashed: don't save a
+    // PIN for whoever is (or isn't) signed in now.
+    if (_currentUid() != uid) throw StateError('Signed out while saving PIN');
     await _write(_key(_kPin), record);
     await _write(_key(_kFailed), '0');
     _pinRecord = record;
@@ -290,7 +311,19 @@ class AppLockService extends ChangeNotifier with WidgetsBindingObserver {
     if (record == null) return PinCheck.correct; // lock is off
     if (_failedAttempts >= maxAttempts) return PinCheck.tooManyAttempts;
 
-    if (PinHasher.verify(pin, record)) {
+    final matches = await PinHasher.verifyInBackground(pin, record);
+
+    // The lock was forgotten (sign-out), removed or changed while the hash
+    // was being computed: this answer is about a PIN that no longer applies,
+    // so neither unlock nor count a wrong attempt against the new state.
+    if (!identical(_pinRecord, record)) {
+      _logger.info(_tag, 'Discarded stale PIN check', {
+        'reason': 'lock changed',
+      });
+      return isEnabled ? PinCheck.wrong : PinCheck.correct;
+    }
+
+    if (matches) {
       await _resetFailedAttempts();
       _unlock('pin');
       return PinCheck.correct;
@@ -477,6 +510,23 @@ enum BiometricResult {
 class PinHasher {
   static const int iterations = 20000;
 
+  /// [create] on a background isolate. 20,000 SHA-256 rounds take tens of
+  /// milliseconds (about 30 ms on a desktop, more on a budget phone), which
+  /// would drop frames if run on the UI thread right as the keypad animates.
+  static Future<String> createInBackground(String pin) => runInBackground(
+    'PIN hash create',
+    () => create(pin),
+    heavy: true,
+  );
+
+  /// [verify] on a background isolate (see [createInBackground]).
+  static Future<bool> verifyInBackground(String pin, String record) =>
+      runInBackground(
+        'PIN hash verify',
+        () => verify(pin, record),
+        heavy: true,
+      );
+
   static String create(String pin, {Random? random}) {
     final rng = random ?? Random.secure();
     final salt = List<int>.generate(16, (_) => rng.nextInt(256));
@@ -494,10 +544,18 @@ class PinHasher {
     return Digest(actual) == Digest(parsed.hash);
   }
 
+  /// round 1: sha256(salt + pin); round n: sha256(previous digest + salt).
+  ///
+  /// The input of rounds 2..n is built in one reusable buffer (digest in the
+  /// front, salt in the back) instead of a new list per round; the bytes
+  /// hashed, and so the stored records, are exactly the same as before.
   static List<int> _hash(String pin, List<int> salt, int rounds) {
     var digest = sha256.convert([...salt, ...utf8.encode(pin)]).bytes;
+    final buffer = Uint8List(digest.length + salt.length)
+      ..setRange(digest.length, digest.length + salt.length, salt);
     for (var i = 1; i < rounds; i++) {
-      digest = sha256.convert([...digest, ...salt]).bytes;
+      buffer.setRange(0, digest.length, digest);
+      digest = sha256.convert(buffer).bytes;
     }
     return digest;
   }

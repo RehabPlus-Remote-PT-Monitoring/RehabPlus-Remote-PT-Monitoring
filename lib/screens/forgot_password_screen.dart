@@ -1,5 +1,4 @@
 import 'package:flutter/material.dart';
-import 'package:flutter/services.dart' show TextInputFormatter;
 import 'package:phosphor_flutter/phosphor_flutter.dart';
 
 import '../core/app_palette.dart';
@@ -8,6 +7,7 @@ import '../core/responsive.dart';
 import '../services/auth_service.dart';
 import '../ios/app_controls.dart';
 import '../ios/brand_colors.dart';
+import 'login_page.dart' show looksLikeEmail;
 
 // Reset with the temporary password the therapist gives the patient: the
 // patient types their email, that temporary password and a new password.
@@ -93,17 +93,22 @@ class _ForgotPasswordScreenState extends State<ForgotPasswordScreen>
     final temporary = _tempCtrl.text;
     final password = _passwordCtrl.text;
 
-    if (!_looksLikeEmail(email)) {
+    // Checked before any network call. Which check failed is logged (never
+    // the values) so a log shows why a reset never reached the server.
+    if (!looksLikeEmail(email)) {
+      _logBlocked('email');
       _showSnack('Enter the email address on your account.', isError: true);
       return;
     }
     if (temporary.isEmpty) {
+      _logBlocked('temporaryPassword');
       _showSnack('Enter the temporary password from your therapist.',
           isError: true);
       return;
     }
     final problem = newPasswordProblem(password, _confirmCtrl.text);
     if (problem != null) {
+      _logBlocked('newPassword');
       _showSnack(problem, isError: true);
       return;
     }
@@ -111,6 +116,7 @@ class _ForgotPasswordScreenState extends State<ForgotPasswordScreen>
     FocusScope.of(context).unfocus();
     setState(() => _isLoading = true);
     // The email and passwords are never logged.
+    final stopwatch = Stopwatch()..start();
     _logger.info(_tag, 'Password reset requested');
     try {
       await AuthService.I.resetWithTemporaryPassword(
@@ -119,13 +125,32 @@ class _ForgotPasswordScreenState extends State<ForgotPasswordScreen>
         newPassword: password,
       );
     } on AuthFailure catch (e) {
+      _logger.warn(_tag, 'Password reset rejected', {
+        'ms': stopwatch.elapsedMilliseconds,
+      });
       if (!mounted) return;
       setState(() => _isLoading = false);
       _showSnack(e.message, isError: true);
       return;
+    } catch (e, st) {
+      // AuthService wraps Firebase errors in AuthFailure; this is anything
+      // else. Never leave the button spinning forever.
+      _logger.error(_tag, 'Password reset crashed', null, e, st);
+      if (!mounted) return;
+      setState(() => _isLoading = false);
+      _showSnack('Could not reset your password. Please try again.',
+          isError: true);
+      return;
     }
     if (!mounted) return;
-    _logger.info(_tag, 'Password reset finished');
+    _logger.info(_tag, 'Password reset finished', {
+      'ms': stopwatch.elapsedMilliseconds,
+    });
+    // The passwords are no longer needed: don't keep them in memory (or on
+    // screen) while the success message is shown.
+    _tempCtrl.clear();
+    _passwordCtrl.clear();
+    _confirmCtrl.clear();
     setState(() {
       _stage = _Stage.success;
       _isLoading = false;
@@ -133,8 +158,8 @@ class _ForgotPasswordScreenState extends State<ForgotPasswordScreen>
     _successCtrl.forward();
   }
 
-  static bool _looksLikeEmail(String value) =>
-      RegExp(r'^[^@\s]+@[^@\s]+\.[^@\s]+$').hasMatch(value);
+  void _logBlocked(String field) =>
+      _logger.info(_tag, 'Reset blocked by validation', {'field': field});
 
   void _showSnack(String msg, {bool isError = false}) {
     if (!mounted) return;
@@ -451,7 +476,6 @@ class _ForgotPasswordScreenState extends State<ForgotPasswordScreen>
     Widget? suffix,
     TextInputType? keyboardType,
     Iterable<String>? autofillHints,
-    List<TextInputFormatter>? inputFormatters,
     TextInputAction textInputAction = TextInputAction.done,
   }) {
     final palette = context.palette;
@@ -467,7 +491,6 @@ class _ForgotPasswordScreenState extends State<ForgotPasswordScreen>
       onSubmitted: textInputAction == TextInputAction.done
           ? (_) => _onContinue()
           : null,
-      inputFormatters: inputFormatters,
       style: TextStyle(fontSize: 14, color: palette.textPrimary),
       decoration: InputDecoration(
         hintText: hint,

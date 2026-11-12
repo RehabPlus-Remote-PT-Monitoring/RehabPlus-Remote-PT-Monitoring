@@ -62,11 +62,15 @@ class _ChartColours {
   int get hashCode => Object.hash(axis, grid, track, tooltip, dotFill);
 }
 
-/// Bottom-axis label for a chart point: weekday letter for daily points,
-/// otherwise the first day of the group ("12/10").
-String _label(ProgressPoint p) => p.days == 1
-    ? DateFormat('E').format(p.start).substring(0, 2)
-    : DateFormat('d/M').format(p.start);
+/// Bottom-axis label for a chart point: the first two letters of the
+/// weekday for daily points ("Mo"), otherwise the first day of the group
+/// ("12/10"). Short weekday names (one letter in some locales) are used
+/// whole instead of throwing a RangeError from substring.
+String _label(ProgressPoint p) {
+  if (p.days != 1) return DateFormat('d/M').format(p.start);
+  final weekday = DateFormat('E').format(p.start);
+  return weekday.length <= 2 ? weekday : weekday.substring(0, 2);
+}
 
 /// Show every label when there are few points, every other one otherwise.
 bool _showLabel(int i, int count) => count <= 8 || i.isEven || i == count - 1;

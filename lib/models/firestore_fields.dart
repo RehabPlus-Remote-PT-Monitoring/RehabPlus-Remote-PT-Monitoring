@@ -95,25 +95,6 @@ class FieldReader {
     return result;
   }
 
-  /// A finite double clamped into [min]..[max], or null when absent or not
-  /// a number (NaN and infinity count as "not a number").
-  double? decimal(String key, {double? min, double? max}) {
-    final value = data[key];
-    if (value == null) return null;
-    if (value is! num || !value.isFinite) {
-      _markRepaired(key);
-      return null;
-    }
-    return clampToRange(
-      value.toDouble(),
-      min: min,
-      max: max,
-      onClamp: () {
-        _markRepaired(key);
-      },
-    );
-  }
-
   /// A bool, or [fallback] when absent or not a bool. Strings such as
   /// "true" are NOT accepted: the rules and every writer use real bools.
   bool boolean(String key, {bool fallback = false}) {

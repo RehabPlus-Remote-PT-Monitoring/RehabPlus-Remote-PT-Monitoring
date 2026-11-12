@@ -63,6 +63,12 @@ class CastService {
     } on PlatformException catch (e, st) {
       _log.warn('Cast', 'Opening cast settings failed', null, e, st);
       return false;
+    } catch (e, st) {
+      // Anything else (e.g. a TypeError because the native side answered
+      // with something that isn't a String) must not escape: the button's
+      // onPressed would turn it into an unhandled async error.
+      _log.error('Cast', 'Unexpected cast settings failure', null, e, st);
+      return false;
     }
   }
 
@@ -72,8 +78,10 @@ class CastService {
     if (!_isAndroid) return false;
     try {
       return await _channel.invokeMethod<bool>('isCasting') ?? false;
-    } on Exception catch (e, st) {
-      // MissingPluginException / PlatformException: treat as not casting.
+    } catch (e, st) {
+      // MissingPluginException / PlatformException, or a TypeError when the
+      // native side answers with a non-bool: treat as not casting. This is
+      // polled from a Timer, where an escaped error would be unhandled.
       if (!_isCastingFailureLogged) {
         _isCastingFailureLogged = true;
         _log.warn('Cast', 'Could not check casting state', null, e, st);

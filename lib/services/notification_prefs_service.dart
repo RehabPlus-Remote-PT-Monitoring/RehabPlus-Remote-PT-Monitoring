@@ -2,6 +2,7 @@ import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 
 import '../core/diagnostic_logger.dart';
+import '../models/firestore_fields.dart';
 import 'firestore_diagnostics.dart';
 
 /// Which push notifications the patient wants, stored at
@@ -35,16 +36,14 @@ class NotificationPrefs {
   /// Reads the stored document. A missing document or a non-bool value
   /// means "on" (the API_CONTRACT default), never "off": silently muting a
   /// patient's pushes because of bad data would be the worse failure.
-  factory NotificationPrefs.fromMap(Map<String, dynamic>? data) =>
-      NotificationPrefs(
-        messages: data?['messages'] is bool ? data!['messages'] as bool : true,
-        exercises: data?['exercises'] is bool
-            ? data!['exercises'] as bool
-            : true,
-        reminders: data?['reminders'] is bool
-            ? data!['reminders'] as bool
-            : true,
-      );
+  factory NotificationPrefs.fromMap(Map<String, dynamic>? data) {
+    final r = FieldReader(data ?? const {});
+    return NotificationPrefs(
+      messages: r.boolean('messages', fallback: true),
+      exercises: r.boolean('exercises', fallback: true),
+      reminders: r.boolean('reminders', fallback: true),
+    );
+  }
 
   /// The document body the rules accept (plus the server timestamp).
   Map<String, Object> toFirestore() => {
@@ -56,7 +55,8 @@ class NotificationPrefs {
 }
 
 /// Log events (tag 'NotificationPrefs'): "Loaded" {messages, exercises,
-/// exists, fromCache}, "Load failed" {code}, "Save done/failed" {ms, code}.
+/// reminders, exists, fromCache}, "Load failed" {code}, "Save done/failed"
+/// {ms, code}.
 class NotificationPrefsService {
   NotificationPrefsService._();
   static final NotificationPrefsService I = NotificationPrefsService._();

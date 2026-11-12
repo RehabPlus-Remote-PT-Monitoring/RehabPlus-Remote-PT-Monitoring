@@ -85,10 +85,6 @@ extension ProgressSessionValues on ExerciseSession {
     return count == 0 ? null : sum / count * 100;
   }
 
-  /// Like [ExerciseSession.overallCompliance] (0–1, 0 when there are no
-  /// scores) but never NaN, so it is safe to round or to draw.
-  double get safeCompliance => (safeFormScore ?? 0) / 100;
-
   /// Reported pain clamped to 0–10, or null when none was reported.
   double? get safePain => painLevel?.clamp(0, 10).toDouble();
 
@@ -172,51 +168,6 @@ class ProgressStats {
     return CalendarDays.addDays(today, -(today.weekday - 1));
   }
 
-  /// Whether the patient exercised on each day of the current week,
-  /// Monday first (index 0 = Mon … 6 = Sun).
-  static List<bool> currentWeek(List<ExerciseSession> sessions, DateTime now) {
-    final monday = _mondayOf(now);
-    final nextMonday = CalendarDays.addDays(monday, 7);
-    final week = List<bool>.filled(7, false);
-    for (final s in sessions) {
-      final t = s.startTime;
-      if (t.isBefore(monday) || !t.isBefore(nextMonday)) continue;
-      week[CalendarDays.between(monday, t)] = true;
-    }
-    return week;
-  }
-
-  /// Totals for the last [days] days including today, or — with
-  /// [periodsAgo] = 1 — the [days] days before that (for trends).
-  /// [days] below 1 gives empty totals.
-  static PeriodStats period(
-    List<ExerciseSession> sessions,
-    DateTime now, {
-    required int days,
-    int periodsAgo = 0,
-  }) {
-    if (days < 1 || periodsAgo < 0) return PeriodStats.empty;
-    final tomorrow = CalendarDays.addDays(CalendarDays.startOf(now), 1);
-    final end = CalendarDays.addDays(tomorrow, -days * periodsAgo);
-    final start = CalendarDays.addDays(end, -days);
-
-    var count = 0;
-    var time = Duration.zero;
-    final activeDays = <int>{};
-    for (final s in sessions) {
-      final t = s.startTime;
-      if (t.isBefore(start) || !t.isBefore(end)) continue;
-      count++;
-      time += s.countedDuration;
-      activeDays.add(CalendarDays.between(start, t));
-    }
-    return PeriodStats(
-      activeDays: activeDays.length,
-      sessions: count,
-      time: time,
-    );
-  }
-
   /// The current week plus, for each length in [windows], that window and
   /// the one before it, in a single pass over [sessions].
   static ProgressOverview overview(
@@ -227,10 +178,11 @@ class ProgressStats {
     final today = CalendarDays.startOf(now);
     final tomorrow = CalendarDays.addDays(today, 1);
     final monday = _mondayOf(now);
-    final valid = [
+    // A Set, so a repeated length (e.g. [7, 7]) can't count sessions twice.
+    final valid = <int>{
       for (final w in windows)
         if (w >= 1) w,
-    ];
+    }.toList();
     final longest = valid.maxOrNull ?? 0;
     // Oldest instant any window looks at (two back-to-back windows).
     final oldest = CalendarDays.addDays(tomorrow, -2 * longest);
@@ -284,33 +236,9 @@ class ProgressStats {
     );
   }
 
-  /// Whether [exerciseId] was fully completed (not ended early) on [day].
-  static bool doneOn(
-    List<ExerciseSession> sessions,
-    String exerciseId,
-    DateTime day,
-  ) {
-    final start = CalendarDays.startOf(day);
-    final end = CalendarDays.addDays(start, 1);
-    return sessions.any(
-      (s) =>
-          s.exerciseId == exerciseId &&
-          !s.endedEarly &&
-          !s.startTime.isBefore(start) &&
-          s.startTime.isBefore(end),
-    );
-  }
-
-  /// Completed sessions of [exerciseId] in the current Monday–Sunday week.
-  static int completedThisWeek(
-    List<ExerciseSession> sessions,
-    String exerciseId,
-    DateTime now,
-  ) => activity(sessions, now).weekCount(exerciseId);
-
-  /// [doneOn] (today) and [completedThisWeek] for every exercise at once,
-  /// in one pass, so a list of N exercises costs O(sessions) not
-  /// O(N × sessions).
+  /// For every exercise at once: whether it was fully completed today and
+  /// how many times this Monday–Sunday week. One pass, so a list of N
+  /// exercises costs O(sessions), not O(N × sessions).
   static ExerciseActivity activity(
     List<ExerciseSession> sessions,
     DateTime now,

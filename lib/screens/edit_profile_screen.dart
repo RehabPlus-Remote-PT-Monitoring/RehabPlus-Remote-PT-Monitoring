@@ -228,23 +228,41 @@ class _EditProfileScreenState extends State<EditProfileScreen>
 
   /// Opens a calendar so the patient picks their birth date instead of typing.
   Future<void> _pickDob() async {
+    // A quick double tap would otherwise stack two calendars.
+    if (_pickingDob) return;
+    _pickingDob = true;
     final now = DateTime.now();
     DateTime? current;
     try {
       current = _dobFormat.parseStrict(_dobCtrl.text.trim());
-    } catch (_) {
+    } on FormatException {
       // Older entries may be free text; start the calendar near a typical age.
     }
-    final picked = await showDatePicker(
-      context: context,
-      initialDate: current ?? DateTime(now.year - 30),
-      firstDate: DateTime(1900),
-      lastDate: now,
-      helpText: 'Date of birth',
-    );
+    // showDatePicker asserts that the start date is inside the allowed range,
+    // so an odd stored date (before 1900, or in the future) is ignored.
+    if (current != null &&
+        (current.isBefore(DateTime(1900)) || current.isAfter(now))) {
+      current = null;
+    }
+    final DateTime? picked;
+    try {
+      picked = await showDatePicker(
+        context: context,
+        initialDate: current ?? DateTime(now.year - 30),
+        firstDate: DateTime(1900),
+        lastDate: now,
+        helpText: 'Date of birth',
+      );
+    } finally {
+      _pickingDob = false;
+    }
     if (picked == null || !mounted) return;
-    setState(() => _dobCtrl.text = _dobFormat.format(picked));
+    final formatted = _dobFormat.format(picked);
+    setState(() => _dobCtrl.text = formatted);
   }
+
+  /// True while the date-of-birth calendar is open.
+  bool _pickingDob = false;
 
   Future<void> _save() async {
     if (_isSaving) return;
@@ -591,9 +609,10 @@ class _EditProfileScreenState extends State<EditProfileScreen>
 
   Widget _divider() => Divider(height: 1, color: context.palette.divider);
 
-  // Lengths match the Firestore rules (name ≤ 100, phone/date of birth ≤ 30).
-  String? _required(String? v) => _check(v, 30);
-  String? _requiredName(String? v) => _check(v, 100);
+  // Same limits as the Firestore rules (validContactEdit), via
+  // ProfileService, which re-checks them before writing.
+  String? _required(String? v) => _check(v, ProfileService.maxDobLength);
+  String? _requiredName(String? v) => _check(v, ProfileService.maxNameLength);
 
   String? _check(String? v, int max) {
     final t = v?.trim() ?? '';
@@ -606,7 +625,7 @@ class _EditProfileScreenState extends State<EditProfileScreen>
   static final RegExp _phonePattern = RegExp(r'^[0-9+()\-.\s]+$');
 
   String? _phone(String? v) {
-    final basic = _check(v, 30);
+    final basic = _check(v, ProfileService.maxPhoneLength);
     if (basic != null) return basic;
     final t = v!.trim();
     if (!_phonePattern.hasMatch(t) || !t.contains(RegExp('[0-9]'))) {

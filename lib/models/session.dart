@@ -24,6 +24,9 @@ class ExerciseSession {
   /// Longest exercise id / name the rules accept (size() <= 100).
   static const int maxNameLength = 100;
 
+  /// Longest prescription id the rules accept (size() <= 128).
+  static const int maxPrescriptionIdLength = 128;
+
   /// Rep and set counts above this are treated as corrupt and clamped when
   /// read, and refused by the rules (validCount) when written.
   /// No prescription comes anywhere near it.
@@ -82,9 +85,6 @@ class ExerciseSession {
     return repComplianceScores.sum / repComplianceScores.length;
   }
 
-  double get repCompletionRate =>
-      targetReps > 0 ? (completedReps / targetReps).clamp(0, 1) : 0;
-
   Map<String, dynamic> toJson() => {
     'id': id,
     'exerciseId': exerciseId,
@@ -126,13 +126,22 @@ class ExerciseSession {
     'exerciseName': clipText(exerciseName, maxNameLength),
     'notes': notes == null ? null : clipText(notes!, maxNotesLength),
     'startTime': Timestamp.fromDate(startTime),
-    'endTime': endTime == null ? null : Timestamp.fromDate(endTime!),
+    'endTime': endTime == null ? null : Timestamp.fromDate(_endNotBeforeStart),
     'painNote': painNote == null
         ? null
         : clipText(painNote!, maxPainNoteLength),
     'overallCompliance': overallCompliance,
     'createdAt': FieldValue.serverTimestamp(),
   };
+
+  /// [endTime], moved up to [startTime] if the phone's clock was set back
+  /// during the session (e.g. a network time correction). The rules refuse
+  /// an end before the start, and losing the whole session over a few
+  /// seconds of clock drift would be the worse outcome.
+  DateTime get _endNotBeforeStart {
+    final end = endTime!;
+    return end.isBefore(startTime) ? startTime : end;
+  }
 
   /// Builds a session from a Firestore document.
   ///
@@ -243,6 +252,8 @@ class ExerciseSession {
     ])
       if (value < 0 || value > maxCount) name,
     if (repComplianceScores.length > maxCount) 'repComplianceScores',
+    if ((prescriptionId?.length ?? 0) > maxPrescriptionIdLength)
+      'prescriptionId',
     if (painLevel == null ||
         painLevel! < minPainLevel ||
         painLevel! > maxPainLevel)

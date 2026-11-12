@@ -38,6 +38,7 @@ import 'firestore_diagnostics.dart';
 ///   "Listening for messages"; "Registration started|done|abandoned|failed"
 ///   {uid, permission, generation}; "Device token saved|save failed"
 ///   {uid, tokenHash}; "Token refreshed" {tokenHash}; "Unregistered"
+///   {uid, hadToken, allStepsDone}; "Unregister step failed" {step, code}
 ///   "Foreground message" {type, thread, hasNotification}; "Opening chat
 ///   from notification" {thread}; "Launch message" {present}
 class PushService {
@@ -142,7 +143,10 @@ class PushService {
       final settings = await _fm.requestPermission();
       final permission = settings.authorizationStatus.name;
       if (settings.authorizationStatus == AuthorizationStatus.denied) {
-        _logger.info('PushService', 'Notification permission denied');
+        _logger.info('PushService', 'Notification permission denied', {
+          'uid': uid,
+          'ms': stopwatch.elapsedMilliseconds,
+        });
         return;
       }
       if (stale()) return _abandon(uid, 'after permission');
@@ -205,6 +209,13 @@ class PushService {
     try {
       final old = _token;
       if (old != null && old != token) await _delete(uid, old);
+      // Signed out while the old token was being deleted: unregister() has
+      // already run and must not be undone by saving the new token for the
+      // patient who just left (they would keep getting their pushes here).
+      if (generation != _generation) {
+        _logger.info('PushService', 'Token refresh ignored: signed out');
+        return;
+      }
       await _save(uid, token);
     } catch (e, st) {
       _logger.warn('PushService', 'Token refresh save failed', {
@@ -215,7 +226,10 @@ class PushService {
   }
 
   /// Stops pushes to this device. Call before signing out (needs auth to
-  /// delete the token doc). Never throws.
+  /// delete the token doc). Never throws, and never takes longer than
+  /// [unregisterTimeout]: both steps need the network, and while offline
+  /// their futures would never complete, which used to leave the patient
+  /// stuck on "Signing out" with no connection.
   Future<void> unregister() async {
     // First, so any registration still in flight stops before writing.
     _generation++;
@@ -225,19 +239,39 @@ class PushService {
     final uid = FirebaseAuth.instance.currentUser?.uid;
     final token = _token;
     _token = null;
-    try {
-      if (uid != null && token != null) await _delete(uid, token);
+
+    // Independent steps, so they run in parallel. Either one alone stops
+    // the pushes: the dashboard sends to the stored token, and deleteToken
+    // makes FCM refuse that token.
+    final results = await Future.wait([
+      if (uid != null && token != null)
+        _bestEffort('delete token doc', () => _delete(uid, token)),
       // ignore: deprecated_member_use
-      await _fm.deleteToken();
-      _logger.info('PushService', 'Unregistered', {
-        'uid': uid,
-        'hadToken': token != null,
-      });
+      _bestEffort('delete FCM token', () => _fm.deleteToken()),
+    ]);
+    _logger.info('PushService', 'Unregistered', {
+      'uid': uid,
+      'hadToken': token != null,
+      'allStepsDone': results.every((ok) => ok),
+    });
+  }
+
+  /// Longest [unregister] waits for each network step.
+  static const Duration unregisterTimeout = Duration(seconds: 5);
+
+  /// Runs one [unregister] step; returns whether it finished. A failure or
+  /// timeout is logged (a timed-out Firestore delete stays queued in the
+  /// offline cache and is retried by Firestore when the phone reconnects).
+  Future<bool> _bestEffort(String step, Future<void> Function() action) async {
+    try {
+      await action().timeout(unregisterTimeout);
+      return true;
     } catch (e, st) {
-      _logger.warn('PushService', 'Unregister failed', {
-        'uid': uid,
+      _logger.warn('PushService', 'Unregister step failed', {
+        'step': step,
         ...firebaseErrorData(e),
       }, e, st);
+      return false;
     }
   }
 
