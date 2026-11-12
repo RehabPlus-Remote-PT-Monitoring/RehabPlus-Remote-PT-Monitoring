@@ -36,6 +36,34 @@ class ExerciseRangeGauge extends StatelessWidget {
 
   static const double _trackHeight = 8;
   static const double _markerSize = 16;
+  static const BorderRadius _trackRadius = BorderRadius.all(
+    Radius.circular(4),
+  );
+
+  // This widget is rebuilt on every processed camera frame, so everything
+  // that doesn't depend on the angle is built once here rather than per
+  // build.
+  static const BoxDecoration _trackDecoration = BoxDecoration(
+    color: Colors.white24,
+    borderRadius: _trackRadius,
+  );
+  static final BoxDecoration _zoneDecoration = BoxDecoration(
+    color: Colors.tealAccent.withValues(alpha: 0.55),
+    borderRadius: _trackRadius,
+  );
+  static final Border _markerBorder = Border.all(
+    color: Colors.black54,
+    width: 2,
+  );
+  static final BoxDecoration _markerWrong = _marker(Colors.redAccent);
+  static final BoxDecoration _markerInTarget = _marker(Colors.greenAccent);
+  static final BoxDecoration _markerMoving = _marker(Colors.white);
+
+  static BoxDecoration _marker(Color color) => BoxDecoration(
+    color: color,
+    shape: BoxShape.circle,
+    border: _markerBorder,
+  );
 
   @override
   Widget build(BuildContext context) {
@@ -46,11 +74,11 @@ class ExerciseRangeGauge extends StatelessWidget {
     final current = angle;
     final position = current == null ? null : scale.position(current);
     final inTarget = current != null && scale.isInTarget(current);
-    final markerColor = !isCorrect
-        ? Colors.redAccent
+    final markerDecoration = !isCorrect
+        ? _markerWrong
         : inTarget
-        ? Colors.greenAccent
-        : Colors.white;
+        ? _markerInTarget
+        : _markerMoving;
 
     return Semantics(
       label: position == null
@@ -98,20 +126,14 @@ class ExerciseRangeGauge extends StatelessWidget {
                     children: [
                       Container(
                         height: _trackHeight,
-                        decoration: BoxDecoration(
-                          color: Colors.white24,
-                          borderRadius: BorderRadius.circular(4),
-                        ),
+                        decoration: _trackDecoration,
                       ),
                       Positioned(
                         left: zoneLeft,
                         right: 0,
                         child: Container(
                           height: _trackHeight,
-                          decoration: BoxDecoration(
-                            color: Colors.tealAccent.withValues(alpha: 0.55),
-                            borderRadius: BorderRadius.circular(4),
-                          ),
+                          decoration: _zoneDecoration,
                         ),
                       ),
                       if (position != null)
@@ -121,14 +143,7 @@ class ExerciseRangeGauge extends StatelessWidget {
                             key: markerKey,
                             width: _markerSize,
                             height: _markerSize,
-                            decoration: BoxDecoration(
-                              color: markerColor,
-                              shape: BoxShape.circle,
-                              border: Border.all(
-                                color: Colors.black54,
-                                width: 2,
-                              ),
-                            ),
+                            decoration: markerDecoration,
                           ),
                         ),
                     ],

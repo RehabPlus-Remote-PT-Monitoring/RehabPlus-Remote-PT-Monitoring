@@ -20,10 +20,18 @@ String chatDayLabel(DateTime message, DateTime now) {
   final daysAgo = _calendarDaysBetween(message, now);
   if (daysAgo == 0) return 'Today';
   if (daysAgo == 1) return 'Yesterday';
-  if (daysAgo > 1 && daysAgo < 7) return DateFormat.EEEE().format(message);
-  if (message.year == now.year) return DateFormat.MMMd().format(message);
-  return DateFormat.yMMMd().format(message);
+  if (daysAgo > 1 && daysAgo < 7) return _weekday.format(message);
+  if (message.year == now.year) return _monthDay.format(message);
+  return _monthDayYear.format(message);
 }
+
+// Built once (on first use) instead of per separator: a DateFormat parses
+// its pattern when created, and the chat list asks for a label while
+// scrolling. The app never changes its locale at runtime, so the locale
+// these capture on first use stays right.
+final DateFormat _weekday = DateFormat.EEEE();
+final DateFormat _monthDay = DateFormat.MMMd();
+final DateFormat _monthDayYear = DateFormat.yMMMd();
 
 /// True when [message] needs a day separator above it: it is the oldest
 /// message loaded ([older] is null) or [older], the message shown just above

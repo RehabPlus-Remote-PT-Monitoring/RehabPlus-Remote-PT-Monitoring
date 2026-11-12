@@ -20,6 +20,7 @@ class ExerciseStandingGuide extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final caption = this.caption;
     return IgnorePointer(
       child: LayoutBuilder(
         builder: (context, constraints) {
@@ -44,7 +45,7 @@ class ExerciseStandingGuide extends StatelessWidget {
                   Padding(
                     padding: const EdgeInsets.fromLTRB(32, 8, 32, 0),
                     child: Text(
-                      caption!,
+                      caption,
                       textAlign: TextAlign.center,
                       maxLines: 3,
                       overflow: TextOverflow.ellipsis,

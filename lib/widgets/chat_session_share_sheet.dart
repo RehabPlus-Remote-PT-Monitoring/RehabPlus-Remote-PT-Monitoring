@@ -10,7 +10,10 @@ import 'package:flutter/material.dart';
 import 'package:intl/intl.dart' show DateFormat;
 
 import '../core/app_palette.dart';
+import '../core/diagnostic_logger.dart';
 import '../models/session.dart';
+
+const String _tag = 'ChatShareSheet';
 
 /// How many recent sessions the sheet offers. Enough to cover the last few
 /// days of a typical plan without turning into a history screen.
@@ -35,6 +38,22 @@ class _ShareSheet extends StatelessWidget {
   const _ShareSheet({required this.sessions});
 
   final List<ExerciseSession> sessions;
+
+  /// Closes the sheet with [session]. A second tap while the sheet is
+  /// already closing is ignored: the sheet's route is no longer the top
+  /// one by then, so `Navigator.pop` would close the chat screen under it.
+  void _pick(BuildContext context, ExerciseSession session) {
+    final route = ModalRoute.of(context);
+    if (route != null && !route.isCurrent) {
+      DiagnosticLogger.I.info(_tag, 'Repeated share tap ignored');
+      return;
+    }
+    DiagnosticLogger.I.info(_tag, 'Session picked to share', {
+      'index': sessions.indexOf(session),
+      'offered': sessions.length,
+    });
+    Navigator.pop(context, session);
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -78,7 +97,7 @@ class _ShareSheet extends StatelessWidget {
                   for (final session in sessions)
                     _SessionTile(
                       session: session,
-                      onTap: () => Navigator.pop(context, session),
+                      onTap: () => _pick(context, session),
                     ),
                 ],
               ),
@@ -96,10 +115,13 @@ class _SessionTile extends StatelessWidget {
   final ExerciseSession session;
   final VoidCallback onTap;
 
+  /// One parsed pattern shared by every tile (e.g. "Fri, Nov 7 · 8:15 AM").
+  static final DateFormat _whenFormat = DateFormat('EEE, MMM d · h:mm a');
+
   @override
   Widget build(BuildContext context) {
     final palette = context.palette;
-    final when = DateFormat('EEE, MMM d · h:mm a').format(session.startTime);
+    final when = _whenFormat.format(session.startTime);
     final reps = '${session.completedReps}/${session.targetReps} reps';
     return ListTile(
       onTap: onTap,

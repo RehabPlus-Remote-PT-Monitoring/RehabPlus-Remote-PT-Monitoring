@@ -329,6 +329,8 @@ void main() {
         },
         liveLimit: 2,
         pageSize: 2,
+        // The retry pause has its own test (ios_review_test.dart).
+        retryDelay: Duration.zero,
       );
       pager.merge(all.take(2).toList());
       await pager.loadOlder();

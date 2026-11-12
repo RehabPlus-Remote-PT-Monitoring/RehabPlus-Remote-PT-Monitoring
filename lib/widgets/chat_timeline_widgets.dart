@@ -55,16 +55,16 @@ class ChatNewMessagesDivider extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final line = Expanded(
+    const line = Expanded(
       child: Divider(color: _onGradient, thickness: 1, height: 1),
     );
-    return Padding(
-      padding: const EdgeInsets.symmetric(vertical: 10),
+    return const Padding(
+      padding: EdgeInsets.symmetric(vertical: 10),
       child: Row(
         children: [
           line,
           Padding(
-            padding: const EdgeInsets.symmetric(horizontal: 8),
+            padding: EdgeInsets.symmetric(horizontal: 8),
             child: Text(
               'New messages',
               style: TextStyle(
@@ -103,7 +103,7 @@ class ChatHistoryFooter extends StatelessWidget {
   Widget build(BuildContext context) {
     final Widget child;
     if (loading) {
-      child = SizedBox(
+      child = const SizedBox(
         width: 20,
         height: 20,
         child: CircularProgressIndicator(strokeWidth: 2, color: _onGradient),

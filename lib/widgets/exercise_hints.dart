@@ -14,14 +14,18 @@ class ExerciseHintBanner extends StatelessWidget {
   final IconData icon;
   final String text;
 
+  /// Built once: the banner sits on the exercise screen, which rebuilds on
+  /// every processed camera frame.
+  static final BoxDecoration _decoration = BoxDecoration(
+    color: Colors.black.withValues(alpha: 0.6),
+    borderRadius: const BorderRadius.all(Radius.circular(12)),
+  );
+
   @override
   Widget build(BuildContext context) {
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
-      decoration: BoxDecoration(
-        color: Colors.black.withValues(alpha: 0.6),
-        borderRadius: BorderRadius.circular(12),
-      ),
+      decoration: _decoration,
       child: Row(
         mainAxisSize: MainAxisSize.min,
         children: [

@@ -11,6 +11,9 @@
 
 import 'package:flutter/material.dart';
 
+/// The soft red of both End buttons, readable on the dark camera overlay.
+final Color _endColor = Colors.redAccent.shade100;
+
 /// Pause and End, side by side, for the bottom card.
 class ExerciseSessionControls extends StatelessWidget {
   const ExerciseSessionControls({
@@ -26,6 +29,24 @@ class ExerciseSessionControls extends StatelessWidget {
   final VoidCallback onPause;
   final VoidCallback onEnd;
 
+  // The bottom card is rebuilt on every processed camera frame; the styles
+  // never change, so they are resolved once instead of per build.
+  static const EdgeInsets _padding = EdgeInsets.symmetric(
+    horizontal: 8,
+    vertical: 10,
+  );
+  static final ButtonStyle _pauseStyle = OutlinedButton.styleFrom(
+    foregroundColor: Colors.white,
+    disabledForegroundColor: Colors.white38,
+    side: const BorderSide(color: Colors.white38),
+    padding: _padding,
+  );
+  static final ButtonStyle _endStyle = OutlinedButton.styleFrom(
+    foregroundColor: _endColor,
+    side: BorderSide(color: _endColor),
+    padding: _padding,
+  );
+
   @override
   Widget build(BuildContext context) {
     return Row(
@@ -35,12 +56,7 @@ class ExerciseSessionControls extends StatelessWidget {
             onPressed: canPause ? onPause : null,
             icon: const Icon(Icons.pause_rounded, size: 20),
             label: const Text('Pause', overflow: TextOverflow.ellipsis),
-            style: OutlinedButton.styleFrom(
-              foregroundColor: Colors.white,
-              disabledForegroundColor: Colors.white38,
-              side: const BorderSide(color: Colors.white38),
-              padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 10),
-            ),
+            style: _pauseStyle,
           ),
         ),
         const SizedBox(width: 10),
@@ -49,11 +65,7 @@ class ExerciseSessionControls extends StatelessWidget {
             onPressed: onEnd,
             icon: const Icon(Icons.stop_rounded, size: 20),
             label: const Text('End', overflow: TextOverflow.ellipsis),
-            style: OutlinedButton.styleFrom(
-              foregroundColor: Colors.redAccent.shade100,
-              side: BorderSide(color: Colors.redAccent.shade100),
-              padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 10),
-            ),
+            style: _endStyle,
           ),
         ),
       ],
@@ -72,10 +84,12 @@ class ExercisePausedOverlay extends StatelessWidget {
   final VoidCallback onResume;
   final VoidCallback onEnd;
 
+  static final Color _scrim = Colors.black.withValues(alpha: 0.7);
+
   @override
   Widget build(BuildContext context) {
     return ColoredBox(
-      color: Colors.black.withValues(alpha: 0.7),
+      color: _scrim,
       child: SafeArea(
         child: Center(
           // Scrolls instead of overflowing in phone landscape at large text.
@@ -125,9 +139,7 @@ class ExercisePausedOverlay extends StatelessWidget {
                 const SizedBox(height: 8),
                 TextButton(
                   onPressed: onEnd,
-                  style: TextButton.styleFrom(
-                    foregroundColor: Colors.redAccent.shade100,
-                  ),
+                  style: TextButton.styleFrom(foregroundColor: _endColor),
                   child: const Text('End session'),
                 ),
               ],

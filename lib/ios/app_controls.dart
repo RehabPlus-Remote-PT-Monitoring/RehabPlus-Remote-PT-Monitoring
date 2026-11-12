@@ -112,22 +112,39 @@ class AppSegmented<T> extends StatelessWidget {
   Widget build(BuildContext context) {
     if (!useIosChrome) return material();
     final index = segments.indexWhere((s) => s.$1 == selected);
+    if (index < 0) {
+      // A caller bug (the value isn't one of the segments); logged so it
+      // isn't mistaken for the native control ignoring the setting.
+      DiagnosticLogger.I.warn('IosChrome', 'Segmented value not in segments', {
+        'segments': segments.length,
+      });
+    }
     return CNSegmentedControl(
       labels: [for (final s in segments) s.$2],
       // -1 would crash the native control; fall back to the first segment.
       selectedIndex: index < 0 ? 0 : index,
-      onValueChanged: (i) => onChanged(segments[i].$1),
+      onValueChanged: (i) {
+        // The index comes back over the platform channel; never trust it
+        // to be in range.
+        if (i < 0 || i >= segments.length) {
+          DiagnosticLogger.I.warn('IosChrome', 'Segment index out of range', {
+            'index': i,
+            'segments': segments.length,
+          });
+          return;
+        }
+        onChanged(segments[i].$1);
+      },
       color: AppPalette.teal,
     );
   }
 }
 
-/// A page's main or secondary button.
+/// A page's button.
 ///
-/// Android: [material] (the existing button). iPhone: a Liquid Glass
-/// capsule tinted teal; [prominent] picks the filled glass style for the
-/// main action, plain glass otherwise. [sfSymbol] is an optional SF Symbol
-/// name shown before the label.
+/// Android: [material] (the existing button). iPhone: a filled Liquid
+/// Glass capsule tinted teal. [sfSymbol] is an optional SF Symbol name
+/// shown before the label.
 class AppButton extends StatelessWidget {
   const AppButton({
     super.key,
@@ -135,14 +152,12 @@ class AppButton extends StatelessWidget {
     required this.onPressed,
     required this.material,
     this.sfSymbol,
-    this.prominent = true,
   });
 
   final String label;
   final VoidCallback? onPressed;
   final Widget Function() material;
   final String? sfSymbol;
-  final bool prominent;
 
   @override
   Widget build(BuildContext context) {
@@ -155,7 +170,7 @@ class AppButton extends StatelessWidget {
       enabled: onPressed != null,
       tint: AppPalette.teal,
       config: CNButtonConfig(
-        style: prominent ? CNButtonStyle.prominentGlass : CNButtonStyle.glass,
+        style: CNButtonStyle.prominentGlass,
         minHeight: 48,
         // The native label is a plain string, so apply the phone's and the
         // in-app Settings > Text size scale here (17 pt = iOS body size).
@@ -170,7 +185,8 @@ class AppButton extends StatelessWidget {
 /// Android: runs [material] (the screen's existing `showDialog`).
 /// iPhone: a native alert. If the native alert can't be shown (it returns
 /// no answer or throws), the Material dialog is shown instead, so the
-/// question is never silently skipped.
+/// question is never silently skipped; unless the screen was closed in the
+/// meantime, when the answer is "no".
 Future<bool> showAppConfirm(
   BuildContext context, {
   required String title,
@@ -201,34 +217,58 @@ Future<bool> showAppConfirm(
       return result?.value;
     },
     material: material,
+    canFallBack: () => context.mounted,
     title: title,
   );
 }
 
 /// Runs [native]; when it gives no answer (null) or throws, logs it and
 /// runs [material] instead. Returns true only for an explicit yes.
+///
+/// [canFallBack] is asked before the fallback: the native alert is awaited
+/// first, and if the screen was closed meanwhile its context can no longer
+/// show a dialog (showDialog on an unmounted context throws). The answer
+/// is then "no", which is the safe one for every confirm in the app (they
+/// all guard a destructive action).
+///
+/// [title] is the app's own constant question text (never user input), so
+/// it is safe to log and tells which confirm misbehaved.
 @visibleForTesting
 Future<bool> confirmWithFallback({
   required Future<bool?> Function() native,
   required Future<bool?> Function() material,
+  bool Function()? canFallBack,
   String title = '',
 }) async {
+  final logger = DiagnosticLogger.I;
   try {
     final answer = await native();
-    if (answer != null) return answer;
-    DiagnosticLogger.I.warn(
+    if (answer != null) {
+      logger.info('IosChrome', 'Native alert answered', {
+        'title': title,
+        'confirmed': answer,
+      });
+      return answer;
+    }
+    logger.warn(
       'IosChrome',
       'Native alert gave no answer; showing the Material dialog',
       {'title': title},
     );
   } catch (e, st) {
-    DiagnosticLogger.I.warn(
+    logger.warn(
       'IosChrome',
       'Native alert failed; showing the Material dialog',
       {'title': title},
       e,
       st,
     );
+  }
+  if (canFallBack != null && !canFallBack()) {
+    logger.warn('IosChrome', 'Screen closed before the fallback dialog', {
+      'title': title,
+    });
+    return false;
   }
   return await material() ?? false;
 }

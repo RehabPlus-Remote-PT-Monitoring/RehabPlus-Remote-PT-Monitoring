@@ -5,21 +5,25 @@
 // feels laggy" can be checked from the device log instead of guessed.
 //
 //   RPLOG ... INFO Frames: Frame window {frames, janky, jankPct, p90BuildMs,
-//   p90RasterMs, worstBuildMs, worstRasterMs, screen}
+//   p90RasterMs, worstBuildMs, worstRasterMs, budgetMs, screen}
 //
 // How to read it:
-//   - janky = frames whose build OR raster time went over one refresh
-//     (16.7 ms at 60 Hz). A few % while navigating is normal; double digits
-//     while scrolling a list is what people feel as stutter.
+//   - janky = frames whose build OR raster time went over one refresh of
+//     the display (budgetMs: 16.7 ms at 60 Hz, 8.3 ms on a 120 Hz ProMotion
+//     iPhone). A few % while navigating is normal; double digits while
+//     scrolling a list is what people feel as stutter.
 //   - High build ms: Dart work in build()/layout (too many rebuilds).
 //     High raster ms: drawing cost (shadows, blurs, clips, native views).
 //   - screen: the route on top when the window ended (FrameStats.screen).
+//   - The "Frame timing installed" line at startup gives the refresh rate
+//     the budget was derived from.
 //
 // Windows with no frames (the app idle) are not logged at all, and the
 // callback only does a few additions per frame, so it is cheap enough to
 // leave on in release builds.
 
 import 'dart:math' as math;
+import 'dart:ui' show PlatformDispatcher;
 
 import 'package:flutter/scheduler.dart';
 import 'package:flutter/material.dart' show MaterialPageRoute;
@@ -57,6 +61,7 @@ class FrameStatsWindow {
       'p90RasterMs': _p90(_raster),
       'worstBuildMs': _round1(_build.reduce(math.max)),
       'worstRasterMs': _round1(_raster.reduce(math.max)),
+      'budgetMs': _round1(budgetMs),
     };
     _build.clear();
     _raster.clear();
@@ -74,13 +79,30 @@ class FrameStatsWindow {
   static double _round1(double v) => (v * 10).round() / 10;
 }
 
+/// The time one frame may take at [refreshRateHz] before it counts as
+/// janky.
+///
+/// iPhones with ProMotion run at 120 Hz, where a frame has 8.3 ms, not
+/// 16.7 ms; judging them against 60 Hz would hide half the stutter. A rate
+/// outside 30..240 Hz (0 or NaN from a display that isn't attached yet, as
+/// in tests) falls back to 60 Hz.
+double frameBudgetMs(double refreshRateHz) {
+  final plausible =
+      refreshRateHz.isFinite && refreshRateHz >= 30 && refreshRateHz <= 240;
+  final hz = plausible ? refreshRateHz : 60.0;
+  return 1000 / hz;
+}
+
 /// Hooks [FrameStatsWindow] into the engine's frame timings and logs one
 /// summary per [window]. Call [install] once at startup.
 class FrameStats {
   FrameStats._();
 
   static const Duration window = Duration(seconds: 10);
-  static final FrameStatsWindow _current = FrameStatsWindow(budgetMs: 16.7);
+
+  /// Created by [install], once the display's refresh rate is known; null
+  /// before that (and if installing failed).
+  static FrameStatsWindow? _current;
   static DateTime _windowStart = DateTime.now();
   static bool _installed = false;
 
@@ -91,7 +113,16 @@ class FrameStats {
     if (_installed) return;
     _installed = true;
     try {
+      final views = PlatformDispatcher.instance.views;
+      final refreshHz = views.isEmpty ? 0.0 : views.first.display.refreshRate;
+      final budgetMs = frameBudgetMs(refreshHz);
+      _current = FrameStatsWindow(budgetMs: budgetMs);
+      _windowStart = DateTime.now();
       SchedulerBinding.instance.addTimingsCallback(_onTimings);
+      DiagnosticLogger.I.info('Frames', 'Frame timing installed', {
+        'refreshHz': refreshHz.isFinite ? refreshHz.round() : null,
+        'budgetMs': (budgetMs * 10).round() / 10,
+      });
     } catch (e, st) {
       DiagnosticLogger.I.warn(
         'Frames',
@@ -104,8 +135,10 @@ class FrameStats {
   }
 
   static void _onTimings(List<FrameTiming> timings) {
+    final current = _current;
+    if (current == null) return;
     for (final t in timings) {
-      _current.add(
+      current.add(
         buildMs: t.buildDuration.inMicroseconds / 1000,
         rasterMs: t.rasterDuration.inMicroseconds / 1000,
       );
@@ -113,7 +146,7 @@ class FrameStats {
     final now = DateTime.now();
     if (now.difference(_windowStart) < window) return;
     _windowStart = now;
-    final summary = _current.takeSummary();
+    final summary = current.takeSummary();
     if (summary == null) return;
     summary['screen'] = screen;
     DiagnosticLogger.I.info('Frames', 'Frame window', summary);
@@ -121,28 +154,38 @@ class FrameStats {
 }
 
 /// Records which screen is on top so each frame window can name it.
-/// Screens are identified by the route's settings name, or else the
-/// widget type the route builds (good enough for MaterialPageRoute).
+///
+/// A screen is named by its route's settings name when it has one;
+/// otherwise, for a MaterialPageRoute, by the type of the widget its
+/// builder returns (e.g. "ProfileScreen"); otherwise by the route's type.
 class FrameStatsRouteObserver extends NavigatorObserver {
-  void _set(Route<dynamic>? route) {
-    if (route == null) return;
+  /// The name [FrameStats.screen] gets when [route] is on top, or null to
+  /// leave it unchanged (no route).
+  @visibleForTesting
+  String? screenNameFor(Route<dynamic>? route) {
+    if (route == null) return null;
     final name = route.settings.name;
-    FrameStats.screen = name ?? route.runtimeType.toString();
-    if (route is MaterialPageRoute) {
-      try {
-        final context = navigator?.context;
-        if (context != null) {
-          FrameStats.screen = route.builder(context).runtimeType.toString();
-        }
-      } catch (e) {
-        // Creating the page widget only runs its constructor, which
-        // shouldn't fail; if one does, the route type is good enough.
-        FrameStats.screen = name ?? route.runtimeType.toString();
-        DiagnosticLogger.I.info('Frames', 'Screen name unavailable', {
-          'error': e.runtimeType.toString(),
-        });
-      }
+    if (name != null) return name;
+    final fallback = route.runtimeType.toString();
+    if (route is! MaterialPageRoute) return fallback;
+    final context = navigator?.context;
+    if (context == null) return fallback;
+    try {
+      // Only runs the page widget's constructor; nothing gets mounted.
+      return route.builder(context).runtimeType.toString();
+    } catch (e) {
+      // A builder that reads providers from its context can throw here;
+      // the route type is good enough then.
+      DiagnosticLogger.I.info('Frames', 'Screen name unavailable', {
+        'error': e.runtimeType.toString(),
+      });
+      return fallback;
     }
+  }
+
+  void _set(Route<dynamic>? route) {
+    final name = screenNameFor(route);
+    if (name != null) FrameStats.screen = name;
   }
 
   @override

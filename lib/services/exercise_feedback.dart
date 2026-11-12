@@ -8,7 +8,8 @@
 //
 // Kept pure (no Flutter widgets, no clocks, no logging) so every rule can be
 // unit tested in test/exercise_feedback_test.dart, and cheap enough to call
-// on every processed frame (no allocation in the per-frame paths).
+// on every processed frame (no allocation in the per-frame paths; the
+// "why red" sentences are cached, see whyRedSummary).
 
 import 'dart:ui' show Size;
 
@@ -49,16 +50,45 @@ String formIssueExplanation(FormIssueCode code) => switch (code) {
 /// The "why red" line for the bottom card: the plain sentence for each
 /// distinct issue, at most [maxReasons] of them (more would not fit on a
 /// phone at large text sizes; the first issue is the most important one).
-/// Returns null when there is nothing wrong.
+/// Returns null when there is nothing wrong (or [maxReasons] is below 1).
+///
+/// Called on every processed camera frame while the form is wrong, so the
+/// joined sentence is cached per ordered set of codes: after the first
+/// frame with a given set of issues, this only walks [codes].
 String? whyRedSummary(Iterable<FormIssueCode> codes, {int maxReasons = 2}) {
-  final distinct = <FormIssueCode>[];
+  var seen = 0; // one bit per FormIssueCode.index already picked
+  var key = 0; // the picked codes in order, one base-_whyRedBase digit each
+  var picked = 0;
   for (final code in codes) {
-    if (distinct.contains(code)) continue;
-    distinct.add(code);
-    if (distinct.length == maxReasons) break;
+    if (picked >= maxReasons) break;
+    final bit = 1 << code.index;
+    if (seen & bit != 0) continue;
+    seen |= bit;
+    key = key * _whyRedBase + code.index + 1;
+    picked++;
   }
-  if (distinct.isEmpty) return null;
-  return distinct.map(formIssueExplanation).join(' ');
+  if (picked == 0) return null;
+  return _whyRedCache.putIfAbsent(key, () => _whyRedSentence(key));
+}
+
+/// Digit base for [whyRedSummary]'s cache key: one more than the number of
+/// codes, so digit 0 never stands for a code. Even with every code picked
+/// the key stays below 2^53 (exact on every platform).
+final int _whyRedBase = FormIssueCode.values.length + 1;
+
+/// [whyRedSummary]'s results. Small: one entry per ordered set of issues
+/// the patient has actually triggered.
+final Map<int, String> _whyRedCache = {};
+
+/// Decodes a [whyRedSummary] key back into its codes and joins their
+/// sentences, first-picked first.
+String _whyRedSentence(int key) {
+  final sentences = <String>[];
+  for (var rest = key; rest > 0; rest ~/= _whyRedBase) {
+    final code = FormIssueCode.values[rest % _whyRedBase - 1];
+    sentences.insert(0, formIssueExplanation(code));
+  }
+  return sentences.join(' ');
 }
 
 // ---------------------------------------------------------------------------
@@ -74,31 +104,30 @@ String? whyRedSummary(Iterable<FormIssueCode> codes, {int maxReasons = 2}) {
 /// The gauge only displays the angle; whether a rep counts is still decided
 /// by the screen's own rules.
 class RangeGaugeScale {
-  const RangeGaugeScale({
-    required this.restAngle,
-    required this.targetAngle,
-    this.overshoot = 0.25,
-  });
+  const RangeGaugeScale({required this.restAngle, required this.targetAngle});
 
   final double restAngle;
   final double targetAngle;
 
   /// How far past the target the gauge reaches, as a fraction of the
   /// rest-to-target span. Leaves room to show the marker inside the zone.
-  final double overshoot;
+  static const double _overshoot = 0.25;
 
   /// Spans under this many degrees can't be drawn meaningfully.
   static const double _minSpanDeg = 1.0;
 
   /// Gauge position where the target zone starts (0..1).
-  double get targetStart => 1 / (1 + overshoot);
+  double get targetStart => 1 / (1 + _overshoot);
 
   /// Marker position for [angle], clamped to 0..1, or null when there is
-  /// nothing sensible to show (unknown angle or a degenerate range).
+  /// nothing sensible to show (unknown angle, or a degenerate or non-finite
+  /// range; NaN would otherwise reach the widget's layout).
   double? position(double angle) {
     final span = targetAngle - restAngle;
-    if (!angle.isFinite || span.abs() < _minSpanDeg) return null;
-    final raw = (angle - restAngle) / (span * (1 + overshoot));
+    if (!angle.isFinite || !span.isFinite || span.abs() < _minSpanDeg) {
+      return null;
+    }
+    final raw = (angle - restAngle) / (span * (1 + _overshoot));
     return raw.clamp(0.0, 1.0).toDouble();
   }
 
@@ -109,7 +138,7 @@ class RangeGaugeScale {
 }
 
 // ---------------------------------------------------------------------------
-// 5. "Step back / move closer"
+// 3. "Step back / move closer"
 // ---------------------------------------------------------------------------
 
 enum FramingHint { ok, tooClose, tooFar }
@@ -183,7 +212,7 @@ String? framingHintMessage(FramingHint hint) => switch (hint) {
 };
 
 // ---------------------------------------------------------------------------
-// 6. Standing-position outline
+// 4. Standing-position outline
 // ---------------------------------------------------------------------------
 
 /// Whether to draw the faint "stand here" outline: until the camera finds a
@@ -206,7 +235,7 @@ String standingGuideCaption(CameraView view) => switch (view) {
 };
 
 // ---------------------------------------------------------------------------
-// 7. Tempo cue
+// 5. Tempo cue
 // ---------------------------------------------------------------------------
 
 /// Where the patient is in one rep, for the "Lift... hold... lower" cue.
@@ -239,7 +268,7 @@ String tempoCueText(TempoPhase phase) => switch (phase) {
 };
 
 // ---------------------------------------------------------------------------
-// 9. End-of-session summary
+// 6. End-of-session summary
 // ---------------------------------------------------------------------------
 
 /// Accuracy for the completion dialog, from the screen's per-attempt scores
