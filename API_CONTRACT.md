@@ -154,6 +154,14 @@ requests, app problems). The doc is created on the first message.
 | `lastSenderRole` | string | `patient` or `staff` |
 | `unreadForPatient` | int | The app shows this as a badge and resets it to 0 when opened |
 | `unreadForStaff` | int | The app adds 1 per patient message; **the dashboard resets it to 0** when staff read the thread |
+| `pinnedMessageId` | string, optional | 1–128 chars. Id of the pinned message; absent = nothing pinned |
+| `pinnedText` | string, optional | ≤200 chars. Snippet shown in the pinned banner |
+| `pinnedSenderRole` | string, optional | `patient` or `staff` |
+| `pinnedAt` | timestamp, optional | Server time of the pin |
+
+The four `pinned*` fields are set together or removed together (unpin =
+delete all four with `FieldValue.delete()` / an update mask without values).
+The rules refuse half a pin, and `pinnedAt` must be the server time.
 
 ### `patients/{uid}/threads/{threadId}/messages/{id}`: messages
 
@@ -164,8 +172,42 @@ requests, app problems). The doc is created on the first message.
 | `senderRole` | string | `patient` or `staff` |
 | `sentAt` | timestamp | Sender's clock (at most 1 hour ahead of the server); **order by this** |
 | `createdAt` | timestamp | Server time |
+| `replyTo` | map, optional | Set on create only. `{ id: string 1–128, text: string ≤200 (snippet of the quoted message), senderRole: 'patient'\|'staff' }` |
+| `session` | map, optional | Patient messages only, set on create: a shared exercise-session card (see below). `text` still holds the plain-text summary, so clients that don't know the card show a normal bubble |
+| `editedAt` | timestamp, optional | Server time of the last edit; show "Edited" |
+| `unsent` | bool, optional | `true` once unsent. `text` is then `''` and `replyTo`/`session` are removed; show a "Message unsent" placeholder |
+| `unsentAt` | timestamp, optional | Server time of the unsend |
 
-Messages are never edited or deleted.
+Old messages have none of the optional fields; every reader must treat them
+as optional.
+
+`session` card fields:
+
+| Field | Type | Notes |
+| --- | --- | --- |
+| `exerciseName` | string | 1–100 chars, required |
+| `startTime` | timestamp | Required |
+| `completedReps` | int | 0–1000, required |
+| `targetReps` | int | 0–1000, required |
+| `endedEarly` | bool | Required |
+| `accuracy` | int, optional | 0–100 |
+| `painLevel` | int, optional | 0–10 |
+| `painNote` | string, optional | ≤300 chars |
+| `sessionId` | string, optional | 1–128 chars, id in `sessions/` |
+
+What can change after sending (firestore.rules; the dashboard's service
+account bypasses the rules and must apply the same checks itself):
+
+- **Edit** (patient, own message): only `text` (1–1000) and `editedAt`
+  (server time), within 15 minutes of `createdAt`, not a session-card message,
+  not unsent.
+- **Unsend** (patient, own message, any age): `text: ''`, `unsent: true`,
+  `unsentAt` (server time), and `replyTo`/`session` deleted. Final: an unsent
+  message can't be edited or unsent again.
+- Messages are never deleted. `editedAt`/`unsent`/`unsentAt` can't be set on
+  create.
+- If the edited/unsent message is the newest, also update the thread's
+  `lastMessage` (new text, or "Message unsent"), not `lastMessageAt`.
 
 **When staff reply from the dashboard**, write both in one batch:
 

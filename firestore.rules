@@ -8,8 +8,10 @@ rules_version = '2';
 //   - patients can read only their own profile, prescriptions and sessions,
 //     can only add new sessions (never edit or delete them), and can only
 //     change their own name, phone number, date of birth and profile picture;
-//   - patients can message their therapist and the clinic, but never edit or
-//     delete a message or post as staff;
+//   - patients can message their therapist and the clinic (optionally quoting
+//     a message or attaching a shared-session card), edit their own message
+//     for 15 minutes, unsend it, and pin one message per thread; they can
+//     never delete a message, touch someone else's, or post as staff;
 //   - patients record their acceptance of the Terms and Privacy Policy, which
 //     can't be changed or deleted afterwards;
 //   - therapists/admins signed in with Firebase can read and manage the
@@ -193,7 +195,14 @@ service cloud.firestore {
           allow create: if validThreadId(threadId) && (
             (isPatient(patientId) && validMessage(request.resource.data, 'patient'))
             || (staffForThread(patientId, threadId) && validMessage(request.resource.data, 'staff')));
-          allow update, delete: if false;
+          // Only the patient changes their own messages through the rules:
+          // edit (15-minute window) or unsend. Staff edits/unsends go through
+          // the dashboard's service account, so there is no staff rule here.
+          allow update: if isPatient(patientId) && ownLiveMessage()
+            && (validMessageEdit() || validMessageUnsend());
+          // Unsend keeps a placeholder so the conversation stays readable;
+          // nothing is ever hard-deleted.
+          allow delete: if false;
         }
       }
     }
@@ -210,11 +219,14 @@ service cloud.firestore {
 
     // What a patient may change on their thread doc: the last-message preview
     // (as themselves), add one to the staff unread count per message they
-    // send, and clear their own. lastMessageAt is the phone's clock (messages
-    // can be queued offline), so it's only type-checked.
+    // send, clear their own, and pin/unpin a message. lastMessageAt is the
+    // phone's clock (messages can be queued offline), so it's only
+    // type-checked.
     function patientThreadFields(d, changed, staffUnreadBefore) {
       return changed.hasOnly(['lastMessage', 'lastMessageAt', 'lastSenderRole',
-                              'unreadForStaff', 'unreadForPatient'])
+                              'unreadForStaff', 'unreadForPatient',
+                              'pinnedMessageId', 'pinnedText', 'pinnedSenderRole', 'pinnedAt'])
+        && (!changed.hasAny(pinFields()) || validPinState(d))
         && (!('unreadForPatient' in changed) || d.unreadForPatient == 0)
         && (!('lastSenderRole' in changed) || d.lastSenderRole == 'patient')
         && (!('lastMessage' in changed) || (d.lastMessage is string && d.lastMessage.size() <= 1000))
@@ -222,14 +234,106 @@ service cloud.firestore {
         && (!('unreadForStaff' in changed) || d.unreadForStaff == staffUnreadBefore + 1);
     }
 
+    // The four thread fields that describe the pinned message. They are set
+    // and removed together so the banner never shows half a pin.
+    function pinFields() {
+      return ['pinnedMessageId', 'pinnedText', 'pinnedSenderRole', 'pinnedAt'];
+    }
+
+    // Either nothing is pinned (all four gone: unpin) or all four are present
+    // and well-formed. pinnedAt must be the server time so it can't be
+    // back- or forward-dated.
+    function validPinState(d) {
+      return !d.keys().hasAny(pinFields())
+        || (d.keys().hasAll(pinFields())
+            && d.pinnedMessageId is string
+            && d.pinnedMessageId.size() > 0 && d.pinnedMessageId.size() <= 128
+            && d.pinnedText is string && d.pinnedText.size() <= 200
+            && d.pinnedSenderRole in ['patient', 'staff']
+            && d.pinnedAt == request.time);
+    }
+
+    // A new message. replyTo (a quoted message) is optional for everyone;
+    // session (a shared exercise-session card) only for patients, since it
+    // describes the patient's own session. editedAt/unsent/unsentAt are not
+    // in the allowed keys: a message can't be born edited or unsent.
     function validMessage(d, role) {
-      return d.keys().hasOnly(['text', 'senderId', 'senderRole', 'sentAt', 'createdAt'])
+      return d.keys().hasOnly(['text', 'senderId', 'senderRole', 'sentAt', 'createdAt',
+                               'replyTo', 'session'])
         && d.keys().hasAll(['text', 'senderId', 'senderRole', 'sentAt', 'createdAt'])
         && d.text is string && d.text.size() > 0 && d.text.size() <= 1000
         && d.senderId == request.auth.uid
         && d.senderRole == role
         && d.sentAt is timestamp && notInFuture(d.sentAt)
-        && d.createdAt == request.time;
+        && d.createdAt == request.time
+        && (!('replyTo' in d) || validReplyTo(d.replyTo))
+        && (!('session' in d) || (role == 'patient' && validSessionCard(d.session)));
+    }
+
+    // The quoted message: its id, a short snippet and who wrote it. The
+    // snippet is capped so a reply can't smuggle in a huge copy.
+    function validReplyTo(r) {
+      return r is map
+        && r.keys().hasOnly(['id', 'text', 'senderRole'])
+        && r.keys().hasAll(['id', 'text', 'senderRole'])
+        && r.id is string && r.id.size() > 0 && r.id.size() <= 128
+        && r.text is string && r.text.size() <= 200
+        && r.senderRole in ['patient', 'staff'];
+    }
+
+    // The compact session card the dashboard renders. Same limits as the
+    // matching fields on sessions/ docs, plus a 1000-rep cap for display.
+    function validSessionCard(c) {
+      return c is map
+        && c.keys().hasOnly(['exerciseName', 'startTime', 'completedReps', 'targetReps',
+                             'endedEarly', 'accuracy', 'painLevel', 'painNote', 'sessionId'])
+        && c.keys().hasAll(['exerciseName', 'startTime', 'completedReps', 'targetReps', 'endedEarly'])
+        && c.exerciseName is string && c.exerciseName.size() > 0 && c.exerciseName.size() <= 100
+        && c.startTime is timestamp
+        && c.completedReps is int && c.completedReps >= 0 && c.completedReps <= 1000
+        && c.targetReps is int && c.targetReps >= 0 && c.targetReps <= 1000
+        && c.endedEarly is bool
+        && (!('accuracy' in c) || (c.accuracy is int && c.accuracy >= 0 && c.accuracy <= 100))
+        && (!('painLevel' in c) || (c.painLevel is int && c.painLevel >= 0 && c.painLevel <= 10))
+        && (!('painNote' in c) || (c.painNote is string && c.painNote.size() <= 300))
+        && (!('sessionId' in c) || (c.sessionId is string
+                                    && c.sessionId.size() > 0 && c.sessionId.size() <= 128));
+    }
+
+    // The message being updated was written by this patient as a patient and
+    // hasn't been unsent (an unsent message is final: no edit, no re-unsend).
+    function ownLiveMessage() {
+      return resource.data.senderId == request.auth.uid
+        && resource.data.senderRole == 'patient'
+        && resource.data.get('unsent', false) == false;
+    }
+
+    function changedMessageKeys() {
+      return request.resource.data.diff(resource.data).affectedKeys();
+    }
+
+    // Edit: new text and the server time of the edit, within 15 minutes of
+    // sending (so a therapist's earlier reading can't be rewritten later).
+    // Session cards can't be edited: their text is the card's summary.
+    function validMessageEdit() {
+      let d = request.resource.data;
+      return changedMessageKeys().hasOnly(['text', 'editedAt'])
+        && d.text is string && d.text.size() > 0 && d.text.size() <= 1000
+        && d.editedAt == request.time
+        && request.time < resource.data.createdAt + duration.value(15, 'm')
+        && !('session' in resource.data);
+    }
+
+    // Unsend: blank the text, mark it unsent at server time, and drop the
+    // quote and session card so no content is left behind.
+    function validMessageUnsend() {
+      let d = request.resource.data;
+      return changedMessageKeys().hasOnly(['text', 'unsent', 'unsentAt', 'replyTo', 'session'])
+        && d.text == ''
+        && d.unsent == true
+        && d.unsentAt == request.time
+        && !('replyTo' in d)
+        && !('session' in d);
     }
 
     function validConsent(d, version) {
