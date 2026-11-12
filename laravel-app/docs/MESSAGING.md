@@ -10,7 +10,7 @@ with the Flutter app; the field layout is in `API_CONTRACT.md` on the
 | Dashboard role | Answers | Sees |
 | --- | --- | --- |
 | `therapist` | the patient's `therapist` thread | only patients whose Firestore `therapistId` is the therapist's Firebase uid |
-| `superadmin`, `manager`, `staff` | the patient's `clinic` thread (bookings, home visits, app problems) | every patient |
+| `superadmin`, `manager`, `staff` | the patient's `clinic` thread (bookings, app problems) | every patient |
 | `patient` | — | no access |
 
 A therapist is matched to Firebase by **login email**: their dashboard email

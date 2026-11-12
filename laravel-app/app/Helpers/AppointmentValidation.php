@@ -20,10 +20,10 @@ class AppointmentValidation
         ];
     }
 
-    /** Session types offered in the picker: the clinic's classes plus the one-to-one physical therapy session and home visits. */
+    /** Session types offered in the picker: the clinic's classes plus the one-to-one physical therapy session. */
     public static function sessionOptions(): array
     {
-        return collect(['Physical Therapy', 'Home Visit'])
+        return collect(['Physical Therapy'])
             ->merge(collect(config('clinic.classes', []))->pluck('title'))
             ->unique()
             ->values()
