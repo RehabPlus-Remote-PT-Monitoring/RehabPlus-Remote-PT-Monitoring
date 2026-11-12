@@ -19,6 +19,7 @@ import '../widgets/dashboard_sidebar.dart';
 import '../widgets/profile_avatar.dart';
 import '../widgets/unread_badge.dart';
 import '../core/responsive.dart';
+import '../core/tab_bar_clearance.dart';
 import 'messages_screen.dart';
 import 'profile_screen.dart';
 import 'notification_page.dart';
@@ -242,10 +243,13 @@ class _DashboardScreenState extends State<DashboardScreen>
                 // Wide screens (landscape tablets) get two columns of
                 // cards; phones and portrait tablets keep one column in
                 // the same order as before.
-                padding: readablePadding(
+                padding: withTabBarClearance(
                   pageContext,
-                  const EdgeInsets.fromLTRB(16, 0, 16, 16),
-                  columnWidth,
+                  readablePadding(
+                    pageContext,
+                    const EdgeInsets.fromLTRB(16, 0, 16, 16),
+                    columnWidth,
+                  ),
                 ),
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
@@ -345,8 +349,18 @@ class _DashboardScreenState extends State<DashboardScreen>
     // gets a MediaQuery as wide as the space right of the sidebar, so
     // readablePadding / isTwoColumn inside the pages measure what they really
     // have, not the whole screen.
+    //
+    // Phones (no sidebar): the pages are drawn behind the bottom bar
+    // (extendBody), so its rounded top corners show the page underneath
+    // instead of a flat cut-off edge. Scaffold then reports the bar's real
+    // height as the page's bottom padding; scroll views add it with
+    // withTabBarClearance (lib/core/tab_bar_clearance.dart) so their last
+    // items scroll above the bar. The page area therefore reads its
+    // MediaQuery from INSIDE the Scaffold body (the Builder below), not from
+    // `media`, which sits above the Scaffold and lacks that padding.
     return Scaffold(
       backgroundColor: context.palette.background,
+      extendBody: !showSidebar,
       body: Row(
         crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [
@@ -359,9 +373,14 @@ class _DashboardScreenState extends State<DashboardScreen>
           else
             const SizedBox.shrink(),
           Expanded(
-            child: MediaQuery(
-              data: showSidebar ? _pageAreaMedia(media) : media,
-              child: _buildPageArea(),
+            child: Builder(
+              builder: (bodyContext) {
+                final bodyMedia = MediaQuery.of(bodyContext);
+                return MediaQuery(
+                  data: showSidebar ? _pageAreaMedia(bodyMedia) : bodyMedia,
+                  child: _buildPageArea(),
+                );
+              },
             ),
           ),
         ],

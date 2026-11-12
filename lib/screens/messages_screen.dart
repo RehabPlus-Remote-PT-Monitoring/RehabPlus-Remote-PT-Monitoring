@@ -15,6 +15,7 @@ import '../services/app_provider.dart';
 import '../services/chat_service.dart';
 import '../services/progress_stats.dart' show CalendarDays;
 import '../core/responsive.dart';
+import '../core/tab_bar_clearance.dart';
 
 const Color _primaryTeal = Color(0xFF23A8AA);
 const String _tag = 'Messages';
@@ -315,7 +316,7 @@ class _MessagesScreenState extends State<MessagesScreen> {
         ],
       ),
       body: ListView.separated(
-        padding: readablePadding(context),
+        padding: withTabBarClearance(context, readablePadding(context)),
         itemCount: ChatThread.values.length,
         separatorBuilder: (_, _) =>
             const Divider(indent: 72, height: 1, thickness: 0.5),
