@@ -9,6 +9,7 @@ import '../models/exercise_model.dart';
 import '../services/app_provider.dart';
 import '../services/prescription_service.dart';
 import '../services/progress_stats.dart';
+import '../widgets/exercise_demo_sheet.dart';
 import '../widgets/today_checklist_sheet.dart';
 import '../widgets/unread_badge.dart';
 import '../core/responsive.dart';
@@ -608,6 +609,8 @@ class _AnimatedExerciseCardState extends State<AnimatedExerciseCard>
     );
   }
 
+  void _showDemo() => ExerciseDemoSheet.show(context, widget.config);
+
   @override
   Widget build(BuildContext context) {
     final config = widget.config;
@@ -706,6 +709,31 @@ class _AnimatedExerciseCardState extends State<AnimatedExerciseCard>
                                   ),
                                 ),
                               ],
+                            ),
+                            const SizedBox(height: 6),
+                            // Opens the how-to sheet. Its own tap target, so
+                            // it doesn't start the exercise like the card does.
+                            GestureDetector(
+                              behavior: HitTestBehavior.opaque,
+                              onTap: _showDemo,
+                              child: Padding(
+                                padding: const EdgeInsets.symmetric(vertical: 2),
+                                child: Row(
+                                  mainAxisSize: MainAxisSize.min,
+                                  children: [
+                                    Icon(Icons.ondemand_video_rounded, size: 14, color: visuals.accent),
+                                    const SizedBox(width: 4),
+                                    Text(
+                                      'How to do it',
+                                      style: TextStyle(
+                                        fontSize: 12,
+                                        fontWeight: FontWeight.w600,
+                                        color: visuals.accent,
+                                      ),
+                                    ),
+                                  ],
+                                ),
+                              ),
                             ),
                           ],
                         ),

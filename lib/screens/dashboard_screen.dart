@@ -329,56 +329,63 @@ class _DashboardScreenState extends State<DashboardScreen>
     final media = MediaQuery.of(context);
     final showSidebar = media.size.width >= kSidebarBreakpoint;
 
-    if (showSidebar) {
-      // Landscape tablet: navigation on the left, no bottom bar. The page
-      // area gets a MediaQuery as wide as the space right of the sidebar,
-      // so readablePadding / isTwoColumn inside the pages measure what
-      // they really have, not the whole screen.
-      return Scaffold(
-        backgroundColor: context.palette.background,
-        body: Row(
-          crossAxisAlignment: CrossAxisAlignment.stretch,
-          children: [
+    // One tree for both layouts. The page area always sits in the same place
+    // (same GlobalKey, same MediaQuery wrapper), so crossing the sidebar
+    // breakpoint (rotation, split screen, fold) only changes its data. Moving
+    // it between different parents caused the "_dependents.isEmpty" crash.
+    //
+    // Landscape tablet: navigation on the left, no bottom bar. The page area
+    // gets a MediaQuery as wide as the space right of the sidebar, so
+    // readablePadding / isTwoColumn inside the pages measure what they really
+    // have, not the whole screen.
+    //
+    // iPhone (no sidebar): the native Liquid Glass tab bar floats over the
+    // page (extendBody). Scaffold then reports the bar's real height as the
+    // page's bottom padding; scroll views add it with withTabBarClearance so
+    // their last items scroll above the bar. The page area therefore reads
+    // its MediaQuery from INSIDE the Scaffold body (the Builder below), not
+    // from `media`, which sits above the Scaffold and lacks that padding.
+    final floatGlassTabBar = useIosChrome && !showSidebar;
+
+    return Scaffold(
+      backgroundColor: context.palette.background,
+      extendBody: floatGlassTabBar,
+      body: Row(
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        children: [
+          if (showSidebar)
             DashboardSidebar(
               destinations: _destinations,
               selectedIndex: _bottomNavIndex,
               onSelect: _selectTab,
+            )
+          else
+            const SizedBox.shrink(),
+          Expanded(
+            child: Builder(
+              builder: (bodyContext) {
+                final bodyMedia = MediaQuery.of(bodyContext);
+                return MediaQuery(
+                  data: showSidebar ? _pageAreaMedia(bodyMedia) : bodyMedia,
+                  child: _buildPageArea(),
+                );
+              },
             ),
-            Expanded(
-              child: MediaQuery(
-                data: _pageAreaMedia(media),
-                child: _buildPageArea(),
-              ),
-            ),
-          ],
-        ),
-      );
-    }
-
-    if (useIosChrome) {
-      // iPhone: the native Liquid Glass tab bar floats over the page
-      // (extendBody). Scaffold then reports the bar's real height as the
-      // page's bottom padding; scroll views add it with
-      // withTabBarClearance so their last items scroll above the bar.
-      return Scaffold(
-        backgroundColor: context.palette.background,
-        extendBody: true,
-        body: _buildPageArea(),
-        bottomNavigationBar: SafeArea(
-          top: false,
-          child: GlassTabBar(
-            destinations: _destinations,
-            currentIndex: _bottomNavIndex,
-            onTap: _selectTab,
           ),
-        ),
-      );
-    }
-
-    return Scaffold(
-      backgroundColor: context.palette.background,
-      body: _buildPageArea(),
-      bottomNavigationBar: ReadableWidth(child: _buildBottomNav()),
+        ],
+      ),
+      bottomNavigationBar: showSidebar
+          ? null
+          : floatGlassTabBar
+              ? SafeArea(
+                  top: false,
+                  child: GlassTabBar(
+                    destinations: _destinations,
+                    currentIndex: _bottomNavIndex,
+                    onTap: _selectTab,
+                  ),
+                )
+              : ReadableWidth(child: _buildBottomNav()),
     );
   }
 

@@ -397,15 +397,15 @@ class _DemoScreenState extends State<DemoScreen> with TickerProviderStateMixin {
           duration: '3:24',
           level: 'Beginner',
           color: Color(0xFF23A8AA),
-          videoUrl: 'https://www.w3schools.com/html/mov_bbb.mp4',
+          assetPath: 'assets/demo/knee_extension_demo.mp4',
         ),
         const SizedBox(height: 12),
         _VideoCard(
-          title: 'Shoulder Rotation',
+          title: 'Side Raise',
           duration: '2:15',
           level: 'Intermediate',
           color: Color(0xFF4A90D9),
-          videoUrl: 'https://www.w3schools.com/html/movie.mp4',
+          assetPath: 'assets/demo/side_raise_demo.mp4',
         ),
       ],
     );
@@ -876,15 +876,20 @@ class _ExerciseStep {
 
 // ── VIDEO CARD ────────────────────────────────────────────────────────────────
 class _VideoCard extends StatefulWidget {
-  final String title, duration, level, videoUrl;
+  final String title, duration, level;
+  /// A video bundled with the app (assets/...). Used for the demo videos.
+  final String? assetPath;
+  /// An HTTPS video on the web. Exactly one of [assetPath] / [videoUrl] is set.
+  final String? videoUrl;
   final Color color;
   const _VideoCard({
     required this.title,
     required this.duration,
     required this.level,
     required this.color,
-    required this.videoUrl,
-  });
+    this.assetPath,
+    this.videoUrl,
+  }) : assert((assetPath == null) != (videoUrl == null));
 
   @override
   State<_VideoCard> createState() => _VideoCardState();
@@ -905,6 +910,10 @@ class _VideoCardState extends State<_VideoCard> {
   /// endless spinner.
   bool _failed = false;
 
+  /// Width / height of the video. The demo videos are portrait (720x1600),
+  /// so assume that until the real value is read after loading.
+  double _videoAspect = 9 / 16;
+
   final DiagnosticLogger _logger = DiagnosticLogger.I;
 
   Color get _levelColor => switch (widget.level) {
@@ -917,14 +926,19 @@ class _VideoCardState extends State<_VideoCard> {
   /// video couldn't be loaded.
   Future<bool> _initVideo() async {
     if (_loaded) return true;
-    final uri = Uri.parse(widget.videoUrl);
-    // Only ever stream over HTTPS.
-    if (uri.scheme != 'https') {
-      _logger.error(_tag, 'Refusing non-HTTPS demo video', {'scheme': uri.scheme});
-      return false;
-    }
     final stopwatch = Stopwatch()..start();
-    final controller = VideoPlayerController.networkUrl(uri);
+    final VideoPlayerController controller;
+    if (widget.assetPath != null) {
+      controller = VideoPlayerController.asset(widget.assetPath!);
+    } else {
+      final uri = Uri.parse(widget.videoUrl!);
+      // Only ever stream over HTTPS.
+      if (uri.scheme != 'https') {
+        _logger.error(_tag, 'Refusing non-HTTPS demo video', {'scheme': uri.scheme});
+        return false;
+      }
+      controller = VideoPlayerController.networkUrl(uri);
+    }
     try {
       await controller.initialize();
     } catch (e, st) {
@@ -944,12 +958,15 @@ class _VideoCardState extends State<_VideoCard> {
       'title': widget.title,
       'ms': stopwatch.elapsedMilliseconds,
     });
+    if (controller.value.aspectRatio > 0) {
+      _videoAspect = controller.value.aspectRatio;
+    }
     _vpCtrl = controller;
     _chewieCtrl = ChewieController(
       videoPlayerController: controller,
       autoPlay: true,
       looping: false,
-      aspectRatio: 16 / 9,
+      aspectRatio: _videoAspect,
       placeholder: Container(color: Colors.black),
       materialProgressColors: ChewieProgressColors(
         playedColor: primaryTeal,
@@ -960,6 +977,14 @@ class _VideoCardState extends State<_VideoCard> {
     );
     setState(() => _loaded = true);
     return true;
+  }
+
+  /// Height of the open player: the video's own shape at the card's width,
+  /// kept between 200 and 460 px so a portrait video stays readable without
+  /// taking over the whole list.
+  double get _playerHeight {
+    final width = MediaQuery.sizeOf(context).width - 64;
+    return (width / _videoAspect).clamp(200.0, 460.0);
   }
 
   Future<void> _togglePlayer() async {
@@ -1020,7 +1045,8 @@ class _VideoCardState extends State<_VideoCard> {
             child: AnimatedContainer(
               duration: const Duration(milliseconds: 350),
               curve: Curves.easeOutCubic,
-              height: _expanded ? 200 : 72,
+              width: double.infinity,
+              height: _expanded ? _playerHeight : 72,
               decoration: BoxDecoration(
                 color: _expanded
                     ? Colors.black
