@@ -189,6 +189,12 @@ The group repo (`paulirichmond/...`) is behind on both branches; push there only
 
 ## 6. What to do next
 
+0. **IN PROGRESS: chat actions (reply, edit, copy, pin, unsend) + shared-session card, on dashboard, Android and iPhone.**
+   - Design (approved, the contract every part follows): `docs/superpowers/specs/2026-11-13-chat-actions-design.md`.
+   - Order: (a) rules + emulator tests in this repo, (b) dashboard on `web/messaging`, (c) Android app on `camera/monitoring` (incl. porting Share a session from iphone-testing), (d) merge camera/monitoring into iphone-testing, (e) ASK the user before `firebase deploy --only firestore:rules`, (f) new APK + IPA (bump the version), Releases entry.
+   - New app builds need the rules deployed first, or edit/unsend/pin hit PERMISSION_DENIED. Old app builds keep working with the new rules (all new fields are optional).
+   - Tick parts off here as they land (commit hash per part).
+
 1. **Create the first dashboard admin** (the password is typed by you):
    - `cd ~/Documents/RehabPlus-web-messaging/laravel-app && php artisan rehab:make-admin <email> "<name>"`
    - Then sign in at `http://127.0.0.1:8000` and add a therapist under Staff Accounts.
