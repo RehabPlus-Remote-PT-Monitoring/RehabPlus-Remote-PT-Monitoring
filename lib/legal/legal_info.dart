@@ -16,8 +16,13 @@ class LegalInfo {
 
   static const String clinicName = 'Rehab Plus Physiotherapy';
 
-  // TODO(clinic): fill in before the app is given to patients.
-  static const String clinicAddress = '[clinic address]';
+  static const String clinicAddress =
+      '1308 Benavidez St, Tondo, Manila, 1003 Metro Manila';
+  static const String clinicEmail = 'rehabplusphysiotherapy24@gmail.com';
+  static const String clinicPhone = '0912 854 8156';
+
+  // TODO(clinic): fill in the Data Protection Officer details before the app
+  // is given to patients.
   static const String dpoName = '[Data Protection Officer name]';
   static const String dpoEmail = '[DPO email address]';
   static const String venue = '[city where the clinic is located]';
@@ -32,6 +37,8 @@ class LegalInfo {
     'EFFECTIVE_DATE': effectiveDate,
     'CLINIC_NAME': clinicName,
     'CLINIC_ADDRESS': clinicAddress,
+    'CLINIC_EMAIL': clinicEmail,
+    'CLINIC_PHONE': clinicPhone,
     'DPO_NAME': dpoName,
     'DPO_EMAIL': dpoEmail,
     'VENUE': venue,

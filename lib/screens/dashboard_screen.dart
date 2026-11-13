@@ -666,36 +666,40 @@ class _DashboardScreenState extends State<DashboardScreen>
 
   // ── ACTION CHIPS ─────────────────────────────────────────────────────────────
   Widget _buildActionChips() {
-    return Row(
-      children: [
-        _chip(
-          PhosphorIcons.bellSimple(),
-          'Alerts',
-          AppAccents.coral(context, fallback: const Color(0xFFFF6B35)),
-          hasBadge: true,
-          onTap: () => setState(() {
-            _prevNavIndex = _bottomNavIndex;
-            _bottomNavIndex = 2;
-          }),
-        ),
-        const SizedBox(width: 10),
-        _chip(
-          PhosphorIcons.chartLineUp(),
-          'Progress',
-          const Color(0xFF4A90D9),
-          onTap: _openReport,
-        ),
-        const SizedBox(width: 10),
-        _chip(
-          PhosphorIcons.playCircle(),
-          'Demo',
-          const Color(0xFFE53935),
-          onTap: () => Navigator.push(
-            context,
-            MaterialPageRoute(builder: (_) => const DemoScreen()),
+    // The Alerts dot follows the live unread-notification count, the same
+    // source as the bell, so it clears once the alerts are read.
+    return UnreadNotifications(
+      builder: (context, unread) => Row(
+        children: [
+          _chip(
+            PhosphorIcons.bellSimple(),
+            'Alerts',
+            AppAccents.coral(context, fallback: const Color(0xFFFF6B35)),
+            hasBadge: unread > 0,
+            onTap: () => setState(() {
+              _prevNavIndex = _bottomNavIndex;
+              _bottomNavIndex = 2;
+            }),
           ),
-        ),
-      ],
+          const SizedBox(width: 10),
+          _chip(
+            PhosphorIcons.chartLineUp(),
+            'Progress',
+            const Color(0xFF4A90D9),
+            onTap: _openReport,
+          ),
+          const SizedBox(width: 10),
+          _chip(
+            PhosphorIcons.playCircle(),
+            'Demo',
+            const Color(0xFFE53935),
+            onTap: () => Navigator.push(
+              context,
+              MaterialPageRoute(builder: (_) => const DemoScreen()),
+            ),
+          ),
+        ],
+      ),
     );
   }
 
