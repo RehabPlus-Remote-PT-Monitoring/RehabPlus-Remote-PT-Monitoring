@@ -31,6 +31,13 @@ class ChatActions
     /** Thread fields that hold the pin; unpinning deletes all four. */
     public const PIN_FIELDS = ['pinnedMessageId', 'pinnedText', 'pinnedSenderRole', 'pinnedAt'];
 
+    /**
+     * Thread field set to the server time by every edit and unsend (both
+     * sides), so an open conversation page sees the change even when it was
+     * an older message (MessagingService::version()).
+     */
+    public const ACTION_AT = 'lastActionAt';
+
     public function __construct(private FirestoreClient $db)
     {
     }
@@ -67,15 +74,26 @@ class ChatActions
         // Step 2: the thread, to update its preview if this is the newest message.
         [$summary, $threadVersion, $newest] = $this->threadState($patientUid, $thread, $messageId);
 
-        // Step 3: one commit for the message and (maybe) the preview.
+        // Step 3: one commit for the message and the thread: lastActionAt
+        // always (so open conversation pages reload, whichever message it
+        // was), the preview if newest, the banner text if it is the pin.
         $writes = [$this->db->mergeWrite(
             $this->messagePath($patientUid, $thread, $messageId),
             ['text' => $text],
             serverTimestamps: ['editedAt'],
             ifUpdateTime: $messageVersion,
         )];
-        if ($newest && $summary !== null) {
-            $writes[] = $this->db->mergeWrite($this->threadPath($patientUid, $thread), ['lastMessage' => $text], ifUpdateTime: $threadVersion);
+        if ($summary !== null) {
+            $threadFields = $newest ? ['lastMessage' => $text] : [];
+            if (($summary['pinnedMessageId'] ?? null) === $messageId) {
+                $threadFields['pinnedText'] = MessagePresenter::snippet($text);
+            }
+            $writes[] = $this->db->mergeWrite(
+                $this->threadPath($patientUid, $thread),
+                $threadFields,
+                serverTimestamps: [self::ACTION_AT],
+                ifUpdateTime: $threadVersion,
+            );
         }
         $this->db->commit($writes);
 
@@ -112,10 +130,11 @@ class ChatActions
             ifUpdateTime: $messageVersion,
             deletes: ['replyTo', 'session'],
         )];
-        if ($summary !== null && ($threadFields !== [] || $threadDeletes !== [])) {
+        if ($summary !== null) {
             $writes[] = $this->db->mergeWrite(
                 $this->threadPath($patientUid, $thread),
                 $threadFields,
+                serverTimestamps: [self::ACTION_AT],
                 ifUpdateTime: $threadVersion,
                 deletes: $threadDeletes,
             );

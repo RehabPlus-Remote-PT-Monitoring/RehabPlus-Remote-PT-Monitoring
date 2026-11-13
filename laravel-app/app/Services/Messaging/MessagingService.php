@@ -242,8 +242,9 @@ class MessagingService
     /**
      * A short fingerprint of what the conversation page shows, from the thread
      * summary alone: it changes when a message arrives (lastMessageAt), the
-     * patient reads the chat (unreadForPatient), the newest message is edited
-     * or unsent (lastMessage) or the pin changes. The page polls this cheaply
+     * patient reads the chat (unreadForPatient), any message is edited or
+     * unsent by either side (lastActionAt; lastMessage for the newest) or the
+     * pin changes. The page polls this cheaply
      * (one document read) and only reloads the messages when it changes.
      * unreadForStaff is left out: opening the page resets it, which would
      * cause one pointless reload.
@@ -252,16 +253,21 @@ class MessagingService
     {
         $at = $summary['lastMessageAt'] ?? null;
         $pinnedAt = $summary['pinnedAt'] ?? null;
+        $actionAt = $summary[ChatActions::ACTION_AT] ?? null;
+        $time = fn ($value) => $value instanceof \DateTimeInterface ? $value->format('U.u') : '';
         $text = fn ($value) => is_string($value) ? $value : '';
 
         return md5(implode('|', [
-            $at instanceof \DateTimeInterface ? $at->format('U.u') : '',
+            $time($at),
             (int) ($summary['unreadForPatient'] ?? 0),
             // An edit or unsend of the newest message changes only the preview,
-            // and pinning changes only these fields; both must reload the page.
+            // of an older one only lastActionAt, and pinning (or editing the
+            // pinned message) only the pin fields; all must reload the page.
             $text($summary['lastMessage'] ?? null),
+            $time($actionAt),
             $text($summary['pinnedMessageId'] ?? null),
-            $pinnedAt instanceof \DateTimeInterface ? $pinnedAt->format('U.u') : '',
+            $text($summary['pinnedText'] ?? null),
+            $time($pinnedAt),
         ]));
     }
 

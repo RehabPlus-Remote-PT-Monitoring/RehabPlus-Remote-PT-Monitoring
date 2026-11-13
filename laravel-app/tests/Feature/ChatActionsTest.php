@@ -92,7 +92,7 @@ class ChatActionsTest extends TestCase
         $this->assertSame(self::ROOT.'/'.self::THREAD, $thread['update']['name']);
         $this->assertSame(['lastMessage' => ['stringValue' => 'And rest for a day.']], $thread['update']['fields']);
         $this->assertSame(['lastMessage'], $thread['updateMask']['fieldPaths'], 'lastMessageAt and unread counters untouched');
-        $this->assertArrayNotHasKey('updateTransforms', $thread);
+        $this->assertSame([['fieldPath' => 'lastActionAt', 'setToServerValue' => 'REQUEST_TIME']], $thread['updateTransforms'], 'no unread bump');
         $this->assertArrayHasKey('updateTime', $thread['currentDocument']);
 
         $this->assertSame(1, $this->docs[self::THREAD]['unreadForPatient']);
@@ -100,14 +100,28 @@ class ChatActionsTest extends TestCase
         $this->assertSame([], $this->pushes, 'no push for an edit');
     }
 
-    public function test_editing_an_older_own_message_leaves_the_thread_alone(): void
+    public function test_editing_an_older_own_message_keeps_the_preview_but_marks_the_thread(): void
     {
         $this->actingAs($this->therapist())->post('/messages/pAnna/s1/edit', ['text' => 'Do 12 squats.'])
             ->assertRedirect('/messages/pAnna')->assertSessionMissing('error');
 
-        $this->assertCount(1, $this->commits[0]);
-        $this->assertSame(self::ROOT.'/'.self::THREAD.'/messages/s1', $this->commits[0][0]['update']['name']);
+        [$message, $thread] = $this->commits[0];
+        $this->assertSame(self::ROOT.'/'.self::THREAD.'/messages/s1', $message['update']['name']);
+        // Only lastActionAt, so open pages reload; preview and counters untouched.
+        $this->assertSame([], $thread['updateMask']['fieldPaths']);
+        $this->assertSame([['fieldPath' => 'lastActionAt', 'setToServerValue' => 'REQUEST_TIME']], $thread['updateTransforms']);
         $this->assertSame('And rest after.', $this->docs[self::THREAD]['lastMessage']);
+    }
+
+    public function test_editing_the_pinned_message_refreshes_the_banner_text(): void
+    {
+        $this->docs[self::THREAD] += ['pinnedMessageId' => 's1', 'pinnedText' => 'Do 10 squats.', 'pinnedSenderRole' => 'staff', 'pinnedAt' => $this->now];
+
+        $this->actingAs($this->therapist())->post('/messages/pAnna/s1/edit', ['text' => 'Do 12 squats.'])
+            ->assertSessionMissing('error');
+
+        $this->assertSame('Do 12 squats.', $this->docs[self::THREAD]['pinnedText']);
+        $this->assertSame('s1', $this->docs[self::THREAD]['pinnedMessageId']);
     }
 
     public function test_unchanged_text_writes_nothing(): void
@@ -249,7 +263,7 @@ class ChatActionsTest extends TestCase
 
         $this->assertSame(['lastMessage' => ['stringValue' => 'Message deleted']], $thread['update']['fields']);
         $this->assertSame(['lastMessage', 'pinnedMessageId', 'pinnedText', 'pinnedSenderRole', 'pinnedAt'], $thread['updateMask']['fieldPaths']);
-        $this->assertArrayNotHasKey('updateTransforms', $thread, 'no unread bump');
+        $this->assertSame([['fieldPath' => 'lastActionAt', 'setToServerValue' => 'REQUEST_TIME']], $thread['updateTransforms'], 'no unread bump');
         $this->assertArrayHasKey('updateTime', $thread['currentDocument']);
 
         $doc = $this->docs[self::THREAD.'/messages/s2'];
@@ -262,13 +276,26 @@ class ChatActionsTest extends TestCase
         $this->assertSame([], $this->pushes);
     }
 
-    public function test_unsending_an_older_unpinned_message_writes_only_the_message(): void
+    public function test_unsending_an_older_unpinned_message_keeps_the_preview_but_marks_the_thread(): void
     {
         // Allowed any time, unlike edit.
         $this->actingAs($this->therapist())->post('/messages/pAnna/old1/unsend')->assertSessionMissing('error');
 
-        $this->assertCount(1, $this->commits[0]);
+        [, $thread] = $this->commits[0];
+        $this->assertSame([], $thread['updateMask']['fieldPaths']);
+        $this->assertSame([['fieldPath' => 'lastActionAt', 'setToServerValue' => 'REQUEST_TIME']], $thread['updateTransforms']);
         $this->assertSame('And rest after.', $this->docs[self::THREAD]['lastMessage']);
+    }
+
+    public function test_status_version_changes_when_an_older_message_is_edited_or_unsent(): void
+    {
+        $user = $this->therapist();
+        $version = fn () => $this->actingAs($user)->getJson('/messages/pAnna/status')->assertOk()->json('version');
+
+        $before = $version();
+        // E.g. the patient unsent an older message from the app.
+        $this->docs[self::THREAD]['lastActionAt'] = $this->now->addSecond();
+        $this->assertNotSame($before, $version());
     }
 
     public function test_cannot_unsend_others_messages_or_twice(): void

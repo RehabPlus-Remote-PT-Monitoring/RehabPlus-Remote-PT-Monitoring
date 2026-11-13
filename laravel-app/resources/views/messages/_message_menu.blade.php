@@ -1,5 +1,5 @@
 {{-- A bubble's actions, opened by resources/js/chat-actions.js: a Reply button next to the
-     bubble and, beyond it, the "⋯" menu (Edit, Copy, Pin/Unpin, Unsend). Staff bubbles are
+     bubble and, beyond it, the "⋯" menu (Copy, Pin/Unpin, Edit, Unsend; same order as the app). Staff bubbles are
      on the right, so the CSS mirrors the order there: "⋯", Reply, bubble.
      Reply, Edit and Copy happen in the page; Pin, Unpin and Unsend are small forms (Unsend
      asks first through data-confirm). --}}
@@ -17,9 +17,6 @@
             <i class="bi bi-three-dots" aria-hidden="true"></i>
         </button>
         <div class="chat-menu" role="menu" data-chat-menu hidden>
-            @if (in_array('edit', $actions, true))
-                <button type="button" role="menuitem" data-chat-edit><i class="bi bi-pencil" aria-hidden="true"></i>Edit</button>
-            @endif
             @if (in_array('copy', $actions, true))
                 <button type="button" role="menuitem" data-chat-copy><i class="bi bi-copy" aria-hidden="true"></i>Copy</button>
             @endif
@@ -33,6 +30,9 @@
                     @csrf
                     <button type="submit" role="menuitem" data-chat-unpin><i class="bi bi-pin-angle-fill" aria-hidden="true"></i>Unpin</button>
                 </form>
+            @endif
+            @if (in_array('edit', $actions, true))
+                <button type="button" role="menuitem" data-chat-edit><i class="bi bi-pencil" aria-hidden="true"></i>Edit</button>
             @endif
             @if (in_array('unsend', $actions, true))
                 <form method="POST" action="{{ route('messages.unsend', [$patientUid, $m['id']]) }}"
