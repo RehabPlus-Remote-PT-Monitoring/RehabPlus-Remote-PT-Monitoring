@@ -1527,9 +1527,14 @@ html.dark-mode{
             max-width:70%;
             padding:.5rem .9rem;
             border-radius:1.1rem;
-            white-space:pre-wrap;
             overflow-wrap:anywhere;
             line-height:1.4;
+        }
+
+        /* Only the typed text keeps its line breaks; the bubble's own markup
+           (quote, card, time) is indented Blade and must not show as spaces. */
+        .chat-text{
+            white-space:pre-wrap;
         }
 
         .chat-bubble-patient{
@@ -1578,6 +1583,401 @@ html.dark-mode{
         html.dark-mode body .chat-bubble-patient{
             background:#334155;
             color:#f1f5f9;
+        }
+
+        /* Chat actions: Reply + "⋯" menu, reply quotes, Edited, unsent, pinned banner,
+           reply preview and the shared-session card. Built from the theme
+           variables; dark-only values sit in html.dark-mode overrides below. */
+
+        .chat-line{
+            display:flex;
+            align-items:center;
+            gap:.25rem;
+            max-width:100%;
+        }
+
+        .chat-line > .chat-bubble{
+            max-width:min(70vw, 34rem);
+        }
+
+        /* Reply sits next to the bubble and "⋯" beyond it. Staff bubbles are on
+           the right, so there the actions go on the left, mirrored: ⋯, Reply, bubble. */
+        .chat-line-staff,
+        .chat-line-staff .chat-actions{
+            flex-direction:row-reverse;
+        }
+
+        .chat-actions{
+            position:relative;
+            display:flex;
+            align-items:center;
+            gap:.15rem;
+            flex-shrink:0;
+        }
+
+        .chat-action-btn{
+            display:inline-flex;
+            align-items:center;
+            justify-content:center;
+            width:2rem;
+            height:2rem;
+            padding:0;
+            border:0;
+            border-radius:50%;
+            background:transparent;
+            color:var(--muted);
+            opacity:0;
+            transition:opacity 120ms var(--ease-out), background-color 120ms var(--ease-out);
+        }
+
+        .chat-row:hover .chat-action-btn,
+        .chat-row:focus-within .chat-action-btn,
+        .chat-menu-toggle[aria-expanded="true"]{
+            opacity:1;
+        }
+
+        .chat-action-btn:hover,
+        .chat-menu-toggle[aria-expanded="true"]{
+            background:color-mix(in srgb, var(--muted) 16%, transparent);
+        }
+
+        .chat-action-btn:focus-visible{
+            opacity:1;
+            outline:2px solid var(--primary);
+            outline-offset:1px;
+        }
+
+        /* No hover on touch screens and phones: the buttons are always there. */
+        @media (hover:none), (max-width:767.98px){
+            .chat-action-btn{
+                opacity:1;
+            }
+        }
+
+        .chat-menu{
+            position:absolute;
+            top:calc(100% + .25rem);
+            z-index:20;
+            min-width:10rem;
+            padding:.35rem;
+            border:1px solid var(--border);
+            border-radius:var(--radius-sm);
+            background:var(--card);
+            box-shadow:var(--shadow);
+        }
+
+        .chat-line .chat-menu{
+            left:0;
+        }
+
+        .chat-line-staff .chat-menu{
+            left:auto;
+            right:0;
+        }
+
+        .chat-menu form{
+            margin:0;
+        }
+
+        .chat-menu button{
+            display:flex;
+            align-items:center;
+            gap:.6rem;
+            width:100%;
+            padding:.45rem .65rem;
+            border:0;
+            border-radius:.45rem;
+            background:transparent;
+            color:var(--text);
+            font-size:.9rem;
+            text-align:left;
+        }
+
+        .chat-menu button:hover,
+        .chat-menu button:focus-visible{
+            background:color-mix(in srgb, var(--primary) 12%, transparent);
+            outline:none;
+        }
+
+        .chat-menu .chat-menu-danger{
+            color:#dc2626;
+        }
+
+        .chat-row{
+            scroll-margin:4rem;
+            transition:background-color 300ms var(--ease-out);
+            border-radius:var(--radius-sm);
+        }
+
+        /* Briefly marks the message a quote or the pinned banner jumped to. */
+        .chat-row-flash{
+            background:color-mix(in srgb, var(--primary) 14%, transparent);
+        }
+
+        .chat-quote{
+            display:block;
+            width:100%;
+            margin:0 0 .35rem;
+            padding:.3rem .55rem;
+            border:0;
+            border-left:3px solid var(--primary);
+            border-radius:.45rem;
+            background:rgba(15,23,42,.06);
+            color:inherit;
+            font-size:.85rem;
+            text-align:left;
+        }
+
+        .chat-bubble-staff .chat-quote{
+            border-left-color:#fff;
+            background:rgba(255,255,255,.16);
+        }
+
+        .chat-quote-sender{
+            display:block;
+            font-weight:600;
+        }
+
+        .chat-quote-text,
+        .chat-pinned-text,
+        .chat-reply-preview-text{
+            display:-webkit-box;
+            -webkit-line-clamp:2;
+            -webkit-box-orient:vertical;
+            overflow:hidden;
+            opacity:.85;
+        }
+
+        .chat-unsent{
+            font-style:italic;
+            opacity:.8;
+        }
+
+        .chat-edited{
+            font-style:italic;
+        }
+
+        .chat-pinned{
+            position:sticky;
+            top:0; /* stays at the top of the list while it scrolls */
+            z-index:10;
+            display:flex;
+            align-items:center;
+            gap:.6rem;
+            margin:-1rem -1rem 1rem;
+            padding:.55rem 1rem;
+            border-bottom:1px solid var(--border);
+            background:var(--card);
+        }
+
+        .chat-pinned-icon{
+            color:var(--primary-strong);
+        }
+
+        .chat-pinned-body{
+            flex:1;
+            min-width:0;
+            padding:0;
+            border:0;
+            background:transparent;
+            color:var(--text);
+            font-size:.875rem;
+            text-align:left;
+        }
+
+        .chat-pinned-label{
+            display:block;
+            font-weight:600;
+            color:var(--muted);
+            font-size:.8rem;
+        }
+
+        .chat-pinned-unpin{
+            margin:0;
+        }
+
+        .chat-reply-preview{
+            display:flex;
+            align-items:center;
+            gap:.6rem;
+            margin-bottom:.5rem;
+            padding:.4rem .75rem;
+            border-left:3px solid var(--primary);
+            border-radius:var(--radius-sm);
+            background:var(--bg);
+            color:var(--text);
+            font-size:.875rem;
+        }
+
+        .chat-reply-preview[hidden]{
+            display:none;
+        }
+
+        .chat-reply-preview-icon{
+            color:var(--primary-strong);
+        }
+
+        .chat-reply-preview-body{
+            flex:1;
+            min-width:0;
+        }
+
+        .chat-reply-preview-label{
+            display:block;
+            font-weight:600;
+            color:var(--muted);
+        }
+
+        .chat-toast{
+            position:fixed;
+            left:50%;
+            bottom:calc(1.5rem + var(--safe-bottom));
+            z-index:1100;
+            transform:translateX(-50%);
+            padding:.5rem 1rem;
+            border-radius:999px;
+            background:#0f172a;
+            color:#fff;
+            font-size:.875rem;
+            box-shadow:var(--shadow);
+        }
+
+        .chat-edit-dialog textarea{
+            margin-bottom:1rem;
+            resize:vertical;
+        }
+
+        /* Compact shared-session card (patient messages only). */
+        .chat-bubble-session{
+            padding:0;
+            overflow:hidden;
+            min-width:15rem;
+        }
+
+        .chat-bubble-session .chat-quote{
+            width:auto;
+            margin:.5rem .5rem 0;
+        }
+
+        .chat-bubble-session .chat-time{
+            padding:0 .75rem .5rem;
+        }
+
+        .chat-session-head{
+            display:flex;
+            align-items:center;
+            gap:.6rem;
+            padding:.6rem .75rem;
+            background:var(--primary-strong);
+            color:#fff;
+        }
+
+        .chat-session-icon{
+            display:inline-flex;
+            align-items:center;
+            justify-content:center;
+            width:2rem;
+            height:2rem;
+            flex-shrink:0;
+            border-radius:.6rem;
+            background:rgba(255,255,255,.18);
+            font-size:1.05rem;
+        }
+
+        .chat-session-title{
+            font-weight:600;
+            overflow:hidden;
+            text-overflow:ellipsis;
+            white-space:nowrap;
+        }
+
+        .chat-session-sub{
+            font-size:.8rem;
+            color:rgba(255,255,255,.85);
+        }
+
+        .chat-session-stats{
+            display:flex;
+            gap:.4rem;
+            padding:.6rem .75rem 0;
+        }
+
+        .chat-session-stat{
+            flex:1;
+            min-width:0;
+            padding:.35rem .4rem;
+            border:1px solid var(--border);
+            border-radius:.55rem;
+            background:var(--card);
+            text-align:center;
+        }
+
+        .chat-session-value{
+            display:block;
+            font-weight:700;
+            font-variant-numeric:tabular-nums;
+            color:var(--text);
+        }
+
+        .chat-session-label{
+            display:block;
+            font-size:.72rem;
+            color:var(--muted);
+        }
+
+        .chat-tone-good .chat-session-value{ color:#059669; }
+        .chat-tone-fair .chat-session-value{ color:#d97706; }
+        .chat-tone-poor .chat-session-value{ color:#dc2626; }
+
+        .chat-session-note{
+            margin:.6rem .75rem 0;
+            padding:.15rem 0 .15rem .6rem;
+            border-left:3px solid #f59e0b;
+            font-size:.875rem;
+            font-style:italic;
+            white-space:pre-wrap;
+        }
+
+        .chat-bubble-session .chat-session + .chat-time,
+        .chat-bubble-session .chat-session-stats:last-child,
+        .chat-bubble-session .chat-session-note:last-child{
+            margin-top:.5rem;
+        }
+
+        html.dark-mode body .chat-quote{
+            background:rgba(255,255,255,.08);
+        }
+
+        html.dark-mode body .chat-bubble-staff .chat-quote{
+            background:rgba(255,255,255,.16);
+        }
+
+        html.dark-mode body .chat-menu .chat-menu-danger{
+            color:#f87171;
+        }
+
+        html.dark-mode body .chat-tone-good .chat-session-value{ color:#34d399; }
+        html.dark-mode body .chat-tone-fair .chat-session-value{ color:#fbbf24; }
+        html.dark-mode body .chat-tone-poor .chat-session-value{ color:#f87171; }
+
+        html.dark-mode body .chat-session-note{
+            border-left-color:#fbbf24;
+        }
+
+        html.dark-mode body .chat-session-stat{
+            background:#1e293b;
+        }
+
+        html.dark-mode body .chat-toast{
+            background:#e2e8f0;
+            color:#0f172a;
+        }
+
+        @media (prefers-reduced-motion:reduce){
+            .chat-row,
+            .chat-action-btn{
+                transition:none;
+            }
         }
 
         /* PAGE TRANSITIONS

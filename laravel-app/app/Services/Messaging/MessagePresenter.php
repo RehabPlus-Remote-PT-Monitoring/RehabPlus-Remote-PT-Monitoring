@@ -28,7 +28,7 @@ class MessagePresenter
     public const SNIPPET_LENGTH = 200;
 
     /** Thread preview and bubble text for an unsent message. */
-    public const UNSENT_TEXT = 'Message unsent';
+    public const UNSENT_TEXT = 'Message deleted';
 
     /**
      * The staff sender of the clinic thread is always "clinic" (the app shows

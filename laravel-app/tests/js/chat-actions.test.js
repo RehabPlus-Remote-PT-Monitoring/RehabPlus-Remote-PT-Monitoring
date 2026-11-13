@@ -25,9 +25,9 @@ function page({ editUntil = Date.now() + 60_000, replyToId = '' } = {}) {
                 <div class="chat-line">
                     <div class="chat-bubble">My knee hurts</div>
                     <div class="chat-actions">
-                        <button type="button" data-chat-menu-toggle aria-expanded="false">⋮</button>
+                        <button type="button" data-chat-reply>Reply</button>
+                        <button type="button" data-chat-menu-toggle aria-expanded="false">⋯</button>
                         <div data-chat-menu hidden>
-                            <button type="button" data-chat-reply>Reply</button>
                             <button type="button" data-chat-copy>Copy</button>
                         </div>
                     </div>
@@ -39,9 +39,9 @@ function page({ editUntil = Date.now() + 60_000, replyToId = '' } = {}) {
                 <div class="chat-line">
                     <div class="chat-bubble"><button type="button" class="chat-quote" data-chat-scroll-to="m1">quote</button>Do 10 squats.</div>
                     <div class="chat-actions">
-                        <button type="button" data-chat-menu-toggle aria-expanded="false">⋮</button>
+                        <button type="button" data-chat-reply>Reply</button>
+                        <button type="button" data-chat-menu-toggle aria-expanded="false">⋯</button>
                         <div data-chat-menu hidden>
-                            <button type="button" data-chat-reply>Reply</button>
                             <button type="button" data-chat-edit>Edit</button>
                             <button type="button" data-chat-copy>Copy</button>
                         </div>
@@ -177,10 +177,11 @@ describe('reply preview', () => {
         expect(preview.querySelector('[data-reply-preview-text]').textContent).toContain('<img');
     });
 
-    test('Reply in the menu and the × button drive it', () => {
+    test('the Reply button next to the bubble and the × button drive it', () => {
         const { row, composer, preview } = page();
         init();
 
+        // An open menu elsewhere closes when Reply is used.
         click(row('s1').querySelector('[data-chat-menu-toggle]'));
         click(row('s1').querySelector('[data-chat-reply]'));
         expect(composer.querySelector('[data-reply-to-id]').value).toBe('s1');

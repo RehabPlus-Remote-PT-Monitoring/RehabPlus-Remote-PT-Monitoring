@@ -277,6 +277,13 @@ trait FakeFirebase
             $fields = array_map(fn ($v) => $db->decode($v), $w['update']['fields'] ?? []);
             $doc = isset($w['updateMask']) ? array_merge($this->docs[$path] ?? [], $fields) : $fields;
 
+            // A masked field sent without a value is deleted, like Firestore does.
+            foreach ($w['updateMask']['fieldPaths'] ?? [] as $masked) {
+                if (! array_key_exists($masked, $fields)) {
+                    unset($doc[$masked]);
+                }
+            }
+
             foreach ($w['updateTransforms'] ?? [] as $t) {
                 $doc[$t['fieldPath']] = isset($t['increment'])
                     ? ($doc[$t['fieldPath']] ?? 0) + (int) $t['increment']['integerValue']

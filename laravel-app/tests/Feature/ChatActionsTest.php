@@ -247,7 +247,7 @@ class ChatActionsTest extends TestCase
         $this->assertSame([['fieldPath' => 'unsentAt', 'setToServerValue' => 'REQUEST_TIME']], $message['updateTransforms']);
         $this->assertArrayHasKey('updateTime', $message['currentDocument']);
 
-        $this->assertSame(['lastMessage' => ['stringValue' => 'Message unsent']], $thread['update']['fields']);
+        $this->assertSame(['lastMessage' => ['stringValue' => 'Message deleted']], $thread['update']['fields']);
         $this->assertSame(['lastMessage', 'pinnedMessageId', 'pinnedText', 'pinnedSenderRole', 'pinnedAt'], $thread['updateMask']['fieldPaths']);
         $this->assertArrayNotHasKey('updateTransforms', $thread, 'no unread bump');
         $this->assertArrayHasKey('updateTime', $thread['currentDocument']);
@@ -424,6 +424,9 @@ class ChatActionsTest extends TestCase
         }
         $this->assertStringContainsString('data-confirm="Unsend this message?', $own);
         $this->assertStringContainsString('data-confirm-danger', $own);
+        // Reply is its own button next to the bubble, before (outside) the "⋯" menu.
+        $this->assertLessThan(strpos($own, 'data-chat-menu-toggle'), strpos($own, 'data-chat-reply'));
+        $this->assertStringContainsString('bi-three-dots"', $own);
 
         $patient = $this->row($html, 'My knee hurts after squats');
         $this->assertStringContainsString('data-chat-reply', $patient);
