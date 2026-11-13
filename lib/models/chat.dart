@@ -31,12 +31,39 @@ class ChatMessage {
   /// Still waiting to reach the server (e.g. sent while offline).
   final bool pending;
 
+  /// Who the message quotes: the sender's `senderRole` and the quoted
+  /// message id and text, or null when this message is not a reply.
+  final Map<String, dynamic>? replyTo;
+
+  /// When the message was last edited, or null when it has not been edited.
+  final DateTime? editedAt;
+
+  /// True when the message was never sent (e.g. drafted while offline). The
+  /// `text` may be empty because the flag, not the content, carries the
+  /// unsent state.
+  final bool unsent;
+
+  /// When [unsent] became true, or null for a message that was never
+  /// flagged as unsent.
+  final DateTime? unsentAt;
+
+  /// Sender metadata carried with the message, or null for old documents.
+  final Map<String, dynamic>? session;
+
+  /// UI-only: a label shown next to the bubble when it was edited.
+  String? get editedLabel => editedAt != null ? 'Edited' : null;
+
   const ChatMessage({
     required this.id,
     required this.text,
     required this.fromPatient,
     required this.sentAt,
     this.pending = false,
+    this.replyTo,
+    this.editedAt,
+    this.unsent = false,
+    this.unsentAt,
+    this.session,
   });
 
   /// Builds a message from its Firestore document. Never throws: a document
@@ -50,7 +77,10 @@ class ChatMessage {
   }) => Parsed.guard((reader) => _fromReader(id, reader, pending), d);
 
   static ChatMessage _fromReader(String id, FieldReader r, bool pending) {
-    final text = r.requireString('text');
+    // A message that never reached the server is flagged unsent and may carry
+    // an empty text: the flag, not the content, holds the unsent state.
+    final unsent = r.boolean('unsent', fallback: false);
+    final text = unsent ? r.string('text') ?? '' : r.requireString('text');
     var sentAt = r.dateTime('sentAt');
     if (sentAt == null) {
       r.markRepaired('sentAt');
@@ -66,6 +96,11 @@ class ChatMessage {
       fromPatient: r.data['senderRole'] == 'patient',
       sentAt: sentAt,
       pending: pending,
+      replyTo: r.map('replyTo'),
+      editedAt: r.dateTime('editedAt'),
+      unsent: unsent,
+      unsentAt: r.dateTime('unsentAt'),
+      session: r.map('session'),
     );
   }
 }
