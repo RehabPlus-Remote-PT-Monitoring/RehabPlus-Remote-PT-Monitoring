@@ -149,14 +149,13 @@ class MessagingService
 
         return array_reverse(array_map(function ($m) use ($patientName, $staffFallback) {
             $fromPatient = ($m['senderRole'] ?? null) === 'patient';
+            $storedName = is_string($m['senderName'] ?? null) ? $m['senderName'] : '';
+            $senderName = $fromPatient
+                ? $patientName
+                : $this->directory->name(MessagePresenter::ownerUid($m), $storedName ?: $staffFallback);
 
-            return [
-                'id' => $m['_id'],
-                'text' => $m['text'] ?? '',
-                'fromPatient' => $fromPatient,
-                'senderName' => $fromPatient ? $patientName : $this->directory->name($m['senderId'] ?? null, ($m['senderName'] ?? '') ?: $staffFallback),
-                'sentAt' => $m['sentAt'] ?? $m['createdAt'] ?? null,
-            ];
+            // Optional fields (reply quote, session card, edited, unsent) are coerced there.
+            return MessagePresenter::present($m, $senderName);
         }, $messages));
     }
 
@@ -242,8 +241,9 @@ class MessagingService
 
     /**
      * A short fingerprint of what the conversation page shows, from the thread
-     * summary alone: it changes when a message arrives (lastMessageAt) or the
-     * patient reads the chat (unreadForPatient). The page polls this cheaply
+     * summary alone: it changes when a message arrives (lastMessageAt), the
+     * patient reads the chat (unreadForPatient), the newest message is edited
+     * or unsent (lastMessage) or the pin changes. The page polls this cheaply
      * (one document read) and only reloads the messages when it changes.
      * unreadForStaff is left out: opening the page resets it, which would
      * cause one pointless reload.
@@ -251,10 +251,17 @@ class MessagingService
     public static function version(?array $summary): string
     {
         $at = $summary['lastMessageAt'] ?? null;
+        $pinnedAt = $summary['pinnedAt'] ?? null;
+        $text = fn ($value) => is_string($value) ? $value : '';
 
         return md5(implode('|', [
             $at instanceof \DateTimeInterface ? $at->format('U.u') : '',
             (int) ($summary['unreadForPatient'] ?? 0),
+            // An edit or unsend of the newest message changes only the preview,
+            // and pinning changes only these fields; both must reload the page.
+            $text($summary['lastMessage'] ?? null),
+            $text($summary['pinnedMessageId'] ?? null),
+            $pinnedAt instanceof \DateTimeInterface ? $pinnedAt->format('U.u') : '',
         ]));
     }
 
@@ -297,10 +304,12 @@ class MessagingService
      * in one atomic commit, then a push to each of the patient's phones.
      * Push failures are logged but don't fail the reply (the message is saved).
      *
+     * @param  array|null  $replyTo  quote of the message being answered, from
+     *                               ChatActions::replyTarget() (same thread)
      * @return int|null number of phones the push reached, or null if the
      *                  patient turned message notifications off
      */
-    public function reply(StaffUser $user, string $patientUid, array $patient, string $thread, string $text): ?int
+    public function reply(StaffUser $user, string $patientUid, array $patient, string $thread, string $text, ?array $replyTo = null): ?int
     {
         $text = trim($text);
         if ($text === '' || mb_strlen($text) > self::MAX_LENGTH) {
@@ -315,15 +324,24 @@ class MessagingService
             : 'RehabPlus Clinic';
         $preview = Str::limit($text, 117, '...');
 
+        $message = [
+            'text' => $text,
+            'senderId' => $senderId,
+            'senderRole' => 'staff',
+            // Dashboard-only: who on staff wrote it (the app ignores these
+            // fields). The uid matters in the clinic thread, where senderId is
+            // always "clinic": it is how the dashboard knows whose message it
+            // is for Edit and Unsend.
+            'senderName' => $user->name ?: 'Staff',
+            MessagePresenter::STAFF_UID_FIELD => $user->id,
+            'sentAt' => $now,
+        ];
+        if ($replyTo !== null) {
+            $message['replyTo'] = $replyTo;
+        }
+
         $this->db->commit([
-            $this->db->createWrite("{$threadPath}/messages/".FirestoreClient::newId(), [
-                'text' => $text,
-                'senderId' => $senderId,
-                'senderRole' => 'staff',
-                // Dashboard-only: who on staff wrote it (the app ignores this field).
-                'senderName' => $user->name ?: 'Staff',
-                'sentAt' => $now,
-            ], serverTimestamps: ['createdAt']),
+            $this->db->createWrite("{$threadPath}/messages/".FirestoreClient::newId(), $message, serverTimestamps: ['createdAt']),
             $this->db->mergeWrite($threadPath, [
                 'lastMessage' => $text,
                 'lastMessageAt' => $now,

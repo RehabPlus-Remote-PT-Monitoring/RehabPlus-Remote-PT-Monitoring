@@ -29,7 +29,7 @@
              data-feed-url="{{ route('messages.feed', $patientUid) }}"
              data-status-url="{{ route('messages.status', $patientUid) }}"
              data-version="{{ $version }}">
-            @include('messages._list', ['messages' => $messages])
+            @include('messages._list', ['messages' => $messages, 'pinned' => $pinned, 'patientUid' => $patientUid])
         </div>
         <div class="card-footer bg-transparent">
             @if ($archived)
@@ -37,8 +37,18 @@
                     <i class="bi bi-archive me-1"></i>This patient is archived. Restore them from <a href="{{ route('patients.index', ['archived' => 1]) }}">Archived Patients</a> to send a message.
                 </p>
             @else
-                <form method="POST" action="{{ route('messages.reply', $patientUid) }}" class="d-flex gap-2 align-items-end">
+                {{-- "Reply" in a bubble's menu fills this in (resources/js/chat-actions.js). --}}
+                <div class="chat-reply-preview" data-reply-preview hidden>
+                    <i class="bi bi-reply chat-reply-preview-icon" aria-hidden="true"></i>
+                    <div class="chat-reply-preview-body">
+                        <span class="chat-reply-preview-label">Replying to <span data-reply-preview-sender></span></span>
+                        <span class="chat-reply-preview-text" data-reply-preview-text></span>
+                    </div>
+                    <button type="button" class="btn-close" data-reply-cancel aria-label="Cancel reply"></button>
+                </div>
+                <form method="POST" action="{{ route('messages.reply', $patientUid) }}" class="d-flex gap-2 align-items-end" data-chat-composer>
                     @csrf
+                    <input type="hidden" name="reply_to_id" value="{{ old('reply_to_id') }}" data-reply-to-id>
                     <textarea name="text" rows="2" maxlength="{{ $maxLength }}" required
                               class="form-control @error('text') is-invalid @enderror"
                               placeholder="Write a reply… (Enter to send, Shift+Enter for a new line)">{{ old('text') }}</textarea>
@@ -84,7 +94,9 @@
                 if (atBottom) toBottom();
             };
             setInterval(async () => {
-                if (document.hidden || busy) return;
+                // Reloading the list would close a bubble menu someone has open,
+                // or remove the Unsend form its "Do you want to proceed?" pop-up submits.
+                if (document.hidden || busy || list.querySelector('[data-chat-menu]:not([hidden])') || document.querySelector('dialog[open]')) return;
                 busy = true; // a slow request mustn't stack up behind the next tick
                 try {
                     const res = await fetch(list.dataset.statusUrl, { headers });

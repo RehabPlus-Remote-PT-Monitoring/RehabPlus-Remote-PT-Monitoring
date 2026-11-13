@@ -280,17 +280,27 @@ class FirestoreClient
      *                                 this version (from getVersioned()); a
      *                                 concurrent write makes the commit throw
      *                                 FirestoreConflict
+     * @param  string[]  $deletes  fields to remove: they go in the updateMask
+     *                             without a value, which is how Firestore
+     *                             deletes a field in a merge
      */
-    public function mergeWrite(string $path, array $fields, array $increments = [], array $serverTimestamps = [], ?string $ifUpdateTime = null): array
+    public function mergeWrite(string $path, array $fields, array $increments = [], array $serverTimestamps = [], ?string $ifUpdateTime = null, array $deletes = []): array
     {
         $transforms = $this->timestampTransforms($serverTimestamps);
         foreach ($increments as $field => $by) {
             $transforms[] = ['fieldPath' => $field, 'increment' => $this->encode($by)];
         }
 
+        // An empty "fields" would be sent as a JSON list ([]), which Firestore
+        // rejects, so a delete-only write leaves it out.
+        $update = ['name' => $this->name($path)];
+        if ($fields !== []) {
+            $update['fields'] = $this->encodeFields($fields);
+        }
+
         return array_filter([
-            'update' => ['name' => $this->name($path), 'fields' => $this->encodeFields($fields)],
-            'updateMask' => ['fieldPaths' => array_keys($fields)],
+            'update' => $update,
+            'updateMask' => ['fieldPaths' => array_values(array_unique([...array_keys($fields), ...$deletes]))],
             'updateTransforms' => $transforms,
             'currentDocument' => $ifUpdateTime === null ? null : ['updateTime' => $ifUpdateTime],
         ]);

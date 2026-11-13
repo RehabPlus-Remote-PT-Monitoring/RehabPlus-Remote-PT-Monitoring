@@ -137,6 +137,14 @@ Route::middleware(['auth.rehab'])->group(function () {
     Route::get('/messages/{patientUid}/feed', [MessageController::class, 'feed'])->name('messages.feed');
     Route::get('/messages/{patientUid}/status', [MessageController::class, 'status'])->name('messages.status');
     Route::post('/messages/{patientUid}', [MessageController::class, 'reply'])->name('messages.reply');
+    // A bubble's menu: edit / unsend your own message, pin / unpin any message.
+    // Same scoping as the conversation (MessageController::authorizeThread).
+    Route::middleware(['throttle:60,1,chat-actions'])->group(function () {
+        Route::post('/messages/{patientUid}/unpin', [MessageController::class, 'unpin'])->name('messages.unpin');
+        Route::post('/messages/{patientUid}/{messageId}/edit', [MessageController::class, 'edit'])->name('messages.edit');
+        Route::post('/messages/{patientUid}/{messageId}/unsend', [MessageController::class, 'unsend'])->name('messages.unsend');
+        Route::post('/messages/{patientUid}/{messageId}/pin', [MessageController::class, 'pin'])->name('messages.pin');
+    });
 
     // Staff-to-staff messages (in the same Messages tab): administrators and physical therapists.
     Route::middleware(['role:admin,therapist'])->group(function () {

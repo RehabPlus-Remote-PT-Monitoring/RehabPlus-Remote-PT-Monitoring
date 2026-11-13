@@ -1,4 +1,5 @@
 import { initAppointmentAlerts } from './appointment-alerts.js';
+import { initChatActions } from './chat-actions.js';
 import { confirmSubmit, needsConfirmation } from './confirm.js';
 import { copyPassword } from './copy-password.js';
 import { dismissFlashMessages } from './flash-messages.js';
@@ -12,6 +13,9 @@ import { initSessionPickers } from './session-picker.js';
 import { dragOffset, swipeCloses, swipeGesture } from './swipe.js';
 
 dismissFlashMessages();
+
+// Conversation page: the "⋮" menu on chat bubbles (reply, edit, copy, pin, unsend).
+initChatActions();
 
 const searchInput = document.getElementById('patientSearch');
 const rows = document.querySelectorAll('#patientsTable tbody tr');
