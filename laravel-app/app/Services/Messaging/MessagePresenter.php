@@ -30,8 +30,6 @@ class MessagePresenter
     /** Thread preview and bubble text for an unsent message. */
     public const UNSENT_TEXT = 'Message unsent';
 
-    public const UNSENT_TEXT_MINE = 'You unsent a message';
-
     /**
      * The staff sender of the clinic thread is always "clinic" (the app shows
      * the clinic, not a person), so which staff member wrote a clinic message
