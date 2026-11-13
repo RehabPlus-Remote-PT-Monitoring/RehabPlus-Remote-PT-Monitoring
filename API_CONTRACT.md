@@ -154,60 +154,57 @@ requests, app problems). The doc is created on the first message.
 | `lastSenderRole` | string | `patient` or `staff` |
 | `unreadForPatient` | int | The app shows this as a badge and resets it to 0 when opened |
 | `unreadForStaff` | int | The app adds 1 per patient message; **the dashboard resets it to 0** when staff read the thread |
-| `pinnedMessageId` | string, optional | 1–128 chars. Id of the pinned message; absent = nothing pinned |
-| `pinnedText` | string, optional | ≤200 chars. Snippet shown in the pinned banner |
-| `pinnedSenderRole` | string, optional | `patient` or `staff` |
-| `pinnedAt` | timestamp, optional | Server time of the pin |
+| `pinnedMessageId` | string \| null | The pinned message (one pin per thread, shared by both sides; either side may pin or unpin) |
+| `pinnedText` | string \| null | Snippet of the pinned message (≤ 200 chars) for the banner |
+| `pinnedSenderRole` | string \| null | `patient` or `staff`: who wrote the pinned message |
+| `pinnedAt` | timestamp \| null | Server time it was pinned |
+| `lastActionAt` | timestamp \| null | Server time of the last edit or unsend of any message, by either side; the dashboard polls it so an open conversation reloads |
 
-The four `pinned*` fields are set together or removed together (unpin =
-delete all four with `FieldValue.delete()` / an update mask without values).
-The rules refuse half a pin, and `pinnedAt` must be the server time.
+The app may only pin a real, not unsent message of the thread with its real
+author (all four pin fields at once, `pinnedAt` = server time), remove the
+pin, or refresh `pinnedText` when the pinned message is edited.
 
 ### `patients/{uid}/threads/{threadId}/messages/{id}`: messages
 
 | Field | Type | Notes |
 | --- | --- | --- |
-| `text` | string | 1–1000 chars |
+| `text` | string | 1–1000 chars (empty only for a deleted/unsent message) |
 | `senderId` | string | Sender's `uid` |
 | `senderRole` | string | `patient` or `staff` |
 | `sentAt` | timestamp | Sender's clock (at most 1 hour ahead of the server); **order by this** |
 | `createdAt` | timestamp | Server time |
-| `replyTo` | map, optional | Set on create only. `{ id: string 1–128, text: string ≤200 (snippet of the quoted message), senderRole: 'patient'\|'staff' }` |
-| `session` | map, optional | Patient messages only, set on create: a shared exercise-session card (see below). `text` still holds the plain-text summary, so clients that don't know the card show a normal bubble |
-| `editedAt` | timestamp, optional | Server time of the last edit; show "Edited" |
-| `unsent` | bool, optional | `true` once unsent. `text` is then `''` and `replyTo`/`session` are removed; show a "Message unsent" placeholder |
-| `unsentAt` | timestamp, optional | Server time of the unsend |
+| `replyTo` | map \| null | Set on a reply: `{id, text, senderRole}` of the quoted message, `text` a snippet (≤ 200 chars, cut with "...") |
+| `editedAt` | timestamp \| null | Server time of the last edit (null = never edited); both sides show "Edited" |
+| `unsent` | bool | `true` once the author unsent (deleted) it |
+| `unsentAt` | timestamp \| null | Server time of the unsend |
+| `session` | map \| null | Reserved for a shared exercise-session card. The dashboard renders it on patient messages, but the app shares sessions as plain text and the rules refuse it from the app, so today no message carries it |
 
-Old messages have none of the optional fields; every reader must treat them
-as optional.
+Only `text`/`senderId`/`senderRole`/`sentAt`/`createdAt` are required; old
+documents without the other fields render as before.
 
-`session` card fields:
+**Edit.** The author changes `text` and sets `editedAt` to the server time,
+nothing else. The dashboard allows it for 15 minutes after `createdAt`
+(staff, own messages); the app has no server to enforce a window, so the
+patient can edit their own messages at any time. firestore.rules only lets
+the author edit (`senderId == auth.uid`).
 
-| Field | Type | Notes |
-| --- | --- | --- |
-| `exerciseName` | string | 1–100 chars, required |
-| `startTime` | timestamp | Required |
-| `completedReps` | int | 0–1000, required |
-| `targetReps` | int | 0–1000, required |
-| `endedEarly` | bool | Required |
-| `accuracy` | int, optional | 0–100 |
-| `painLevel` | int, optional | 0–10 |
-| `painNote` | string, optional | ≤300 chars |
-| `sessionId` | string, optional | 1–128 chars, id in `sessions/` |
+**Unsend (soft delete).** The document stays (same id, same place in the
+conversation): `text: ''`, `unsent: true`, `unsentAt` = server time, and
+`replyTo`/`session` are removed. An unsent message can't be edited, unsent
+again, pinned or replied to. The author sees **"You deleted a message"**,
+the other side **"Message deleted"**. Messages are never hard-deleted
+(the rules refuse every delete).
 
-What can change after sending (firestore.rules; the dashboard's service
-account bypasses the rules and must apply the same checks itself):
+A reply's `replyTo` must quote a real, not unsent message of the same
+thread with its real author (checked by firestore.rules for the app, by
+`ChatActions::replyTarget` on the dashboard).
 
-- **Edit** (patient, own message): only `text` (1–1000) and `editedAt`
-  (server time), within 15 minutes of `createdAt`, not a session-card message,
-  not unsent.
-- **Unsend** (patient, own message, any age): `text: ''`, `unsent: true`,
-  `unsentAt` (server time), and `replyTo`/`session` deleted. Final: an unsent
-  message can't be edited or unsent again.
-- Messages are never deleted. `editedAt`/`unsent`/`unsentAt` can't be set on
-  create.
-- If the edited/unsent message is the newest, also update the thread's
-  `lastMessage` (new text, or "Message unsent"), not `lastMessageAt`.
+**Thread updates that go with an action** (same batch): every edit and
+unsend sets `lastActionAt` to the server time; editing the newest message
+also sets `lastMessage` to the new text, and editing the pinned message sets
+`pinnedText`; unsending the newest sets `lastMessage` to "Message deleted",
+and unsending the pinned message removes the four pin fields. No action
+changes an unread counter or sends a push.
 
 **When staff reply from the dashboard**, write both in one batch:
 

@@ -146,7 +146,7 @@ describe('patients only reach their own data', () => {
     await assertFails(setDoc(doc(db, 'users/p1'), { role: 'admin' }));
   });
 
-  test('sessions cannot be edited or deleted', async () => {
+  test('sessions and messages cannot be edited or deleted', async () => {
     const db = as('p1');
     await assertFails(updateDoc(doc(db, 'patients/p1/sessions/s1'), { completedReps: 99 }));
     await assertFails(deleteDoc(doc(db, 'patients/p1/sessions/s1')));
@@ -413,224 +413,136 @@ describe('8. chat times from the phone cannot be far in the future', () => {
   });
 });
 
-describe('9. chat actions: reply and shared-session card on create', () => {
-  const msgPath = () => `patients/p1/threads/therapist/messages/n${Math.random()}`;
-  const send = (extra, uid = 'p1', role = 'patient') =>
-    setDoc(doc(as(uid), msgPath()), { ...message(uid, role), ...extra });
-  const replyTo = (extra = {}) => ({ id: 'm1', text: 'see you Monday', senderRole: 'staff', ...extra });
-  // What the app attaches when a patient shares a finished session.
-  const card = (extra = {}) => ({
-    exerciseName: 'Knee Extension', startTime: Timestamp.now(), completedReps: 9, targetReps: 10,
-    endedEarly: false, accuracy: 88, painLevel: 3, painNote: 'a bit sore', sessionId: 's1', ...extra,
-  });
+describe('9. chat actions: reply, edit, unsend (soft delete) and pin', () => {
+  const mine = 'patients/p1/threads/therapist/messages/own';
+  const theirs = 'patients/p1/threads/therapist/messages/staff';
+  const thread = 'patients/p1/threads/therapist';
+  const quote = { id: 'staff', text: 'Do 10 squats.', senderRole: 'staff' };
+  // A phone clock value instead of the server time. Clearly in the past: a
+  // Timestamp.now() taken right after a write can equal the emulator's
+  // request.time, which made the check flaky.
+  const aMinuteAgo = () => Timestamp.fromMillis(Date.now() - 60 * 1000);
 
-  test('a reply and a session card (full and minimal) are accepted', async () => {
-    await assertSucceeds(send({ replyTo: replyTo() }));
-    await assertSucceeds(send({ replyTo: replyTo({ text: '' }) }));
-    await assertSucceeds(send({ session: card() }));
-    const { accuracy, painLevel, painNote, sessionId, ...minimal } = card();
-    await assertSucceeds(send({ session: minimal }));
-    await assertSucceeds(send({ replyTo: replyTo(), session: card() }));
-  });
-
-  test('staff may reply too (therapist in their thread)', async () => {
-    await assertSucceeds(send({ replyTo: replyTo({ senderRole: 'patient' }) }, 'thA', 'staff'));
-  });
-
-  test('a bad replyTo is refused', async () => {
-    await assertFails(send({ replyTo: replyTo({ text: 'x'.repeat(201) }) }));
-    await assertFails(send({ replyTo: replyTo({ id: 'x'.repeat(129) }) }));
-    await assertFails(send({ replyTo: replyTo({ id: '' }) }));
-    await assertFails(send({ replyTo: replyTo({ senderRole: 'admin' }) }));
-    await assertFails(send({ replyTo: replyTo({ extra: 1 }) }));
-    const { senderRole, ...noRole } = replyTo();
-    await assertFails(send({ replyTo: noRole }));
-    await assertFails(send({ replyTo: 'm1' }));
-  });
-
-  test('a session card from staff is refused', async () => {
-    await assertFails(send({ session: card() }, 'thA', 'staff'));
-  });
-
-  test('a session card with the wrong shape or out-of-range values is refused', async () => {
-    await assertFails(send({ session: 'Knee Extension 9/10' }));
-    await assertFails(send({ session: card({ extra: true }) }));
-    const { endedEarly, ...noEndedEarly } = card();
-    await assertFails(send({ session: noEndedEarly }));
-    await assertFails(send({ session: card({ exerciseName: '' }) }));
-    await assertFails(send({ session: card({ exerciseName: 'x'.repeat(101) }) }));
-    await assertFails(send({ session: card({ startTime: 'today' }) }));
-    await assertFails(send({ session: card({ completedReps: 1001 }) }));
-    await assertFails(send({ session: card({ targetReps: -1 }) }));
-    await assertFails(send({ session: card({ completedReps: 1.5 }) }));
-    await assertFails(send({ session: card({ endedEarly: 'no' }) }));
-    await assertFails(send({ session: card({ accuracy: 101 }) }));
-    await assertFails(send({ session: card({ painLevel: 11 }) }));
-    await assertFails(send({ session: card({ painNote: 'x'.repeat(301) }) }));
-    await assertFails(send({ session: card({ sessionId: '' }) }));
-    await assertFails(send({ session: card({ sessionId: 'x'.repeat(129) }) }));
-  });
-
-  test('a message cannot be created already edited or unsent', async () => {
-    await assertFails(send({ editedAt: serverTimestamp() }));
-    await assertFails(send({ unsent: true }));
-    await assertFails(send({ unsentAt: serverTimestamp() }));
-    await assertFails(send({ text: '', unsent: true, unsentAt: serverTimestamp() }));
-  });
-});
-
-describe('10. chat actions: edit and unsend', () => {
-  const base = 'patients/p1/threads/therapist/messages';
-  const minutesAgo = (m) => Timestamp.fromMillis(Date.now() - m * 60 * 1000);
-  // Seeds a message as it would be stored, bypassing the rules.
-  const seed = (id, data) => env.withSecurityRulesDisabled((ctx) => setDoc(doc(ctx.firestore(), `${base}/${id}`), {
-    text: 'hi', senderId: 'p1', senderRole: 'patient', sentAt: minutesAgo(1), createdAt: minutesAgo(1), ...data,
-  }));
-  const msg = (id, uid = 'p1') => doc(as(uid), `${base}/${id}`);
-  const edit = (id, extra = {}, uid = 'p1') => updateDoc(msg(id, uid), { text: 'hello', editedAt: serverTimestamp(), ...extra });
-  const unsend = (id, extra = {}, uid = 'p1') => updateDoc(msg(id, uid), {
-    text: '', unsent: true, unsentAt: serverTimestamp(), replyTo: deleteField(), session: deleteField(), ...extra,
-  });
-
-  test('a patient can edit their own message within 15 minutes, more than once', async () => {
-    await seed('m', { createdAt: minutesAgo(14) });
-    await assertSucceeds(edit('m'));
-    await assertSucceeds(edit('m', { text: 'hello again' }));
-  });
-
-  test('a message with a reply quote can be edited (the quote stays)', async () => {
-    await seed('m', { replyTo: { id: 'x', text: 'q', senderRole: 'staff' } });
-    await assertSucceeds(edit('m'));
-  });
-
-  test('editing after 15 minutes is refused', async () => {
-    await seed('m', { createdAt: minutesAgo(16) });
-    await assertFails(edit('m'));
-  });
-
-  test('editing someone else\'s message is refused', async () => {
-    await seed('staff', { senderId: 'thA', senderRole: 'staff' });
-    await seed('other', { senderId: 'p2' });
-    await seed('mine');
-    await assertFails(edit('staff'));
-    await assertFails(edit('other'));
-    await assertFails(edit('mine', {}, 'p2')); // p2 reaching into p1's thread
-    await assertFails(edit('mine', {}, 'thA')); // no staff rule: the dashboard uses the service account
-    await assertFails(edit('staff', {}, 'thA'));
-  });
-
-  test('a session-card message cannot be edited', async () => {
-    await seed('card', { session: { exerciseName: 'Squat', startTime: minutesAgo(5), completedReps: 1, targetReps: 2, endedEarly: false } });
-    await assertFails(edit('card'));
-  });
-
-  test('an edit with bad values or extra keys is refused', async () => {
-    await seed('m');
-    await assertFails(edit('m', { text: '' }));
-    await assertFails(edit('m', { text: 'x'.repeat(1001) }));
-    await assertFails(edit('m', { editedAt: minutesAgo(0.5) }));
-    await assertFails(updateDoc(msg('m'), { text: 'no editedAt' }));
-    await assertFails(edit('m', { senderRole: 'staff' }));
-    await assertFails(edit('m', { sentAt: minutesAgo(0.5) }));
-    await assertFails(edit('m', { replyTo: { id: 'x', text: 'q', senderRole: 'staff' } }));
-    await assertFails(edit('m', { unsent: true }));
-  });
-
-  test('a patient can unsend their own message, old or new, card or not', async () => {
-    await seed('old', { createdAt: minutesAgo(60 * 24) });
-    await seed('rich', {
-      replyTo: { id: 'x', text: 'q', senderRole: 'staff' },
-      session: { exerciseName: 'Squat', startTime: minutesAgo(5), completedReps: 1, targetReps: 2, endedEarly: false },
+  beforeEach(async () => {
+    await env.withSecurityRulesDisabled(async (ctx) => {
+      const db = ctx.firestore();
+      await setDoc(doc(db, mine), { ...message('p1', 'patient'), replyTo: quote });
+      await setDoc(doc(db, theirs), message('thA', 'staff'));
+      await setDoc(doc(db, plain), message('p1', 'patient'));
+      await setDoc(doc(db, gone), { ...message('thA', 'staff'), text: '', unsent: true });
     });
-    await assertSucceeds(unsend('old'));
-    await assertSucceeds(unsend('rich'));
   });
 
-  test('an unsend that leaves content behind or is malformed is refused', async () => {
-    const rq = { id: 'x', text: 'q', senderRole: 'staff' };
-    await seed('rich', {
-      replyTo: rq,
-      session: { exerciseName: 'Squat', startTime: minutesAgo(5), completedReps: 1, targetReps: 2, endedEarly: false },
+  const plain = 'patients/p1/threads/therapist/messages/plain';
+  const gone = 'patients/p1/threads/therapist/messages/gone';
+  const pinOf = (id, role) => ({ pinnedMessageId: id, pinnedText: 'snippet', pinnedSenderRole: role, pinnedAt: serverTimestamp() });
+
+  test('a quote must point at a real, live message of this thread by its real author', async () => {
+    const db = as('p1');
+    const at = (id) => doc(db, `patients/p1/threads/therapist/messages/${id}`);
+    await assertFails(setDoc(at('q1'), { ...message('p1', 'patient'), replyTo: { ...quote, id: 'missing' } }));
+    await assertFails(setDoc(at('q2'), { ...message('p1', 'patient'), replyTo: { ...quote, senderRole: 'patient' } }));
+    await assertFails(setDoc(at('q3'), { ...message('p1', 'patient'), replyTo: { id: 'gone', text: '', senderRole: 'staff' } }));
+    await assertFails(setDoc(at('q4'), { ...message('p1', 'patient'), replyTo: { ...quote, text: 'x'.repeat(201) } }));
+    await assertSucceeds(setDoc(at('q5'), { ...message('p1', 'patient'), replyTo: { id: 'plain', text: 'hi', senderRole: 'patient' } }));
+  });
+
+  test('unsending a message that never had a quote or session card works', async () => {
+    const db = as('p1');
+    await assertSucceeds(updateDoc(doc(db, plain), {
+      text: '', unsent: true, unsentAt: serverTimestamp(), replyTo: deleteField(), session: deleteField(),
+    }));
+  });
+
+  test("the app's exact edit batch: message + thread with lastActionAt, preview and pin text", async () => {
+    await env.withSecurityRulesDisabled(async (ctx) => {
+      await updateDoc(doc(ctx.firestore(), thread), { pinnedMessageId: 'plain', pinnedText: 'hi', pinnedSenderRole: 'patient', pinnedAt: Timestamp.now() });
     });
-    await assertFails(updateDoc(msg('rich'), { text: '', unsent: true, unsentAt: serverTimestamp(), session: deleteField() }));
-    await assertFails(updateDoc(msg('rich'), { text: '', unsent: true, unsentAt: serverTimestamp(), replyTo: deleteField() }));
-    await assertFails(unsend('rich', { text: 'still here' }));
-    await assertFails(unsend('rich', { unsent: false }));
-    await assertFails(unsend('rich', { unsentAt: minutesAgo(1) }));
-    await assertFails(unsend('rich', { editedAt: serverTimestamp() }));
+    const db = as('p1');
+    await assertSucceeds(writeBatch(db)
+      .update(doc(db, plain), { text: 'hello', editedAt: serverTimestamp() })
+      .set(doc(db, thread), { lastActionAt: serverTimestamp(), lastMessage: 'hello', pinnedText: 'hello' }, { merge: true })
+      .commit());
+    await assertFails(updateDoc(doc(db, thread), { lastActionAt: aMinuteAgo() }));
   });
 
-  test('someone else\'s message cannot be unsent', async () => {
-    await seed('staff', { senderId: 'thA', senderRole: 'staff' });
-    await seed('mine');
-    await assertFails(unsend('staff'));
-    await assertFails(unsend('mine', {}, 'p2'));
-    await assertFails(unsend('staff', {}, 'thA'));
+  test('a pin must be complete and point at a live message by its real author', async () => {
+    const db = as('p1');
+    await assertFails(updateDoc(doc(db, thread), { pinnedMessageId: 'staff' }));
+    await assertFails(updateDoc(doc(db, thread), { pinnedText: 'staff said so' }));
+    await assertFails(updateDoc(doc(db, thread), pinOf('missing', 'staff')));
+    await assertFails(updateDoc(doc(db, thread), pinOf('gone', 'staff')));
+    await assertFails(updateDoc(doc(db, thread), pinOf('plain', 'staff')));
+    await assertSucceeds(updateDoc(doc(db, thread), pinOf('plain', 'patient')));
   });
 
-  test('an unsent message is final: no second unsend, no edit', async () => {
-    await seed('m');
-    await assertSucceeds(unsend('m'));
-    await assertFails(unsend('m'));
-    await assertFails(edit('m'));
+  test("an odd pin the dashboard wrote doesn't block the patient's sends", async () => {
+    await env.withSecurityRulesDisabled(async (ctx) => {
+      await updateDoc(doc(ctx.firestore(), thread), { pinnedMessageId: 'whatever', pinnedText: 'x'.repeat(500) });
+    });
+    await assertSucceeds(patientSend(as('p1'), 'p1', 'therapist'));
   });
 
-  test('messages still cannot be deleted, by anyone', async () => {
-    await seed('m');
-    for (const uid of ['p1', 'thA', 'adm']) await assertFails(deleteDoc(msg('m', uid)));
-  });
-});
-
-describe('11. chat actions: pin and unpin on the thread', () => {
-  const thread = (uid = 'p1', path = 'patients/p1/threads/therapist') => doc(as(uid), path);
-  const pin = (extra = {}) => ({
-    pinnedMessageId: 'm1', pinnedText: 'Ice after each session', pinnedSenderRole: 'staff',
-    pinnedAt: serverTimestamp(), ...extra,
-  });
-  const unpin = () => ({
-    pinnedMessageId: deleteField(), pinnedText: deleteField(), pinnedSenderRole: deleteField(), pinnedAt: deleteField(),
+  test('a reply carries a well-formed quote; a malformed one is refused', async () => {
+    const db = as('p1');
+    const at = (id) => doc(db, `patients/p1/threads/therapist/messages/${id}`);
+    await assertSucceeds(setDoc(at('r1'), { ...message('p1', 'patient'), replyTo: quote }));
+    await assertFails(setDoc(at('r2'), { ...message('p1', 'patient'), replyTo: { id: 'staff' } }));
+    await assertFails(setDoc(at('r3'), { ...message('p1', 'patient'), replyTo: { ...quote, senderRole: 'admin' } }));
+    await assertFails(setDoc(at('r4'), { ...message('p1', 'patient'), replyTo: { ...quote, extra: 1 } }));
+    await assertFails(setDoc(at('r5'), { ...message('p1', 'patient'), editedAt: serverTimestamp() }));
   });
 
-  test('a patient can pin, re-pin and unpin', async () => {
-    await assertSucceeds(updateDoc(thread(), pin()));
-    await assertSucceeds(updateDoc(thread(), pin({ pinnedMessageId: 'm2', pinnedSenderRole: 'patient', pinnedText: '' })));
-    await assertSucceeds(updateDoc(thread(), unpin()));
+  test('the author can edit their own message; editedAt must be the server time', async () => {
+    const db = as('p1');
+    await assertSucceeds(updateDoc(doc(db, mine), { text: 'fixed', editedAt: serverTimestamp() }));
+    await assertFails(updateDoc(doc(db, mine), { text: 'fixed', editedAt: aMinuteAgo() }));
+    await assertFails(updateDoc(doc(db, mine), { text: '', editedAt: serverTimestamp() }));
+    await assertFails(updateDoc(doc(db, mine), { text: 'x', editedAt: serverTimestamp(), senderRole: 'staff' }));
+    await assertFails(updateDoc(doc(db, mine), { text: 'x'.repeat(1001), editedAt: serverTimestamp() }));
   });
 
-  test('pinning on a thread that doesn\'t exist yet works (merge set)', async () => {
-    await env.withSecurityRulesDisabled((ctx) => deleteDoc(doc(ctx.firestore(), 'patients/p1/threads/clinic')));
-    await assertSucceeds(setDoc(thread('p1', 'patients/p1/threads/clinic'), pin(), { merge: true }));
+  test('the author can unsend: text emptied, quote removed, never deleted', async () => {
+    const db = as('p1');
+    await assertFails(deleteDoc(doc(db, mine)));
+    await assertFails(updateDoc(doc(db, mine), { text: '', unsent: true, unsentAt: serverTimestamp() })); // quote left behind
+    await assertSucceeds(updateDoc(doc(db, mine), {
+      text: '', unsent: true, unsentAt: serverTimestamp(), replyTo: deleteField(), session: deleteField(),
+    }));
+    // An unsent message is final: no edit, no second unsend.
+    await assertFails(updateDoc(doc(db, mine), { text: 'back', editedAt: serverTimestamp() }));
   });
 
-  test('a half pin or half unpin is refused', async () => {
-    const { pinnedAt, ...noAt } = pin();
-    await assertFails(updateDoc(thread(), noAt));
-    await assertFails(updateDoc(thread(), { pinnedMessageId: 'm1' }));
-    await assertSucceeds(updateDoc(thread(), pin()));
-    const { pinnedAt: _, ...threeRemoved } = unpin();
-    await assertFails(updateDoc(thread(), threeRemoved));
-    await assertFails(updateDoc(thread(), { pinnedText: 'changed only the text' }));
+  test('nobody edits or unsends a message they did not write', async () => {
+    await assertFails(updateDoc(doc(as('p1'), theirs), { text: 'changed', editedAt: serverTimestamp() }));
+    await assertFails(updateDoc(doc(as('p1'), theirs), { text: '', unsent: true, unsentAt: serverTimestamp() }));
+    await assertFails(updateDoc(doc(as('thA'), mine), { text: 'changed', editedAt: serverTimestamp() }));
+    await assertFails(updateDoc(doc(as('p2'), mine), { text: 'changed', editedAt: serverTimestamp() }));
+    await assertSucceeds(updateDoc(doc(as('thA'), theirs), { text: 'changed', editedAt: serverTimestamp() }));
   });
 
-  test('pin values are type- and size-checked; pinnedAt must be server time', async () => {
-    await assertFails(updateDoc(thread(), pin({ pinnedAt: Timestamp.now() })));
-    await assertFails(updateDoc(thread(), pin({ pinnedAt: Timestamp.fromDate(new Date('2099-01-01')) })));
-    await assertFails(updateDoc(thread(), pin({ pinnedMessageId: '' })));
-    await assertFails(updateDoc(thread(), pin({ pinnedMessageId: 'x'.repeat(129) })));
-    await assertFails(updateDoc(thread(), pin({ pinnedText: 'x'.repeat(201) })));
-    await assertFails(updateDoc(thread(), pin({ pinnedText: { a: 1 } })));
-    await assertFails(updateDoc(thread(), pin({ pinnedSenderRole: 'admin' })));
-    await assertFails(updateDoc(thread(), pin({ pinnedBy: 'p1' })));
+  test('the patient can pin and unpin; a bad pin is refused', async () => {
+    const db = as('p1');
+    const pin = pinOf('staff', 'staff');
+    await assertSucceeds(updateDoc(doc(db, thread), pin));
+    await assertFails(updateDoc(doc(db, thread), { ...pin, pinnedAt: aMinuteAgo() }));
+    await assertFails(updateDoc(doc(db, thread), { ...pin, pinnedSenderRole: 'admin' }));
+    await assertSucceeds(updateDoc(doc(db, thread), {
+      pinnedMessageId: deleteField(), pinnedText: deleteField(), pinnedSenderRole: deleteField(), pinnedAt: deleteField(),
+    }));
   });
 
-  test('another patient cannot pin in p1\'s thread', async () => {
-    await assertFails(updateDoc(thread('p2'), pin()));
-    await assertFails(setDoc(thread('p2'), pin(), { merge: true }));
-  });
-
-  test('the existing thread checks still hold alongside a pin', async () => {
-    await assertFails(updateDoc(thread(), pin({ unreadForStaff: 0 })));
-    await assertFails(updateDoc(thread(), pin({ lastSenderRole: 'staff' })));
-    await assertSucceeds(updateDoc(thread(), pin({ unreadForPatient: 0 })));
+  test('unsending the newest, pinned message: one batch fixes the preview and clears the pin', async () => {
+    await env.withSecurityRulesDisabled(async (ctx) => {
+      await updateDoc(doc(ctx.firestore(), thread), { pinnedMessageId: 'own', pinnedText: 'hi', pinnedSenderRole: 'patient', lastMessage: 'hi' });
+    });
+    const db = as('p1');
+    await assertSucceeds(writeBatch(db)
+      .update(doc(db, mine), { text: '', unsent: true, unsentAt: serverTimestamp(), replyTo: deleteField(), session: deleteField() })
+      .set(doc(db, thread), {
+        lastMessage: 'Message deleted',
+        pinnedMessageId: deleteField(), pinnedText: deleteField(), pinnedSenderRole: deleteField(), pinnedAt: deleteField(),
+      }, { merge: true })
+      .commit());
   });
 });

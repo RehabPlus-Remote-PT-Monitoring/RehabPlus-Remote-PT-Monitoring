@@ -1,129 +1,208 @@
-# Chat actions: reply, edit, copy, pin, unsend, shared-session card
+# Chat message actions (reply, edit, unsend, pin) — client contract
 
-Status: approved by the user on 2026-11-13 ("keep the compact card, and then
-continue with all of the changes left"). No reactions. Photos are a later,
-separate round (needs Firebase Storage on the Blaze plan, or ~150 KB
-compressed images inside the message doc).
+Date: 2026-11-13
 
-## Intent
-Chat should behave like a normal messaging app on all three clients: the
-Laravel dashboard (staff), the Android app (camera/monitoring) and the iPhone
-app (iphone-testing). Long-press (app) / hover "⋮" (web) on a bubble opens:
-Reply, Edit, Copy, Pin/Unpin, Unsend. "Share a session" (iPhone-only today)
-comes to Android, and a shared session shows as a compact card everywhere.
+## 1. Intent and why
 
-## Who can do what
-| Action | Own messages | Other side's messages |
-| --- | --- | --- |
-| Reply | yes | yes |
-| Copy | yes (not unsent) | yes (not unsent) |
-| Pin / Unpin | yes | yes |
-| Edit | yes, within 15 minutes of sending, not unsent, not a session card | no |
-| Unsend | yes, any time | no |
+Add message-management actions to the chat so a patient or staff member can:
 
-- "Own" for staff = `senderRole == 'staff'` AND `senderId ==` the signed-in
-  staff member's Firebase uid. Another staff member's message is NOT own.
-- One pin per thread, shared: both sides see the same pinned banner and
-  either side can unpin or replace it. Unsending the pinned message clears
-  the pin.
-- Edit and unsend never bump unread counters and never send a push.
+- **Reply** to any message (the reply is quoted), from the app (Android + iOS)
+  and the dashboard.
+- **Edit** their own message. The dashboard enforces a 15-minute window; the
+  app has no server, so edit is always available for the author on the app.
+- **Unsend** (delete) their own message: the message becomes a
+  placeholder ("You deleted a message" for the author, "Message deleted"
+  for the other side). Copy / Pin / Edit / Unsend live in a
+  three-dots menu. Reply is a dedicated button to its left.
+- **Pin / unpin** a message (one pin per thread, visible on both sides).
 
-## Data contract (Firestore)
-### `patients/{uid}/threads/{threadId}/messages/{id}`, new optional fields
-| Field | Type | Notes |
-| --- | --- | --- |
-| `replyTo` | map | Set on create only. `{ id: string <=128, text: string <=200 (snippet of the quoted message), senderRole: 'patient'|'staff' }` |
-| `session` | map | Patient messages only, set on create. Compact card data: `{ exerciseName: string 1..100, startTime: timestamp, completedReps: int 0..1000, targetReps: int 0..1000, endedEarly: bool, accuracy?: int 0..100, painLevel?: int 0..10, painNote?: string <=300, sessionId?: string <=128 }`. `text` still holds the plain-text summary (sessionShareText) so old app builds and any client that doesn't know the card show today's text bubble. |
-| `editedAt` | timestamp | Server time of the last edit. Shown as "Edited". |
-| `unsent` | bool | `true` once unsent. `text` is then `''`; `replyTo`/`session` are removed. Clients show an italic "Message unsent" placeholder (sender sees "You unsent a message"). |
-| `unsentAt` | timestamp | Server time of the unsend. |
+Both sides share the same Firestore data. The app writes directly to
+Firestore (no Cloud Functions); the dashboard writes through a service
+account (bypassing rules) and enforces its own permissions. Both read the
+same documents, so they must agree on the schema and on what
+`edit`/`unsent`/`replyTo`/`pin` mean.
 
-Old messages lack all of these; every reader must treat them as optional
-(FieldReader on the app, coercion in the dashboard presenter).
+## 2. Goals
 
-### `patients/{uid}/threads/{threadId}`, new optional fields
-| Field | Type | Notes |
-| --- | --- | --- |
-| `pinnedMessageId` | string <=128 or absent | Absent/deleted = nothing pinned |
-| `pinnedText` | string <=200 | Snippet shown in the banner |
-| `pinnedSenderRole` | `patient`/`staff` | |
-| `pinnedAt` | timestamp | |
+- One shared data contract on app and web.
+- Reply-with-quote works from both sides.
+- Unsend / edit only on the sender's own message (on the app, "own" =
+  the patient's own messages; on the dashboard, "own" = staff's own
+  messages, per `MessagePresenter::isOwn`).
+- Pin is a shared thread state, visible on both sides.
+- Old messages (written before this change) still render: unknown optional
+  fields are ignored, no crash, no gap in history.
 
-Unpin = delete the four fields (FieldValue.delete / updateMask without
-values).
+## 3. Non-goals / anti-goals
 
-### Last-message preview
-When the edited/unsent message is the newest in the thread, also update
-`lastMessage` (new text, or "Message unsent"). Don't change `lastMessageAt`.
+- No per-message read receipts beyond the existing
+  `unreadForStaff` counter (reply/unsend/edit/pin do not touch it).
+- No hard delete of messages (unsend = soft delete: `text=''`,
+  `unsent=true`).
+- No "Forward" button in this pass (a "Forward"-style reply can be added
+  later by prefixing "Forwarded: ").
+- No in-app translation (no translation dependency added).
+- No change to push, Notifications-page entries, or the unread badge.
+- Staff can only delete/unsend their **own** messages: the dashboard's
+  `ChatActions::unsend` and `edit` enforce this; the app enforces it with
+  the `fromPatient` flag.
 
-## Firestore rules (app repo `firestore.rules`, deploy needs the user's OK)
-- Message create (`validMessage`): allow the optional `replyTo` and (for
-  role patient) `session` keys with the type/size checks above. Still no
-  `editedAt`/`unsent` on create.
-- Message update, patient only, own message (`resource.data.senderId ==
-  request.auth.uid`, `senderRole == 'patient'`, `isPatient(patientId)`),
-  not already unsent, exactly one of:
-  - edit: affectedKeys hasOnly `['text','editedAt']`, text string 1..1000,
-    `editedAt == request.time`, `request.time < resource.data.createdAt +
-    duration.value(15, 'm')`, no `session` on the doc.
-  - unsend: affectedKeys hasOnly `['text','unsent','unsentAt','replyTo','session']`,
-    `text == ''`, `unsent == true`, `unsentAt == request.time`, and
-    `replyTo`/`session` absent in the result.
-- Message delete stays `false`. Staff never write through rules (the
-  dashboard uses the service account), so no staff update rule.
-- Thread update by patient (`patientThreadFields`): also allow
-  `pinnedMessageId`, `pinnedText`, `pinnedSenderRole`, `pinnedAt` (set with
-  types/sizes, `pinnedAt == request.time`, or all removed).
-- Tests in `tool/rules-test/rules.test.mjs` for every allowed and denied case
-  (other patient's message, staff message, after 15 min, double unsend,
-  extra keys, oversized replyTo/session, session on staff role, pin fields).
+## 4. Constraints
 
-## Dashboard (laravel-app, branch web/messaging)
-- Hover/focus "⋮" on each bubble → menu. Copy uses the Clipboard API (no
-  server call). Reply sets a quoted preview above the composer (with ×) and
-  the next send includes `replyTo`.
-- Edit: inline editor or small dialog; POST route; server checks own
-  message + 15-min window + not unsent + not a session card; writes `text`,
-  `editedAt` (server timestamp transform) and the preview if newest.
-- Unsend: "Do you want to proceed?" confirm (existing data-confirm pattern),
-  server checks own message; writes `text: ''`, `unsent: true`, `unsentAt`,
-  deletes `replyTo`/`session` (updateMask), clears the pin if it pointed at
-  it, fixes the preview if newest.
-- Pin/Unpin: POST routes, thread-scoped, any message (not unsent). Pinned
-  banner at the top of the conversation; click scrolls to the message when
-  it's on the page.
-- Render: reply quote inside the bubble, "Edited" next to the time, unsent
-  placeholder, compact session card (teal title bar: exercise + "Shared
-  session · <date>", three boxes reps / accuracy / pain, pain note quote;
-  boxes for missing accuracy/pain are omitted). Light and dark themes.
-- All routes use the existing role/ownership scoping (therapist thread vs
-  clinic thread, 404 for other users' records) and validate ids with
-  `isValidId`. Feature tests with the FakeFirebase support class assert exact
-  write payloads.
-- Staff do not share sessions (only patients do); staff only see the card.
+- `messages/{id}` must never be deleted. Unsend is an update only.
+- The dashboard's edit window is 15 minutes
+  (`MessagePresenter::EDIT_WINDOW_MINUTES`). The app cannot enforce it
+  server-side, so own-message edit is always open on the app.
+- The patient app writes via Firebase Auth (rules apply); the dashboard
+  uses a service account (rules bypassed).
+- The Firestore rules in the app repo currently say messages
+  `update, delete: if false`; they must change to allow edit/unsend only
+  (no delete).
+- `API_CONTRACT.md` currently says "Messages are never edited or deleted";
+  it must be updated with the new optional fields and the dashboard-only
+  edit window.
 
-## App (Flutter) — Android first on camera/monitoring, then merge into iphone-testing
-- Model: `ChatMessage` gains `replyTo` (id/text/fromPatient), `session`
-  (card data), `editedAt`, `unsent`; `ChatThreadSummary` gains the pin. Parse
-  with FieldReader; bad optional fields are dropped and logged, never kill
-  the list.
-- Service: `sendMessage(..., replyTo:, session:)`, `editMessage`,
-  `unsendMessage`, `pin`/`unpin`, each logged with DiagnosticLogger, errors
-  surfaced as a snackbar (errors only, no success snackbars).
-- UI: long-press bubble → bottom sheet with the allowed actions (same table);
-  Copy → Clipboard + small "Copied" toast is acceptable (invisible result).
-  Reply bar above the composer; quoted block inside bubbles; "Edited" label;
-  unsent placeholder; pinned banner under the chat header (tap = scroll to
-  it if loaded, × = unpin).
-- Share a session on Android: port `lib/services/chat_session_share.dart`
-  and `lib/widgets/chat_session_share_sheet.dart` from iphone-testing
-  (identical files merge cleanly), add the button to the composer for the
-  therapist thread, and send `session` + the plain text.
-- Session card widget used on both platforms.
-- iPhone: the older-messages pager (lib/services/chat_pager.dart) reads old
-  pages once; edits/unsends to messages outside the live window show after
-  reopening the chat. Note this; don't redesign the pager.
+## 5. Approaches (picked: 1 — single shared contract)
 
-## Out of scope
-Reactions, forwarding, translation, photos, staff-to-staff messages,
-per-person "seen".
+- **Approach 1 (chosen):** one schema + one contract; the app mirrors the
+  dashboard exactly. The dashboard's staged code
+  (`MessagePresenter`, `ChatActions`, `MessageController`, Blade partials,
+  `chat-actions.js`, tests) is the web side; the app side is built to
+  match it.
+- Approach 2 (rejected): app-only, web untouched → two different
+  "edited/unsent" meanings, staged web routes untestable.
+- Approach 3 (rejected): minimal slice, narrow schema → cross-client
+  parity gap.
+
+## 6. Data model
+
+### Messages
+`patients/{uid}/threads/{threadId}/messages/{id}` — the five core fields
+are still the only *required* ones; everything else is optional.
+
+- **Core (unchanged, required):** `text`, `senderId`, `senderRole`,
+  `sentAt`, `createdAt`.
+- **New optional:** `replyTo` (embedded `{id, text, senderRole}`),
+  `editedAt` (server timestamp), `unsent` (bool), `unsentAt` (server
+  timestamp).
+- **Existing optional:** `session` (shared session card).
+
+### Thread summary
+`patients/{uid}/threads/{threadId}` — new optional pin fields:
+
+- `pinnedMessageId` (string), `pinnedText` (string, ≤ 200), `pinnedSenderRole`
+  (`'patient'`|`'staff'`), `pinnedAt` (server timestamp).
+
+## 7. Firestore rules (app repo)
+
+(As built; replaces the first draft, which checked the whole document's
+keys and would have refused every edit.)
+
+- `allow update` on `messages/{messageId}`: patient or staff of the thread,
+  through `validMessageAction`: only the author (`senderId == auth.uid`),
+  never on an unsent message, and either an **edit** (changed keys only
+  `text` 1–1000 + `editedAt == request.time`) or an **unsend** (`text: ''`,
+  `unsent: true`, `unsentAt == request.time`, `replyTo`/`session` removed).
+- `allow delete`: stays `if false` — nothing deletes a message, ever.
+- `validMessage` (create) accepts one optional field, `replyTo`
+  `{id, text ≤ 200, senderRole}`, which must quote a real, not unsent
+  message of the same thread by that author (`liveMessageBy`). Without it
+  the app could not send a reply.
+- Thread doc (`patientThreadFields`): the patient may also set
+  `lastActionAt == request.time` and change the pin through
+  `validPinChange`: remove all four fields, refresh `pinnedText` alone, or
+  set all four at once pointing at a live message by its real author.
+  Only pin fields that change are checked.
+
+## 8. Contract (`API_CONTRACT.md`)
+
+- Replace "Messages are never edited or deleted" with: messages are
+  **edited** (within a 15-minute window enforced by the dashboard only)
+  and **unsent** (soft delete); they are never hard-deleted.
+- Document the new optional fields (`replyTo`, `editedAt`, `unsent`,
+  `unsentAt`) and the `pin` fields on the thread summary.
+- Note the asymmetry: the dashboard enforces a 15-minute edit window;
+  the app has no server to enforce it, so the author can always edit
+  their own message on the app.
+
+## 9. App (Flutter) changes
+
+### 9.1 `lib/models/chat.dart`
+
+- `ChatMessage.parse` reads the optional fields `replyTo`,
+  `editedAt`, `unsent`, `unsentAt` but still requires the five core
+  fields. Old documents render unchanged.
+- `ChatMessage` gains readable nullable fields: `replyTo`, `editedAt`,
+  `unsent`, `session`; a UI-only `editedLabel` (e.g. "Edited").
+
+### 9.2 `lib/services/chat_service.dart` (same "queue, don't await, log"
+style as `send`; payloads built in `lib/services/chat_actions.dart`)
+
+- `send(thread, text, replyTo: msg)`: a reply is a normal send plus the
+  `replyTo` quote (one code path, so preview and `unreadForStaff++` are
+  identical). No push: the patient app sends no pushes at all (PushService
+  is receive-only); the dashboard pushes its own staff replies only.
+- `editMessage(thread, msg, text, newest:, pinned:)`: one batch, the
+  message `{text, editedAt: serverTimestamp}` and the thread
+  `{lastActionAt}` + `lastMessage` if newest + `pinnedText` if pinned.
+- `unsendMessage(thread, msg, newest:, pinned:)`: one batch, the message
+  `{text: '', unsent: true, unsentAt}` with `replyTo`/`session` deleted, and
+  the thread `{lastActionAt}` + `lastMessage: "Message deleted"` if newest
+  + the pin removed if it pointed here.
+- `pin(thread, msg)` / `unpin(thread)`: the four pin fields.
+- `lastActionAt` exists so the dashboard's open page reloads when an older
+  message changes (its poll fingerprint is the thread doc only).
+
+### 9.3 `lib/screens/messages_screen.dart` (`_ChatDetailScreenState`)
+
+- Per-message action row beside the bubble, shown when the bubble is tapped (or long-pressed) and hidden by tapping it again: the **Reply** button nearest the bubble, then **⋯**. Left of the patient's own (right-hand) bubbles; mirrored, right of the other side's. (The dashboard shows the same two buttons on hover, always on touch screens.)
+- The **Reply** button starts a reply composer above the existing message
+  box: a "Replying to <sender>" preview (the quoted message, clickable to
+  scroll to it) and the reply text field.
+- The **⋯** popup menu lists: **Copy**, **Pin**/**Unpin**, **Edit**,
+  **Unsend** (last, destructive, red, with a confirm dialog), in this order
+  on both the app and the dashboard.
+  - Copy copies the text (long-press used to copy directly; it now shows the buttons).
+  - Pin/Unpin toggles: the thread's single pin follows the
+    `pinnedMessageId`/`pinnedText`/`pinnedSenderRole`/`pinnedAt` fields.
+  - Edit = an edit dialog for the author's own message. (Edit sits in
+    the ⋯ menu rather than as a separate button, per the screenshot and
+    the original request — confirm when you review.)
+  - Unsend = confirm, then `unsendMessage`.
+- **Unsent placeholder**: your own deleted message → "You deleted a
+  message"; the other person's → "Message deleted". Shown as a plain
+  placeholder, no bubble, no menu, no ticks.
+- **Pinned banner**: top of the conversation shows the pinned message's
+  sender and a short text, with an "Unpin" button.
+- Render the optional `replyTo`, `editedAt`, `unsent`, `session` fields
+  only when present.
+- Read receipts (`seenByStaff`) stay unchanged.
+
+### 9.4 `lib/services/chat_pager.dart` and
+`lib/widgets/chat_timeline_widgets.dart`
+
+- Unsent placeholders occupy a list slot so the merged list (live +
+  older pages) stays aligned with message ids.
+- Day separators and the "New messages" divider are unchanged.
+
+## 10. Web dashboard (already staged)
+
+In the `web/messaging` worktree, commit the staged work once the app
+contract is settled. The current staged files are:
+
+- `app/Services/Messaging/ChatActionException.php`,
+  `ChatActions.php`, `MessagePresenter.php` (with `withActions`,
+  `withinEditWindow`, `replyTo`, `unsent`, `pinned`, `session`),
+- `app/Http/Controllers/MessageController.php` (routes `reply`,
+  `edit`, `unsend`, `pin`, `unpin`),
+- `app/Services/Messaging/MessagingService.php` (added `reply`, `markRead`,
+  `version`, `withReadReceipts`),
+- `app/Services/Firebase/FirestoreClient.php` (`mergeWrite` with
+  `ifUpdateTime`, `getVersioned`, `concurrently`),
+- Blade partials `_message_menu.blade.php`, `_pinned.blade.php`,
+  `_session_card.blade.php`, `resources/js/chat-actions.js`,
+  `resources/js/rehabplus-dashboard.js`, and updated
+  `resources/views/messages/*`, `routes/web.php`, `tests/*`.
+
+Check: `php artisan test` passes, and the app-side contract above is what
+`MessagePresenter` already coerces (so old documents still render).
