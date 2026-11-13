@@ -247,6 +247,67 @@ class PatientTest extends TestCase
         $this->assertSame('', $this->docs["patients/{$uid}"]['addressBarangay']);
     }
 
+    public function test_gender_weight_and_height_are_saved_and_shown_on_the_profile(): void
+    {
+        $admin = $this->staff('admin');
+        $this->actingAs($admin)->post('/patients', $this->newPatient([
+            'gender' => 'Female', 'weight_kg' => '52.5', 'height_cm' => '158',
+        ]))->assertRedirect();
+        $uid = $this->authUsers['nina@rehabplus.com']['uid'];
+
+        $doc = $this->docs["patients/{$uid}"];
+        $this->assertSame('Female', $doc['gender']);
+        $this->assertSame(52.5, $doc['weightKg']);
+        $this->assertSame(158.0, $doc['heightCm']);
+
+        $this->actingAs($admin)->get("/patients/{$uid}")
+            ->assertOk()
+            ->assertSee('Female')
+            ->assertSee('52.5 kg')
+            ->assertSee('158 cm')
+            ->assertSee('May 14, 1990');
+    }
+
+    public function test_a_birth_date_written_by_the_app_is_shown_and_kept_when_the_form_is_saved(): void
+    {
+        $this->patientDoc('pOne', ['dob' => 'December 5, 1996', 'gender' => 'Male', 'weightKg' => 70.0, 'heightCm' => 172.5]);
+        $admin = $this->staff('admin');
+
+        // The edit form gets the date as the date picker needs it, and the saved values.
+        $this->actingAs($admin)->get('/patients/pOne/edit')
+            ->assertOk()
+            ->assertSee('value="1996-12-05"', false)
+            ->assertSee('value="70"', false)
+            ->assertSee('value="172.5"', false)
+            ->assertSee('<option value="Male" selected>', false);
+
+        // Saving the same form keeps the date in the app's format and does not clear it.
+        $this->editOlive(['dob' => '1996-12-05', 'gender' => 'Male', 'weight_kg' => '70', 'height_cm' => '172.5'])->assertSessionHas('success');
+        $this->assertSame('December 5, 1996', $this->docs['patients/pOne']['dob']);
+        $this->assertSame(70.0, $this->docs['patients/pOne']['weightKg']);
+
+        $this->actingAs($admin)->get('/patients/pOne')->assertOk()->assertSee('December 5, 1996');
+    }
+
+    public function test_body_details_that_are_not_set_show_as_not_set(): void
+    {
+        $this->actingAs($this->staff('admin'))->get('/patients/pOne')
+            ->assertOk()
+            ->assertSee('Not set');
+    }
+
+    public function test_gender_and_measurements_must_be_within_the_app_limits(): void
+    {
+        $this->editOlive(['gender' => 'Robot'])->assertSessionHasErrors('gender');
+        $this->editOlive(['weight_kg' => '0'])->assertSessionHasErrors('weight_kg');
+        $this->editOlive(['weight_kg' => '501'])->assertSessionHasErrors('weight_kg');
+        $this->editOlive(['weight_kg' => 'heavy'])->assertSessionHasErrors('weight_kg');
+        $this->editOlive(['height_cm' => '29'])->assertSessionHasErrors('height_cm');
+        $this->editOlive(['height_cm' => '301'])->assertSessionHasErrors('height_cm');
+
+        $this->assertArrayNotHasKey('gender', $this->docs['patients/pOne'] ?? []);
+    }
+
     public function test_therapists_cannot_add_patients(): void
     {
         $this->actingAs($this->staff('therapist', 'thA', 'Dr. Ana'));
@@ -281,7 +342,8 @@ class PatientTest extends TestCase
         $this->assertSame('Inversion sprain', $doc['medicalSummary']);
         $this->assertSame('Balance work', $doc['therapyPlan']);
         $this->assertSame('+639175550101', $doc['phone']);
-        $this->assertSame('1990-05-14', $doc['dob']);
+        // Written the way the app writes it, so both show the same date.
+        $this->assertSame('May 14, 1990', $doc['dob']);
         $this->assertSame('nina@rehabplus.com', $doc['email']);
         $this->assertFalse($doc['archived']);
         $this->assertInstanceOf(CarbonImmutable::class, $doc['createdAt']);

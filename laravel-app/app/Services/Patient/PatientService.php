@@ -12,6 +12,7 @@ use App\Services\Firebase\FirestoreClient;
 use App\Services\Firebase\PatientNotifier;
 use App\Services\User\StaffDirectory;
 use App\Services\User\UserService;
+use Carbon\CarbonImmutable;
 use Illuminate\Support\Facades\Cache;
 use Illuminate\Support\Facades\Log;
 
@@ -26,6 +27,21 @@ use Illuminate\Support\Facades\Log;
  */
 class PatientService
 {
+    /** The gender choices the app accepts ('' = not set). Same list as firestore.rules and ProfileService. */
+    public const GENDERS = ['Female', 'Male', 'Other', 'Prefer not to say'];
+
+    /** Body measurement limits, the same as firestore.rules and the app. */
+    public const MIN_WEIGHT_KG = 1;
+    public const MAX_WEIGHT_KG = 500;
+    public const MIN_HEIGHT_CM = 30;
+    public const MAX_HEIGHT_CM = 300;
+
+    /**
+     * The app writes the date of birth as "December 5, 1996" (ProfileService / edit_profile_screen),
+     * so the dashboard writes the same text. Older dashboard records hold "1996-12-05"; both are read.
+     */
+    public const BIRTH_DATE_FORMAT = 'F j, Y';
+
     public function __construct(
         private FirestoreClient $db,
         private FirebaseAdmin $admin,
@@ -251,6 +267,8 @@ class PatientService
 
     public function present(array $doc): array
     {
+        $birth = self::parseBirthDate((string) ($doc['dob'] ?? ''));
+
         return [
             'uid' => $doc['_id'],
             'name' => (string) ($doc['name'] ?? 'Unnamed patient'),
@@ -261,7 +279,13 @@ class PatientService
             'medicalSummary' => (string) ($doc['medicalSummary'] ?? ''),
             'therapyPlan' => (string) ($doc['therapyPlan'] ?? ''),
             'phone' => (string) ($doc['phone'] ?? ''),
-            'dob' => (string) ($doc['dob'] ?? ''),
+            // Shown as "May 14, 1990" (or the stored text when it isn't a date); the form uses birthDate.
+            'dob' => $birth ? $birth->format(self::BIRTH_DATE_FORMAT) : (string) ($doc['dob'] ?? ''),
+            'birthDate' => $birth ? $birth->format('Y-m-d') : '',
+            'age' => $birth ? self::ageOn($birth) : null,
+            'gender' => in_array($doc['gender'] ?? null, self::GENDERS, true) ? $doc['gender'] : '',
+            'weightKg' => self::measurement($doc['weightKg'] ?? null, self::MIN_WEIGHT_KG, self::MAX_WEIGHT_KG),
+            'heightCm' => self::measurement($doc['heightCm'] ?? null, self::MIN_HEIGHT_CM, self::MAX_HEIGHT_CM),
             'address' => (string) ($doc['address'] ?? ''),
             'addressStreet' => (string) ($doc['addressStreet'] ?? ''),
             'addressBarangay' => (string) ($doc['addressBarangay'] ?? ''),
@@ -274,6 +298,75 @@ class PatientService
         ];
     }
 
+    /**
+     * The date of birth as the app stores it ("May 14, 1990"), from the form's Y-m-d value. '' when not set.
+     */
+    public static function storedBirthDate(string $ymd): string
+    {
+        $birth = $ymd === '' ? null : self::fromFormat($ymd, 'Y-m-d');
+
+        return $birth ? $birth->format(self::BIRTH_DATE_FORMAT) : '';
+    }
+
+    /**
+     * Reads a stored date of birth in either format the apps and dashboard have used, or null if it
+     * isn't a date. Both formats are checked strictly, so text like "Sept 2026" is not guessed.
+     */
+    public static function parseBirthDate(string $stored): ?CarbonImmutable
+    {
+        $stored = trim($stored);
+        if ($stored === '') {
+            return null;
+        }
+
+        foreach (['Y-m-d', self::BIRTH_DATE_FORMAT] as $format) {
+            $parsed = self::fromFormat($stored, $format);
+            if ($parsed !== null && $parsed->format($format) === $stored) {
+                return $parsed->startOfDay();
+            }
+        }
+
+        return null;
+    }
+
+    /**
+     * Parses [text] with [format], or null. Uses DateTimeImmutable because Carbon's own
+     * createFromFormat throws on text that doesn't match, which would break the profile page.
+     */
+    private static function fromFormat(string $text, string $format): ?CarbonImmutable
+    {
+        $parsed = \DateTimeImmutable::createFromFormat('!'.$format, $text);
+
+        return $parsed === false ? null : CarbonImmutable::instance($parsed);
+    }
+
+    /** Whole years between the date of birth and today (the app's timezone), or null for a future date. */
+    public static function ageOn(CarbonImmutable $birth, ?CarbonImmutable $today = null): ?int
+    {
+        $today ??= CarbonImmutable::now(config('app.timezone'))->startOfDay();
+        if ($birth->greaterThan($today)) {
+            return null;
+        }
+
+        // Full years: one less until the birthday has happened this year.
+        $age = (int) $today->format('Y') - (int) $birth->format('Y');
+        if ($today->format('md') < $birth->format('md')) {
+            $age--;
+        }
+
+        return $age;
+    }
+
+    /** A stored weight or height as a number, or null when it's not set or out of range. */
+    private static function measurement(mixed $value, float $min, float $max): ?float
+    {
+        if (! is_int($value) && ! is_float($value)) {
+            return null;
+        }
+
+        return $value >= $min && $value <= $max ? (float) $value : null;
+    }
+
     /** Form fields that map 1:1 onto the patients doc. */
     private function profileFields(array $data): array
     {
@@ -282,7 +375,12 @@ class PatientService
             'medicalSummary' => (string) ($data['medical_summary'] ?? ''),
             'therapyPlan' => (string) ($data['therapy_plan'] ?? ''),
             'phone' => (string) ($data['phone'] ?? ''),
-            'dob' => (string) ($data['dob'] ?? ''),
+            // Same text the app writes, so both show the same date.
+            'dob' => self::storedBirthDate((string) ($data['dob'] ?? '')),
+            // The app's edit screen fields. Blank means not set: '' for gender, null for the measurements.
+            'gender' => (string) ($data['gender'] ?? ''),
+            'weightKg' => isset($data['weight_kg']) ? (float) $data['weight_kg'] : null,
+            'heightCm' => isset($data['height_cm']) ? (float) $data['height_cm'] : null,
             'addressStreet' => trim((string) ($data['address_street'] ?? '')),
             'addressBarangay' => trim((string) ($data['address_barangay'] ?? '')),
             'addressCity' => trim((string) ($data['address_city'] ?? '')),

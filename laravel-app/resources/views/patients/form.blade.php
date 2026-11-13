@@ -72,8 +72,34 @@
                 @include('partials.phone-field', ['field' => 'phone', 'label' => 'Mobile number (for password reset texts)', 'country' => $phoneCountry, 'number' => $phoneNumber, 'initial' => $patient ? $phoneNumber : null, 'required' => false])
                 <div class="col-md-6">
                     <label for="dob" class="form-label small fw-semibold">Date of birth</label>
-                    <div class="input-group"><input id="dob" type="date" name="dob" class="form-control @error('dob') is-invalid @enderror" min="1900-01-01" max="{{ now()->toDateString() }}" data-calendar-only @if ($patient) data-initial="{{ $patient['dob'] ?? '' }}" @endif value="{{ old('dob', $patient['dob'] ?? '') }}"><button type="button" class="btn btn-primary field-picker-button" data-date-open aria-label="Open calendar" title="Open calendar"><i class="bi bi-calendar3" aria-hidden="true"></i></button></div>
+                    <div class="input-group"><input id="dob" type="date" name="dob" class="form-control @error('dob') is-invalid @enderror" min="1900-01-01" max="{{ now()->toDateString() }}" data-calendar-only @if ($patient) data-initial="{{ $patient['birthDate'] ?? '' }}" @endif value="{{ old('dob', $patient['birthDate'] ?? '') }}"><button type="button" class="btn btn-primary field-picker-button" data-date-open aria-label="Open calendar" title="Open calendar"><i class="bi bi-calendar3" aria-hidden="true"></i></button></div>
                     @error('dob')
+                        <div class="invalid-feedback">{{ $message }}</div>
+                    @enderror
+                </div>
+                <div class="col-md-4">
+                    <label for="gender" class="form-label small fw-semibold">Gender</label>
+                    <select id="gender" name="gender" class="form-select @error('gender') is-invalid @enderror" @if ($patient) data-initial="{{ $patient['gender'] ?? '' }}" @endif>
+                        <option value="">Not set</option>
+                        @foreach (\App\Services\Patient\PatientService::GENDERS as $option)
+                            <option value="{{ $option }}" @selected(old('gender', $patient['gender'] ?? '') === $option)>{{ $option }}</option>
+                        @endforeach
+                    </select>
+                    @error('gender')
+                        <div class="invalid-feedback">{{ $message }}</div>
+                    @enderror
+                </div>
+                <div class="col-md-4">
+                    <label for="weight_kg" class="form-label small fw-semibold">Weight (kg)</label>
+                    <input id="weight_kg" type="number" name="weight_kg" class="form-control @error('weight_kg') is-invalid @enderror" min="{{ \App\Services\Patient\PatientService::MIN_WEIGHT_KG }}" max="{{ \App\Services\Patient\PatientService::MAX_WEIGHT_KG }}" step="any" inputmode="decimal" placeholder="e.g. 62.5" value="{{ old('weight_kg', $patient['weightKg'] ?? '') }}" @if ($patient) data-initial="{{ $patient['weightKg'] ?? '' }}" @endif>
+                    @error('weight_kg')
+                        <div class="invalid-feedback">{{ $message }}</div>
+                    @enderror
+                </div>
+                <div class="col-md-4">
+                    <label for="height_cm" class="form-label small fw-semibold">Height (cm)</label>
+                    <input id="height_cm" type="number" name="height_cm" class="form-control @error('height_cm') is-invalid @enderror" min="{{ \App\Services\Patient\PatientService::MIN_HEIGHT_CM }}" max="{{ \App\Services\Patient\PatientService::MAX_HEIGHT_CM }}" step="any" inputmode="decimal" placeholder="e.g. 168" value="{{ old('height_cm', $patient['heightCm'] ?? '') }}" @if ($patient) data-initial="{{ $patient['heightCm'] ?? '' }}" @endif>
+                    @error('height_cm')
                         <div class="invalid-feedback">{{ $message }}</div>
                     @enderror
                 </div>

@@ -31,8 +31,14 @@
             <p class="text-muted small mb-0">
                 <i class="bi bi-envelope me-1"></i>{{ $patient['email'] ?: '—' }}
                 <span class="ms-3"><i class="bi bi-telephone me-1"></i>{{ $patient['phone'] ?: '—' }}</span>
-                <span class="ms-3"><i class="bi bi-calendar3 me-1"></i><strong>Born</strong> {{ $patient['dob'] ?: '—' }}</span>
+                <span class="ms-3"><i class="bi bi-calendar3 me-1"></i><strong>Born</strong> {{ $patient['dob'] ?: '—' }}@if ($patient['age'] !== null) <span>({{ $patient['age'] }} years old)</span>@endif</span>
                 <span class="ms-3"><strong>Added</strong> {{ $patient['createdAt']?->setTimezone($tz)->format('M j, Y') ?? '—' }}</span>
+            </p>
+            {{-- Body details the patient can also edit in the app (see API_CONTRACT.md) --}}
+            <p class="text-muted small mb-0">
+                <i class="bi bi-person me-1"></i><strong>Gender</strong> {{ $patient['gender'] ?: 'Not set' }}
+                <span class="ms-3"><i class="bi bi-speedometer2 me-1"></i><strong>Weight</strong> {{ $patient['weightKg'] !== null ? $patient['weightKg'].' kg' : 'Not set' }}</span>
+                <span class="ms-3"><i class="bi bi-rulers me-1"></i><strong>Height</strong> {{ $patient['heightCm'] !== null ? $patient['heightCm'].' cm' : 'Not set' }}</span>
             </p>
             {{-- Terms / Privacy Policy consent the patient gave in the app (read-only, see ConsentService) --}}
             <p class="consent-status mt-1 mb-0" data-consent="{{ $consent['status'] }}">
