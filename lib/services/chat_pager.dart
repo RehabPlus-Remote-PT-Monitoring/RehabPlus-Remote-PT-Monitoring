@@ -85,10 +85,12 @@ class ChatPager extends ChangeNotifier {
   final DiagnosticLogger _logger = DiagnosticLogger.I;
 
   /// Every message that reached the server, from older pages and from the
-  /// live window. Messages are never edited or deleted, so keeping them is
-  /// safe; it is what keeps a message on screen when a new one pushes it out
-  /// of the live window after older pages were loaded (otherwise a gap
-  /// would open between the live window and the first older page).
+  /// live window. Keeping them is what keeps a message on screen when a new
+  /// one pushes it out of the live window after older pages were loaded
+  /// (otherwise a gap would open between the live window and the first
+  /// older page). A message in the live window is refreshed by every
+  /// snapshot; one further back is a one-shot read, so the patient's own
+  /// edits and unsends are applied to it through [replace].
   ///
   /// Pending messages are not kept: one the server refused disappears from
   /// the live snapshot and must disappear from the screen too.
@@ -226,6 +228,17 @@ class ChatPager extends ChangeNotifier {
       _loading = false;
       _notify();
     }
+  }
+
+  /// Shows [updated] in place of the message with the same id, when that
+  /// message is one this pager keeps (so not for a pending one). Used for
+  /// the patient's own edit or unsend: a message in the live window is also
+  /// refreshed by the next snapshot, but one on an older page is not.
+  void replace(ChatMessage updated) {
+    if (_disposed || !_known.containsKey(updated.id)) return;
+    _known[updated.id] = updated;
+    _olderVersion++;
+    _notify();
   }
 
   /// Listeners are skipped once disposed: a page can arrive after the chat

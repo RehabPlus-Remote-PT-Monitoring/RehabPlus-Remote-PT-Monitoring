@@ -12,7 +12,7 @@ import 'package:rehabplus/models/chat.dart';
 void main() {
   /// The five core fields an old document carries: id, text, senderRole,
   /// sentAt, and the optional pending flag.
-  final _core = {
+  final core = {
     'id': 'm1',
     'text': 'hello',
     'senderRole': 'patient',
@@ -21,7 +21,7 @@ void main() {
 
   group('ChatMessage.parse', () {
     test('five core fields only: optional fields come back null', () {
-      final parsed = ChatMessage.parse('m1', _core);
+      final parsed = ChatMessage.parse('m1', core);
       expect(parsed.isOk, isTrue);
       final msg = parsed.value!;
       expect(msg.id, 'm1');
@@ -34,7 +34,7 @@ void main() {
 
     test('unsent, editedAt, replyTo and session are read', () {
       final doc = {
-        ..._core,
+        ...core,
         'unsent': true,
         'unsentAt': '2026-10-01T09:00:05',
         'editedAt': '2026-10-01T09:05:00',
@@ -47,18 +47,18 @@ void main() {
       expect(msg.unsent, isTrue);
       expect(msg.unsentAt, DateTime(2026, 10, 1, 9, 0, 5));
       expect(msg.editedAt, DateTime(2026, 10, 1, 9, 5));
-      expect(msg.replyTo, {'id': 'm0', 'text': 'quoted', 'senderRole': 'staff'});
+      expect(msg.replyTo, {
+        'id': 'm0',
+        'text': 'quoted',
+        'senderRole': 'staff',
+      });
       expect(msg.session, {'id': 's1', 'name': 'therapist'});
     });
 
     test('an unsent message with empty text is kept, not dropped', () {
       // Before the fix, requireString threw on text='' so an unsent message
       // encoded solely as text='' could never be parsed.
-      final doc = {
-        ..._core,
-        'text': '',
-        'unsent': true,
-      };
+      final doc = {...core, 'text': '', 'unsent': true};
       final parsed = ChatMessage.parse('m1', doc);
       expect(parsed.isOk, isTrue);
       expect(parsed.value!.text, '');
@@ -67,10 +67,7 @@ void main() {
 
     test('a non-unsent message with empty text is still rejected', () {
       // The safety net: only unsent messages may carry empty text.
-      final doc = {
-        ..._core,
-        'text': '',
-      };
+      final doc = {...core, 'text': ''};
       expect(ChatMessage.parse('m1', doc).isOk, isFalse);
     });
   });

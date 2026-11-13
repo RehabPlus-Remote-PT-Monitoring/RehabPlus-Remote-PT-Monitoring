@@ -154,18 +154,46 @@ requests, app problems). The doc is created on the first message.
 | `lastSenderRole` | string | `patient` or `staff` |
 | `unreadForPatient` | int | The app shows this as a badge and resets it to 0 when opened |
 | `unreadForStaff` | int | The app adds 1 per patient message; **the dashboard resets it to 0** when staff read the thread |
+| `pinnedMessageId` | string \| null | The pinned message (one pin per thread, shared by both sides; either side may pin or unpin) |
+| `pinnedText` | string \| null | Snippet of the pinned message (≤ 200 chars) for the banner |
+| `pinnedSenderRole` | string \| null | `patient` or `staff`: who wrote the pinned message |
+| `pinnedAt` | timestamp \| null | Server time it was pinned |
 
 ### `patients/{uid}/threads/{threadId}/messages/{id}`: messages
 
 | Field | Type | Notes |
 | --- | --- | --- |
-| `text` | string | 1–1000 chars |
+| `text` | string | 1–1000 chars (empty only for a deleted/unsent message) |
 | `senderId` | string | Sender's `uid` |
 | `senderRole` | string | `patient` or `staff` |
 | `sentAt` | timestamp | Sender's clock (at most 1 hour ahead of the server); **order by this** |
 | `createdAt` | timestamp | Server time |
+| `replyTo` | map \| null | Set on a reply: `{id, text, senderRole}` of the quoted message, `text` a snippet (≤ 200 chars, cut with "...") |
+| `editedAt` | timestamp \| null | Server time of the last edit (null = never edited); both sides show "Edited" |
+| `unsent` | bool | `true` once the author unsent (deleted) it |
+| `unsentAt` | timestamp \| null | Server time of the unsend |
+| `session` | map \| null | Shared exercise-session card (dashboard renders it for patient messages) |
 
-Messages are never edited or deleted.
+Only `text`/`senderId`/`senderRole`/`sentAt`/`createdAt` are required; old
+documents without the other fields render as before.
+
+**Edit.** The author changes `text` and sets `editedAt` to the server time,
+nothing else. The dashboard allows it for 15 minutes after `createdAt`
+(staff, own messages); the app has no server to enforce a window, so the
+patient can edit their own messages at any time. firestore.rules only lets
+the author edit (`senderId == auth.uid`).
+
+**Unsend (soft delete).** The document stays (same id, same place in the
+conversation): `text: ''`, `unsent: true`, `unsentAt` = server time, and
+`replyTo`/`session` are removed. An unsent message can't be edited, unsent
+again, pinned or replied to. The author sees **"You deleted a message"**,
+the other side **"Message deleted"**. Messages are never hard-deleted
+(the rules refuse every delete).
+
+**Thread updates that go with an action** (same batch): editing the newest
+message sets `lastMessage` to the new text; unsending the newest sets it to
+"Message deleted"; unsending the pinned message removes the four pin fields.
+No action changes an unread counter or sends a push.
 
 **When staff reply from the dashboard**, write both in one batch:
 

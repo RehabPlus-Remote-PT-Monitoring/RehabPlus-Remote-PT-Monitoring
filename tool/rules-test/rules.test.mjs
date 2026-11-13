@@ -19,6 +19,7 @@ import {
 import {
   Bytes,
   deleteDoc,
+  deleteField,
   doc,
   getDoc,
   increment,
@@ -409,5 +410,87 @@ describe('8. chat times from the phone cannot be far in the future', () => {
     await assertSucceeds(patientSend(as('p1'), 'p1', 'therapist'));
     await assertSucceeds(setDoc(doc(as('p1'), 'patients/p1/threads/therapist/messages/fast'),
       { ...message('p1', 'patient'), sentAt: Timestamp.fromMillis(Date.now() + 10 * 60 * 1000) }));
+  });
+});
+
+describe('9. chat actions: reply, edit, unsend (soft delete) and pin', () => {
+  const mine = 'patients/p1/threads/therapist/messages/own';
+  const theirs = 'patients/p1/threads/therapist/messages/staff';
+  const thread = 'patients/p1/threads/therapist';
+  const quote = { id: 'staff', text: 'Do 10 squats.', senderRole: 'staff' };
+  // A phone clock value instead of the server time. Clearly in the past: a
+  // Timestamp.now() taken right after a write can equal the emulator's
+  // request.time, which made the check flaky.
+  const aMinuteAgo = () => Timestamp.fromMillis(Date.now() - 60 * 1000);
+
+  beforeEach(async () => {
+    await env.withSecurityRulesDisabled(async (ctx) => {
+      const db = ctx.firestore();
+      await setDoc(doc(db, mine), { ...message('p1', 'patient'), replyTo: quote });
+      await setDoc(doc(db, theirs), message('thA', 'staff'));
+    });
+  });
+
+  test('a reply carries a well-formed quote; a malformed one is refused', async () => {
+    const db = as('p1');
+    const at = (id) => doc(db, `patients/p1/threads/therapist/messages/${id}`);
+    await assertSucceeds(setDoc(at('r1'), { ...message('p1', 'patient'), replyTo: quote }));
+    await assertFails(setDoc(at('r2'), { ...message('p1', 'patient'), replyTo: { id: 'staff' } }));
+    await assertFails(setDoc(at('r3'), { ...message('p1', 'patient'), replyTo: { ...quote, senderRole: 'admin' } }));
+    await assertFails(setDoc(at('r4'), { ...message('p1', 'patient'), replyTo: { ...quote, extra: 1 } }));
+    await assertFails(setDoc(at('r5'), { ...message('p1', 'patient'), editedAt: serverTimestamp() }));
+  });
+
+  test('the author can edit their own message; editedAt must be the server time', async () => {
+    const db = as('p1');
+    await assertSucceeds(updateDoc(doc(db, mine), { text: 'fixed', editedAt: serverTimestamp() }));
+    await assertFails(updateDoc(doc(db, mine), { text: 'fixed', editedAt: aMinuteAgo() }));
+    await assertFails(updateDoc(doc(db, mine), { text: '', editedAt: serverTimestamp() }));
+    await assertFails(updateDoc(doc(db, mine), { text: 'x', editedAt: serverTimestamp(), senderRole: 'staff' }));
+    await assertFails(updateDoc(doc(db, mine), { text: 'x'.repeat(1001), editedAt: serverTimestamp() }));
+  });
+
+  test('the author can unsend: text emptied, quote removed, never deleted', async () => {
+    const db = as('p1');
+    await assertFails(deleteDoc(doc(db, mine)));
+    await assertFails(updateDoc(doc(db, mine), { text: '', unsent: true, unsentAt: serverTimestamp() })); // quote left behind
+    await assertSucceeds(updateDoc(doc(db, mine), {
+      text: '', unsent: true, unsentAt: serverTimestamp(), replyTo: deleteField(), session: deleteField(),
+    }));
+    // An unsent message is final: no edit, no second unsend.
+    await assertFails(updateDoc(doc(db, mine), { text: 'back', editedAt: serverTimestamp() }));
+  });
+
+  test('nobody edits or unsends a message they did not write', async () => {
+    await assertFails(updateDoc(doc(as('p1'), theirs), { text: 'changed', editedAt: serverTimestamp() }));
+    await assertFails(updateDoc(doc(as('p1'), theirs), { text: '', unsent: true, unsentAt: serverTimestamp() }));
+    await assertFails(updateDoc(doc(as('thA'), mine), { text: 'changed', editedAt: serverTimestamp() }));
+    await assertFails(updateDoc(doc(as('p2'), mine), { text: 'changed', editedAt: serverTimestamp() }));
+    await assertSucceeds(updateDoc(doc(as('thA'), theirs), { text: 'changed', editedAt: serverTimestamp() }));
+  });
+
+  test('the patient can pin and unpin; a bad pin is refused', async () => {
+    const db = as('p1');
+    const pin = { pinnedMessageId: 'staff', pinnedText: 'Do 10 squats.', pinnedSenderRole: 'staff', pinnedAt: serverTimestamp() };
+    await assertSucceeds(updateDoc(doc(db, thread), pin));
+    await assertFails(updateDoc(doc(db, thread), { ...pin, pinnedAt: aMinuteAgo() }));
+    await assertFails(updateDoc(doc(db, thread), { ...pin, pinnedSenderRole: 'admin' }));
+    await assertSucceeds(updateDoc(doc(db, thread), {
+      pinnedMessageId: deleteField(), pinnedText: deleteField(), pinnedSenderRole: deleteField(), pinnedAt: deleteField(),
+    }));
+  });
+
+  test('unsending the newest, pinned message: one batch fixes the preview and clears the pin', async () => {
+    await env.withSecurityRulesDisabled(async (ctx) => {
+      await updateDoc(doc(ctx.firestore(), thread), { pinnedMessageId: 'own', pinnedText: 'hi', pinnedSenderRole: 'patient', lastMessage: 'hi' });
+    });
+    const db = as('p1');
+    await assertSucceeds(writeBatch(db)
+      .update(doc(db, mine), { text: '', unsent: true, unsentAt: serverTimestamp(), replyTo: deleteField(), session: deleteField() })
+      .set(doc(db, thread), {
+        lastMessage: 'Message deleted',
+        pinnedMessageId: deleteField(), pinnedText: deleteField(), pinnedSenderRole: deleteField(), pinnedAt: deleteField(),
+      }, { merge: true })
+      .commit());
   });
 });

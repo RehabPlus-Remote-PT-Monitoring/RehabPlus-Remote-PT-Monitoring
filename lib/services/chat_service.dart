@@ -4,6 +4,7 @@ import 'package:firebase_auth/firebase_auth.dart';
 import '../core/diagnostic_logger.dart';
 import '../models/chat.dart';
 import '../models/firestore_fields.dart';
+import 'chat_actions.dart';
 import 'firestore_diagnostics.dart';
 
 /// Messaging between the signed-in patient and clinic staff.
@@ -19,6 +20,8 @@ import 'firestore_diagnostics.dart';
 ///   "Message queued" {thread, length, clipped}; "Message synced / sync
 ///     failed" {thread, code, ms}
 ///   "Mark read synced / sync failed" {thread}
+///   "Message edit|unsend queued" {thread, ...}; "Pin|Unpin queued" {thread};
+///     each followed by its "synced / sync failed" event
 ///   "Clinic phone loaded" {configured, fromCache}
 ///   "Load older messages done|failed" {thread, limit, ms}; "Older messages
 ///     page" {thread, docs, fromCache}
@@ -65,8 +68,10 @@ class ChatService {
   ).map((snap) => _parseMessages(t, snap));
 
   /// One page of messages older than the live window: up to [limit] sent at
-  /// or before [before], newest first. A one-shot read (no listener):
-  /// messages are never edited or deleted, so an old page can't go stale.
+  /// or before [before], newest first. A one-shot read (no listener), so an
+  /// edit or unsend made elsewhere to a message this far back shows the next
+  /// time the chat is opened (the patient's own actions are applied at once,
+  /// see ChatPager.replace).
   ///
   /// `startAt` rather than `startAfter`, because another message may share
   /// the boundary's exact `sentAt`; the repeated boundary message is
@@ -123,10 +128,13 @@ class ChatService {
   /// Sends [text] as the patient. Returns at once; the message shows as
   /// pending until it reaches the server.
   ///
+  /// [replyTo] makes it a reply: the message stores a short quote of it
+  /// (see [chatReplyQuote]).
+  ///
   /// Text longer than [ChatMessage.maxTextLength] is clipped (the rules
   /// would reject the whole message otherwise). Throws [ArgumentError] for
   /// blank text and [StateError] when signed out.
-  void send(ChatThread t, String text) {
+  void send(ChatThread t, String text, {ChatMessage? replyTo}) {
     final uid = FirebaseAuth.instance.currentUser?.uid;
     if (uid == null) throw StateError('Not signed in');
     if (text.trim().isEmpty) {
@@ -146,6 +154,7 @@ class ChatService {
         'senderRole': 'patient',
         'sentAt': now,
         'createdAt': FieldValue.serverTimestamp(),
+        if (replyTo != null) 'replyTo': chatReplyQuote(replyTo),
       })
       ..set(thread, {
         'lastMessage': body,
@@ -158,6 +167,7 @@ class ChatService {
       'thread': t.name,
       'length': body.length,
       if (clipped) 'clipped': true,
+      if (replyTo != null) 'reply': true,
     });
     logUnawaitedWrite(
       batch.commit(),
@@ -165,6 +175,114 @@ class ChatService {
       operation: 'Message',
       data: {'thread': t.name},
     );
+  }
+
+  /// Replaces the text of the patient's own [msg] with [text]. [newest]:
+  /// [msg] is the newest message, so the thread preview follows the edit.
+  /// Returns false (and writes nothing) when the text is unchanged.
+  ///
+  /// Like [send], returns at once and logs the sync result. Throws
+  /// [ArgumentError] for blank text or a message the patient can't edit
+  /// (someone else's, unsent, or still uploading), [StateError] when signed
+  /// out.
+  bool editMessage(
+    ChatThread t,
+    ChatMessage msg,
+    String text, {
+    required bool newest,
+  }) {
+    _checkOwnAction(msg, ChatMessageAction.edit);
+    final trimmed = text.trim();
+    if (trimmed.isEmpty) {
+      throw ArgumentError.value('', 'text', 'Message is empty');
+    }
+    final body = clipText(trimmed, ChatMessage.maxTextLength);
+    if (body == msg.text) return false; // no "Edited" label for nothing
+    final thread = _thread(t);
+    final batch = _db.batch()
+      ..update(thread.collection('messages').doc(msg.id), chatEditFields(body));
+    final threadFields = chatThreadAfterEdit(newest: newest, text: body);
+    if (threadFields.isNotEmpty) {
+      batch.set(thread, threadFields, SetOptions(merge: true));
+    }
+    _logger.info('ChatService', 'Message edit queued', {
+      'thread': t.name,
+      'length': body.length,
+      'newest': newest,
+    });
+    logUnawaitedWrite(
+      batch.commit(),
+      tag: 'ChatService',
+      operation: 'Message edit',
+      data: {'thread': t.name},
+    );
+    return true;
+  }
+
+  /// Unsends (soft-deletes) the patient's own [msg]: its text is emptied and
+  /// both sides see a placeholder. [newest] fixes the thread preview;
+  /// [pinned] (it is the thread's pinned message) clears the pin, in the
+  /// same batch. Throws like [editMessage].
+  void unsendMessage(
+    ChatThread t,
+    ChatMessage msg, {
+    required bool newest,
+    required bool pinned,
+  }) {
+    _checkOwnAction(msg, ChatMessageAction.unsend);
+    final thread = _thread(t);
+    final batch = _db.batch()
+      ..update(thread.collection('messages').doc(msg.id), chatUnsendFields());
+    final threadFields = chatThreadAfterUnsend(newest: newest, pinned: pinned);
+    if (threadFields.isNotEmpty) {
+      batch.set(thread, threadFields, SetOptions(merge: true));
+    }
+    _logger.info('ChatService', 'Message unsend queued', {
+      'thread': t.name,
+      'newest': newest,
+      'pinned': pinned,
+    });
+    logUnawaitedWrite(
+      batch.commit(),
+      tag: 'ChatService',
+      operation: 'Message unsend',
+      data: {'thread': t.name},
+    );
+  }
+
+  /// Pins [msg] for both sides, replacing any earlier pin. Throws
+  /// [ArgumentError] for an unsent or still-uploading message.
+  void pin(ChatThread t, ChatMessage msg) {
+    if (msg.unsent || msg.pending) {
+      throw ArgumentError.value(msg.id, 'msg', 'Message cannot be pinned');
+    }
+    _logger.info('ChatService', 'Pin queued', {'thread': t.name});
+    logUnawaitedWrite(
+      _thread(t).set(chatPinFields(msg), SetOptions(merge: true)),
+      tag: 'ChatService',
+      operation: 'Pin',
+      data: {'thread': t.name},
+    );
+  }
+
+  /// Removes the thread's pin, whoever set it.
+  void unpin(ChatThread t) {
+    _logger.info('ChatService', 'Unpin queued', {'thread': t.name});
+    logUnawaitedWrite(
+      _thread(t).set(chatUnpinFields(), SetOptions(merge: true)),
+      tag: 'ChatService',
+      operation: 'Unpin',
+      data: {'thread': t.name},
+    );
+  }
+
+  /// Edit and Unsend are offered only where [chatMenuActions] offers them;
+  /// this repeats the check so a stale screen can't write a change the
+  /// rules would refuse anyway.
+  void _checkOwnAction(ChatMessage msg, ChatMessageAction action) {
+    if (!chatMenuActions(msg, pinnedMessageId: null).contains(action)) {
+      throw ArgumentError.value(msg.id, 'msg', 'Not allowed: ${action.name}');
+    }
   }
 
   /// Clears the patient's unread badge for [t].

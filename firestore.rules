@@ -193,7 +193,12 @@ service cloud.firestore {
           allow create: if validThreadId(threadId) && (
             (isPatient(patientId) && validMessage(request.resource.data, 'patient'))
             || (staffForThread(patientId, threadId) && validMessage(request.resource.data, 'staff')));
-          allow update, delete: if false;
+          // Edit or unsend, by the message's own author only.
+          allow update: if validThreadId(threadId)
+            && (isPatient(patientId) || staffForThread(patientId, threadId))
+            && validMessageAction(request.resource.data, resource.data);
+          // Unsend is a soft delete; a message document is never removed.
+          allow delete: if false;
         }
       }
     }
@@ -212,9 +217,18 @@ service cloud.firestore {
     // (as themselves), add one to the staff unread count per message they
     // send, and clear their own. lastMessageAt is the phone's clock (messages
     // can be queued offline), so it's only type-checked.
+    //
+    // The pin (one per thread, shared by both sides) may be set or removed:
+    // when set, the snippet and role are checked and pinnedAt must be now.
     function patientThreadFields(d, changed, staffUnreadBefore) {
       return changed.hasOnly(['lastMessage', 'lastMessageAt', 'lastSenderRole',
-                              'unreadForStaff', 'unreadForPatient'])
+                              'unreadForStaff', 'unreadForPatient',
+                              'pinnedMessageId', 'pinnedText', 'pinnedSenderRole', 'pinnedAt'])
+        && (!('pinnedMessageId' in d) || (d.pinnedMessageId is string
+              && d.pinnedMessageId.size() > 0 && d.pinnedMessageId.size() <= 128))
+        && (!('pinnedText' in d) || (d.pinnedText is string && d.pinnedText.size() <= 1000))
+        && (!('pinnedSenderRole' in d) || d.pinnedSenderRole in ['patient', 'staff'])
+        && (!('pinnedAt' in changed) || !('pinnedAt' in d) || d.pinnedAt == request.time)
         && (!('unreadForPatient' in changed) || d.unreadForPatient == 0)
         && (!('lastSenderRole' in changed) || d.lastSenderRole == 'patient')
         && (!('lastMessage' in changed) || (d.lastMessage is string && d.lastMessage.size() <= 1000))
@@ -222,14 +236,45 @@ service cloud.firestore {
         && (!('unreadForStaff' in changed) || d.unreadForStaff == staffUnreadBefore + 1);
     }
 
+    // A new message. replyTo (the quote of the message being answered) is
+    // the only optional field.
     function validMessage(d, role) {
-      return d.keys().hasOnly(['text', 'senderId', 'senderRole', 'sentAt', 'createdAt'])
+      return d.keys().hasOnly(['text', 'senderId', 'senderRole', 'sentAt', 'createdAt', 'replyTo'])
         && d.keys().hasAll(['text', 'senderId', 'senderRole', 'sentAt', 'createdAt'])
+        && (!('replyTo' in d) || validReplyTo(d.replyTo))
         && d.text is string && d.text.size() > 0 && d.text.size() <= 1000
         && d.senderId == request.auth.uid
         && d.senderRole == role
         && d.sentAt is timestamp && notInFuture(d.sentAt)
         && d.createdAt == request.time;
+    }
+
+    // The quote a reply carries: the quoted message's id, a short snippet of
+    // its text and who wrote it (chat-actions design, section 7).
+    function validReplyTo(r) {
+      return r is map
+        && r.keys().hasOnly(['id', 'text', 'senderRole'])
+        && r.keys().hasAll(['id', 'text', 'senderRole'])
+        && r.id is string && r.id.size() > 0 && r.id.size() <= 128
+        && r.text is string && r.text.size() <= 1000
+        && r.senderRole in ['patient', 'staff'];
+    }
+
+    // An action on an existing message by its author: an edit (new text,
+    // editedAt = now) or an unsend (soft delete: text emptied, unsent = true,
+    // unsentAt = now, reply quote and session card removed). Nothing else may
+    // change, and an unsent message is final. Messages are never deleted.
+    function validMessageAction(d, before) {
+      let changed = d.diff(before).affectedKeys();
+      let isEdit = changed.hasOnly(['text', 'editedAt'])
+        && d.text is string && d.text.size() > 0 && d.text.size() <= 1000
+        && d.editedAt == request.time;
+      let isUnsend = changed.hasOnly(['text', 'unsent', 'unsentAt', 'replyTo', 'session'])
+        && d.text == '' && d.unsent == true && d.unsentAt == request.time
+        && !('replyTo' in d) && !('session' in d);
+      return before.get('unsent', false) != true
+        && before.senderId == request.auth.uid
+        && (isEdit || isUnsend);
     }
 
     function validConsent(d, version) {

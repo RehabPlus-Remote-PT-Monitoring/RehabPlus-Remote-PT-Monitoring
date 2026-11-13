@@ -38,16 +38,16 @@ class ChatMessage {
   /// When the message was last edited, or null when it has not been edited.
   final DateTime? editedAt;
 
-  /// True when the message was never sent (e.g. drafted while offline). The
-  /// `text` may be empty because the flag, not the content, carries the
-  /// unsent state.
+  /// True when the author unsent (deleted) the message. It is a soft delete:
+  /// the document stays, with an empty `text`, so the flag, not the content,
+  /// carries the state, and the chat shows a placeholder in its place.
   final bool unsent;
 
-  /// When [unsent] became true, or null for a message that was never
-  /// flagged as unsent.
+  /// When [unsent] became true, or null for a message that was not unsent.
   final DateTime? unsentAt;
 
-  /// Sender metadata carried with the message, or null for old documents.
+  /// A shared exercise-session card the dashboard can render, or null (old
+  /// documents, and every message the app writes itself).
   final Map<String, dynamic>? session;
 
   /// UI-only: a label shown next to the bubble when it was edited.
@@ -77,8 +77,8 @@ class ChatMessage {
   }) => Parsed.guard((reader) => _fromReader(id, reader, pending), d);
 
   static ChatMessage _fromReader(String id, FieldReader r, bool pending) {
-    // A message that never reached the server is flagged unsent and may carry
-    // an empty text: the flag, not the content, holds the unsent state.
+    // An unsent (deleted) message keeps its document with an empty text:
+    // the flag, not the content, holds the state.
     final unsent = r.boolean('unsent', fallback: false);
     final text = unsent ? r.string('text') ?? '' : r.requireString('text');
     var sentAt = r.dateTime('sentAt');
@@ -117,11 +117,17 @@ class ChatThreadSummary {
   /// (see [seenByStaff]).
   final int unreadForStaff;
 
+  /// The thread's one pinned message (shared by the patient and staff):
+  /// its id, a snippet of its text and who wrote it. Null when nothing is
+  /// pinned or the stored pin is unusable.
+  final ChatPin? pin;
+
   const ChatThreadSummary({
     this.lastMessage,
     this.lastMessageAt,
     this.unreadForPatient = 0,
     this.unreadForStaff = 0,
+    this.pin,
   });
 
   static const empty = ChatThreadSummary();
@@ -131,6 +137,7 @@ class ChatThreadSummary {
   factory ChatThreadSummary.fromMap(Map<String, dynamic>? d) {
     if (d == null) return empty;
     final r = FieldReader(d);
+    final pinnedId = r.string('pinnedMessageId');
     return ChatThreadSummary(
       lastMessage: r.string(
         'lastMessage',
@@ -139,8 +146,37 @@ class ChatThreadSummary {
       lastMessageAt: r.dateTime('lastMessageAt'),
       unreadForPatient: r.integer('unreadForPatient', min: 0) ?? 0,
       unreadForStaff: r.integer('unreadForStaff', min: 0) ?? 0,
+      pin: pinnedId == null || pinnedId.trim().isEmpty
+          ? null
+          : ChatPin(
+              messageId: pinnedId,
+              text:
+                  r.string(
+                    'pinnedText',
+                    maxLength: ChatMessage.maxTextLength,
+                  ) ??
+                  '',
+              fromPatient: r.data['pinnedSenderRole'] == 'patient',
+            ),
     );
   }
+}
+
+/// The pinned message shown in the banner at the top of a conversation.
+class ChatPin {
+  final String messageId;
+
+  /// A snippet of the message (stored on the thread when it was pinned).
+  final String text;
+
+  /// Written by the patient (otherwise by staff).
+  final bool fromPatient;
+
+  const ChatPin({
+    required this.messageId,
+    required this.text,
+    required this.fromPatient,
+  });
 }
 
 /// Read receipts for the patient's own messages: the ids staff have seen.
