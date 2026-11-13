@@ -12,6 +12,8 @@ The Clinic is the **personal information controller**: it decides why and how yo
 
 - Clinic: {{CLINIC_NAME}}
 - Address: {{CLINIC_ADDRESS}}
+- Email: {{CLINIC_EMAIL}}
+- Phone: {{CLINIC_PHONE}}
 - Data Protection Officer (DPO): {{DPO_NAME}}
 - DPO email: {{DPO_EMAIL}}
 
@@ -154,5 +156,7 @@ We may update this Policy, for example when the App changes or the law changes. 
 For questions or concerns about this Policy or your information:
 
 - {{CLINIC_NAME}}, {{CLINIC_ADDRESS}}
+- Email: {{CLINIC_EMAIL}}
+- Phone: {{CLINIC_PHONE}}
 - Data Protection Officer: {{DPO_NAME}}, {{DPO_EMAIL}}
 - In the App: **Profile > Help & Support**
