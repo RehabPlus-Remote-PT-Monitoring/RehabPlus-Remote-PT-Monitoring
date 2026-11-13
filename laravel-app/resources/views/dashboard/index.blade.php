@@ -1,0 +1,136 @@
+@extends('layouts.admin')
+
+@section('title', 'Dashboard - RehabPlus')
+
+@section('content')
+    <div class="d-flex justify-content-between align-items-center mb-4">
+        <div>
+            <h2 class="page-title mb-1">RehabPlus Dashboard</h2>
+        </div>
+
+        <div class="d-flex flex-wrap gap-2">
+            @if (auth()->user()->isAdmin())
+                <a href="{{ route('announcements.index') }}" class="btn btn-outline-primary d-flex align-items-center gap-2">
+                    <i class="bi bi-megaphone"></i>
+                    Post announcement
+                </a>
+            @endif
+            @if (auth()->user()->isAdmin())
+                <a href="{{ route('patients.create') }}" class="btn btn-primary d-flex align-items-center gap-2">
+                    <i class="bi bi-plus-lg"></i>
+                    Add Patient
+                </a>
+            @endif
+        </div>
+    </div>
+
+    @if ($daily)
+        <section class="daily-hero mb-4" aria-labelledby="dailyHeroName">
+            <div class="daily-hero-main">
+                <p class="daily-hero-greeting mb-1">{{ $daily['greeting'] }}</p>
+                <h2 id="dailyHeroName" class="daily-hero-name">Hello, {{ $daily['name'] }}!</h2>
+                <p class="daily-hero-date mb-3"><i class="bi bi-calendar3 me-2"></i>{{ $daily['dateLabel'] }}</p>
+                <p class="daily-hero-summary mb-2"><i class="bi bi-info-circle-fill me-2"></i>{{ $daily['summary'] }}</p>
+                <p class="daily-hero-quote mb-0"><i class="bi bi-stars me-2"></i>{{ $daily['quote'] }}</p>
+            </div>
+            <i class="bi {{ $daily['greetingIcon'] }} daily-hero-icon" aria-hidden="true"></i>
+        </section>
+
+    @endif
+
+    <div class="row g-4 mb-4">
+        <x-admin.stat-card label="Total Patients" :value="$totalPatients" icon="bi-people-fill" tone="info" />
+        <x-admin.stat-card label="Avg Compliance" :value="$avgCompliance . '%'" icon="bi-clipboard2-check-fill" tone="success" />
+        <x-admin.stat-card label="Avg Pain Level" :value="$avgPain" icon="bi-heart-pulse-fill" tone="danger" />
+    </div>
+
+    <div class="row g-4 mb-4">
+        <div class="col-lg-8">
+            <div class="card">
+                <div class="card-header">Recovery Analytics</div>
+                <div class="card-body">
+                    <canvas id="recoveryChart"></canvas>
+                    @unless ($hasRecoveryData)
+                        <div class="alert alert-info mt-3 mb-0">
+                            Recovery and pain analytics appear once patients complete exercises in the RehabPlus app.
+                        </div>
+                    @endunless
+                </div>
+            </div>
+        </div>
+
+        <div class="col-lg-4">
+            <div class="card">
+                <div class="card-header">Patient Conditions</div>
+                <div class="card-body">
+                    <canvas id="conditionChart"></canvas>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <div class="card">
+        <div class="card-header d-flex justify-content-between align-items-center flex-wrap gap-2">
+            <span>Patient Recovery Overview</span>
+            <div class="input-group table-search">
+                <input type="text" id="patientSearch" class="form-control" placeholder="Search patient...">
+                {{-- Decorative: the list filters as you type. --}}
+                <span class="input-group-text" aria-hidden="true"><i class="bi bi-search"></i></span>
+            </div>
+        </div>
+
+        <div class="card-body p-0">
+            <div class="table-responsive">
+            <table class="table table-hover align-middle mb-0" id="patientsTable">
+                <thead>
+                    <tr>
+                        <th>Patient</th>
+                        <th>Condition</th>
+                        <th>Sessions</th>
+                        <th>Accuracy</th>
+                        <th>Pain</th>
+                        <th>Recovery</th>
+                        <th></th>
+                    </tr>
+                </thead>
+                <tbody>
+                    @foreach ($patientStats as $patient)
+                        <tr>
+                            <td>
+                                <div class="d-flex align-items-center gap-2">
+                                    <div class="rounded-circle bg-info text-dark fw-bold d-flex align-items-center justify-content-center" style="width:38px;height:38px;">
+                                        {{ strtoupper(substr($patient['name'], 0, 1)) }}
+                                    </div>
+                                    {{ $patient['name'] }}
+                                </div>
+                            </td>
+                            <td>{{ $patient['condition'] }}</td>
+                            <td>{{ $patient['total_sessions'] }}</td>
+                            <td>
+                                <div class="progress" style="height:8px;">
+                                    <div class="progress-bar bg-info" style="width:{{ min((float) $patient['compliance_rate'], 100) }}%"></div>
+                                </div>
+                                <small>{{ $patient['compliance_rate'] }}%</small>
+                            </td>
+                            <td><span class="badge bg-warning text-dark">{{ $patient['avg_pain'] }}/10</span></td>
+                            <td><span class="text-success fw-semibold">{{ $patient['recovery_score'] }}%</span></td>
+                            <td>
+                                <a href="{{ route('patients.show', $patient['id']) }}" class="btn btn-sm btn-outline-secondary">View</a>
+                            </td>
+                        </tr>
+                    @endforeach
+                </tbody>
+            </table>
+            </div>
+        </div>
+    </div>
+
+    <script nonce="{{ Vite::cspNonce() }}">
+        window.rehabPlusDashboardData = {
+            recoveryLabels: @json($recoveryLabels ?? []),
+            recoveryValues: @json($recoveryValues ?? []),
+            conditionLabels: @json(array_keys($conditionCounts ?? [])),
+            conditionValues: @json(array_values($conditionCounts ?? []))
+        };
+    </script>
+@endsection

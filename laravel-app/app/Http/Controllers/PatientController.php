@@ -1,0 +1,215 @@
+<?php
+
+namespace App\Http\Controllers;
+
+use App\Helpers\PatientValidation;
+use App\Services\Firebase\FirebaseTransport;
+use App\Services\Patient\ClinicalRecordService;
+use App\Services\Patient\ConsentService;
+use App\Services\Patient\PatientProgress;
+use App\Services\Patient\PatientService;
+use App\Services\Patient\PrescriptionService;
+use App\Services\Patient\TemporaryPassword;
+use App\Services\User\UserService;
+use Illuminate\Http\JsonResponse;
+use Illuminate\Http\RedirectResponse;
+use Illuminate\Http\Request;
+use Illuminate\View\View;
+
+/**
+ * Patients (Firestore patients/{uid}). Creating one also creates their app
+ * login. Firebase errors are turned into friendly pages/flash messages by the
+ * exception handler (bootstrap/app.php).
+ */
+class PatientController extends Controller
+{
+    public function __construct(
+        private PatientService $patients,
+        private PatientProgress $progress,
+        private PrescriptionService $prescriptions,
+        private ClinicalRecordService $records,
+        private ConsentService $consents,
+        private UserService $users,
+        private FirebaseTransport $firebase,
+    ) {
+    }
+
+    public function index(Request $request): View
+    {
+        return view('patients.index', $this->patients->search(
+            $request->user(),
+            $request->queryText('search'),
+            $request->queryText('condition'),
+            $request->boolean('archived'),
+        ));
+    }
+
+    public function show(Request $request, string $uid): View
+    {
+        $user = $request->user();
+        $patient = $this->findOr404($request, $uid);
+        $data = [
+            'patient' => $patient,
+            'canManage' => $this->patients->canManage($user, $patient),
+            'isAdmin' => $user->isAdmin(),
+            'clinical' => $user->isClinician(),
+        ];
+
+        if ($data['clinical']) {
+            // Six independent reads, fetched in one parallel round trip. The
+            // consent read never throws (a failure shows "unavailable"), so it
+            // can't fail the clinical reads alongside it.
+            $clinical = $this->firebase->concurrently([
+                'consent' => fn () => $this->consents->forPatient($uid),
+                'sessions' => fn () => $this->progress->sessions($uid),
+                'prescriptions' => fn () => $this->prescriptions->forPatient($uid),
+                'assessments' => fn () => $this->records->list(ClinicalRecordService::ASSESSMENTS, [$patient]),
+                'goals' => fn () => $this->records->list(ClinicalRecordService::GOALS, [$patient]),
+                'notes' => fn () => $this->records->list(ClinicalRecordService::NOTES, [$patient]),
+            ]);
+
+            $data += $clinical + [
+                'stats' => PatientProgress::stats($clinical['sessions']),
+                'adherence' => PatientProgress::adherence($clinical['sessions'], $clinical['prescriptions']),
+                'painTrend' => PatientProgress::painTrend($clinical['sessions']),
+                'goalAchievement' => ClinicalRecordService::goalAchievement($clinical['goals']),
+            ];
+        } else {
+            // Front desk staff don't see clinical records, but they do see
+            // whether the patient has accepted the Terms and Privacy Policy.
+            $data['consent'] = $this->consents->forPatient($uid);
+        }
+
+        return view('patients.show', $data);
+    }
+
+    public function create(Request $request): View
+    {
+        return view('patients.form', [
+            'patient' => null,
+            'therapists' => $request->user()->isAdmin() ? $this->users->therapists() : [],
+        ]);
+    }
+
+    /** A new temporary password for the Add Patient form, fetched when the staff member asks for one. */
+    public function temporaryPassword(): JsonResponse
+    {
+        return response()->json(['password' => TemporaryPassword::generate()]);
+    }
+
+    public function store(Request $request): RedirectResponse
+    {
+        $password = $request->input('password');
+        $data = PatientValidation::create($request);
+        $uid = $this->patients->create($request->user(), $data);
+        $warning = $data['phone'] !== '' ? $this->patients->linkLoginPhone($uid, $data['phone']) : null;
+
+        return redirect()->route('patients.show', $uid)
+            ->with('success', 'Patient added.')
+            ->with('warning', $warning)
+            ->with('temporary_password', $password);
+    }
+
+    public function edit(Request $request, string $uid): View
+    {
+        $patient = $this->adminOr403($request, $uid);
+
+        return view('patients.form', [
+            'patient' => $patient,
+            'therapists' => $request->user()->isAdmin() ? $this->users->therapists() : [],
+        ]);
+    }
+
+    public function update(Request $request, string $uid): RedirectResponse
+    {
+        $patient = $this->adminOr403($request, $uid);
+        $data = PatientValidation::profile($request);
+        if (! $request->user()->isAdmin()) {
+            unset($data['therapist_id']); // only admins reassign patients
+        }
+
+        $this->patients->update($request->user(), $patient, $data);
+
+        // Sent again on every save with a number, so saving also fixes one that failed to link before.
+        $warning = $data['phone'] !== '' || $patient['phone'] !== ''
+            ? $this->patients->linkLoginPhone($uid, $data['phone'])
+            : null;
+
+        return redirect()->route('patients.show', $uid)->with('success', 'Patient updated.')->with('warning', $warning);
+    }
+
+    public function archive(Request $request, string $uid): RedirectResponse
+    {
+        $this->patients->setArchived($this->adminOr403($request, $uid), true, $request->user());
+
+        return redirect()->route('patients.index')->with('success', 'Patient archived. Their app login is disabled; their records are kept.');
+    }
+
+    public function restore(Request $request, string $uid): RedirectResponse
+    {
+        $this->patients->setArchived($this->adminOr403($request, $uid), false);
+
+        // Back to the page the button was pressed on: the archived list or the patient's page.
+        return redirect()->back(fallback: route('patients.show', $uid))->with('success', 'Patient restored. They can sign in to the app again.');
+    }
+
+    /**
+     * Delete the patient for good: their login, profile, records, and every
+     * conversation under them. Admins only. Doesn't need the patient to be archived first.
+     */
+    public function destroy(Request $request, string $uid): RedirectResponse
+    {
+        abort_unless($request->user()->isAdmin(), 403);
+        $patient = $this->manageableOr403($request, $uid);
+
+        $this->patients->deletePermanently($patient);
+
+        return redirect()->route('patients.index')->with('success', 'Patient deleted. Their login, records, and conversations are gone.');
+    }
+
+    /**
+     * For a patient who forgot their password and called or texted the clinic: replace it
+     * with a generated one, and show it once for the staff member to pass on.
+     */
+    public function password(Request $request, string $uid): RedirectResponse
+    {
+        $patient = $this->adminOr403($request, $uid);
+
+        if ($patient['archived']) {
+            return redirect()->route('patients.show', $uid)->with('error', 'Restore this patient before resetting their password. Their app login is disabled.');
+        }
+
+        $password = TemporaryPassword::generate();
+        $this->patients->resetPassword($patient, $password);
+
+        return redirect()->route('patients.show', $uid)
+            ->with('success', 'Password reset.')
+            ->with('temporary_password', $password);
+    }
+
+    /** 404 for patients that don't exist or that this user can't see. */
+    private function findOr404(Request $request, string $uid): array
+    {
+        $patient = $this->patients->find($request->user(), $uid);
+        abort_unless($patient, 404);
+
+        return $patient;
+    }
+
+    /** Profile changes, archive, restore and password resets: administrators only. */
+    private function adminOr403(Request $request, string $uid): array
+    {
+        $patient = $this->findOr404($request, $uid);
+        abort_unless($request->user()->isAdmin(), 403, 'Only an administrator can change this patient\x27s profile, archive them, or reset their password.');
+
+        return $patient;
+    }
+
+    private function manageableOr403(Request $request, string $uid): array
+    {
+        $patient = $this->findOr404($request, $uid);
+        abort_unless($this->patients->canManage($request->user(), $patient), 403, 'Only an administrator or the patient\'s therapist can change this patient.');
+
+        return $patient;
+    }
+}

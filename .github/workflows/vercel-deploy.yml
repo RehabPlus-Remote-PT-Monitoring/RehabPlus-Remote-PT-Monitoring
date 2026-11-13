@@ -1,0 +1,64 @@
+# Deploys the Laravel dashboard (laravel-app/) to Vercel on every push to
+# web/messaging, and records it as the "Production" deployment shown on the
+# repo's main page.
+#
+# Needs three repository secrets (Settings -> Secrets and variables -> Actions):
+#   VERCEL_TOKEN       a Vercel access token (vercel.com/account/tokens)
+#   VERCEL_ORG_ID      the Vercel team/account ID that owns the project
+#   VERCEL_PROJECT_ID  the Vercel project ID (Project -> Settings -> General)
+#   CRON_SECRET        shared with the daily exercise-reminders workflow (on
+#                      main); passed to the deployment as a runtime env var so
+#                      POST /cron/exercise-reminders accepts that workflow only
+#
+# The project's Root Directory (laravel-app) and env vars (APP_KEY,
+# FIREBASE_*) live in Vercel, so this runs from the repo root and the build
+# happens on Vercel, the same as a Git-connected deploy.
+
+name: Deploy dashboard to Vercel
+
+on:
+  push:
+    branches:
+      - web/messaging
+  workflow_dispatch:
+
+# One production deploy at a time; a newer push waits instead of racing.
+concurrency:
+  group: vercel-production
+  cancel-in-progress: false
+
+permissions:
+  contents: read
+  deployments: write
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    environment:
+      name: Production
+      url: https://rehab-plus-remote-pt-monitoring.vercel.app
+    env:
+      VERCEL_ORG_ID: ${{ secrets.VERCEL_ORG_ID }}
+      VERCEL_PROJECT_ID: ${{ secrets.VERCEL_PROJECT_ID }}
+      VERCEL_TOKEN: ${{ secrets.VERCEL_TOKEN }}
+      CRON_SECRET: ${{ secrets.CRON_SECRET }}
+    steps:
+      - name: Check out
+        uses: actions/checkout@v4
+
+      - name: Set up Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: 20
+
+      - name: Install Vercel CLI
+        run: npm install --global vercel@latest
+
+      # --force skips Vercel's build cache, so every deploy downloads the
+      # newest PHP build for the vercel-php runtime (security fixes such as
+      # PHP2Shell, CVE-2026-109618/109619, arrive that way).
+      - name: Deploy to production
+        #
+        # --env CRON_SECRET: the secret is kept only in GitHub (no copy in the
+        # Vercel dashboard); each deploy hands it to the running app.
+        run: vercel deploy --prod --yes --force --env CRON_SECRET="$CRON_SECRET" --token="$VERCEL_TOKEN"
