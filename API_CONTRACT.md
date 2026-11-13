@@ -71,13 +71,16 @@ Written by: Laravel only.
 | `therapyPlan` | string | |
 | `phone` | string | **Patient-editable** in the app (≤ 30 chars) |
 | `dob` | string | **Patient-editable** in the app (≤ 30 chars) |
+| `gender` | string | **Patient-editable** in the app: `''` (not set), `Female`, `Male`, `Other` or `Prefer not to say` |
+| `weightKg` | number \| null | **Patient-editable** in the app: body weight in kg, 1–500 (decimals allowed). `null` = not set |
+| `heightCm` | number \| null | **Patient-editable** in the app: height in cm, 30–300 (decimals allowed). `null` = not set |
 | `email` | string | Login email (lowercase), shown on the dashboard |
 | `archived` | bool | `true` = archived on the dashboard; the Auth login is disabled |
 | `createdBy` | string | `uid` of the staff member who added the patient |
 | `createdAt` | timestamp | |
 | `updatedAt` | timestamp | Last dashboard edit |
 
-Written by: Laravel (all fields); the app (only `name`, `phone`, `dob`).
+Written by: Laravel (all fields); the app (only `name`, `phone`, `dob`, `gender`, `weightKg`, `heightCm`).
 
 ### `patients/{uid}/prescriptions/{id}`: assigned exercises
 

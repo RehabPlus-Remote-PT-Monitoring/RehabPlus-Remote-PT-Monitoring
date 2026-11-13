@@ -267,6 +267,14 @@ class DiagnosticLogger {
   /// background, since the OS may kill it without warning afterwards.
   Future<void> flush() async => _fileSink?.flush();
 
+  /// Stops file output and releases the log file so it can be deleted (tests,
+  /// or shutdown). Logging continues in memory and on the console.
+  Future<void> closeFileSink() async {
+    final sink = _fileSink;
+    _fileSink = null;
+    await sink?.close();
+  }
+
   // ---------------------------------------------------------------------
   // Internals
   // ---------------------------------------------------------------------
@@ -368,6 +376,9 @@ const Set<String> _sensitiveKeys = {
   'phone',
   'dob',
   'dateofbirth',
+  'gender',
+  'weightkg',
+  'heightcm',
   'name',
   'displayname',
   'text',
@@ -473,6 +484,16 @@ class _FileSink {
   Future<void> flush() async {
     try {
       await _sink?.flush();
+    } catch (_) {}
+  }
+
+  /// Flushes and closes the current file. Later writes are dropped.
+  Future<void> close() async {
+    final old = _sink;
+    _sink = null;
+    try {
+      await old?.flush();
+      await old?.close();
     } catch (_) {}
   }
 
