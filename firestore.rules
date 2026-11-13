@@ -181,7 +181,7 @@ service cloud.firestore {
       match /threads/{threadId} {
         allow read: if isSelf(patientId) || staffForThread(patientId, threadId);
         allow create: if isPatient(patientId) && validThreadId(threadId)
-          && patientThreadFields(request.resource.data, request.resource.data.keys(), 0,
+          && patientThreadFields(request.resource.data, request.resource.data.keys().toSet(), 0,
                patientId, threadId);
         allow update: if isPatient(patientId)
           && patientThreadFields(request.resource.data,
