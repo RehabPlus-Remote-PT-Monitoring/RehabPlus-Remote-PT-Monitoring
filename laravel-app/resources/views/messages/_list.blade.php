@@ -26,7 +26,7 @@
                 @endif
 
                 @if ($m['unsent'])
-                    <div class="chat-text chat-unsent">{{ $m['mine'] ? 'You unsent a message' : 'Message unsent' }}</div>
+                    <div class="chat-text chat-unsent">{{ $m['mine'] ? 'You deleted a message' : 'Message deleted' }}</div>
                 @elseif ($m['session'])
                     @include('messages._session_card', ['session' => $m['session']])
                 @else
