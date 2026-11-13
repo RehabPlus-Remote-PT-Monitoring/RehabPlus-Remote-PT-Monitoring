@@ -24,6 +24,45 @@
         </div>
     </section>
 
+    <section class="rm-demo" aria-labelledby="rm-demo-title">
+        <h2 id="rm-demo-title" class="section-title">See the app in action</h2>
+        <div class="rm-player">
+            <video id="rm-video" class="rm-video" controls playsinline preload="metadata"
+                   aria-describedby="rm-demo-note">
+                <source src="{{ asset('assets/videos/rehabplus-remote-monitoring-demo.mp4') }}" type="video/mp4">
+                Your browser cannot play this video.
+                <a href="{{ asset('assets/videos/rehabplus-remote-monitoring-demo.mp4') }}">Download the demo video</a>.
+            </video>
+            <div class="rm-skip-row" role="group" aria-label="Skip video">
+                <button type="button" class="rm-skip-btn" data-skip="-10">
+                    <i class="bi bi-skip-backward-fill" aria-hidden="true"></i> Back 10 seconds
+                </button>
+                <button type="button" class="rm-skip-btn" data-skip="10">
+                    Forward 10 seconds <i class="bi bi-skip-forward-fill" aria-hidden="true"></i>
+                </button>
+            </div>
+        </div>
+        <p id="rm-demo-note" class="rm-demo-note">
+            <i class="bi bi-info-circle me-1" aria-hidden="true"></i>Use the play button, or drag the bar to move through the video.
+        </p>
+    </section>
+
+    <script>
+        (function () {
+            var video = document.getElementById('rm-video');
+            if (!video) {
+                return;
+            }
+            document.querySelectorAll('.rm-skip-btn').forEach(function (button) {
+                button.addEventListener('click', function () {
+                    var step = Number(button.getAttribute('data-skip')) || 0;
+                    var duration = isFinite(video.duration) ? video.duration : Infinity;
+                    video.currentTime = Math.min(Math.max(video.currentTime + step, 0), duration);
+                });
+            });
+        })();
+    </script>
+
     <h2 class="section-title">How it works</h2>
     <div class="rm-steps">
         @foreach (config('clinic.remote_monitoring.steps') as $step)
