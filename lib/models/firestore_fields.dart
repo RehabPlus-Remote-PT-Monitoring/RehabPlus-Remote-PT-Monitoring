@@ -95,6 +95,28 @@ class FieldReader {
     return result;
   }
 
+  /// A number clamped into [min]..[max], or null when absent or not a number.
+  /// Clamped values (and non-finite ones, which are dropped) are reported as
+  /// repaired.
+  double? number(String key, {double? min, double? max}) {
+    final value = data[key];
+    if (value == null) return null;
+    if (value is! num || !value.isFinite) {
+      _markRepaired(key);
+      return null;
+    }
+    var result = value.toDouble();
+    if (min != null && result < min) {
+      _markRepaired(key);
+      result = min;
+    }
+    if (max != null && result > max) {
+      _markRepaired(key);
+      result = max;
+    }
+    return result;
+  }
+
   /// A bool, or [fallback] when absent or not a bool. Strings such as
   /// "true" are NOT accepted: the rules and every writer use real bools.
   bool boolean(String key, {bool fallback = false}) {

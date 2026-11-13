@@ -92,7 +92,11 @@ void main() {
 
     test('file sink writes one parseable JSON object per line', () async {
       final dir = await Directory.systemTemp.createTemp('rplog');
-      addTearDown(() => dir.delete(recursive: true));
+      addTearDown(() async {
+        // Windows can't delete the directory while the log file is open.
+        await logger.closeFileSink();
+        await dir.delete(recursive: true);
+      });
 
       logger.info('T', 'before file', {'email': 'p@q.com'});
       await logger.installFileSink(dir);

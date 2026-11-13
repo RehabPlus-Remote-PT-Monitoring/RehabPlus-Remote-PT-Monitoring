@@ -11,7 +11,8 @@ import 'firestore_diagnostics.dart';
 /// Reads the signed-in patient's profile from users/{uid} and patients/{uid}.
 ///
 /// Email, condition and therapist are managed by the clinic from the web
-/// dashboard; the patient may edit their own name, phone and birth date.
+/// dashboard; the patient may edit their own name, phone, birth date, gender,
+/// weight and height.
 ///
 /// Log events (tag 'ProfileService'): "Load profile done/failed" {uid, ms},
 /// "Profile loaded" {fromCache, hasPhoto, repaired}, "Account doc load
@@ -35,6 +36,20 @@ class ProfileService {
   static const int maxNameLength = 100;
   static const int maxPhoneLength = 30;
   static const int maxDobLength = 30;
+
+  /// Gender choices the patient can pick (the rules accept these, or '').
+  static const List<String> genderOptions = [
+    'Female',
+    'Male',
+    'Other',
+    'Prefer not to say',
+  ];
+
+  /// Body measurement limits from firestore.rules (validContactEdit).
+  static const double minWeightKg = 1;
+  static const double maxWeightKg = 500;
+  static const double minHeightCm = 30;
+  static const double maxHeightCm = 300;
 
   DocumentReference<Map<String, dynamic>> _photoDoc(String uid) =>
       _db.collection('patients').doc(uid).collection('avatar').doc('photo');
@@ -72,6 +87,17 @@ class ProfileService {
         dob: patient.string('dob') ?? '',
         condition: patient.string('condition') ?? '',
         therapist: patient.string('therapistName') ?? '',
+        gender: patient.string('gender', maxLength: 30) ?? '',
+        weightKg: patient.number(
+          'weightKg',
+          min: minWeightKg,
+          max: maxWeightKg,
+        ),
+        heightCm: patient.number(
+          'heightCm',
+          min: minHeightCm,
+          max: maxHeightCm,
+        ),
         programStart: patient.dateTime('createdAt'),
         photo: photo,
       );
@@ -151,14 +177,21 @@ class ProfileService {
   /// Saves the patient-editable fields. Not awaited past the local write so it
   /// also works offline; Firestore uploads it when the phone reconnects.
   ///
+  /// [gender] is '' or one of [genderOptions]; [weightKg] and [heightCm] are
+  /// null when not set (they are then cleared in Firestore).
+  ///
   /// Throws [StateError] when signed out and [ArgumentError] when a value
   /// breaks the Firestore rule (name 1–100 characters, phone and date of
-  /// birth up to 30): the screen validates the same limits, and failing here
-  /// beats the server silently rolling the edit back later.
+  /// birth up to 30, gender from the list, weight and height within range):
+  /// the screen validates the same limits, and failing here beats the server
+  /// silently rolling the edit back later.
   void saveContact({
     required String name,
     required String phone,
     required String dob,
+    String gender = '',
+    double? weightKg,
+    double? heightCm,
   }) {
     final uid = FirebaseAuth.instance.currentUser?.uid;
     if (uid == null) throw StateError('Not signed in');
@@ -167,6 +200,13 @@ class ProfileService {
       if (name.trim().isEmpty || name.length > maxNameLength) 'name',
       if (phone.length > maxPhoneLength) 'phone',
       if (dob.length > maxDobLength) 'dob',
+      if (gender.isNotEmpty && !genderOptions.contains(gender)) 'gender',
+      if (weightKg != null &&
+          !(weightKg >= minWeightKg && weightKg <= maxWeightKg))
+        'weightKg',
+      if (heightCm != null &&
+          !(heightCm >= minHeightCm && heightCm <= maxHeightCm))
+        'heightCm',
     ];
     if (invalid.isNotEmpty) {
       // Field names only; the values are personal data.
@@ -181,6 +221,9 @@ class ProfileService {
         'name': name,
         'phone': phone,
         'dob': dob,
+        'gender': gender,
+        'weightKg': weightKg,
+        'heightCm': heightCm,
       }),
       tag: 'ProfileService',
       operation: 'Contact info',

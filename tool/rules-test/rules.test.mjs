@@ -182,6 +182,46 @@ describe('therapists only reach their own patients (IDOR)', () => {
   });
 });
 
+describe('1b. patients edit gender, weight and height, within limits', () => {
+  const profile = {
+    name: 'Pat', phone: '0917', dob: '1990-01-01',
+  };
+
+  test('a patient can set and clear gender, weight and height', async () => {
+    const db = as('p1');
+    await assertSucceeds(updateDoc(doc(db, 'patients/p1'), {
+      ...profile, gender: 'Female', weightKg: 65.5, heightCm: 170,
+    }));
+    await assertSucceeds(updateDoc(doc(db, 'patients/p1'), {
+      ...profile, gender: '', weightKg: null, heightCm: null,
+    }));
+    await assertSucceeds(updateDoc(doc(db, 'patients/p1'), {
+      ...profile, gender: 'Prefer not to say', weightKg: 1, heightCm: 300,
+    }));
+  });
+
+  test('gender must be one of the listed choices', async () => {
+    const db = as('p1');
+    await assertFails(updateDoc(doc(db, 'patients/p1'), { ...profile, gender: 'Robot' }));
+    await assertFails(updateDoc(doc(db, 'patients/p1'), { ...profile, gender: 'female' }));
+  });
+
+  test('weight and height must be numbers within range', async () => {
+    const db = as('p1');
+    await assertFails(updateDoc(doc(db, 'patients/p1'), { ...profile, weightKg: 0 }));
+    await assertFails(updateDoc(doc(db, 'patients/p1'), { ...profile, weightKg: 501 }));
+    await assertFails(updateDoc(doc(db, 'patients/p1'), { ...profile, weightKg: '65' }));
+    await assertFails(updateDoc(doc(db, 'patients/p1'), { ...profile, heightCm: 29 }));
+    await assertFails(updateDoc(doc(db, 'patients/p1'), { ...profile, heightCm: 301 }));
+    await assertFails(updateDoc(doc(db, 'patients/p1'), { ...profile, heightCm: '170' }));
+  });
+
+  test('a therapist cannot set the new fields from the dashboard path', async () => {
+    await assertFails(updateDoc(doc(as('thA'), 'patients/p1'), { gender: 'Male' }));
+    await assertFails(updateDoc(doc(as('thA'), 'patients/p1'), { weightKg: 70 }));
+  });
+});
+
 describe('2. only admins change assignment, archiving and identity', () => {
   test('thA cannot hand p1 to another therapist, archive, or change identity', async () => {
     const db = as('thA');

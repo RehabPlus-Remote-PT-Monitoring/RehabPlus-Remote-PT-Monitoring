@@ -23,6 +23,15 @@ class ProfileData {
   final String condition;
   final String therapist;
 
+  /// One of [ProfileService.genderOptions], or '' when not set.
+  final String gender;
+
+  /// Body weight in kilograms, or null when not set.
+  final double? weightKg;
+
+  /// Height in centimetres, or null when not set.
+  final double? heightCm;
+
   /// When the patient's program started (patients/{uid}.createdAt).
   final DateTime? programStart;
 
@@ -36,9 +45,26 @@ class ProfileData {
     required this.dob,
     required this.condition,
     this.therapist = '',
+    this.gender = '',
+    this.weightKg,
+    this.heightCm,
     this.programStart,
     this.photo,
   });
+
+  /// "65 kg", or '' when not set.
+  String get weightText => weightKg == null ? '' : '${numberText(weightKg)} kg';
+
+  /// "170 cm", or '' when not set.
+  String get heightText => heightCm == null ? '' : '${numberText(heightCm)} cm';
+
+  /// A measurement without trailing zeros: 65.0 -> "65", 65.5 -> "65.5".
+  static String numberText(double? value) {
+    if (value == null) return '';
+    return value == value.roundToDouble()
+        ? value.round().toString()
+        : value.toString();
+  }
 }
 
 class EditProfileScreen extends StatefulWidget {
@@ -70,6 +96,9 @@ class _EditProfileScreenState extends State<EditProfileScreen>
   late final TextEditingController _emailCtrl;
   late final TextEditingController _phoneCtrl;
   late final TextEditingController _dobCtrl;
+  late final TextEditingController _genderCtrl;
+  late final TextEditingController _weightCtrl;
+  late final TextEditingController _heightCtrl;
   late final TextEditingController _conditionCtrl;
   late final TextEditingController _therapistCtrl;
 
@@ -195,6 +224,13 @@ class _EditProfileScreenState extends State<EditProfileScreen>
     _emailCtrl = TextEditingController(text: widget.initial.email);
     _phoneCtrl = TextEditingController(text: widget.initial.phone);
     _dobCtrl = TextEditingController(text: widget.initial.dob);
+    _genderCtrl = TextEditingController(text: widget.initial.gender);
+    _weightCtrl = TextEditingController(
+      text: ProfileData.numberText(widget.initial.weightKg),
+    );
+    _heightCtrl = TextEditingController(
+      text: ProfileData.numberText(widget.initial.heightCm),
+    );
     _conditionCtrl = TextEditingController(text: widget.initial.condition);
     _therapistCtrl = TextEditingController(text: widget.initial.therapist);
 
@@ -219,6 +255,9 @@ class _EditProfileScreenState extends State<EditProfileScreen>
     _emailCtrl.dispose();
     _phoneCtrl.dispose();
     _dobCtrl.dispose();
+    _genderCtrl.dispose();
+    _weightCtrl.dispose();
+    _heightCtrl.dispose();
     _conditionCtrl.dispose();
     _therapistCtrl.dispose();
     super.dispose();
@@ -265,6 +304,53 @@ class _EditProfileScreenState extends State<EditProfileScreen>
   /// True while the date-of-birth calendar is open.
   bool _pickingDob = false;
 
+  /// Opens a list of the gender choices (the same sheet look as the photo
+  /// picker). The field is read-only, so the text is always one of the options.
+  Future<void> _pickGender() async {
+    if (_pickingGender) return;
+    _pickingGender = true;
+    String? picked;
+    try {
+      picked = await showModalBottomSheet<String>(
+        context: context,
+        showDragHandle: true,
+        backgroundColor: context.palette.surface,
+        builder: (ctx) => SafeArea(
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              for (final option in ProfileService.genderOptions)
+                ListTile(
+                  title: Text(option),
+                  trailing: option == _genderCtrl.text
+                      ? const Icon(Icons.check_rounded, color: primaryTeal)
+                      : null,
+                  onTap: () => Navigator.pop(ctx, option),
+                ),
+            ],
+          ),
+        ),
+      );
+    } finally {
+      _pickingGender = false;
+    }
+    final choice = picked;
+    if (choice == null || !mounted) return;
+    setState(() => _genderCtrl.text = choice);
+  }
+
+  /// True while the gender sheet is open.
+  bool _pickingGender = false;
+
+  /// Turns the text of a weight or height field into a number. Accepts a
+  /// decimal comma. Null when the field is empty or not a number (the
+  /// validators have already rejected those cases before save runs).
+  static double? _parseMeasure(String text) {
+    final t = text.trim().replaceAll(',', '.');
+    if (t.isEmpty) return null;
+    return double.tryParse(t);
+  }
+
   Future<void> _save() async {
     if (_isSaving) return;
     if (!_formKey.currentState!.validate()) {
@@ -275,15 +361,28 @@ class _EditProfileScreenState extends State<EditProfileScreen>
     final name = _nameCtrl.text.trim();
     final phone = _phoneCtrl.text.trim();
     final dob = _dobCtrl.text.trim();
+    final gender = _genderCtrl.text.trim();
+    final weightKg = _parseMeasure(_weightCtrl.text);
+    final heightCm = _parseMeasure(_heightCtrl.text);
     // Which fields changed, never their values (personal data).
     _logger.info(_tag, 'Saving profile', {
       'nameChanged': name != widget.initial.name,
       'phoneChanged': phone != widget.initial.phone,
       'dobChanged': dob != widget.initial.dob,
+      'genderChanged': gender != widget.initial.gender,
+      'weightChanged': weightKg != widget.initial.weightKg,
+      'heightChanged': heightCm != widget.initial.heightCm,
       'photoChanged': _photoChanged,
     });
     try {
-      ProfileService().saveContact(name: name, phone: phone, dob: dob);
+      ProfileService().saveContact(
+        name: name,
+        phone: phone,
+        dob: dob,
+        gender: gender,
+        weightKg: weightKg,
+        heightCm: heightCm,
+      );
       if (_photoChanged) ProfileService().savePhoto(_photo);
     } catch (e, st) {
       // Thrown synchronously when signed out (or, in theory, for a value the
@@ -306,6 +405,9 @@ class _EditProfileScreenState extends State<EditProfileScreen>
         dob: dob,
         condition: widget.initial.condition,
         therapist: widget.initial.therapist,
+        gender: gender,
+        weightKg: weightKg,
+        heightCm: heightCm,
         programStart: widget.initial.programStart,
         photo: _photo,
       ),
@@ -375,6 +477,48 @@ class _EditProfileScreenState extends State<EditProfileScreen>
                             // Picked from a calendar, so the text is always a date.
                             readOnly: true,
                             onTap: _isSaving ? null : _pickDob,
+                          ),
+                          _divider(),
+                          _field(
+                            _genderCtrl,
+                            'Gender',
+                            Icons.transgender,
+                            // Picked from a list, so the text is always an option.
+                            readOnly: true,
+                            onTap: _isSaving ? null : _pickGender,
+                            tapIcon: Icons.arrow_drop_down_rounded,
+                          ),
+                          _divider(),
+                          _field(
+                            _weightCtrl,
+                            'Weight (kg)',
+                            Icons.monitor_weight_outlined,
+                            keyboardType: const TextInputType.numberWithOptions(
+                              decimal: true,
+                            ),
+                            validator: (v) => _optionalMeasure(
+                              v,
+                              'weight',
+                              'kg',
+                              ProfileService.minWeightKg,
+                              ProfileService.maxWeightKg,
+                            ),
+                          ),
+                          _divider(),
+                          _field(
+                            _heightCtrl,
+                            'Height (cm)',
+                            Icons.height,
+                            keyboardType: const TextInputType.numberWithOptions(
+                              decimal: true,
+                            ),
+                            validator: (v) => _optionalMeasure(
+                              v,
+                              'height',
+                              'cm',
+                              ProfileService.minHeightCm,
+                              ProfileService.maxHeightCm,
+                            ),
                           ),
                         ]),
                         const SizedBox(height: 20),
@@ -568,6 +712,7 @@ class _EditProfileScreenState extends State<EditProfileScreen>
     String? Function(String?)? validator,
     bool readOnly = false,
     VoidCallback? onTap,
+    IconData tapIcon = Icons.calendar_today_outlined,
     Iterable<String>? autofillHints,
     TextCapitalization capitalization = TextCapitalization.none,
   }) {
@@ -600,7 +745,7 @@ class _EditProfileScreenState extends State<EditProfileScreen>
           ),
           border: InputBorder.none,
           suffixIcon: onTap != null
-              ? Icon(Icons.calendar_today_outlined, size: 16, color: primaryTeal)
+              ? Icon(tapIcon, size: 16, color: primaryTeal)
               : readOnly
               ? Icon(Icons.lock_outline, size: 14, color: palette.textFaint)
               : null,
@@ -632,6 +777,25 @@ class _EditProfileScreenState extends State<EditProfileScreen>
     final t = v!.trim();
     if (!_phonePattern.hasMatch(t) || !t.contains(RegExp('[0-9]'))) {
       return 'Enter a valid phone number';
+    }
+    return null;
+  }
+
+  /// Weight or height: optional, but when filled in it must be a number
+  /// within the limits the Firestore rules accept.
+  String? _optionalMeasure(
+    String? v,
+    String what,
+    String unit,
+    double min,
+    double max,
+  ) {
+    final t = v?.trim() ?? '';
+    if (t.isEmpty) return null;
+    final value = _parseMeasure(t);
+    if (value == null || !value.isFinite || value < min || value > max) {
+      return 'Enter a $what from ${ProfileData.numberText(min)} to '
+          '${ProfileData.numberText(max)} $unit';
     }
     return null;
   }
