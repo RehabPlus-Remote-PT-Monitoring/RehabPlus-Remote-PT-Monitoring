@@ -8,8 +8,10 @@ rules_version = '2';
 //   - patients can read only their own profile, prescriptions and sessions,
 //     can only add new sessions (never edit or delete them), and can only
 //     change their own name, phone number, date of birth and profile picture;
-//   - patients can message their therapist and the clinic, but never edit or
-//     delete a message or post as staff;
+//   - patients can message their therapist and the clinic, reply to, edit
+//     and unsend (soft delete: the document stays) only their own messages,
+//     pin a real message of the thread, but never delete a message or post
+//     as staff;
 //   - patients record their acceptance of the Terms and Privacy Policy, which
 //     can't be changed or deleted afterwards;
 //   - therapists/admins signed in with Firebase can read and manage the
@@ -179,11 +181,12 @@ service cloud.firestore {
       match /threads/{threadId} {
         allow read: if isSelf(patientId) || staffForThread(patientId, threadId);
         allow create: if isPatient(patientId) && validThreadId(threadId)
-          && patientThreadFields(request.resource.data, request.resource.data.keys(), 0);
+          && patientThreadFields(request.resource.data, request.resource.data.keys(), 0,
+               patientId, threadId);
         allow update: if isPatient(patientId)
           && patientThreadFields(request.resource.data,
                request.resource.data.diff(resource.data).affectedKeys(),
-               resource.data.get('unreadForStaff', 0));
+               resource.data.get('unreadForStaff', 0), patientId, threadId);
         allow create, update: if validThreadId(threadId) && staffForThread(patientId, threadId);
         // Deleting a thread would orphan its messages; nobody does that.
         allow delete: if isAdmin();
@@ -191,8 +194,9 @@ service cloud.firestore {
         match /messages/{messageId} {
           allow read: if isSelf(patientId) || staffForThread(patientId, threadId);
           allow create: if validThreadId(threadId) && (
-            (isPatient(patientId) && validMessage(request.resource.data, 'patient'))
-            || (staffForThread(patientId, threadId) && validMessage(request.resource.data, 'staff')));
+            (isPatient(patientId) && validMessage(request.resource.data, 'patient', patientId, threadId))
+            || (staffForThread(patientId, threadId)
+                && validMessage(request.resource.data, 'staff', patientId, threadId)));
           // Edit or unsend, by the message's own author only.
           allow update: if validThreadId(threadId)
             && (isPatient(patientId) || staffForThread(patientId, threadId))
@@ -218,17 +222,14 @@ service cloud.firestore {
     // send, and clear their own. lastMessageAt is the phone's clock (messages
     // can be queued offline), so it's only type-checked.
     //
-    // The pin (one per thread, shared by both sides) may be set or removed:
-    // when set, the snippet and role are checked and pinnedAt must be now.
-    function patientThreadFields(d, changed, staffUnreadBefore) {
+    // Chat actions also touch it: lastActionAt (server time, set by every edit
+    // and unsend so the dashboard reloads) and the pin (see validPinChange).
+    function patientThreadFields(d, changed, staffUnreadBefore, patientId, threadId) {
       return changed.hasOnly(['lastMessage', 'lastMessageAt', 'lastSenderRole',
-                              'unreadForStaff', 'unreadForPatient',
+                              'unreadForStaff', 'unreadForPatient', 'lastActionAt',
                               'pinnedMessageId', 'pinnedText', 'pinnedSenderRole', 'pinnedAt'])
-        && (!('pinnedMessageId' in d) || (d.pinnedMessageId is string
-              && d.pinnedMessageId.size() > 0 && d.pinnedMessageId.size() <= 128))
-        && (!('pinnedText' in d) || (d.pinnedText is string && d.pinnedText.size() <= 1000))
-        && (!('pinnedSenderRole' in d) || d.pinnedSenderRole in ['patient', 'staff'])
-        && (!('pinnedAt' in changed) || !('pinnedAt' in d) || d.pinnedAt == request.time)
+        && validPinChange(d, changed, patientId, threadId)
+        && (!('lastActionAt' in changed) || d.lastActionAt == request.time)
         && (!('unreadForPatient' in changed) || d.unreadForPatient == 0)
         && (!('lastSenderRole' in changed) || d.lastSenderRole == 'patient')
         && (!('lastMessage' in changed) || (d.lastMessage is string && d.lastMessage.size() <= 1000))
@@ -236,12 +237,43 @@ service cloud.firestore {
         && (!('unreadForStaff' in changed) || d.unreadForStaff == staffUnreadBefore + 1);
     }
 
+    // The thread's one pin, shared by both sides. Only a pin field that
+    // changes is checked (an odd pin the dashboard wrote never blocks a
+    // send). Allowed: removing all four fields; refreshing pinnedText alone
+    // (editing the pinned message); or a new pin, all four fields at once,
+    // pointing at a real, not unsent message of this thread with its real
+    // author, pinnedAt = now.
+    function validPinChange(d, changed, patientId, threadId) {
+      let pinFields = ['pinnedMessageId', 'pinnedText', 'pinnedSenderRole', 'pinnedAt'];
+      let pinChanged = changed.intersection(pinFields.toSet());
+      return pinChanged.size() == 0
+        || !d.keys().hasAny(pinFields)
+        || (pinChanged.hasOnly(['pinnedText']) && 'pinnedMessageId' in d
+            && d.pinnedText is string && d.pinnedText.size() <= 200)
+        || (d.keys().hasAll(pinFields)
+            && d.pinnedMessageId is string && d.pinnedMessageId.size() > 0
+            && d.pinnedMessageId.size() <= 128
+            && d.pinnedText is string && d.pinnedText.size() <= 200
+            && d.pinnedAt == request.time
+            && liveMessageBy(patientId, threadId, d.pinnedMessageId, d.pinnedSenderRole));
+    }
+
+    // A message of this thread that exists, is not unsent and was written
+    // by [role] ('patient' / 'staff'): what a pin or a reply quote may point
+    // at, so neither can show a made-up "staff said" text as real.
+    function liveMessageBy(patientId, threadId, messageId, role) {
+      let path = /databases/$(database)/documents/patients/$(patientId)/threads/$(threadId)/messages/$(messageId);
+      return exists(path)
+        && get(path).data.get('unsent', false) != true
+        && get(path).data.get('senderRole', '') == role;
+    }
+
     // A new message. replyTo (the quote of the message being answered) is
     // the only optional field.
-    function validMessage(d, role) {
+    function validMessage(d, role, patientId, threadId) {
       return d.keys().hasOnly(['text', 'senderId', 'senderRole', 'sentAt', 'createdAt', 'replyTo'])
         && d.keys().hasAll(['text', 'senderId', 'senderRole', 'sentAt', 'createdAt'])
-        && (!('replyTo' in d) || validReplyTo(d.replyTo))
+        && (!('replyTo' in d) || validReplyTo(d.replyTo, patientId, threadId))
         && d.text is string && d.text.size() > 0 && d.text.size() <= 1000
         && d.senderId == request.auth.uid
         && d.senderRole == role
@@ -249,15 +281,17 @@ service cloud.firestore {
         && d.createdAt == request.time;
     }
 
-    // The quote a reply carries: the quoted message's id, a short snippet of
-    // its text and who wrote it (chat-actions design, section 7).
-    function validReplyTo(r) {
+    // The quote a reply carries: the quoted message's id, a snippet of its
+    // text (at most 200 characters) and who wrote it; the quoted message must
+    // be a real, not unsent message of this thread by that author.
+    function validReplyTo(r, patientId, threadId) {
       return r is map
         && r.keys().hasOnly(['id', 'text', 'senderRole'])
         && r.keys().hasAll(['id', 'text', 'senderRole'])
         && r.id is string && r.id.size() > 0 && r.id.size() <= 128
-        && r.text is string && r.text.size() <= 1000
-        && r.senderRole in ['patient', 'staff'];
+        && r.text is string && r.text.size() <= 200
+        && r.senderRole in ['patient', 'staff']
+        && liveMessageBy(patientId, threadId, r.id, r.senderRole);
     }
 
     // An action on an existing message by its author: an edit (new text,

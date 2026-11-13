@@ -428,7 +428,59 @@ describe('9. chat actions: reply, edit, unsend (soft delete) and pin', () => {
       const db = ctx.firestore();
       await setDoc(doc(db, mine), { ...message('p1', 'patient'), replyTo: quote });
       await setDoc(doc(db, theirs), message('thA', 'staff'));
+      await setDoc(doc(db, plain), message('p1', 'patient'));
+      await setDoc(doc(db, gone), { ...message('thA', 'staff'), text: '', unsent: true });
     });
+  });
+
+  const plain = 'patients/p1/threads/therapist/messages/plain';
+  const gone = 'patients/p1/threads/therapist/messages/gone';
+  const pinOf = (id, role) => ({ pinnedMessageId: id, pinnedText: 'snippet', pinnedSenderRole: role, pinnedAt: serverTimestamp() });
+
+  test('a quote must point at a real, live message of this thread by its real author', async () => {
+    const db = as('p1');
+    const at = (id) => doc(db, `patients/p1/threads/therapist/messages/${id}`);
+    await assertFails(setDoc(at('q1'), { ...message('p1', 'patient'), replyTo: { ...quote, id: 'missing' } }));
+    await assertFails(setDoc(at('q2'), { ...message('p1', 'patient'), replyTo: { ...quote, senderRole: 'patient' } }));
+    await assertFails(setDoc(at('q3'), { ...message('p1', 'patient'), replyTo: { id: 'gone', text: '', senderRole: 'staff' } }));
+    await assertFails(setDoc(at('q4'), { ...message('p1', 'patient'), replyTo: { ...quote, text: 'x'.repeat(201) } }));
+    await assertSucceeds(setDoc(at('q5'), { ...message('p1', 'patient'), replyTo: { id: 'plain', text: 'hi', senderRole: 'patient' } }));
+  });
+
+  test('unsending a message that never had a quote or session card works', async () => {
+    const db = as('p1');
+    await assertSucceeds(updateDoc(doc(db, plain), {
+      text: '', unsent: true, unsentAt: serverTimestamp(), replyTo: deleteField(), session: deleteField(),
+    }));
+  });
+
+  test("the app's exact edit batch: message + thread with lastActionAt, preview and pin text", async () => {
+    await env.withSecurityRulesDisabled(async (ctx) => {
+      await updateDoc(doc(ctx.firestore(), thread), { pinnedMessageId: 'plain', pinnedText: 'hi', pinnedSenderRole: 'patient', pinnedAt: Timestamp.now() });
+    });
+    const db = as('p1');
+    await assertSucceeds(writeBatch(db)
+      .update(doc(db, plain), { text: 'hello', editedAt: serverTimestamp() })
+      .set(doc(db, thread), { lastActionAt: serverTimestamp(), lastMessage: 'hello', pinnedText: 'hello' }, { merge: true })
+      .commit());
+    await assertFails(updateDoc(doc(db, thread), { lastActionAt: aMinuteAgo() }));
+  });
+
+  test('a pin must be complete and point at a live message by its real author', async () => {
+    const db = as('p1');
+    await assertFails(updateDoc(doc(db, thread), { pinnedMessageId: 'staff' }));
+    await assertFails(updateDoc(doc(db, thread), { pinnedText: 'staff said so' }));
+    await assertFails(updateDoc(doc(db, thread), pinOf('missing', 'staff')));
+    await assertFails(updateDoc(doc(db, thread), pinOf('gone', 'staff')));
+    await assertFails(updateDoc(doc(db, thread), pinOf('plain', 'staff')));
+    await assertSucceeds(updateDoc(doc(db, thread), pinOf('plain', 'patient')));
+  });
+
+  test("an odd pin the dashboard wrote doesn't block the patient's sends", async () => {
+    await env.withSecurityRulesDisabled(async (ctx) => {
+      await updateDoc(doc(ctx.firestore(), thread), { pinnedMessageId: 'whatever', pinnedText: 'x'.repeat(500) });
+    });
+    await assertSucceeds(patientSend(as('p1'), 'p1', 'therapist'));
   });
 
   test('a reply carries a well-formed quote; a malformed one is refused', async () => {
@@ -471,7 +523,7 @@ describe('9. chat actions: reply, edit, unsend (soft delete) and pin', () => {
 
   test('the patient can pin and unpin; a bad pin is refused', async () => {
     const db = as('p1');
-    const pin = { pinnedMessageId: 'staff', pinnedText: 'Do 10 squats.', pinnedSenderRole: 'staff', pinnedAt: serverTimestamp() };
+    const pin = pinOf('staff', 'staff');
     await assertSucceeds(updateDoc(doc(db, thread), pin));
     await assertFails(updateDoc(doc(db, thread), { ...pin, pinnedAt: aMinuteAgo() }));
     await assertFails(updateDoc(doc(db, thread), { ...pin, pinnedSenderRole: 'admin' }));

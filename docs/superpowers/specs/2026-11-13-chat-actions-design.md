@@ -11,7 +11,8 @@ Add message-management actions to the chat so a patient or staff member can:
 - **Edit** their own message. The dashboard enforces a 15-minute window; the
   app has no server, so edit is always available for the author on the app.
 - **Unsend** (delete) their own message: the message becomes a
-  "Message unsent" placeholder. Copy / Pin / Edit / Unsend live in a
+  placeholder ("You deleted a message" for the author, "Message deleted"
+  for the other side). Copy / Pin / Edit / Unsend live in a
   three-dots menu. Reply is a dedicated button to its left.
 - **Pin / unpin** a message (one pin per thread, visible on both sides).
 
@@ -94,21 +95,24 @@ are still the only *required* ones; everything else is optional.
 
 ## 7. Firestore rules (app repo)
 
-- `allow update` on `messages/{messageId}`: when the caller is the patient
-  themselves (`isSelf(patientId)`) or staff in this thread
-  (`staffForThread(patientId, threadId)`), the *changed* keys must be only
-  the content fields (`text`, `replyTo`, `editedAt`, `unsent`, `unsentAt`,
-  `session`), and the new document must pass a new `validEditableMessage`
-  function:
-  - keys only those fields; `text` a string ≤ 1000 (empty allowed for
-    unsent), `senderRole` `'patient'`|`'staff'`, `sentAt` timestamp not in
-    the future, `createdAt == request.time`;
-  - `replyTo` null or an embedded `{id, text, senderRole}` (id ≤ 128
-    chars, text ≤ 1000);
-  - `editedAt`/`unsentAt` null or timestamp, `unsent` bool.
+(As built; replaces the first draft, which checked the whole document's
+keys and would have refused every edit.)
+
+- `allow update` on `messages/{messageId}`: patient or staff of the thread,
+  through `validMessageAction`: only the author (`senderId == auth.uid`),
+  never on an unsent message, and either an **edit** (changed keys only
+  `text` 1–1000 + `editedAt == request.time`) or an **unsend** (`text: ''`,
+  `unsent: true`, `unsentAt == request.time`, `replyTo`/`session` removed).
 - `allow delete`: stays `if false` — nothing deletes a message, ever.
-- `validMessage` for **create** stays unchanged (it rejects the new
-  fields), so a buggy old client can't quietly add fields to a message.
+- `validMessage` (create) accepts one optional field, `replyTo`
+  `{id, text ≤ 200, senderRole}`, which must quote a real, not unsent
+  message of the same thread by that author (`liveMessageBy`). Without it
+  the app could not send a reply.
+- Thread doc (`patientThreadFields`): the patient may also set
+  `lastActionAt == request.time` and change the pin through
+  `validPinChange`: remove all four fields, refresh `pinnedText` alone, or
+  set all four at once pointing at a live message by its real author.
+  Only pin fields that change are checked.
 
 ## 8. Contract (`API_CONTRACT.md`)
 
@@ -131,31 +135,34 @@ are still the only *required* ones; everything else is optional.
 - `ChatMessage` gains readable nullable fields: `replyTo`, `editedAt`,
   `unsent`, `session`; a UI-only `editedLabel` (e.g. "Edited").
 
-### 9.2 `lib/services/chat_service.dart` (new methods, same
-"queue, don't await, log" style as `send`)
+### 9.2 `lib/services/chat_service.dart` (same "queue, don't await, log"
+style as `send`; payloads built in `lib/services/chat_actions.dart`)
 
-- `editMessage(thread, messageId, text)`: atomic merge of `{text,
-  editedAt: serverTimestamp}`; update the thread `lastMessage` if this is
-  the newest message.
-- `unsendMessage(thread, messageId)`: atomic merge of
-  `{text: '', unsent: true, unsentAt: serverTimestamp}` plus deletes of
-  `replyTo` and `session`; update thread `lastMessage` to "Message
-  unsent" if newest; clear the pin if the pinned message is this one.
-- `replyMessage(thread, text, replyTo)`: atomic batch — new message with
-  `replyTo`, then thread `lastMessage`/`lastMessageAt`/`lastSenderRole`
-  plus `unreadForStaff++`. No push: the patient app sends no pushes at
-  all (PushService is receive-only); the dashboard sends the push for its
-  own staff replies only.
+- `send(thread, text, replyTo: msg)`: a reply is a normal send plus the
+  `replyTo` quote (one code path, so preview and `unreadForStaff++` are
+  identical). No push: the patient app sends no pushes at all (PushService
+  is receive-only); the dashboard pushes its own staff replies only.
+- `editMessage(thread, msg, text, newest:, pinned:)`: one batch, the
+  message `{text, editedAt: serverTimestamp}` and the thread
+  `{lastActionAt}` + `lastMessage` if newest + `pinnedText` if pinned.
+- `unsendMessage(thread, msg, newest:, pinned:)`: one batch, the message
+  `{text: '', unsent: true, unsentAt}` with `replyTo`/`session` deleted, and
+  the thread `{lastActionAt}` + `lastMessage: "Message deleted"` if newest
+  + the pin removed if it pointed here.
+- `pin(thread, msg)` / `unpin(thread)`: the four pin fields.
+- `lastActionAt` exists so the dashboard's open page reloads when an older
+  message changes (its poll fingerprint is the thread doc only).
 
 ### 9.3 `lib/screens/messages_screen.dart` (`_ChatDetailScreenState`)
 
-- Per-message action row (a `Row` of icon buttons) on the **left** of the bubble: the **Reply** button first (nearest the bubble), then the **⋯** button, then nothing else for actions.
+- Per-message action row beside the bubble, shown when the bubble is tapped (or long-pressed) and hidden by tapping it again: the **Reply** button nearest the bubble, then **⋯**. Left of the patient's own (right-hand) bubbles; mirrored, right of the other side's. (The dashboard shows the same two buttons on hover, always on touch screens.)
 - The **Reply** button starts a reply composer above the existing message
   box: a "Replying to <sender>" preview (the quoted message, clickable to
   scroll to it) and the reply text field.
 - The **⋯** popup menu lists: **Copy**, **Pin**/**Unpin**, **Edit**,
-  **Unsend** (last, destructive, red, with a confirm dialog).
-  - Copy = the existing long-press behaviour.
+  **Unsend** (last, destructive, red, with a confirm dialog), in this order
+  on both the app and the dashboard.
+  - Copy copies the text (long-press used to copy directly; it now shows the buttons).
   - Pin/Unpin toggles: the thread's single pin follows the
     `pinnedMessageId`/`pinnedText`/`pinnedSenderRole`/`pinnedAt` fields.
   - Edit = an edit dialog for the author's own message. (Edit sits in

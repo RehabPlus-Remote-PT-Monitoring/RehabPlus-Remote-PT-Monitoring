@@ -533,6 +533,10 @@ class _ChatDetailScreenState extends State<ChatDetailScreen> {
   /// The patient's message the box is editing (send saves the edit), or null.
   ChatMessage? _editing;
 
+  /// What was in the box when editing started; put back when the edit is
+  /// saved or cancelled, so a half-typed message isn't lost.
+  String _draftBeforeEdit = '';
+
   /// The list last shown (newest first), to tell which message is the newest
   /// and to see the current copy of the one being replied to.
   List<ChatMessage> _shown = const [];
@@ -714,6 +718,7 @@ class _ChatDetailScreenState extends State<ChatDetailScreen> {
         msg,
         text,
         newest: _isNewest(msg),
+        pinned: _pin?.messageId == msg.id,
       );
       if (changed) _pager.replace(chatEdited(msg, text, DateTime.now()));
     } catch (e, st) {
@@ -721,7 +726,16 @@ class _ChatDetailScreenState extends State<ChatDetailScreen> {
       _snack("Couldn't edit the message.");
       return;
     }
-    _textController.clear();
+    _endEdit();
+  }
+
+  /// Leaves editing and puts back what was typed before it started.
+  void _endEdit() {
+    final draft = _draftBeforeEdit;
+    _draftBeforeEdit = '';
+    _textController
+      ..text = draft
+      ..selection = TextSelection.collapsed(offset: draft.length);
     setState(() => _editing = null);
   }
 
@@ -733,9 +747,8 @@ class _ChatDetailScreenState extends State<ChatDetailScreen> {
 
   void _startReply(ChatMessage msg) {
     _logger.info(_tag, 'Reply started', {'thread': widget.thread.name});
+    if (_editing != null) _endEdit();
     setState(() {
-      if (_editing != null) _textController.clear();
-      _editing = null;
       _replyingTo = msg;
       _selectedId = null;
     });
@@ -746,6 +759,9 @@ class _ChatDetailScreenState extends State<ChatDetailScreen> {
 
   void _startEdit(ChatMessage msg) {
     _logger.info(_tag, 'Edit started', {'thread': widget.thread.name});
+    // Editing a second message straight after the first keeps the original
+    // draft, not the first message's text.
+    if (_editing == null) _draftBeforeEdit = _textController.text;
     setState(() {
       _replyingTo = null;
       _editing = msg;
@@ -757,10 +773,7 @@ class _ChatDetailScreenState extends State<ChatDetailScreen> {
     _inputFocus.requestFocus();
   }
 
-  void _cancelEdit() {
-    _textController.clear();
-    setState(() => _editing = null);
-  }
+  void _cancelEdit() => _endEdit();
 
   /// An entry of a bubble's "⋯" menu.
   Future<void> _onAction(ChatMessage msg, ChatMessageAction action) async {
@@ -834,12 +847,9 @@ class _ChatDetailScreenState extends State<ChatDetailScreen> {
     );
     _pager.replace(chatUnsent(msg, DateTime.now()));
     setState(() {
-      if (_editing?.id == msg.id) {
-        _editing = null;
-        _textController.clear();
-      }
       if (_replyingTo?.id == msg.id) _replyingTo = null;
     });
+    if (_editing?.id == msg.id) _endEdit();
   }
 
   /// "You" for the patient's messages, the thread's name (therapist or
@@ -979,7 +989,8 @@ class _ChatDetailScreenState extends State<ChatDetailScreen> {
     if (pinned != null && pinned.unsent) return null;
     return ChatPinnedBanner(
       senderLabel: _senderLabel(context, pin.fromPatient),
-      text: pin.text,
+      // The loaded message is the freshest copy (e.g. just edited).
+      text: pinned == null ? pin.text : chatSnippet(pinned.text),
       onUnpin: () => _onAction(
         pinned ??
             ChatMessage(

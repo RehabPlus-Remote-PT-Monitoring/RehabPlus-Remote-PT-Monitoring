@@ -178,7 +178,8 @@ class ChatService {
   }
 
   /// Replaces the text of the patient's own [msg] with [text]. [newest]:
-  /// [msg] is the newest message, so the thread preview follows the edit.
+  /// [msg] is the newest message, so the thread preview follows the edit;
+  /// [pinned]: it is the pinned message, so the banner text does too.
   /// Returns false (and writes nothing) when the text is unchanged.
   ///
   /// Like [send], returns at once and logs the sync result. Throws
@@ -190,6 +191,7 @@ class ChatService {
     ChatMessage msg,
     String text, {
     required bool newest,
+    required bool pinned,
   }) {
     _checkOwnAction(msg, ChatMessageAction.edit);
     final trimmed = text.trim();
@@ -200,11 +202,12 @@ class ChatService {
     if (body == msg.text) return false; // no "Edited" label for nothing
     final thread = _thread(t);
     final batch = _db.batch()
-      ..update(thread.collection('messages').doc(msg.id), chatEditFields(body));
-    final threadFields = chatThreadAfterEdit(newest: newest, text: body);
-    if (threadFields.isNotEmpty) {
-      batch.set(thread, threadFields, SetOptions(merge: true));
-    }
+      ..update(thread.collection('messages').doc(msg.id), chatEditFields(body))
+      ..set(
+        thread,
+        chatThreadAfterEdit(newest: newest, pinned: pinned, text: body),
+        SetOptions(merge: true),
+      );
     _logger.info('ChatService', 'Message edit queued', {
       'thread': t.name,
       'length': body.length,
@@ -232,11 +235,12 @@ class ChatService {
     _checkOwnAction(msg, ChatMessageAction.unsend);
     final thread = _thread(t);
     final batch = _db.batch()
-      ..update(thread.collection('messages').doc(msg.id), chatUnsendFields());
-    final threadFields = chatThreadAfterUnsend(newest: newest, pinned: pinned);
-    if (threadFields.isNotEmpty) {
-      batch.set(thread, threadFields, SetOptions(merge: true));
-    }
+      ..update(thread.collection('messages').doc(msg.id), chatUnsendFields())
+      ..set(
+        thread,
+        chatThreadAfterUnsend(newest: newest, pinned: pinned),
+        SetOptions(merge: true),
+      );
     _logger.info('ChatService', 'Message unsend queued', {
       'thread': t.name,
       'newest': newest,

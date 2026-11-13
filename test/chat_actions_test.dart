@@ -95,22 +95,44 @@ void main() {
       },
     );
 
-    test('the thread preview follows only the newest message', () {
-      expect(chatThreadAfterEdit(newest: true, text: 'new'), {
-        'lastMessage': 'new',
-      });
-      expect(chatThreadAfterEdit(newest: false, text: 'new'), isEmpty);
-      expect(chatThreadAfterUnsend(newest: true, pinned: false), {
-        'lastMessage': kChatDeletedText,
-      });
-      expect(chatThreadAfterUnsend(newest: false, pinned: false), isEmpty);
+    test(
+      'every edit and unsend marks the thread; the preview follows only the newest',
+      () {
+        final stamp = {kChatActionAtField: FieldValue.serverTimestamp()};
+        expect(chatThreadAfterEdit(newest: true, pinned: false, text: 'new'), {
+          ...stamp,
+          'lastMessage': 'new',
+        });
+        expect(
+          chatThreadAfterEdit(newest: false, pinned: false, text: 'new'),
+          stamp,
+        );
+        expect(chatThreadAfterUnsend(newest: true, pinned: false), {
+          ...stamp,
+          'lastMessage': kChatDeletedText,
+        });
+        expect(chatThreadAfterUnsend(newest: false, pinned: false), stamp);
+      },
+    );
+
+    test('editing the pinned message refreshes the banner text', () {
+      final f = chatThreadAfterEdit(
+        newest: false,
+        pinned: true,
+        text: '  Ice it  ',
+      );
+      expect(f['pinnedText'], 'Ice it');
+      expect(f.containsKey('pinnedMessageId'), isFalse);
     });
 
     test('unsending the pinned message clears the pin in the same write', () {
       final f = chatThreadAfterUnsend(newest: false, pinned: true);
-      expect(f.keys, unorderedEquals(kChatPinFields));
+      expect(f.keys, unorderedEquals([...kChatPinFields, kChatActionAtField]));
       final both = chatThreadAfterUnsend(newest: true, pinned: true);
-      expect(both.keys, unorderedEquals([...kChatPinFields, 'lastMessage']));
+      expect(
+        both.keys,
+        unorderedEquals([...kChatPinFields, kChatActionAtField, 'lastMessage']),
+      );
     });
 
     test('nothing touches an unread counter (no badge for an edit or pin)', () {
@@ -119,6 +141,7 @@ void main() {
         ...chatUnsendFields(),
         ...chatPinFields(_msg('m')),
         ...chatThreadAfterUnsend(newest: true, pinned: true),
+        ...chatThreadAfterEdit(newest: true, pinned: true, text: 'x'),
       };
       expect(all.keys.where((k) => k.startsWith('unread')), isEmpty);
     });

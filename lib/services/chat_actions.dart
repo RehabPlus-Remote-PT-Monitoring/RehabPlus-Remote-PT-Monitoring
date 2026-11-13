@@ -84,19 +84,32 @@ Map<String, dynamic> chatUnpinFields() => {
   for (final field in kChatPinFields) field: FieldValue.delete(),
 };
 
-/// The thread update after an edit: the preview follows the newest message
-/// only (`lastMessageAt` stays, as on the dashboard). Empty: no write.
+/// Thread field set to the server time by every edit and unsend (both
+/// sides), so the dashboard's open conversation page reloads even when an
+/// older message changed (dashboard: ChatActions::ACTION_AT).
+const String kChatActionAtField = 'lastActionAt';
+
+/// The thread update after an edit: always [kChatActionAtField]; the preview
+/// when it is the newest message (`lastMessageAt` stays, as on the
+/// dashboard); the banner text when it is the pinned message.
 Map<String, dynamic> chatThreadAfterEdit({
   required bool newest,
+  required bool pinned,
   required String text,
-}) => newest ? {'lastMessage': text} : const {};
+}) => {
+  kChatActionAtField: FieldValue.serverTimestamp(),
+  if (newest) 'lastMessage': text,
+  if (pinned) 'pinnedText': chatSnippet(text),
+};
 
-/// The thread update after an unsend: the preview when it was the newest
-/// message, and the pin when it pointed at this message. Empty: no write.
+/// The thread update after an unsend: always [kChatActionAtField]; the
+/// preview when it was the newest message; the pin removed when it pointed
+/// at this message.
 Map<String, dynamic> chatThreadAfterUnsend({
   required bool newest,
   required bool pinned,
 }) => {
+  kChatActionAtField: FieldValue.serverTimestamp(),
   if (newest) 'lastMessage': kChatDeletedText,
   if (pinned) ...chatUnpinFields(),
 };

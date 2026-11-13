@@ -158,6 +158,11 @@ requests, app problems). The doc is created on the first message.
 | `pinnedText` | string \| null | Snippet of the pinned message (≤ 200 chars) for the banner |
 | `pinnedSenderRole` | string \| null | `patient` or `staff`: who wrote the pinned message |
 | `pinnedAt` | timestamp \| null | Server time it was pinned |
+| `lastActionAt` | timestamp \| null | Server time of the last edit or unsend of any message, by either side; the dashboard polls it so an open conversation reloads |
+
+The app may only pin a real, not unsent message of the thread with its real
+author (all four pin fields at once, `pinnedAt` = server time), remove the
+pin, or refresh `pinnedText` when the pinned message is edited.
 
 ### `patients/{uid}/threads/{threadId}/messages/{id}`: messages
 
@@ -172,7 +177,7 @@ requests, app problems). The doc is created on the first message.
 | `editedAt` | timestamp \| null | Server time of the last edit (null = never edited); both sides show "Edited" |
 | `unsent` | bool | `true` once the author unsent (deleted) it |
 | `unsentAt` | timestamp \| null | Server time of the unsend |
-| `session` | map \| null | Shared exercise-session card (dashboard renders it for patient messages) |
+| `session` | map \| null | Reserved for a shared exercise-session card. The dashboard renders it on patient messages, but the app shares sessions as plain text and the rules refuse it from the app, so today no message carries it |
 
 Only `text`/`senderId`/`senderRole`/`sentAt`/`createdAt` are required; old
 documents without the other fields render as before.
@@ -190,10 +195,16 @@ again, pinned or replied to. The author sees **"You deleted a message"**,
 the other side **"Message deleted"**. Messages are never hard-deleted
 (the rules refuse every delete).
 
-**Thread updates that go with an action** (same batch): editing the newest
-message sets `lastMessage` to the new text; unsending the newest sets it to
-"Message deleted"; unsending the pinned message removes the four pin fields.
-No action changes an unread counter or sends a push.
+A reply's `replyTo` must quote a real, not unsent message of the same
+thread with its real author (checked by firestore.rules for the app, by
+`ChatActions::replyTarget` on the dashboard).
+
+**Thread updates that go with an action** (same batch): every edit and
+unsend sets `lastActionAt` to the server time; editing the newest message
+also sets `lastMessage` to the new text, and editing the pinned message sets
+`pinnedText`; unsending the newest sets `lastMessage` to "Message deleted",
+and unsending the pinned message removes the four pin fields. No action
+changes an unread counter or sends a push.
 
 **When staff reply from the dashboard**, write both in one batch:
 
