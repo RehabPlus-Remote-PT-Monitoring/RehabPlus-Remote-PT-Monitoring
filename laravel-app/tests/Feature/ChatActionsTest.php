@@ -402,10 +402,10 @@ class ChatActionsTest extends TestCase
 
         // Own unsent vs the patient's unsent; no ticks or menu on either.
         $mine = $this->row($html, 'id="msg-u1"');
-        $this->assertStringContainsString('You unsent a message', $mine);
+        $this->assertStringContainsString('You deleted a message', $mine);
         $this->assertStringNotContainsString('chat-tick', $mine);
         $this->assertStringNotContainsString('data-chat-menu-toggle', $mine);
-        $this->assertStringContainsString('Message unsent', $this->row($html, 'id="msg-u2"'));
+        $this->assertStringContainsString('Message deleted', $this->row($html, 'id="msg-u2"'));
 
         // Pinned banner first, pointing at the message on the page.
         $this->assertStringContainsString('data-chat-pinned', $html);
