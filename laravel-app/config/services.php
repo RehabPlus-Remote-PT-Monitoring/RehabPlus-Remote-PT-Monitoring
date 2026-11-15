@@ -66,7 +66,7 @@ return [
     // app ships new terms, bump this too, or the profile page will call the
     // new version "current" too late (or flag patients as outdated too early).
     'legal' => [
-        'consent_version' => env('LEGAL_CONSENT_VERSION', '2026-10-18'),
+        'consent_version' => env('LEGAL_CONSENT_VERSION', '2026-11-15'),
     ],
 
     'slack' => [

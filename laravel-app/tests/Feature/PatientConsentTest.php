@@ -21,7 +21,8 @@ class PatientConsentTest extends TestCase
     {
         parent::setUp();
 
-        config(['services.legal.consent_version' => '2026-10-18']);
+        // No config override: these tests run against the shipped default
+        // (config/services.php), which must match the app's LegalInfo.version.
         $this->patientDoc('pOne', ['name' => 'Olive One', 'therapistId' => 'thA', 'therapistName' => 'Dr. Ana']);
     }
 
@@ -45,12 +46,12 @@ class PatientConsentTest extends TestCase
 
     public function test_current_version_shows_version_and_date(): void
     {
-        $this->consent('2026-10-18', CarbonImmutable::parse('2026-10-20 03:00', 'UTC'));
+        $this->consent('2026-11-15', CarbonImmutable::parse('2026-10-20 03:00', 'UTC'));
 
         $this->actingAs($this->therapist())->get('/patients/pOne')
             ->assertOk()
             ->assertSee('data-consent="current"', false)
-            ->assertSee('Accepted terms v2026-10-18')
+            ->assertSee('Accepted terms v2026-11-15')
             ->assertSee(CarbonImmutable::parse('2026-10-20 03:00', 'UTC')->setTimezone(config('app.timezone'))->format('M j, Y'))
             ->assertSee('Health data')
             ->assertDontSee('older version')
@@ -67,7 +68,7 @@ class PatientConsentTest extends TestCase
             ->assertSee('data-consent="outdated"', false)
             ->assertSee('Accepted terms v2026-03-01')
             ->assertDontSee('v2026-01-05')
-            ->assertSee('This is an older version (current is v2026-10-18)')
+            ->assertSee('This is an older version (current is v2026-11-15)')
             ->assertSee('asked to accept the new terms next time they open the app');
     }
 
@@ -83,7 +84,7 @@ class PatientConsentTest extends TestCase
     {
         // Consents come from the patient's phone; a patient talking to
         // Firestore directly could store any type in any field.
-        $this->docs['patients/pOne/consents/2026-10-18'] = [
+        $this->docs['patients/pOne/consents/2026-11-15'] = [
             'version' => ['evil' => 'map'],
             'acceptedAt' => ['not' => 'a timestamp'],
             'acceptedTerms' => 'yes',
@@ -94,7 +95,7 @@ class PatientConsentTest extends TestCase
 
         $this->actingAs($this->therapist())->get('/patients/pOne')
             ->assertOk()
-            ->assertSee('Accepted terms v2026-10-18')   // version falls back to the doc id
+            ->assertSee('Accepted terms v2026-11-15')   // version falls back to the doc id
             ->assertSee('on an unknown date')
             ->assertSee('Terms: not agreed')            // only a real `true` counts
             ->assertSee('Camera: agreed');
@@ -116,17 +117,17 @@ class PatientConsentTest extends TestCase
 
     public function test_consent_status_is_shown_to_the_patients_therapist(): void
     {
-        $this->consent('2026-10-18', CarbonImmutable::parse('2026-10-19'));
+        $this->consent('2026-11-15', CarbonImmutable::parse('2026-10-19'));
 
         $this->actingAs($this->staff('therapist', 'thA', 'Dr. Ana'))->get('/patients/pOne')
             ->assertOk()
-            ->assertSee('Accepted terms v2026-10-18');
+            ->assertSee('Accepted terms v2026-11-15');
     }
 
     public function test_failed_consent_read_shows_unavailable_but_page_loads(): void
     {
         Log::spy();
-        $this->consent('2026-10-18', CarbonImmutable::parse('2026-10-19'));
+        $this->consent('2026-11-15', CarbonImmutable::parse('2026-10-19'));
         // Load the staff directory first (top bar), so its query doesn't take the failure.
         $this->actingAs($this->staff('admin'))->get('/profile');
         // Front desk: the consent query is the only runQuery on this page.
@@ -143,7 +144,7 @@ class PatientConsentTest extends TestCase
 
     public function test_failed_consent_read_does_not_fail_the_clinical_reads(): void
     {
-        $this->consent('2026-10-18', CarbonImmutable::parse('2026-10-19'));
+        $this->consent('2026-11-15', CarbonImmutable::parse('2026-10-19'));
         // One non-retried failure on the first runQuery sent. The consent task
         // is listed first in the controller's concurrently() batch, so it's
         // the one that fails; sessions/prescriptions etc. still answer.
@@ -155,5 +156,22 @@ class PatientConsentTest extends TestCase
             ->assertSee('Consent status unavailable')
             ->assertSee('Assigned exercises');   // a 200 means no clinical read failed
         $this->assertSame([], $this->commits);   // consents are read-only
+    }
+
+    public function test_default_version_matches_the_app_and_flags_the_previous_terms(): void
+    {
+        // The app moved LegalInfo.version to 2026-11-15 (movement replay added
+        // to the privacy policy), so a patient who accepted the October terms
+        // is asked again.
+        $this->assertSame('2026-11-15', config('services.legal.consent_version'));
+        $this->assertSame('2026-11-15', ConsentService::currentVersion());
+
+        $this->consent('2026-10-18', CarbonImmutable::parse('2026-10-19'));
+
+        $this->actingAs($this->therapist())->get('/patients/pOne')
+            ->assertOk()
+            ->assertSee('data-consent="outdated"', false)
+            ->assertSee('Accepted terms v2026-10-18')
+            ->assertSee('This is an older version (current is v2026-11-15)');
     }
 }

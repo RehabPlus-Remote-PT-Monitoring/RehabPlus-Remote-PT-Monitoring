@@ -10,6 +10,7 @@ export default defineConfig({
                 'resources/css/rehabplus-dashboard.css',
                 'resources/js/rehabplus-dashboard.js',
                 'resources/js/public-nav.js',
+                'resources/js/session-replay.js',
             ],
             refresh: true,
         }),

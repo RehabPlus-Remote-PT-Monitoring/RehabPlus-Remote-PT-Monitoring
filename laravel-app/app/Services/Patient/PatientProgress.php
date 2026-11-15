@@ -103,6 +103,8 @@ class PatientProgress
             'painNote' => self::text($doc['painNote'] ?? null, 300),
             'endedEarly' => ($doc['endedEarly'] ?? false) === true,
             'outsideSchedule' => ($doc['outsideSchedule'] ?? false) === true,
+            // Only a real `true`: the Replay link must not appear for a stray value.
+            'hasReplay' => ($doc['hasReplay'] ?? false) === true,
         ];
     }
 

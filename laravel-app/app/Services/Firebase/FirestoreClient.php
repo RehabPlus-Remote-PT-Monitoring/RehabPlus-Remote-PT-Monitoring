@@ -321,6 +321,7 @@ class FirestoreClient
             is_int($value) => ['integerValue' => (string) $value],
             is_float($value) => ['doubleValue' => $value],
             is_string($value) => ['stringValue' => $value],
+            $value instanceof FirestoreBytes => ['bytesValue' => $value->toBase64()],
             $value instanceof DateTimeInterface => [
                 'timestampValue' => CarbonImmutable::instance($value)->utc()->format('Y-m-d\TH:i:s.u\Z'),
             ],
@@ -342,7 +343,9 @@ class FirestoreClient
             'booleanValue' => (bool) $v,
             'integerValue' => (int) $v,
             'doubleValue' => (float) $v,
-            'stringValue', 'referenceValue', 'bytesValue' => $v,
+            'stringValue', 'referenceValue' => $v,
+            // Base64 in the JSON; decoded so callers get the real bytes.
+            'bytesValue' => FirestoreBytes::fromBase64((string) $v),
             'timestampValue' => CarbonImmutable::parse($v),
             'arrayValue' => array_map(fn ($x) => $this->decode($x), $v['values'] ?? []),
             'mapValue' => array_map(fn ($x) => $this->decode($x), $v['fields'] ?? []),

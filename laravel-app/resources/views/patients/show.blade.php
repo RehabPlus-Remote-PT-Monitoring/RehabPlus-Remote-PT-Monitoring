@@ -213,7 +213,7 @@
             <div class="card-header"><h5 class="mb-0">Recent sessions</h5></div>
             <div class="card-body p-0"><div class="table-responsive">
                 <table class="table table-hover mb-0 align-middle">
-                    <thead class="table-light"><tr><th>When</th><th>Exercise</th><th>Reps</th><th>Accuracy</th><th>Pain</th><th>Flags</th></tr></thead>
+                    <thead class="table-light"><tr><th>When</th><th>Exercise</th><th>Reps</th><th>Accuracy</th><th>Pain</th><th>Flags</th><th><span class="visually-hidden">Replay</span></th></tr></thead>
                     <tbody>
                         @forelse (array_slice($sessions, 0, 30) as $s)
                             <tr>
@@ -228,9 +228,14 @@
                                     @if ($s['endedEarly'])<span class="badge bg-warning text-dark">Ended early</span>@endif
                                     @if ($s['outsideSchedule'])<span class="badge bg-info text-dark">Outside schedule</span>@endif
                                 </td>
+                                <td class="text-end text-nowrap">
+                                    @if ($s['hasReplay'] === true)
+                                        <a href="{{ route('sessions.replay', [$patient['uid'], $s['id']]) }}" class="btn btn-sm btn-outline-primary" data-replay-link><i class="bi bi-play-circle me-1"></i>Replay</a>
+                                    @endif
+                                </td>
                             </tr>
                         @empty
-                            <tr><td colspan="6" class="text-center text-muted py-4">No sessions yet. They appear here when the patient exercises in the app.</td></tr>
+                            <tr><td colspan="7" class="text-center text-muted py-4">No sessions yet. They appear here when the patient exercises in the app.</td></tr>
                         @endforelse
                     </tbody>
                 </table>

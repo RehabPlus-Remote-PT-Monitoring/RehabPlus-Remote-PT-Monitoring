@@ -21,6 +21,7 @@ use App\Http\Controllers\PaymentController;
 use App\Http\Controllers\PrescriptionController;
 use App\Http\Controllers\ProfileController;
 use App\Http\Controllers\ReportController;
+use App\Http\Controllers\SessionReplayController;
 use App\Http\Controllers\StaffScheduleController;
 use App\Http\Controllers\UserController;
 use Illuminate\Http\Request;
@@ -30,6 +31,7 @@ use Illuminate\Support\Facades\Route;
 Route::pattern('uid', '[A-Za-z0-9_-]{1,128}');
 Route::pattern('id', '[A-Za-z0-9_-]{1,128}');
 Route::pattern('patientUid', '[A-Za-z0-9_-]{1,128}');
+Route::pattern('sessionId', '[A-Za-z0-9_-]{1,128}');
 
 // The public welcome page. Staff use the dashboard, reached from the Log In button.
 Route::get('/', [LandingController::class, 'index'])->name('landing');
@@ -124,6 +126,9 @@ Route::middleware(['auth.rehab'])->group(function () {
         Route::get('/patients/{uid}/clinical-profile/edit', [ClinicalSafeguardController::class, 'editProfile'])->name('clinical-profile.edit');
         Route::put('/patients/{uid}/clinical-profile', [ClinicalSafeguardController::class, 'updateProfile'])->name('clinical-profile.update');
         Route::post('/patients/{uid}/clearances', [ClinicalSafeguardController::class, 'storeClearance'])->name('clearances.store');
+
+        // Movement replay of one session (saved pose points, not video). Read-only.
+        Route::get('/patients/{uid}/sessions/{sessionId}/replay', [SessionReplayController::class, 'show'])->name('sessions.replay');
 
         Route::get('/assessments', [ClinicalRecordController::class, 'assessments'])->name('assessments');
         Route::post('/assessments', [ClinicalRecordController::class, 'storeAssessment'])->name('assessments.store');

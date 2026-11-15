@@ -77,6 +77,10 @@ class ContentSecurityPolicyTest extends TestCase
         $this->docs['payments/pay1'] = ['patient' => 'Pat', 'session' => 'S', 'fee' => 500, 'status' => 'Pending', 'date' => '2026-10-01'];
         $this->docs['inventory/inv1'] = ['item' => 'Bands', 'category' => 'Gear', 'stock' => 5, 'reorder' => 2, 'status' => 'Healthy'];
         $this->docs['appointments/ap1'] = ['patient' => 'Pat', 'therapist' => 'Dr. Ana', 'session' => 'S', 'date' => '2026-10-20', 'time' => '09:00', 'status' => 'Upcoming'];
+        // A session with a movement replay (one 1-frame chunk) for the replay page.
+        $this->docs['patients/pat1/sessions/ses1'] = ['exerciseName' => 'Wall squats', 'hasReplay' => true];
+        $this->docs['patients/pat1/sessions/ses1/replay/meta'] = ['version' => 1, 'chunkCount' => 1, 'events' => [['t' => 0, 'kind' => 'counted', 'note' => '']]];
+        $this->docs['patients/pat1/sessions/ses1/replay/c000'] = ['index' => 0, 'firstFrame' => 0, 'frames' => 1, 'data' => new \App\Services\Firebase\FirestoreBytes(str_repeat("\0", 171))];
         $this->staff('therapist', 'st1', 'Sam');
         $admin = $this->staff('admin', 'adm', 'Ada');
 
@@ -84,7 +88,7 @@ class ContentSecurityPolicyTest extends TestCase
             '/dashboard', '/analytics', '/patients', '/patients/pat1', '/patients/pat1/edit', '/patients/create',
             '/patients/pat1/prescriptions/create', '/assessments', '/notes', '/messages', '/messages/pat1',
             '/appointments', '/appointments/create', '/billing', '/inventory', '/schedule', '/users', '/users/create',
-            '/analytics?range=year',
+            '/analytics?range=year', '/patients/pat1/sessions/ses1/replay',
         ];
 
         foreach ($pages as $page) {
@@ -95,6 +99,9 @@ class ContentSecurityPolicyTest extends TestCase
             $this->assertSame(200, $response->status(), "{$page} should load");
             $this->assertPageIsCspClean($response);
         }
+
+        // The replay page really rendered its player (a 404 above would be skipped silently).
+        $this->actingAs($admin)->get('/patients/pat1/sessions/ses1/replay')->assertOk()->assertSee('data-replay-data', false);
 
         // The converted handlers are present as data- attributes.
         $users = $this->actingAs($admin)->get('/users')->getContent();
