@@ -5,6 +5,7 @@ namespace App\Services\Patient;
 use App\Auth\StaffUser;
 use App\Services\Firebase\FirebaseException;
 use App\Services\Firebase\FirestoreClient;
+use App\Services\Firebase\PatientNotifier;
 use Carbon\CarbonImmutable;
 use Illuminate\Support\Facades\Log;
 
@@ -55,7 +56,12 @@ class ClinicalProfileService
 
     public const REVIEW_PAIN_ANYONE = 8;
 
-    public function __construct(private FirestoreClient $db)
+    /** Notification type and title for a clinical-profile change the patient should know about. */
+    public const CARE_UPDATE_TYPE = 'care_update';
+
+    public const CARE_UPDATE_TITLE = 'Care plan updated';
+
+    public function __construct(private FirestoreClient $db, private PatientNotifier $notifier)
     {
     }
 
@@ -120,16 +126,85 @@ class ClinicalProfileService
                 : CarbonImmutable::parse($data['next_reassessment_at'], config('app.timezone'))->startOfDay(),
         ];
 
-        $this->db->commit([
-            $this->db->mergeWrite(self::path($patient['uid']), $fields, serverTimestamps: ['validatedAt']),
-        ]);
+        // What the patient should hear about (paused / allowed-again
+        // exercises, new precautions). The previous profile is read first;
+        // if that read fails the save still goes ahead with a general
+        // "your care plan was updated" notice, never silently.
+        $before = null;
+        try {
+            $before = $this->read($patient['uid']);
+        } catch (FirebaseException $e) {
+            Log::warning('clinical_profile.previous_unreadable', ['patient' => $patient['uid'], 'error' => $e->getMessage()]);
+        }
+        $summary = self::careUpdateSummary($before, self::present($fields));
+
+        $writes = [$this->db->mergeWrite(self::path($patient['uid']), $fields, serverTimestamps: ['validatedAt'])];
+        if ($summary !== null) {
+            $writes[] = $this->notifier->notificationWrite($patient['uid'], self::CARE_UPDATE_TYPE, self::CARE_UPDATE_TITLE, $summary);
+        }
+        $this->db->commit($writes);
 
         Log::info('clinical_profile.saved', [
             'patient' => $patient['uid'],
             'by' => $by->id,
             'restricted' => count($fields['restrictedExercises']),
             'lowTolerance' => $fields['lowTolerance'],
+            'patientNotified' => $summary !== null,
         ]);
+
+        if ($summary !== null) {
+            // After the commit: the profile is saved whatever happens to the push.
+            try {
+                $this->notifier->push($patient['uid'], self::CARE_UPDATE_TITLE, $summary, ['type' => self::CARE_UPDATE_TYPE]);
+            } catch (FirebaseException $e) {
+                Log::warning('clinical_profile.push_failed', ['patient' => $patient['uid'], 'error' => $e->getMessage()]);
+            }
+        }
+    }
+
+    /**
+     * The patient-facing notice for a profile change, or null when nothing
+     * the patient sees changed (e.g. only the reassessment date). $before
+     * null = the previous profile couldn't be read: a general notice.
+     *
+     * Example: "Paused by your clinician: Wall Sit. Allowed again: Mini
+     * Squat. Your precautions were updated. Open Care plan & clearance in
+     * the app for details."
+     *
+     * @param  array|null  $before  presented profile before the save (present())
+     * @param  array  $after  presented profile after the save
+     */
+    public static function careUpdateSummary(?array $before, array $after): ?string
+    {
+        $details = ' Open Care plan & clearance in the app for details.';
+        if ($before === null) {
+            return 'Your clinician updated your precautions and exercise restrictions.'.$details;
+        }
+
+        $names = fn (array $codes) => implode(', ', array_map(fn (string $c) => ExerciseCatalog::name($c), $codes));
+        $paused = array_values(array_diff($after['restrictedExercises'], $before['restrictedExercises']));
+        $allowed = array_values(array_diff($before['restrictedExercises'], $after['restrictedExercises']));
+
+        $parts = [];
+        if ($paused !== []) {
+            $parts[] = 'Paused by your clinician: '.$names($paused).'.';
+        }
+        if ($allowed !== []) {
+            $parts[] = 'Allowed again: '.$names($allowed).'.';
+        }
+        if ($after['precautions'] !== $before['precautions']) {
+            $parts[] = 'Your precautions were updated.';
+        }
+        if ($after['lowTolerance'] !== $before['lowTolerance'] || $after['toleranceNote'] !== $before['toleranceNote']) {
+            $parts[] = $after['lowTolerance']
+                ? 'Your clinician noted low exercise tolerance: take it easy and stop if pain increases.'
+                : 'Your exercise tolerance note was updated.';
+        }
+        if ($after['dietaryNotes'] !== $before['dietaryNotes'] || $after['nutritionFlags'] !== $before['nutritionFlags']) {
+            $parts[] = 'Your dietary notes were updated (for information only).';
+        }
+
+        return $parts === [] ? null : implode(' ', $parts).$details;
     }
 
     /**

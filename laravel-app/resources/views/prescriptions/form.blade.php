@@ -15,6 +15,10 @@
 
     @include('partials.flash')
 
+    @if ($intensityProfile)
+        <div style="max-width: 900px;">@include('patients.partials.intensity-review')</div>
+    @endif
+
     <form method="POST" action="{{ $rx ? route('prescriptions.update', [$patient['uid'], $rx['id']]) : route('prescriptions.store', $patient['uid']) }}" class="card shadow-sm border-0" style="max-width: 900px;">
         @csrf
         @if ($rx)

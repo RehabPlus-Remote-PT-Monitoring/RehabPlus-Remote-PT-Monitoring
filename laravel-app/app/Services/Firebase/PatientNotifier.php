@@ -19,6 +19,8 @@ class PatientNotifier
     private const PREFERENCE_FOR_TYPE = [
         'chat' => 'messages',
         'exercise_assigned' => 'exercises',
+        // Exercises paused / allowed again, precautions changed (clinical profile).
+        'care_update' => 'exercises',
         'reminder' => 'reminders',
     ];
 

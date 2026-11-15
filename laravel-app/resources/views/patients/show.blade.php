@@ -121,6 +121,9 @@
         </p>
 
         {{-- Prescriptions --}}
+        @if ($intensityProfile)
+            @include('patients.partials.intensity-review')
+        @endif
         <div class="card shadow-sm border-0 mb-4">
             <div class="card-header d-flex justify-content-between align-items-center">
                 <h5 class="mb-0">Assigned exercises</h5>

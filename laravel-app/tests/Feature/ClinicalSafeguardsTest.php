@@ -3,6 +3,7 @@
 namespace Tests\Feature;
 
 use Carbon\CarbonImmutable;
+use App\Services\Patient\ClinicalProfileService;
 use Tests\Support\FakeFirebase;
 use Tests\TestCase;
 
@@ -557,5 +558,107 @@ class ClinicalSafeguardsTest extends TestCase
         $doc = array_values($this->docsLike('patients/pTwo/clearances/*'))[0];
         $this->assertSame('adminUid', $doc['signedBy']);
         $this->assertSame('Admin User', $doc['signedByName']);
+    }
+
+    // ---- Panel follow-up: restriction notifications, intensity review -------
+
+    public function test_pausing_an_exercise_notifies_the_patient_in_the_same_commit_then_pushes(): void
+    {
+        $this->profile(['restrictedExercises' => ['miniSquat'], 'precautions' => 'Old note.']);
+
+        $this->actingAs($this->therapist())->put('/patients/pOne/clinical-profile', [
+            'precautions' => 'Avoid deep knee bends.',
+            'restricted_exercises' => ['wallSit'],
+        ])->assertRedirect('/patients/pOne#clinical-profile')->assertSessionHasNoErrors();
+
+        $this->assertCount(1, $this->commits, 'profile and notification are one atomic commit');
+        $notification = $this->commits[0][1];
+        $this->assertSame(['exists' => false], $notification['currentDocument']);
+        $fields = $notification['update']['fields'];
+        $this->assertSame('care_update', $fields['type']['stringValue']);
+        $this->assertSame('Care plan updated', $fields['title']['stringValue']);
+        $this->assertSame(
+            'Paused by your clinician: Wall Sit. Allowed again: Mini Squat. Your precautions were updated. Open Care plan & clearance in the app for details.',
+            $fields['body']['stringValue'],
+        );
+        $this->assertFalse($fields['read']['booleanValue']);
+
+        $this->assertCount(1, $this->pushes);
+        $this->assertSame(['type' => 'care_update'], $this->pushes[0]['data']);
+        $this->assertSame('Care plan updated', $this->pushes[0]['notification']['title']);
+    }
+
+    public function test_a_save_that_changes_nothing_the_patient_sees_sends_nothing(): void
+    {
+        $this->profile(['restrictedExercises' => ['wallSit'], 'precautions' => 'Avoid deep knee bends.']);
+
+        $this->actingAs($this->therapist())->put('/patients/pOne/clinical-profile', [
+            'precautions' => 'Avoid deep knee bends.',
+            'restricted_exercises' => ['wallSit'],
+            'next_reassessment_at' => CarbonImmutable::now(config('app.timezone'))->addMonth()->toDateString(),
+        ])->assertSessionHasNoErrors();
+
+        $this->assertCount(1, $this->commits[0], 'only the profile write');
+        $this->assertCount(0, $this->docsLike('patients/pOne/notifications/*'));
+        $this->assertCount(0, $this->pushes);
+    }
+
+    public function test_care_update_push_follows_the_exercises_preference_and_a_failed_push_keeps_the_save(): void
+    {
+        $this->docs['patients/pOne/preferences/notifications'] = ['messages' => true, 'exercises' => false];
+
+        $this->actingAs($this->therapist())->put('/patients/pOne/clinical-profile', ['restricted_exercises' => ['wallSit']])
+            ->assertSessionHas('success');
+        $this->assertCount(1, $this->docsLike('patients/pOne/notifications/*'), 'the in-app entry is still written');
+        $this->assertCount(0, $this->pushes, 'opted out of exercise pushes');
+
+        unset($this->docs['patients/pOne/preferences/notifications']);
+        $this->injectedFailures['fcm.googleapis.com'] = ['connection'];
+        $this->actingAs($this->therapist())->put('/patients/pOne/clinical-profile', ['restricted_exercises' => []])
+            ->assertSessionHas('success');
+        $this->assertSame([], $this->docs['patients/pOne/clinical/profile']['restrictedExercises']);
+        $this->assertCount(2, $this->docsLike('patients/pOne/notifications/*'));
+    }
+
+    public function test_care_update_summary_wording(): void
+    {
+        $empty = ClinicalProfileService::present(null);
+        $low = ['lowTolerance' => true, 'toleranceNote' => 'Tires quickly'] + $empty;
+
+        $this->assertNull(ClinicalProfileService::careUpdateSummary($empty, $empty));
+        $this->assertSame(
+            'Your clinician noted low exercise tolerance: take it easy and stop if pain increases. Open Care plan & clearance in the app for details.',
+            ClinicalProfileService::careUpdateSummary($empty, $low),
+        );
+        $this->assertSame(
+            'Your dietary notes were updated (for information only). Open Care plan & clearance in the app for details.',
+            ClinicalProfileService::careUpdateSummary($empty, ['dietaryNotes' => 'Low salt.'] + $empty),
+        );
+        $this->assertStringStartsWith('Your clinician updated your precautions', ClinicalProfileService::careUpdateSummary(null, $empty));
+    }
+
+    public function test_low_tolerance_asks_for_an_intensity_review_on_the_page_and_the_exercise_form(): void
+    {
+        $this->rx('rx1');
+        $this->profile(['lowTolerance' => true, 'toleranceNote' => 'Tires quickly.']);
+        $user = $this->therapist();
+
+        foreach (['/patients/pOne', '/patients/pOne/prescriptions/create', '/patients/pOne/prescriptions/rx1/edit'] as $url) {
+            $this->actingAs($user)->get($url)->assertOk()
+                ->assertSee('data-intensity-review="flagged"', false)
+                ->assertSee('Low exercise tolerance: review the exercise intensity')
+                ->assertSee('Clinician\'s note: Tires quickly.', false);
+        }
+    }
+
+    public function test_no_intensity_review_without_low_tolerance(): void
+    {
+        $this->rx('rx1');
+        $this->profile(['lowTolerance' => false]);
+        $user = $this->therapist();
+
+        foreach (['/patients/pOne', '/patients/pOne/prescriptions/create'] as $url) {
+            $this->actingAs($user)->get($url)->assertOk()->assertDontSee('data-intensity-review', false);
+        }
     }
 }

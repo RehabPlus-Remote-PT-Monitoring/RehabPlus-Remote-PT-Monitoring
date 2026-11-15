@@ -29,6 +29,7 @@ class PrescriptionController extends Controller
             'patient' => $this->patient($request, $uid),
             'prescription' => null,
             'catalog' => ExerciseCatalog::TYPES,
+            'intensityProfile' => $this->intensityProfile($uid),
         ]);
     }
 
@@ -51,6 +52,7 @@ class PrescriptionController extends Controller
             'patient' => $patient,
             'prescription' => $this->prescription($uid, $id),
             'catalog' => ExerciseCatalog::TYPES,
+            'intensityProfile' => $this->intensityProfile($uid),
         ]);
     }
 
@@ -108,6 +110,19 @@ class PrescriptionController extends Controller
         Log::info('prescriptions.restricted_refused', ['patient' => $uid, 'exercise' => $exerciseType]);
 
         return ExerciseCatalog::name($exerciseType).' is restricted by the clinician in this patient\'s clinical profile, so it can\'t be assigned or resumed. Change the clinical profile first if that is no longer the case.';
+    }
+
+    /**
+     * The clinical profile when the patient is marked low tolerance (the form
+     * then shows "review the exercise intensity"), else null. Uses the
+     * never-throwing page read: a failed read only hides the reminder, the
+     * restriction checks on save still use the strict read.
+     */
+    private function intensityProfile(string $uid): ?array
+    {
+        $result = $this->profiles->forPatient($uid);
+
+        return $result['status'] === ClinicalProfileService::OK && $result['profile']['lowTolerance'] ? $result['profile'] : null;
     }
 
     private function patient(Request $request, string $uid): array

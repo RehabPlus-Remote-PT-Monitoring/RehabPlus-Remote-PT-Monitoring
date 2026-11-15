@@ -218,6 +218,8 @@ class PatientController extends Controller
             'gate' => $gate,
             'gateByPrescription' => $gate ? array_column($gate['requirements'], null, 'prescriptionId') : [],
             'restrictedExercises' => $profile['restrictedExercises'],
+            // Low tolerance: remind the clinician to review exercise intensity.
+            'intensityProfile' => $profileOk && $profile['lowTolerance'] ? $profile : null,
             // Pain >= 8 is flagged for anyone, so the review still runs when the
             // profile couldn't be read (as for a patient without flags).
             'toleranceFlags' => ClinicalProfileService::toleranceReview($profile, $gateSessions ?? $clinical['sessions']),
