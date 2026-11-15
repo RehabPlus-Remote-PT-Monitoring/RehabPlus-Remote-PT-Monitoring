@@ -5,6 +5,7 @@
 
 import 'package:cloud_firestore/cloud_firestore.dart' show Timestamp;
 import 'package:flutter_test/flutter_test.dart';
+import 'package:rehabplus/screens/notification_page.dart';
 import 'package:rehabplus/models/clearance_record.dart';
 import 'package:rehabplus/models/clinical_profile.dart';
 import 'package:rehabplus/models/exercise_model.dart';
@@ -555,6 +556,15 @@ void main() {
         lowToleranceMessage(null),
         'Your clinician noted low exercise tolerance. Stop if pain increases.',
       );
+    });
+  });
+
+  group('care_update notifications', () {
+    test('open Care plan & clearance; other types keep their own behaviour', () {
+      expect(notificationOpensCarePlan('care_update'), isTrue);
+      expect(notificationOpensCarePlan('message'), isFalse);
+      expect(notificationOpensCarePlan('progress'), isFalse);
+      expect(notificationOpensCarePlan('exercise_assigned'), isFalse);
     });
   });
 }
