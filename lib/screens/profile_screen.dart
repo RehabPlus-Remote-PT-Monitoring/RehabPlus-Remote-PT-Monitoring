@@ -10,6 +10,7 @@ import '../services/app_provider.dart';
 import '../models/session.dart';
 import 'login_page.dart';
 import 'edit_profile_screen.dart';
+import 'care_plan_screen.dart';
 import 'goals_screen.dart';
 import 'privacy_legal_screen.dart';
 import 'settings_screen.dart';
@@ -190,6 +191,8 @@ class _ProfileScreenState extends State<ProfileScreen> {
                                       const SizedBox(height: 14),
                                     ],
                                     _buildGoalsCard(),
+                                    const SizedBox(height: 14),
+                                    _buildCarePlanCard(),
                                     const SizedBox(height: 14),
                                     _buildSettingsCard(),
                                     const SizedBox(height: 14),
@@ -482,6 +485,34 @@ class _ProfileScreenState extends State<ProfileScreen> {
           ),
           title: Text('My Goals', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 14, color: palette.textPrimary)),
           subtitle: Text('The recovery goals your therapist set for you', style: TextStyle(fontSize: 12, color: palette.textMuted)),
+          trailing: Icon(Icons.chevron_right_rounded, color: palette.textFaint, size: 20),
+        ),
+      ),
+    );
+  }
+
+  /// Opens Care plan & clearance: exercise completion, compliance, the
+  /// physician's clearance and the clinician's precautions.
+  Widget _buildCarePlanCard() {
+    final palette = context.palette;
+    return Padding(
+      padding: const EdgeInsets.symmetric(horizontal: 16),
+      child: Container(
+        decoration: BoxDecoration(
+          color: palette.surface,
+          borderRadius: BorderRadius.circular(20),
+          boxShadow: [BoxShadow(color: palette.shadow.withValues(alpha: 0.05), blurRadius: 12, offset: const Offset(0, 3))],
+        ),
+        child: ListTile(
+          onTap: () => Navigator.push(context, MaterialPageRoute(builder: (_) => const CarePlanScreen())),
+          contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 6),
+          leading: Container(
+            padding: const EdgeInsets.all(7),
+            decoration: BoxDecoration(color: primaryTeal.withValues(alpha: 0.1), borderRadius: BorderRadius.circular(9)),
+            child: const Icon(Icons.verified_user_outlined, size: 16, color: primaryTeal),
+          ),
+          title: Text('Care plan & clearance', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 14, color: palette.textPrimary)),
+          subtitle: Text('Exercise completion, precautions and medical clearance', style: TextStyle(fontSize: 12, color: palette.textMuted)),
           trailing: Icon(Icons.chevron_right_rounded, color: palette.textFaint, size: 20),
         ),
       ),

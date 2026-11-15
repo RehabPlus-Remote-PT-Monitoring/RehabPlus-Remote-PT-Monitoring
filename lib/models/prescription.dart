@@ -88,6 +88,10 @@ class Prescription {
   /// Longest instructions kept in memory.
   static const int maxNotesLength = 2000;
 
+  /// Valid range of `requiredSessions` (API_CONTRACT.md: 1–500).
+  static const int minRequiredSessions = 1;
+  static const int maxRequiredSessions = 500;
+
   final String id;
 
   /// Matches an [ExerciseType] name, e.g. "kneeExtension".
@@ -101,6 +105,21 @@ class Prescription {
   /// When the therapist assigned it (prescriptions/{id}.createdAt).
   final DateTime? assignedAt;
 
+  /// Last dashboard edit (prescriptions/{id}.updatedAt), if recorded. Used
+  /// to tell the patient their program changed after a clearance.
+  final DateTime? updatedAt;
+
+  /// Finished sessions (not ended early) needed for this prescription to
+  /// count as complete. Null when the clinician hasn't set a target (or the
+  /// stored value is invalid): the completion gate then lists it as
+  /// "no completion target set" and it can never be complete.
+  final int? requiredSessions;
+
+  /// The app only loads `active == true` prescriptions, so this is true for
+  /// everything [PrescriptionService] returns. Kept on the model so the
+  /// completion gate can ignore inactive ones on its own.
+  final bool active;
+
   const Prescription({
     required this.id,
     required this.exerciseType,
@@ -110,6 +129,9 @@ class Prescription {
     this.schedule,
     this.notes,
     this.assignedAt,
+    this.updatedAt,
+    this.requiredSessions,
+    this.active = true,
   });
 
   bool isWithinSchedule(DateTime t) => schedule?.allows(t) ?? true;
@@ -155,6 +177,16 @@ class Prescription {
       frequency = null;
     }
 
+    // Outside 1–500 is treated as "no target" rather than clamped: a
+    // clamped target would silently change what "complete" means.
+    var requiredSessions = r.integer('requiredSessions');
+    if (requiredSessions != null &&
+        (requiredSessions < minRequiredSessions ||
+            requiredSessions > maxRequiredSessions)) {
+      r.markRepaired('requiredSessions');
+      requiredSessions = null;
+    }
+
     final scheduleMap = r.map('schedule');
     return Prescription(
       id: id,
@@ -165,6 +197,11 @@ class Prescription {
       schedule: scheduleMap == null ? null : _parseSchedule(scheduleMap, r),
       notes: r.string('notes', maxLength: maxNotesLength),
       assignedAt: r.dateTime('createdAt'),
+      updatedAt: r.dateTime('updatedAt'),
+      requiredSessions: requiredSessions,
+      // The query already filters on active == true; a missing field there
+      // means the doc was never loaded, so true is the right default.
+      active: r.boolean('active', fallback: true),
     );
   }
 

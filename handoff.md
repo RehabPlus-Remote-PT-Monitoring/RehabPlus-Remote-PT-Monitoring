@@ -192,6 +192,7 @@ The group repo (`paulirichmond/...`) is behind on both branches; push there only
 00. **IN PROGRESS: clinical safeguards from the capstone panel (completion gate, physician clearance, clinical/dietary profile).**
    - Design (the contract every part follows): `docs/superpowers/specs/2026-11-15-clinical-safeguards-design.md`.
    - Build order: (a) rules + emulator tests (this repo), (b) dashboard on `web/messaging`, (c) app on `camera/monitoring`, merged into `iphone-testing`, (d) ASK before `firebase deploy --only firestore:rules`, (e) builds with a version bump.
+   - Done: (a) rules + emulator tests (`f91f13a`), (c) app on `camera/monitoring`: Profile > "Care plan & clearance" (Exercise completion, Compliance, Medical clearance, Precautions from your clinician), restricted exercises locked on every Start button (card, How to do it sheet, Today's plan), low-tolerance caution before starting. (b) dashboard on `web/messaging`: clinical profile form, completion gate, physician sign-off form (server refuses "cleared" while incomplete), "Sessions to complete" on prescriptions, restricted exercises refused, tolerance review flag. **Not yet tried on a phone or the live dashboard.**
    - Until the rules are deployed the app shows the new Care plan page as "not available yet" (reads are denied), nothing else breaks.
    - An earlier, unwired attempt by another tool (6 untracked files on iphone-testing) was removed; copy kept in `~/Documents/.rehabplus-other-ai-clearance-backup-2026-11-15/`.
 
