@@ -175,6 +175,23 @@ service cloud.firestore {
         allow write: if false;
       }
 
+      // Clinician-validated clinical and dietary profile (doc id 'profile';
+      // docs/superpowers/specs/2026-11-15-clinical-safeguards-design.md).
+      // Written only by the dashboard (service account) after a clinician
+      // validates it; the app shows it and blocks restricted exercises.
+      match /clinical/{docId} {
+        allow read: if isSelf(patientId) || caresFor(patientId);
+        allow write: if false;
+      }
+
+      // Physician clearance records, append-only, written only by the
+      // dashboard's sign-off form (which recomputes the completion gate on
+      // the server). No client may write one, so nothing can auto-clear.
+      match /clearances/{clearanceId} {
+        allow read: if isSelf(patientId) || caresFor(patientId);
+        allow write: if false;
+      }
+
       // threadId is 'therapist' or 'clinic'. Staff read only the threads they
       // can write to: the therapist never sees the clinic thread (a patient
       // may be messaging the clinic about them).

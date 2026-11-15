@@ -195,9 +195,16 @@ The group repo (`paulirichmond/...`) is behind on both branches; push there only
 
 ## 6. What to do next
 
+00. **IN PROGRESS: clinical safeguards from the capstone panel (completion gate, physician clearance, clinical/dietary profile).**
+   - Design (the contract every part follows): `docs/superpowers/specs/2026-11-15-clinical-safeguards-design.md`.
+   - Build order: (a) rules + emulator tests (this repo), (b) dashboard on `web/messaging`, (c) app on `camera/monitoring`, merged into `iphone-testing`, (d) ASK before `firebase deploy --only firestore:rules`, (e) builds with a version bump.
+   - Done: (a) rules + emulator tests (`f91f13a`), (c) app on `camera/monitoring`: Profile > "Care plan & clearance" (Exercise completion, Compliance, Medical clearance, Precautions from your clinician), restricted exercises locked on every Start button (card, How to do it sheet, Today's plan), low-tolerance caution before starting. (b) dashboard on `web/messaging`: clinical profile form, completion gate, physician sign-off form (server refuses "cleared" while incomplete), "Sessions to complete" on prescriptions, restricted exercises refused, tolerance review flag. **Not yet tried on a phone or the live dashboard.**
+   - Until the rules are deployed the app shows the new Care plan page as "not available yet" (reads are denied), nothing else breaks.
+   - An earlier, unwired attempt by another tool (6 untracked files on iphone-testing) was removed; copy kept in `~/Documents/.rehabplus-other-ai-clearance-backup-2026-11-15/`.
+
 0. **Chat actions (reply, edit, copy, pin, unsend): built on dashboard, Android and iPhone; rules NOT deployed yet.**
    - Design (the contract every part follows): `docs/superpowers/specs/2026-11-13-chat-actions-design.md`; plan in `docs/superpowers/plans/`.
-   - Done: rules + emulator tests (this repo), dashboard on `web/messaging` (`31f018c`), iPhone app on `iphone-testing` (`54ed5b8`), Android app on `camera/monitoring` (ported onto this branch's simpler messages screen; no older-pages paging or share-a-session here yet).
+   - Done: rules + emulator tests (this repo), dashboard on `web/messaging` (`31f018c`), iPhone app on `iphone-testing` (`54ed5b8`), Android app on `camera/monitoring` (ported onto this branch's simpler messages screen; no older-pages paging here). "Share a session" in the therapist chat was ported from iPhone on 2026-11-15 (same text and sheet on both platforms).
    - App UI: tap (or long-press) a bubble to show Reply and "⋯" beside it; "⋯" = Copy, Pin/Unpin, Edit, Unsend. Unsent shows "You deleted a message" / "Message deleted". No edit window in the app (the dashboard keeps 15 minutes).
    - Dropped from the first design: the patient-shared session card (sessions are shared as text). The earlier uncommitted app work for it is on branch `backup/camera-monitoring-chat-actions-wip`.
    - Next: (e) ASK the user before `firebase deploy --only firestore:rules`, (f) new APK + IPA (bump the version), Releases entry.

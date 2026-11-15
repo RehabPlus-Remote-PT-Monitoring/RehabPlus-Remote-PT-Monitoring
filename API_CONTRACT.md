@@ -99,8 +99,9 @@ Written by: Laravel (all fields); the app (only `name`, `phone`, `dob`, `gender`
 | `assignedBy` | string | | Therapist `uid` |
 | `createdAt` | timestamp | | |
 | `updatedAt` | timestamp | | Last dashboard edit |
+| `requiredSessions` | int | | Finished sessions (not ended early) needed for this prescription to count as **complete** (1–500). Without it the prescription can't be complete and the clearance gate lists it as "no completion target set". See [Clinical safeguards](#clinical-safeguards-clinical-profile-completion-gate-physician-clearance) |
 
-`holdSeconds`, `schedule` and `notes` may be `null` (same as omitted).
+`holdSeconds`, `schedule`, `notes` and `requiredSessions` may be `null` (same as omitted).
 Assigning a prescription also writes an `exercise_assigned` notification doc
 and sends a push with `data: {type: 'exercise_assigned'}`.
 
@@ -236,6 +237,60 @@ Assessments and notes have no security rule, so the app is denied. Goals are
 readable by the patient and their care team (never writable from the app)
 and are shown read-only under Profile > My Goals (`lib/screens/goals_screen.dart`).
 The app skips a goal with no title and treats an unknown `status` as `active`.
+
+### Clinical safeguards: clinical profile, completion gate, physician clearance
+
+Design: `docs/superpowers/specs/2026-11-15-clinical-safeguards-design.md`.
+Both paths are readable by the patient and their care team and **written only
+by the dashboard** (rules: `allow write: if false`).
+
+Terms (used the same way in the app, the dashboard and the manuscript):
+- **Exercise completion**: a prescription is complete when the patient has
+  `requiredSessions` sessions for it (`prescriptionId`) with `endedEarly == false`.
+  The program is complete when every active prescription is complete (and
+  there is at least one) and none of them is a restricted exercise.
+- **Compliance**: form accuracy (`overallCompliance`) and plan adherence
+  (sessions per week vs `frequencyPerWeek`). Not a medical result.
+- **Medical recovery / clearance**: only a physician-signed `clearances`
+  record. Never derived from completion or compliance.
+
+#### `patients/{uid}/clinical/profile`: clinician-validated clinical and dietary profile
+
+| Field | Type | Notes |
+| --- | --- | --- |
+| `precautions` | string ≤ 1000 | Medical precautions, shown to the patient |
+| `dietaryNotes` | string ≤ 1000 | Nutritional context, shown as context only |
+| `nutritionFlags` | string[] | `diabetes`, `hypertension`, `low_intake`, `dehydration_risk`, `anemia`, `weight_management`, `renal_diet`, `food_allergy`. Context only; unknown codes are ignored |
+| `restrictedExercises` | string[] | Exercise type codes the patient must not do. The app locks them; the dashboard refuses to assign or re-activate them |
+| `lowTolerance` | bool | Clinician judged exercise tolerance low. The app shows a caution before each session; the dashboard flags sessions for review |
+| `toleranceNote` | string ≤ 500 | |
+| `validatedBy` / `validatedByName` | string | Clinician who validated it |
+| `validatedAt` | timestamp | Server time of the save |
+| `nextReassessmentAt` | timestamp \| null | Planned reassessment |
+
+Diet informs context; only the clinician-set `restrictedExercises` and
+`lowTolerance` change what the app allows. Nothing here changes a
+prescription automatically.
+
+#### `patients/{uid}/clearances/{id}`: physician clearance (append-only, newest `signedAt` wins)
+
+| Field | Type | Notes |
+| --- | --- | --- |
+| `decision` | string | `cleared` or `not_cleared` (continue / revise the program) |
+| `physicianName` | string 1–100 | Assessing physician |
+| `physicianLicense` | string 1–40 | PRC license no. |
+| `assessedAt` | timestamp | Date of the final assessment (start of the day) |
+| `findings` | string 1–2000 | |
+| `recommendations` | string ≤ 1000 | |
+| `attested` | bool | Always `true` |
+| `programComplete` | bool | Gate result at signing |
+| `requirements` | array of maps | `{prescriptionId, exerciseType, finished, required}` (`required` null = no target) at signing |
+| `signedBy` / `signedByName` | string | Dashboard account that recorded it |
+| `signedAt` | timestamp | Server time |
+
+The dashboard refuses `cleared` unless the gate, recomputed on the server at
+submit time, is complete. A `cleared` record also writes a `progress`
+notification for the patient.
 
 ### `settings/clinic`: clinic contact details
 

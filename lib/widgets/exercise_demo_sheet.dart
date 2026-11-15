@@ -7,8 +7,10 @@ import 'package:video_player/video_player.dart';
 import '../core/app_palette.dart';
 import '../core/diagnostic_logger.dart';
 import '../core/exercise_demo_videos.dart';
+import '../models/clinical_profile.dart';
 import '../models/exercise_model.dart';
 import '../screens/pose_detector_screen.dart';
+import 'clinical_start_dialogs.dart';
 
 const Color _primaryTeal = Color(0xFF23A8AA);
 const String _tag = 'ExerciseDemo';
@@ -19,9 +21,17 @@ const String _tag = 'ExerciseDemo';
 class ExerciseDemoSheet extends StatefulWidget {
   final ExerciseConfig config;
 
-  const ExerciseDemoSheet({super.key, required this.config});
+  /// The clinician's profile: a restricted exercise won't start and low
+  /// tolerance asks for a caution first. Null = no safeguards.
+  final ClinicalProfile? clinical;
 
-  static Future<void> show(BuildContext context, ExerciseConfig config) {
+  const ExerciseDemoSheet({super.key, required this.config, this.clinical});
+
+  static Future<void> show(
+    BuildContext context,
+    ExerciseConfig config, {
+    ClinicalProfile? clinical,
+  }) {
     return showModalBottomSheet(
       context: context,
       isScrollControlled: true,
@@ -29,7 +39,7 @@ class ExerciseDemoSheet extends StatefulWidget {
       shape: const RoundedRectangleBorder(
         borderRadius: BorderRadius.vertical(top: Radius.circular(24)),
       ),
-      builder: (_) => ExerciseDemoSheet(config: config),
+      builder: (_) => ExerciseDemoSheet(config: config, clinical: clinical),
     );
   }
 
@@ -341,9 +351,22 @@ class _ExerciseDemoSheetState extends State<ExerciseDemoSheet> {
             SizedBox(
               width: double.infinity,
               child: ElevatedButton.icon(
-                onPressed: () {
+                onPressed: () async {
                   if (_starting) return;
                   _starting = true;
+                  // Clinician safeguards before leaving the sheet: a
+                  // restricted exercise keeps the sheet open with the dialog.
+                  final allowed = await confirmClinicalStart(
+                    context,
+                    widget.clinical,
+                    config,
+                    source: 'demoSheet',
+                  );
+                  if (!context.mounted) return;
+                  if (!allowed) {
+                    _starting = false;
+                    return;
+                  }
                   DiagnosticLogger.I.info(_tag, 'Exercise started from demo', {
                     'type': config.type.name,
                   });

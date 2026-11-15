@@ -5,11 +5,13 @@ import 'package:provider/provider.dart';
 
 import '../core/app_palette.dart';
 import '../core/diagnostic_logger.dart';
+import '../models/clinical_profile.dart';
 import '../models/exercise_model.dart';
 import '../models/session.dart';
 import '../screens/pose_detector_screen.dart';
 import '../services/app_provider.dart';
 import '../services/progress_stats.dart';
+import 'clinical_start_dialogs.dart';
 
 const Color _primaryTeal = Color(0xFF23A8AA);
 const String _tag = 'TodayPlan';
@@ -19,9 +21,17 @@ const String _tag = 'TodayPlan';
 class TodayChecklistSheet extends StatelessWidget {
   final List<ExerciseConfig> exercises;
 
-  const TodayChecklistSheet({super.key, required this.exercises});
+  /// The clinician's profile: restricted exercises won't start and low
+  /// tolerance asks for a caution first. Null = no safeguards.
+  final ClinicalProfile? clinical;
 
-  static Future<void> show(BuildContext context, List<ExerciseConfig> exercises) {
+  const TodayChecklistSheet({super.key, required this.exercises, this.clinical});
+
+  static Future<void> show(
+    BuildContext context,
+    List<ExerciseConfig> exercises, {
+    ClinicalProfile? clinical,
+  }) {
     DiagnosticLogger.I.info(_tag, 'Sheet opened', {
       'exercises': exercises.length,
     });
@@ -32,7 +42,7 @@ class TodayChecklistSheet extends StatelessWidget {
       shape: const RoundedRectangleBorder(
         borderRadius: BorderRadius.vertical(top: Radius.circular(24)),
       ),
-      builder: (_) => TodayChecklistSheet(exercises: exercises),
+      builder: (_) => TodayChecklistSheet(exercises: exercises, clinical: clinical),
     );
   }
 
@@ -96,7 +106,16 @@ class TodayChecklistSheet extends StatelessWidget {
         trailing: isDone
             ? null
             : TextButton(
-                onPressed: () {
+                onPressed: () async {
+                  // Clinician safeguards before leaving the sheet: a
+                  // restricted exercise keeps the sheet open with the dialog.
+                  final allowed = await confirmClinicalStart(
+                    context,
+                    clinical,
+                    e,
+                    source: 'todayPlan',
+                  );
+                  if (!allowed || !context.mounted) return;
                   DiagnosticLogger.I.info(_tag, 'Exercise started from plan', {
                     'exercise': e.type.name,
                     'dueToday': dueToday,

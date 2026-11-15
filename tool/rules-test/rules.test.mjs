@@ -586,3 +586,45 @@ describe('9. chat actions: reply, edit, unsend (soft delete) and pin', () => {
       .commit());
   });
 });
+
+describe('clinical safeguards: clinical profile and physician clearances are dashboard-only', () => {
+  const profile = 'patients/p1/clinical/profile';
+  const clearance = 'patients/p1/clearances/c1';
+
+  beforeEach(async () => {
+    await env.withSecurityRulesDisabled(async (ctx) => {
+      const db = ctx.firestore();
+      await setDoc(doc(db, profile), { precautions: 'No deep knee bends', restrictedExercises: ['wallSit'], lowTolerance: true });
+      await setDoc(doc(db, clearance), { decision: 'cleared', physicianName: 'Dr Cruz', signedAt: Timestamp.now() });
+    });
+  });
+
+  test('the patient and their care team can read them; others cannot', async () => {
+    for (const path of [profile, clearance]) {
+      await assertSucceeds(getDoc(doc(as('p1'), path)));
+      await assertSucceeds(getDoc(doc(as('thA'), path)));
+      await assertSucceeds(getDoc(doc(as('adm'), path)));
+      await assertFails(getDoc(doc(as('p2'), path)));
+      await assertFails(getDoc(doc(as('thB'), path)));
+      await assertFails(getDoc(doc(as('desk'), path)));
+      await assertFails(getDoc(doc(as('stranger'), path)));
+    }
+  });
+
+  test('no app client can write them, not even the patient or an admin (no self-clearance)', async () => {
+    for (const uid of ['p1', 'thA', 'adm', 'p2']) {
+      const db = as(uid);
+      await assertFails(setDoc(doc(db, 'patients/p1/clearances/forged'), { decision: 'cleared', physicianName: 'Me' }));
+      await assertFails(updateDoc(doc(db, clearance), { decision: 'not_cleared' }));
+      await assertFails(deleteDoc(doc(db, clearance)));
+      await assertFails(updateDoc(doc(db, profile), { restrictedExercises: [] }));
+      await assertFails(setDoc(doc(db, 'patients/p1/clinical/other'), { lowTolerance: false }));
+      await assertFails(deleteDoc(doc(db, profile)));
+    }
+  });
+
+  test('a patient still cannot write their own prescriptions (clinician-only)', async () => {
+    await assertFails(setDoc(doc(as('p1'), 'patients/p1/prescriptions/rx'), { exerciseType: 'wallSit', targetReps: 3, active: true }));
+    await assertSucceeds(setDoc(doc(as('thA'), 'patients/p1/prescriptions/rx'), { exerciseType: 'kneeExtension', targetReps: 10, active: true }));
+  });
+});

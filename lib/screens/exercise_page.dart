@@ -6,10 +6,13 @@ import 'package:provider/provider.dart';
 
 import '../core/app_palette.dart';
 import '../core/diagnostic_logger.dart';
+import '../models/clinical_profile.dart';
 import '../models/exercise_model.dart';
 import '../services/app_provider.dart';
+import '../services/clinical_service.dart';
 import '../services/prescription_service.dart';
 import '../services/progress_stats.dart';
+import '../widgets/clinical_start_dialogs.dart';
 import '../widgets/exercise_demo_sheet.dart';
 import '../widgets/today_checklist_sheet.dart';
 import '../widgets/unread_badge.dart';
@@ -43,9 +46,27 @@ class _ExercisePageState extends State<ExercisePage> {
   void initState() {
     super.initState();
     _exercisesFuture = _loadAssignedExercises();
+    _loadClinicalProfile();
   }
 
   final _prescriptions = PrescriptionService();
+  final _clinical = ClinicalService();
+
+  /// The clinician's profile (restricted exercises, low tolerance). Null
+  /// when none is set or it couldn't be read: the page then behaves exactly
+  /// as before (no locks, no caution). ClinicalService logs read failures.
+  ClinicalProfile? _clinicalProfile;
+
+  Future<void> _loadClinicalProfile() async {
+    final result = await _clinical.loadProfile();
+    if (!mounted) return;
+    _logger.info(_tag, 'Clinical profile applied', {
+      'available': result.available,
+      'restricted': result.profile?.restrictedExercises.length ?? 0,
+      'lowTolerance': result.profile?.lowTolerance ?? false,
+    });
+    setState(() => _clinicalProfile = result.profile);
+  }
 
   /// Last successfully loaded plan, for the checklist sheet.
   List<ExerciseConfig> _assigned = const [];
@@ -73,6 +94,7 @@ class _ExercisePageState extends State<ExercisePage> {
   Future<void> _refresh() async {
     _logger.info(_tag, 'Refreshing the plan');
     setState(() => _exercisesFuture = _loadAssignedExercises());
+    _loadClinicalProfile(); // never throws; refreshes locks with the plan
     try {
       await _exercisesFuture;
     } catch (_) {
@@ -186,6 +208,7 @@ class _ExercisePageState extends State<ExercisePage> {
                                     onTap: () => TodayChecklistSheet.show(
                                       context,
                                       _assigned,
+                                      clinical: _clinicalProfile,
                                     ),
                                   ),
                             ),
@@ -311,6 +334,7 @@ class _ExercisePageState extends State<ExercisePage> {
                                         index: i,
                                         config: exercises[i],
                                         progress: _weeklyProgress(lastWeek, exercises[i]),
+                                        clinical: _clinicalProfile,
                                       ),
                                   ],
                                 ),
@@ -324,6 +348,7 @@ class _ExercisePageState extends State<ExercisePage> {
                                         key: ValueKey('catalog-${others[i].type.name}'),
                                         index: exercises.length + i,
                                         config: others[i],
+                                        clinical: _clinicalProfile,
                                       ),
                                   ],
                                 ),
@@ -534,11 +559,17 @@ class AnimatedExerciseCard extends StatefulWidget {
   /// catalog exercises that aren't in the patient's plan (no bar shown).
   final double? progress;
 
+  /// The clinician's profile: a restricted exercise is shown locked and
+  /// won't start; low tolerance asks for a caution first. Null = no
+  /// safeguards (none set, or the profile couldn't be read).
+  final ClinicalProfile? clinical;
+
   const AnimatedExerciseCard({
     super.key,
     required this.index,
     required this.config,
     this.progress,
+    this.clinical,
   });
 
   @override
@@ -634,11 +665,32 @@ class _AnimatedExerciseCardState extends State<AnimatedExerciseCard>
   Future<void> _startExercise() async {
     if (_opening) return;
     _opening = true;
-    DiagnosticLogger.I.info('ExercisePage', 'Exercise opened', {
-      'type': widget.config.type.name,
-      'inPlan': widget.progress != null,
-    });
     try {
+      // Clinician safeguards first. This guard is on the start path itself,
+      // so a restricted exercise can't open the camera from any button.
+      final check = checkExerciseStart(widget.clinical, widget.config.type);
+      if (check == ExerciseStartCheck.restricted) {
+        DiagnosticLogger.I.info('ExercisePage', 'Restricted exercise blocked', {
+          'type': widget.config.type.name,
+        });
+        await showRestrictedExerciseDialog(context, widget.config.title);
+        return;
+      }
+      if (check == ExerciseStartCheck.caution) {
+        final start = await confirmLowToleranceStart(
+          context,
+          widget.clinical?.toleranceNote,
+        );
+        DiagnosticLogger.I.info('ExercisePage', 'Low tolerance caution', {
+          'type': widget.config.type.name,
+          'started': start,
+        });
+        if (!start || !mounted) return;
+      }
+      DiagnosticLogger.I.info('ExercisePage', 'Exercise opened', {
+        'type': widget.config.type.name,
+        'inPlan': widget.progress != null,
+      });
       await Navigator.push(
         context,
         MaterialPageRoute(
@@ -651,7 +703,12 @@ class _AnimatedExerciseCardState extends State<AnimatedExerciseCard>
     }
   }
 
-  void _showDemo() => ExerciseDemoSheet.show(context, widget.config);
+  void _showDemo() =>
+      ExerciseDemoSheet.show(context, widget.config, clinical: widget.clinical);
+
+  /// Locked by the clinician (shown on the card; enforced in _startExercise).
+  bool get _isRestricted =>
+      widget.clinical?.restricts(widget.config.type) ?? false;
 
   @override
   Widget build(BuildContext context) {
@@ -802,13 +859,28 @@ class _AnimatedExerciseCardState extends State<AnimatedExerciseCard>
                               width: 36,
                               height: 36,
                               decoration: BoxDecoration(color: visuals.accent, shape: BoxShape.circle),
-                              child: const Icon(Icons.play_arrow_rounded, color: Colors.white, size: 20),
+                              child: Icon(_isRestricted ? Icons.lock_rounded : Icons.play_arrow_rounded, color: Colors.white, size: 20),
                             ),
                           ),
                         ],
                       ),
                     ],
                   ),
+                  if (_isRestricted) ...[
+                    const SizedBox(height: 12),
+                    Row(
+                      children: [
+                        Icon(Icons.lock_rounded, size: 15, color: palette.textMuted),
+                        const SizedBox(width: 6),
+                        Expanded(
+                          child: Text(
+                            'Paused by your clinician',
+                            style: TextStyle(fontSize: 12, fontWeight: FontWeight.w600, color: palette.textMuted),
+                          ),
+                        ),
+                      ],
+                    ),
+                  ],
                   if (widget.progress != null) ...[
                     const SizedBox(height: 14),
                     ClipRRect(
