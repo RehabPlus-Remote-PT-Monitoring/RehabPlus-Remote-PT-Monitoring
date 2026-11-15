@@ -21,6 +21,8 @@ class PrescriptionValidation
             'start_hour' => 'nullable|required_with:end_hour|integer|between:0,23',
             'end_hour' => 'nullable|required_with:start_hour|integer|between:1,24|gt:start_hour',
             'notes' => 'nullable|string|max:500',
+            // Finished sessions needed before this exercise counts as complete (clearance gate).
+            'required_sessions' => 'nullable|integer|min:1|max:500',
         ]);
     }
 }

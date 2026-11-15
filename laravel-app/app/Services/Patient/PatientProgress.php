@@ -28,6 +28,16 @@ class PatientProgress
     }
 
     /**
+     * Every session of one patient, unordered and unlimited. For the
+     * completion gate (ClearanceGate), which must count all finished
+     * sessions; an ordered query would also drop docs with no startTime.
+     */
+    public function allSessions(string $patientUid): array
+    {
+        return array_map(fn ($d) => self::presentSession($d), $this->db->query("patients/{$patientUid}", 'sessions'));
+    }
+
+    /**
      * Sessions grouped by patient uid (newest first).
      *
      * Without $patientUids: every patient's sessions in one collection-group

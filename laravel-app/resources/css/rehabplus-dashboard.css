@@ -2171,6 +2171,119 @@ html.dark-mode{
             color:#fbbf24;
         }
 
+        /* Patient profile: clinical safeguards (clinical & dietary profile,
+           tolerance review, program completion & clearance). Own classes
+           built from the theme variables, with explicit dark values where
+           the light colour has no dark equivalent. */
+        .safeguard-note,
+        .safeguard-meta{
+            color:var(--muted);
+            font-size:.875rem;
+        }
+
+        .safeguard-label{
+            color:var(--muted);
+            font-size:.75rem;
+            font-weight:600;
+            letter-spacing:.04em;
+            text-transform:uppercase;
+        }
+
+        .safeguard-panel{
+            border:1px solid var(--border);
+            border-radius:var(--radius-sm);
+            padding:.875rem 1rem;
+            background:var(--card);
+            overflow-wrap:anywhere;
+        }
+
+        .safeguard-checks{
+            display:grid;
+            grid-template-columns:repeat(auto-fill, minmax(200px, 1fr));
+            gap:.25rem 1rem;
+        }
+
+        .safeguard-badge{
+            display:inline-flex;
+            align-items:center;
+            padding:.15rem .55rem;
+            border-radius:999px;
+            border:1px solid var(--border);
+            color:var(--text);
+            font-size:.8rem;
+            font-weight:600;
+            white-space:nowrap;
+        }
+
+        .safeguard-badge-danger{
+            border-color:#fecaca;
+            background:#fef2f2;
+            color:#b91c1c;
+        }
+
+        .safeguard-badge-warning{
+            border-color:#fde68a;
+            background:#fffbeb;
+            color:#b45309;
+        }
+
+        .safeguard-ok{
+            color:var(--primary-dark);
+        }
+
+        .safeguard-warning{
+            color:#b45309;
+        }
+
+        .safeguard-review{
+            border:1px solid #fde68a;
+            border-left:4px solid #f59e0b;
+            border-radius:var(--radius-sm);
+            background:#fffbeb;
+            color:#78350f;
+            padding:.75rem 1rem;
+        }
+
+        .safeguard-review .safeguard-meta{
+            color:#92400e;
+        }
+
+        .safeguard-signoff{
+            border-top:1px solid var(--border);
+            padding-top:1rem;
+        }
+
+        html.dark-mode body .safeguard-badge-danger{
+            border-color:#7f1d1d;
+            background:rgba(127,29,29,.35);
+            color:#fca5a5;
+        }
+
+        html.dark-mode body .safeguard-badge-warning{
+            border-color:#78350f;
+            background:rgba(120,53,15,.35);
+            color:#fcd34d;
+        }
+
+        html.dark-mode body .safeguard-ok{
+            color:#5eead4;
+        }
+
+        html.dark-mode body .safeguard-warning{
+            color:#fbbf24;
+        }
+
+        html.dark-mode body .safeguard-review{
+            border-color:#78350f;
+            border-left-color:#f59e0b;
+            background:rgba(120,53,15,.25);
+            color:#fde68a;
+        }
+
+        html.dark-mode body .safeguard-review .safeguard-meta{
+            color:#fcd34d;
+        }
+
         /* Home page hero: a full-width banner photo with the clinic name and calls to action centred on it. */
         .home-hero{
             position:relative;

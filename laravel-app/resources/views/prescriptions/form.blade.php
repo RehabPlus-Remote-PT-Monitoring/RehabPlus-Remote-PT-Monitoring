@@ -83,6 +83,14 @@
                     <p class="form-text mb-2">Sessions outside these days/hours still count, but are flagged "outside schedule" (unassisted practice).</p>
                 </div>
 
+                <div class="col-md-3">
+                    <label for="required_sessions" class="form-label small fw-semibold">Sessions to complete</label>
+                    <input id="required_sessions" type="number" name="required_sessions" class="form-control" min="1" max="500" value="{{ old('required_sessions', $rx['requiredSessions'] ?? '') }}" placeholder="Not set" aria-describedby="required_sessions_help">
+                </div>
+                <div class="col-md-9 d-flex align-items-end">
+                    <p class="form-text mb-2" id="required_sessions_help">Finished sessions needed before this exercise counts as complete; required before clearance. Sessions the patient ends early don't count.</p>
+                </div>
+
                 <div class="col-12">
                     <label for="notes" class="form-label small fw-semibold">Instructions for the patient</label>
                     <textarea id="notes" name="notes" class="form-control" rows="3" maxlength="500" placeholder="Shown in the app, e.g. Keep your back straight; stop if pain goes above 6.">{{ old('notes', $rx['notes'] ?? '') }}</textarea>

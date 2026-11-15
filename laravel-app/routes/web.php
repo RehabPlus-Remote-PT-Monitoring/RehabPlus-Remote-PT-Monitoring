@@ -5,6 +5,7 @@ use App\Http\Controllers\AppointmentController;
 use App\Http\Controllers\NoticeController;
 use App\Http\Controllers\AuthController;
 use App\Http\Controllers\ClinicalRecordController;
+use App\Http\Controllers\ClinicalSafeguardController;
 use App\Http\Controllers\CronController;
 use App\Http\Controllers\CspReportController;
 use App\Http\Controllers\DashboardController;
@@ -118,6 +119,11 @@ Route::middleware(['auth.rehab'])->group(function () {
         Route::get('/patients/{uid}/prescriptions/{id}/edit', [PrescriptionController::class, 'edit'])->name('prescriptions.edit');
         Route::put('/patients/{uid}/prescriptions/{id}', [PrescriptionController::class, 'update'])->name('prescriptions.update');
         Route::post('/patients/{uid}/prescriptions/{id}/active', [PrescriptionController::class, 'toggle'])->name('prescriptions.toggle');
+
+        // Clinical safeguards: clinical & dietary profile, physician clearance (append-only: no edit/delete routes).
+        Route::get('/patients/{uid}/clinical-profile/edit', [ClinicalSafeguardController::class, 'editProfile'])->name('clinical-profile.edit');
+        Route::put('/patients/{uid}/clinical-profile', [ClinicalSafeguardController::class, 'updateProfile'])->name('clinical-profile.update');
+        Route::post('/patients/{uid}/clearances', [ClinicalSafeguardController::class, 'storeClearance'])->name('clearances.store');
 
         Route::get('/assessments', [ClinicalRecordController::class, 'assessments'])->name('assessments');
         Route::post('/assessments', [ClinicalRecordController::class, 'storeAssessment'])->name('assessments.store');

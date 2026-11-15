@@ -130,12 +130,17 @@
             </div>
             <div class="card-body p-0"><div class="table-responsive">
                 <table class="table table-hover mb-0 align-middle">
-                    <thead class="table-light"><tr><th>Exercise</th><th>Target</th><th>Schedule</th><th style="min-width:160px;">This week</th><th>Status</th><th class="text-end"></th></tr></thead>
+                    <thead class="table-light"><tr><th>Exercise</th><th>Target</th><th>Schedule</th><th style="min-width:160px;">This week</th><th>Exercise completion</th><th>Status</th><th class="text-end"></th></tr></thead>
                     <tbody>
                         @forelse ($prescriptions as $rx)
                             @php($week = $adherence['perPrescription'][$rx['id']] ?? null)
+                            @php($requirement = $gateByPrescription[$rx['id']] ?? null)
+                            @php($isRestricted = in_array($rx['exerciseType'], $restrictedExercises, true))
                             <tr class="{{ $rx['active'] ? '' : 'opacity-50' }}">
                                 <td class="fw-semibold">{{ $rx['exerciseName'] }}
+                                    @if ($rx['active'] && $isRestricted)
+                                        <div><span class="safeguard-badge safeguard-badge-danger"><i class="bi bi-slash-circle me-1"></i>Restricted by clinician</span></div>
+                                    @endif
                                     @if ($rx['notes'])<div class="text-muted small fw-normal">{{ Str::limit($rx['notes'], 80) }}</div>@endif
                                 </td>
                                 <td class="small">{{ $rx['targetReps'] }} {{ $rx['isHold'] ? 'holds' : 'reps' }}@if ($rx['holdSeconds']) × {{ $rx['holdSeconds'] }}s @endif, {{ $rx['frequencyPerWeek'] }}×/week</td>
@@ -148,24 +153,41 @@
                                         <small class="text-muted">—</small>
                                     @endif
                                 </td>
+                                <td class="small">
+                                    @if ($requirement)
+                                        {{ $requirement['finished'] }}/{{ $requirement['required'] ?? '—' }} finished
+                                        @if ($requirement['required'] === null)<div class="text-muted">No completion target set</div>@elseif ($requirement['complete'])<div class="safeguard-ok"><i class="bi bi-check-circle me-1"></i>Complete</div>@endif
+                                    @elseif ($rx['requiredSessions'] !== null)
+                                        {{ $rx['requiredSessions'] }} to complete
+                                    @else
+                                        <span class="text-muted">Not set</span>
+                                    @endif
+                                </td>
                                 <td>{!! $rx['active'] ? '<span class="badge bg-success">Active</span>' : '<span class="badge bg-secondary">Stopped</span>' !!}</td>
                                 <td class="text-end text-nowrap">
                                     @if ($canManage)
                                         <a href="{{ route('prescriptions.edit', [$patient['uid'], $rx['id']]) }}" class="btn btn-sm btn-outline-secondary">Edit</a>
                                         <form method="POST" action="{{ route('prescriptions.toggle', [$patient['uid'], $rx['id']]) }}" class="d-inline">@csrf
                                             <input type="hidden" name="active" value="{{ $rx['active'] ? 0 : 1 }}">
-                                            <button class="btn btn-sm {{ $rx['active'] ? 'btn-outline-danger' : 'btn-outline-success' }}">{{ $rx['active'] ? 'Stop' : 'Resume' }}</button>
+                                            @if (! $rx['active'] && $isRestricted)
+                                                {{-- The server refuses it too; the button just says why up front. --}}
+                                                <button class="btn btn-sm btn-outline-success" disabled title="Restricted by clinician in the clinical profile">Resume</button>
+                                            @else
+                                                <button class="btn btn-sm {{ $rx['active'] ? 'btn-outline-danger' : 'btn-outline-success' }}">{{ $rx['active'] ? 'Stop' : 'Resume' }}</button>
+                                            @endif
                                         </form>
                                     @endif
                                 </td>
                             </tr>
                         @empty
-                            <tr><td colspan="6" class="text-center text-muted py-4">No exercises assigned yet. Assigned exercises appear in the patient's app.</td></tr>
+                            <tr><td colspan="7" class="text-center text-muted py-4">No exercises assigned yet. Assigned exercises appear in the patient's app.</td></tr>
                         @endforelse
                     </tbody>
                 </table>
             </div></div>
         </div>
+
+        @include('patients.partials.safeguards')
 
         {{-- Pain over the last 14 days --}}
         <div class="card shadow-sm border-0 mb-4">

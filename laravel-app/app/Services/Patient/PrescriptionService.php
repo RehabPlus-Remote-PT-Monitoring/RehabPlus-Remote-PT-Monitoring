@@ -101,6 +101,11 @@ class PrescriptionService
                 'endHour' => $hasHours ? (int) $data['end_hour'] : null,
             ] : null,
             'notes' => trim((string) ($data['notes'] ?? '')) ?: null,
+            // Completion target for the clearance gate. Blank is written as
+            // null (contract: same as omitted), so clearing it on an edit
+            // really removes the target.
+            'requiredSessions' => isset($data['required_sessions']) && $data['required_sessions'] !== ''
+                ? (int) $data['required_sessions'] : null,
         ];
     }
 
@@ -131,6 +136,9 @@ class PrescriptionService
             'endHour' => isset($schedule['endHour']) ? (int) $schedule['endHour'] : null,
             'notes' => (string) ($doc['notes'] ?? ''),
             'active' => (bool) ($doc['active'] ?? false),
+            // Only a whole number 1-500 is a target; anything else reads as "no target set".
+            'requiredSessions' => is_int($doc['requiredSessions'] ?? null) && $doc['requiredSessions'] >= 1 && $doc['requiredSessions'] <= 500
+                ? $doc['requiredSessions'] : null,
             'createdAt' => $doc['createdAt'] ?? null,
         ];
     }

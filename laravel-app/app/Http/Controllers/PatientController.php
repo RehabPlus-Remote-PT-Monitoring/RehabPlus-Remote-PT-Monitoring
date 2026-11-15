@@ -2,8 +2,12 @@
 
 namespace App\Http\Controllers;
 
+use App\Helpers\ClinicalSafeguardValidation;
 use App\Helpers\PatientValidation;
 use App\Services\Firebase\FirebaseTransport;
+use App\Services\Patient\ClearanceGate;
+use App\Services\Patient\ClearanceService;
+use App\Services\Patient\ClinicalProfileService;
 use App\Services\Patient\ClinicalRecordService;
 use App\Services\Patient\ConsentService;
 use App\Services\Patient\PatientProgress;
@@ -29,6 +33,8 @@ class PatientController extends Controller
         private PrescriptionService $prescriptions,
         private ClinicalRecordService $records,
         private ConsentService $consents,
+        private ClinicalProfileService $profiles,
+        private ClearanceService $clearances,
         private UserService $users,
         private FirebaseTransport $firebase,
     ) {
@@ -56,9 +62,10 @@ class PatientController extends Controller
         ];
 
         if ($data['clinical']) {
-            // Six independent reads, fetched in one parallel round trip. The
-            // consent read never throws (a failure shows "unavailable"), so it
-            // can't fail the clinical reads alongside it.
+            // Independent reads, fetched in one parallel round trip. The
+            // consent, clinical profile, clearance and gate-session reads
+            // never throw (a failure shows "unavailable"), so they can't
+            // fail the clinical reads alongside them.
             $clinical = $this->firebase->concurrently([
                 'consent' => fn () => $this->consents->forPatient($uid),
                 'sessions' => fn () => $this->progress->sessions($uid),
@@ -66,6 +73,9 @@ class PatientController extends Controller
                 'assessments' => fn () => $this->records->list(ClinicalRecordService::ASSESSMENTS, [$patient]),
                 'goals' => fn () => $this->records->list(ClinicalRecordService::GOALS, [$patient]),
                 'notes' => fn () => $this->records->list(ClinicalRecordService::NOTES, [$patient]),
+                'clinicalProfile' => fn () => $this->profiles->forPatient($uid),
+                'clearances' => fn () => $this->clearances->history($uid),
+                'gateSessions' => fn () => $this->clearances->gateSessions($uid),
             ]);
 
             $data += $clinical + [
@@ -73,7 +83,7 @@ class PatientController extends Controller
                 'adherence' => PatientProgress::adherence($clinical['sessions'], $clinical['prescriptions']),
                 'painTrend' => PatientProgress::painTrend($clinical['sessions']),
                 'goalAchievement' => ClinicalRecordService::goalAchievement($clinical['goals']),
-            ];
+            ] + $this->safeguards($clinical);
         } else {
             // Front desk staff don't see clinical records, but they do see
             // whether the patient has accepted the Terms and Privacy Policy.
@@ -185,6 +195,35 @@ class PatientController extends Controller
         return redirect()->route('patients.show', $uid)
             ->with('success', 'Password reset.')
             ->with('temporary_password', $password);
+    }
+
+    /**
+     * Completion gate, restrictions and tolerance review for the patient
+     * page, from reads that may have failed. The gate needs both the
+     * profile (restrictions) and every session: without either it is shown
+     * as unavailable rather than guessed, so the page never shows a patient
+     * as ready for review on incomplete data.
+     */
+    private function safeguards(array $clinical): array
+    {
+        $profileOk = $clinical['clinicalProfile']['status'] === ClinicalProfileService::OK;
+        $profile = $clinical['clinicalProfile']['profile'];
+        $gateSessions = $clinical['gateSessions'];
+
+        $gate = $profileOk && $gateSessions !== null
+            ? ClearanceGate::evaluate($clinical['prescriptions'], $gateSessions, $profile['restrictedExercises'])
+            : null;
+
+        return [
+            'gate' => $gate,
+            'gateByPrescription' => $gate ? array_column($gate['requirements'], null, 'prescriptionId') : [],
+            'restrictedExercises' => $profile['restrictedExercises'],
+            // Pain >= 8 is flagged for anyone, so the review still runs when the
+            // profile couldn't be read (as for a patient without flags).
+            'toleranceFlags' => ClinicalProfileService::toleranceReview($profile, $gateSessions ?? $clinical['sessions']),
+            'nutritionFlagLabels' => ClinicalProfileService::NUTRITION_FLAGS,
+            'clearanceDates' => ClinicalSafeguardValidation::assessmentDates(),
+        ];
     }
 
     /** 404 for patients that don't exist or that this user can't see. */
