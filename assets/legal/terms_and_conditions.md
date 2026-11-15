@@ -17,6 +17,7 @@ The App supports your physical therapy at home. It lets you:
 - See the exercises your therapist prescribes and follow demonstration videos.
 - Use your phone's camera to count your repetitions and give feedback on your form.
 - Record your results and pain levels so your therapist can monitor your progress.
+- Save a movement replay of each session (the body-position points the App tracked, never video) so your therapist can review how you did the exercise. You can turn this off in Settings.
 - Message your therapist and the Clinic, and receive notifications.
 
 ## 3. Important medical information

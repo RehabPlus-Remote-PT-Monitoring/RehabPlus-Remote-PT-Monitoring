@@ -445,6 +445,15 @@ class _SettingsScreenState extends State<SettingsScreen>
                         _logged('flipSkeleton', s.setFlipSkeleton),
                         subtitle: 'Turn on if it moves opposite to you',
                       ),
+                      _switch(
+                        Icons.replay_rounded,
+                        'Save movement replays for my therapist',
+                        s.saveReplays,
+                        _logged('saveReplays', s.setSaveReplays),
+                        subtitle:
+                            'Saves the body-tracking points (not video) so '
+                            'your therapist can replay how you did the exercise.',
+                      ),
                     ]),
                     _section('Reminders', Icons.alarm_rounded, [
                       _switch(

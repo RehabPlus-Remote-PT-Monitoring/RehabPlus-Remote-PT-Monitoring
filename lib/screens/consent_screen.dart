@@ -209,8 +209,10 @@ class _ConsentScreenState extends State<ConsentScreen> {
                       ),
                       _point(
                         Icons.videocam_outlined,
-                        'The camera tracks your movements on your phone only. '
-                        'Video is never recorded or uploaded.',
+                        'Camera video is analysed on your phone only and is '
+                        'never recorded or uploaded. The body points it tracks '
+                        'are saved so your therapist can replay your movement '
+                        '(you can turn this off in Settings).',
                       ),
                       _point(
                         Icons.monitor_heart_outlined,

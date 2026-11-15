@@ -36,6 +36,7 @@ Under the Data Privacy Act, information about your health is *sensitive personal
 - The exercises prescribed to you, including targets such as sets, repetitions and schedule.
 - Your exercise results: start and end times, repetitions and sets completed, repetitions the App did not count, form-compliance scores, whether you ended a session early or exercised outside your schedule.
 - The pain level (0 to 10) and any notes you enter after each session.
+- A movement replay of each exercise session: the body-position points the App tracked (no images or video), as described in section 3, unless you turn it off in Settings.
 
 **Messages and notifications**
 
@@ -59,6 +60,7 @@ The App uses your phone's front camera during exercise sessions to detect your b
 - **Video is analysed on your phone, in real time, using Google ML Kit's on-device pose detection.**
 - **Video and images are never recorded, saved, or sent to the Clinic, to Google, or to anyone else.**
 - Only the results described in section 2 (such as repetitions counted and form scores) are saved.
+- **Movement replay.** With each session the App also saves the body-position points it tracked: 33 points on your body (on your head, shoulders, arms, hands, hips, legs and feet) as positions in the camera frame, how confident the detection was for each point, the joint angle the App measured, the timing, and which repetitions were counted or not counted and why. These are numbers, not images: no picture or video of you or your surroundings is saved. Your therapist and the Clinic can use them to replay your movement as a stick figure and check how you did the exercise. The replay is kept and protected like the rest of your session data (sections 7 to 10). You can turn it off at any time in **Settings > Save movement replays for my therapist**; sessions are then saved without one.
 
 The camera is only active while an exercise session is open. You can deny or revoke camera permission in your phone's settings at any time, but the App then cannot track your exercises.
 

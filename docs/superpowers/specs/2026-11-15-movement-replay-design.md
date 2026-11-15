@@ -11,7 +11,9 @@ replays them as a moving stick figure with each rep's verdict on the timeline.
   exercise's measured joint angle, and the time since the session started.
   Also the rep/hold events the app already decides (counted / rejected with
   the reason the patient saw).
-- Never recorded: camera images, video, audio, the room, the face. The points
+- Never recorded: camera images, video, audio, the room, or what the face
+  looks like (ML Kit's 33 points include a few head points: nose, eyes, ears,
+  mouth corners, as positions only; the dashboard doesn't draw them). The points
   are not a picture of the person.
 - Down-sampled to at most 10 frames per second, capped at 10 minutes per
   session (longer sessions keep the first 10 minutes and say so).

@@ -11,6 +11,7 @@ import '../services/app_lock_service.dart';
 import '../services/app_settings.dart';
 import '../services/push_service.dart';
 import '../services/reminder_service.dart';
+import '../services/replay_recorder.dart' show ReplayPayload;
 import '../services/session_storage.dart';
 
 /// App-wide state for the signed-in patient: profile and session history.
@@ -186,14 +187,23 @@ class AppProvider extends ChangeNotifier {
   ///
   /// Throws (from [SessionStorage.saveSession]) when signed out or when the
   /// session is invalid; the caller shows an error.
-  Future<void> recordCompletedSession(ExerciseSession session) async {
+  ///
+  /// [replay] (the movement replay, if one was recorded) is written only
+  /// after the session was saved, in its own batch; its failure is logged by
+  /// [SessionStorage.saveReplay] and never reaches the caller.
+  Future<void> recordCompletedSession(
+    ExerciseSession session, {
+    ReplayPayload? replay,
+  }) async {
     final epoch = _epoch;
     final uid = _currentUid();
     _logger.info('AppProvider', 'Recording completed session', {
       'id': session.id,
       'exerciseId': session.exerciseId,
+      'hasReplay': replay != null,
     });
     await _storage.saveSession(session);
+    if (replay != null) _storage.saveReplay(session.id, replay);
     _notifications.addSessionCompleted(session);
     if (_isStale(epoch, uid, 'recorded session')) return;
 

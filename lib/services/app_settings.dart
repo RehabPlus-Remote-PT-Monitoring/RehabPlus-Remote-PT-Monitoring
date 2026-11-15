@@ -31,6 +31,7 @@ class AppSettings extends ChangeNotifier {
   static const bool defaultUseBackCamera = false;
   static const bool defaultShowSkeleton = true;
   static const bool defaultFlipSkeleton = false;
+  static const bool defaultSaveReplays = true;
   static const bool defaultReminderEnabled = false;
   static const int defaultReminderMinutes = 18 * 60;
   static const double defaultTextScale = 1.0;
@@ -56,6 +57,11 @@ class AppSettings extends ChangeNotifier {
   /// Flip the skeleton the other way from the default for this camera (the
   /// same as the exercise screen's flip button, but remembered).
   bool flipSkeleton = defaultFlipSkeleton;
+
+  /// Save the tracked body points (not video) with each session so the
+  /// therapist can replay the movement (lib/services/replay_recorder.dart).
+  /// Phone-only: off simply means the app never writes a replay.
+  bool saveReplays = defaultSaveReplays;
 
   // Reminder (scheduled on the phone by ReminderService)
   bool reminderEnabled = defaultReminderEnabled;
@@ -100,6 +106,7 @@ class AppSettings extends ChangeNotifier {
     useBackCamera = readBool('s_backCamera', defaultUseBackCamera);
     showSkeleton = readBool('s_showSkeleton', defaultShowSkeleton);
     flipSkeleton = readBool('s_flipSkeleton', defaultFlipSkeleton);
+    saveReplays = readBool('s_saveReplays', defaultSaveReplays);
     reminderEnabled = readBool('s_reminder', defaultReminderEnabled);
 
     final countdown = p.get('s_countdown');
@@ -143,6 +150,7 @@ class AppSettings extends ChangeNotifier {
       'useBackCamera': useBackCamera,
       'showSkeleton': showSkeleton,
       'flipSkeleton': flipSkeleton,
+      'saveReplays': saveReplays,
       'reminderEnabled': reminderEnabled,
       'reminderMinutes': reminderMinutes,
       'textScale': textScale,
@@ -201,6 +209,8 @@ class AppSettings extends ChangeNotifier {
       _save('s_showSkeleton', showSkeleton = v);
   Future<void> setFlipSkeleton(bool v) =>
       _save('s_flipSkeleton', flipSkeleton = v);
+  Future<void> setSaveReplays(bool v) =>
+      _save('s_saveReplays', saveReplays = v);
   Future<void> setReminderEnabled(bool v) =>
       _save('s_reminder', reminderEnabled = v);
 

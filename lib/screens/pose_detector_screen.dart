@@ -67,6 +67,8 @@ import '../services/camera_rotation.dart';
 import '../services/cast_service.dart';
 import '../services/exercise_geometry.dart';
 import '../services/form_checker.dart';
+import '../services/replay_capture.dart';
+import '../services/replay_recorder.dart';
 import '../services/tracking_health.dart';
 import '../widgets/pose_painter.dart';
 
@@ -428,7 +430,20 @@ class _PoseDetectorScreenState extends State<PoseDetectorScreen>
 
   int _repCounter = 0;
   String _stage = "down";
-  double _currentAngle = 0.0;
+  double _currentAngleValue = 0.0;
+
+  /// The angle shown on screen. Assigned only where an angle was actually
+  /// measured, so the setter also notes "measured in this frame" for the
+  /// movement replay ([_angleMeasuredThisFrame], reset before each frame's
+  /// analysis): a frame that couldn't measure one is stored as "no angle"
+  /// instead of repeating the last value.
+  double get _currentAngle => _currentAngleValue;
+  set _currentAngle(double value) {
+    _currentAngleValue = value;
+    _angleMeasuredThisFrame = true;
+  }
+
+  bool _angleMeasuredThisFrame = false;
 
   // ---- Form checking ----
   late final FormChecker _checker;
@@ -506,6 +521,7 @@ class _PoseDetectorScreenState extends State<PoseDetectorScreen>
     WidgetsBinding.instance.addObserver(this);
     _uiOrientation = _currentUiOrientation();
     _sessionStart = DateTime.now();
+    _startReplay();
     _checker = FormChecker(widget.selectedExercise, thresholds: _thresholds);
     _log.info('PosePipeline', 'Exercise screen opened', {
       'exercise': widget.selectedExercise.type.name,
@@ -1121,6 +1137,7 @@ class _PoseDetectorScreenState extends State<PoseDetectorScreen>
       if (form.isWrong && !_wasWrong) _triggerWrongFeedback();
       _wasWrong = form.isWrong;
 
+      _angleMeasuredThisFrame = false; // set again by _currentAngle's setter
       // Run all logic BEFORE the single setState below.
       if (_countingDown) {
         // Getting into position: nothing is counted yet.
@@ -1163,6 +1180,7 @@ class _PoseDetectorScreenState extends State<PoseDetectorScreen>
         _form = form;
       });
       _scheduleSkeletonExpiry(capturedMs);
+      _recordReplayFrame(poses, capturedMs, _imageSize);
       if (_settings.voiceCues) {
         final tip = _effectiveForm.primary?.message;
         if (tip != null && tip.isNotEmpty) _speak(tip);
@@ -2059,6 +2077,7 @@ class _PoseDetectorScreenState extends State<PoseDetectorScreen>
           'angle': _currentAngle.round(),
           'baseline': _baseline?.round(),
         });
+        _replayEvent(ReplayEventKind.counted, '');
         _triggerFeedback();
       }
     } else if (_maxProgress >= _thresholds.attemptProgress && ms >= 500) {
@@ -2096,6 +2115,7 @@ class _PoseDetectorScreenState extends State<PoseDetectorScreen>
       'rejected': _rejectedReps,
       'reps': _repCounter,
     });
+    _replayEvent(ReplayEventKind.rejected, issue.message);
     _flashIssue(issue);
     _triggerWrongFeedback();
   }
@@ -2277,6 +2297,7 @@ class _PoseDetectorScreenState extends State<PoseDetectorScreen>
           'target': widget.selectedExercise.targetReps,
           'heldS': _round2(elapsed),
         });
+        _replayEvent(ReplayEventKind.hold, '');
         _triggerFeedback();
         _checkCompletion();
       }
@@ -2390,6 +2411,7 @@ class _PoseDetectorScreenState extends State<PoseDetectorScreen>
   }) async {
     final exercise = widget.selectedExercise;
     final prescription = exercise.prescription;
+    final replay = _replay?.finish(angleLabel: _replayAngleLabel);
     final session = ExerciseSession(
       id: DateTime.now().microsecondsSinceEpoch.toString(),
       exerciseId: exercise.type.name,
@@ -2411,6 +2433,7 @@ class _PoseDetectorScreenState extends State<PoseDetectorScreen>
       outsideSchedule:
           prescription != null && !prescription.isWithinSchedule(_sessionStart),
       endedEarly: endedEarly,
+      hasReplay: replay != null,
     );
 
     if (!mounted) {
@@ -2426,7 +2449,10 @@ class _PoseDetectorScreenState extends State<PoseDetectorScreen>
     await _log.timed(
       'PoseSession',
       'Save session',
-      () => context.read<AppProvider>().recordCompletedSession(session),
+      () => context.read<AppProvider>().recordCompletedSession(
+        session,
+        replay: replay,
+      ),
       data: {
         'exercise': exercise.type.name,
         'reps': _repCounter,
@@ -2435,9 +2461,57 @@ class _PoseDetectorScreenState extends State<PoseDetectorScreen>
         'painLevel': painLevel,
         'hasPainNote': painNote != null,
         'outsideSchedule': session.outsideSchedule,
+        'hasReplay': replay != null,
       },
     );
   }
+
+  // ---------------------------------------------------------------------
+  // Movement replay (pose points for the therapist; never images)
+  // ---------------------------------------------------------------------
+
+  /// Null when the patient turned replays off in Settings.
+  ReplayCapture? _replay;
+
+  /// What the replay's angle measures. The exercise config has no such
+  /// label yet, so none is stored (the field is optional in the contract).
+  static const String? _replayAngleLabel = null;
+
+  /// Called once, where [_sessionStart] is set. The replay's clock is
+  /// [_frameClock] (monotonic; the same clock as each frame's capturedMs and
+  /// [_frameCapturedMs]), read here as the origin, so every frame and event
+  /// is stored as "ms since the session started".
+  void _startReplay() {
+    if (!_settings.saveReplays) {
+      _log.info('Replay', 'Replay off in Settings');
+      return;
+    }
+    _replay = ReplayCapture(originMs: _frameClock.elapsedMilliseconds);
+  }
+
+  /// Frame-loop hook: runs after the frame's poses were analysed and drawn.
+  /// Not during the countdown (nothing is being judged yet). [uprightSize]
+  /// is [_imageSize], the very value the painter maps landmarks with (so it
+  /// follows any per-platform rotation handling), and [_mirrorSkeleton] is
+  /// what the painter drew with. ReplayCapture never throws and drops most
+  /// frames after one comparison.
+  void _recordReplayFrame(List<Pose> poses, int capturedMs, Size? uprightSize) {
+    final replay = _replay;
+    if (replay == null || uprightSize == null || _countingDown) return;
+    replay.onFrame(
+      clockMs: capturedMs,
+      landmarks: poses.isEmpty ? null : poses.first.landmarks,
+      uprightWidth: uprightSize.width,
+      uprightHeight: uprightSize.height,
+      angle: _angleMeasuredThisFrame ? _currentAngle : null,
+      mirrored: _mirrorSkeleton,
+    );
+  }
+
+  /// A verdict decided on the frame being processed ([_frameCapturedMs]),
+  /// so it lines up with that frame on the replay timeline.
+  void _replayEvent(String kind, String note) =>
+      _replay?.onEvent(_frameCapturedMs, kind, note);
 
   void _showCompletionBanner({bool endedEarly = false}) {
     final exercise = widget.selectedExercise;

@@ -102,8 +102,8 @@ service cloud.firestore {
         allow create: if isPatient(patientId) && validSession(request.resource.data);
         allow update, delete: if false;
 
-        // Movement replay, written in the same batch as its session (so
-        // existsAfter), append-only. Read by the patient and their care team.
+        // Movement replay, written by the app in a second batch right after
+        // its session (existsAfter also allows one batch), append-only. Read by the patient and their care team.
         match /replay/{docId} {
           allow read: if isSelf(patientId) || caresFor(patientId);
           allow create: if isPatient(patientId)
