@@ -272,6 +272,14 @@ Diet informs context; only the clinician-set `restrictedExercises` and
 `lowTolerance` change what the app allows. Nothing here changes a
 prescription automatically.
 
+When a save changes something the patient sees (exercises paused or
+allowed again, precautions, tolerance, dietary notes), the dashboard writes a
+`care_update` notification in the same commit ("Care plan updated", body
+e.g. "Paused by your clinician: Wall Sit. ...") and then pushes it with
+`data: {type: 'care_update'}` (honours the `exercises` preference). With
+`lowTolerance` the dashboard also asks the clinician to review exercise
+intensity on the patient page and the assign/edit exercise form.
+
 #### `patients/{uid}/clearances/{id}`: physician clearance (append-only, newest `signedAt` wins)
 
 | Field | Type | Notes |
@@ -305,7 +313,7 @@ Written by: Laravel only. All signed-in users can read it.
 
 | Field | Type | Notes |
 | --- | --- | --- |
-| `type` | string | Sets the icon: `message`, `exercise_assigned`, `appointment`, `progress`, `milestone`, `reminder`, `session_completed` (others get a generic icon) |
+| `type` | string | Sets the icon: `message`, `exercise_assigned`, `appointment`, `progress`, `milestone`, `reminder`, `session_completed`, `care_update` (clinician changed restrictions/precautions; tapping opens Care plan & clearance) (others get a generic icon) |
 | `title` | string | e.g. "New Exercise Assigned" |
 | `body` | string | |
 | `data` | map | Optional. For `message`: `{ "thread": "therapist" }`, so tapping opens that conversation |
@@ -335,7 +343,7 @@ to send notifications.
 | Field | Type | Notes |
 | --- | --- | --- |
 | `messages` | bool | `false` = no push for new messages (`data.type: chat`) |
-| `exercises` | bool | `false` = no push for new exercises (`data.type: exercise_assigned`) |
+| `exercises` | bool | `false` = no push for new exercises (`data.type: exercise_assigned`) or care-plan changes (`data.type: care_update`) |
 | `reminders` | bool | `false` = no push for the clinic's evening reminder (`data.type: reminder`). Optional: older app versions don't write it |
 | `updatedAt` | timestamp | Server time |
 

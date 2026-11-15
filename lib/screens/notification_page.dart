@@ -10,6 +10,7 @@ import '../models/chat.dart';
 import '../services/notification_service.dart';
 import '../services/progress_stats.dart' show CalendarDays;
 import '../core/responsive.dart';
+import 'care_plan_screen.dart';
 import 'messages_screen.dart';
 import '../ios/brand_colors.dart';
 
@@ -65,6 +66,12 @@ const _visuals = <String, _Visual>{
     Color(0xFFB2EBF2),
     Color(0xFF00838F),
   ),
+  // The clinician paused or allowed an exercise or changed precautions.
+  'care_update': _Visual(
+    Icons.health_and_safety_outlined,
+    Color(0xFFFFE0B2),
+    Color(0xFFE65100),
+  ),
   'reminder': _Visual(
     Icons.alarm_rounded,
     Color(0xFFFFE0B2),
@@ -76,6 +83,12 @@ const _defaultVisual = _Visual(
   Color(0xFFE0E0E0),
   Color(0xFF616161),
 );
+
+/// Notification types that open Care plan & clearance when tapped: the
+/// clinician changed restrictions or precautions (dashboard clinical
+/// profile, API_CONTRACT.md).
+@visibleForTesting
+bool notificationOpensCarePlan(String type) => type == 'care_update';
 
 class NotificationPage extends StatefulWidget {
   const NotificationPage({super.key});
@@ -179,6 +192,11 @@ class _NotificationPageState extends State<NotificationPage> {
       Navigator.push(
         context,
         MaterialPageRoute(builder: (_) => ChatDetailScreen(thread: thread)),
+      );
+    } else if (notificationOpensCarePlan(n.type)) {
+      Navigator.push(
+        context,
+        MaterialPageRoute(builder: (_) => const CarePlanScreen()),
       );
     }
   }
