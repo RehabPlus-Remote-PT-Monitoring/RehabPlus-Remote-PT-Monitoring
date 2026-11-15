@@ -189,6 +189,12 @@ The group repo (`paulirichmond/...`) is behind on both branches; push there only
 
 ## 6. What to do next
 
+00. **IN PROGRESS: clinical safeguards from the capstone panel (completion gate, physician clearance, clinical/dietary profile).**
+   - Design (the contract every part follows): `docs/superpowers/specs/2026-11-15-clinical-safeguards-design.md`.
+   - Build order: (a) rules + emulator tests (this repo), (b) dashboard on `web/messaging`, (c) app on `camera/monitoring`, merged into `iphone-testing`, (d) ASK before `firebase deploy --only firestore:rules`, (e) builds with a version bump.
+   - Until the rules are deployed the app shows the new Care plan page as "not available yet" (reads are denied), nothing else breaks.
+   - An earlier, unwired attempt by another tool (6 untracked files on iphone-testing) was removed; copy kept in `~/Documents/.rehabplus-other-ai-clearance-backup-2026-11-15/`.
+
 0. **Chat actions (reply, edit, copy, pin, unsend): built on dashboard, Android and iPhone; rules NOT deployed yet.**
    - Design (the contract every part follows): `docs/superpowers/specs/2026-11-13-chat-actions-design.md`; plan in `docs/superpowers/plans/`.
    - Done: rules + emulator tests (this repo), dashboard on `web/messaging` (`31f018c`), iPhone app on `iphone-testing` (`54ed5b8`), Android app on `camera/monitoring` (ported onto this branch's simpler messages screen; no older-pages paging or share-a-session here yet).
