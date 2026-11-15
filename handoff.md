@@ -189,6 +189,12 @@ The group repo (`paulirichmond/...`) is behind on both branches; push there only
 
 ## 6. What to do next
 
+000. **IN PROGRESS: movement replay (therapists replay a session as a stick figure; no video).**
+   - Design: `docs/superpowers/specs/2026-11-15-movement-replay-design.md`; contract in API_CONTRACT.md (sessions `hasReplay`, `replay/`).
+   - Build order: (a) rules + emulator tests, (b) dashboard player on `web/messaging`, (c) app recorder on `camera/monitoring`, merged into `iphone-testing`, (d) ASK before `firebase deploy --only firestore:rules`, (e) builds on request.
+   - The legal version moves to 2026-11-15 (privacy policy section 3 describes the replay), so every patient sees the consent screen again.
+   - Until the rules are deployed, a new app build's sessions are refused too (rules don't know `hasReplay` yet), so deploy the rules BEFORE shipping the app. The replay is a separate batch, so a refused replay alone never loses a session.
+
 00. **Clinical safeguards from the capstone panel (completion gate, physician clearance, clinical/dietary profile): built everywhere, rules deployed 2026-11-15, shipped in 1.3.0+4.**
    - Design (the contract every part follows): `docs/superpowers/specs/2026-11-15-clinical-safeguards-design.md`.
    - Build order: (a) rules + emulator tests (this repo), (b) dashboard on `web/messaging`, (c) app on `camera/monitoring`, merged into `iphone-testing`, (d) ASK before `firebase deploy --only firestore:rules`, (e) builds with a version bump.
