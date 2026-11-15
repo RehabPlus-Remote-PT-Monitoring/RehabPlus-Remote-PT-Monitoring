@@ -244,4 +244,46 @@ class StaffScheduleTest extends TestCase
         $this->staff('therapist', 'fd2', 'Dr. Real Therapist');
         $this->get('/schedule')->assertOk()->assertViewHas('staffAvailability', fn (array $a) => $a['th1'] === 'Unavailable' && $a['fd2'] === 'Unavailable');
     }
+
+    public function test_a_therapist_can_schedule_only_themselves(): void
+    {
+        $this->staff('therapist', 'th2', 'Dr. Other Therapist');
+        $this->actingAs($this->staff('therapist', 'th1', 'Dr. Real Therapist'));
+
+        // Own shift and own time off: allowed.
+        $this->post('/schedule/save', ['staff_id' => 'th1', 'day' => 'Monday', 'shift' => '09:00 - 13:00', 'room' => 'Room 1'])
+            ->assertRedirect('/schedule')->assertSessionHas('success');
+        $this->post('/schedule/time-off/save', ['staff_id' => 'th1', 'date' => Carbon::today()->toDateString(), 'reason' => 'Leave'])
+            ->assertRedirect('/schedule')->assertSessionHas('success');
+
+        // Another therapist's shift or time off: refused, nothing written for them.
+        $this->post('/schedule/save', ['staff_id' => 'th2', 'day' => 'Tuesday', 'shift' => '09:00 - 13:00', 'room' => 'Room 2'])
+            ->assertRedirect('/schedule')->assertSessionHas('error', fn (string $e) => str_contains($e, 'only add shifts and time off for themselves'));
+        $this->post('/schedule/time-off/save', ['staff_id' => 'th2', 'date' => Carbon::today()->toDateString(), 'reason' => 'Leave'])
+            ->assertRedirect('/schedule')->assertSessionHas('error', fn (string $e) => str_contains($e, 'for themselves'));
+
+        $this->assertSame(['th1'], array_values(array_unique(array_column($this->docsLike('staffShifts/*'), 'staffId'))));
+        $this->assertSame(['th1'], array_values(array_unique(array_column($this->docsLike('staffTimeOff/*'), 'staffId'))));
+    }
+
+    public function test_a_therapist_still_sees_everyone_but_the_forms_offer_only_themselves(): void
+    {
+        $this->staff('therapist', 'th2', 'Dr. Other Therapist');
+        $this->actingAs($this->staff('therapist', 'th1', 'Dr. Real Therapist'));
+
+        $this->get('/schedule')->assertOk()
+            ->assertSee('Dr. Other Therapist')
+            ->assertViewHas('formStaff', fn (array $f) => array_column($f, 'uid') === ['th1'])
+            ->assertDontSee('<option value="th2"', false);
+    }
+
+    public function test_an_admin_can_still_schedule_any_therapist(): void
+    {
+        $this->staff('therapist', 'th2', 'Dr. Other Therapist');
+
+        $this->get('/schedule')->assertOk()->assertViewHas('formStaff', fn (array $f) => array_column($f, 'uid') === ['th2', 'th1']);
+        $this->post('/schedule/save', ['staff_id' => 'th2', 'day' => 'Monday', 'shift' => '09:00 - 13:00', 'room' => 'Room 1'])
+            ->assertSessionHas('success');
+        $this->assertCount(1, $this->docsLike('staffShifts/*'));
+    }
 }
