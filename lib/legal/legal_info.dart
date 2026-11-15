@@ -11,8 +11,8 @@ class LegalInfo {
 
   /// Version of the Terms + Privacy Policy pair. Also the id of the consent
   /// record (patients/{uid}/consents/{version}).
-  static const String version = '2026-10-18';
-  static const String effectiveDate = 'October 18, 2026';
+  static const String version = '2026-11-15';
+  static const String effectiveDate = 'November 15, 2026';
 
   static const String clinicName = 'Rehab Plus Physiotherapy';
 

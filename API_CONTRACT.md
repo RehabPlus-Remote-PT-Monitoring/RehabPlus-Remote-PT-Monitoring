@@ -136,6 +136,7 @@ pain check-in. **Never updated or deleted.**
 | `notes` | string \| null | App-generated summary (≤ 2000 chars) |
 | `outsideSchedule` | bool | Done outside the prescription's `schedule` |
 | `endedEarly` | bool | Patient stopped before `targetReps` |
+| `hasReplay` | bool | Optional. `true` when a movement replay was saved with the session (`replay/` below) |
 
 Sessions done offline are uploaded when the phone reconnects, so `createdAt`
 can be much later than `startTime`. Use `startTime` for reports.
@@ -144,6 +145,29 @@ The patient's phone writes these, so treat every field as untrusted when
 displaying it: firestore.rules (`validSession`) checks types and limits, and
 the dashboard also coerces each field (`PatientProgress::presentSession`) so
 an older or hand-made document can't break a page.
+
+### `patients/{uid}/sessions/{id}/replay/{docId}`: movement replay (pose points, no video)
+
+Design and byte layout: `docs/superpowers/specs/2026-11-15-movement-replay-design.md`.
+Written by the app right after the session (a second batch, so a failed replay never loses the session), append-only; read by the
+patient and their care team. No images are stored: only the 33 landmark
+positions (0-1 of the upright image), their confidence, the exercise's angle
+and the time, at most 10 frames/s and 10 minutes.
+
+`replay/meta`: `version` 1, `fps` int ≤ 10, `frameCount` int ≤ 6000,
+`chunkCount` int 1–20, `durationMs` int, `truncated` bool, `aspect` number
+(width/height), `mirrored` bool (draw mirrored, as the patient saw it),
+`angleLabel` string ≤ 60, `events` list (≤ 200) of `{t: int ms, kind:
+'counted' | 'rejected' | 'hold', note: string ≤ 120}`, `createdAt` server time.
+
+`replay/c000` … `c019`: `index` int, `firstFrame` = index × 300, `frames`
+1–300, `data` bytes = frames × 171. Frame (little-endian): uint32 ms, uint16
+angle × 10 (0xFFFF = none), then 33 × (uint16 x × 10000, uint16 y × 10000,
+uint8 confidence × 255) in ML Kit `PoseLandmarkType` order; a missing
+landmark is x = y = 0xFFFF, confidence 0.
+
+The patient can turn replays off in Settings (phone-only preference); the
+session is then saved without `hasReplay` and without `replay/` docs.
 
 ### `patients/{uid}/threads/{threadId}`: conversation summary
 

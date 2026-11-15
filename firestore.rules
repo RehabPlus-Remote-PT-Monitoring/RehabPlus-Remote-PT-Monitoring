@@ -101,6 +101,16 @@ service cloud.firestore {
         allow read: if isSelf(patientId) || caresFor(patientId);
         allow create: if isPatient(patientId) && validSession(request.resource.data);
         allow update, delete: if false;
+
+        // Movement replay, written by the app in a second batch right after
+        // its session (existsAfter also allows one batch), append-only. Read by the patient and their care team.
+        match /replay/{docId} {
+          allow read: if isSelf(patientId) || caresFor(patientId);
+          allow create: if isPatient(patientId)
+            && existsAfter(/databases/$(database)/documents/patients/$(patientId)/sessions/$(sessionId))
+            && validReplayDoc(docId, request.resource.data);
+          allow update, delete: if false;
+        }
       }
 
       // Notifications page. The server writes most of them (every push it
@@ -360,7 +370,8 @@ service cloud.firestore {
           'startTime', 'endTime', 'createdAt',
           'completedReps', 'completedSets', 'targetReps', 'targetSets',
           'rejectedReps', 'repComplianceScores', 'overallCompliance',
-          'painLevel', 'painNote', 'notes', 'outsideSchedule', 'endedEarly'])
+          'painLevel', 'painNote', 'notes', 'outsideSchedule', 'endedEarly',
+          'hasReplay'])
         && d.keys().hasAll(['exerciseId', 'startTime', 'completedReps', 'painLevel'])
         // Every field is type- and size-checked: the dashboard shows these to
         // staff, and a wrong type (e.g. a map as the exercise name) used to
@@ -387,7 +398,47 @@ service cloud.firestore {
         && (d.painNote == null || (d.painNote is string && d.painNote.size() <= 300))
         && (!('outsideSchedule' in d) || d.outsideSchedule is bool)
         && (!('endedEarly' in d) || d.endedEarly is bool)
+        && (!('hasReplay' in d) || d.hasReplay is bool)
         && d.createdAt == request.time;
+    }
+
+    // Movement replay of one session (docs/superpowers/specs/
+    // 2026-11-15-movement-replay-design.md): 'meta' plus chunk docs
+    // c000-c019 of packed pose points (171 bytes a frame, 300 frames a
+    // chunk). No images: only landmark positions, an angle and the times.
+    function validReplayDoc(docId, d) {
+      return (docId == 'meta' && validReplayMeta(d))
+        || (docId.matches('c0[0-1][0-9]') && validReplayChunk(docId, d));
+    }
+
+    function validReplayMeta(d) {
+      return d.keys().hasOnly(['version', 'fps', 'frameCount', 'chunkCount', 'durationMs',
+          'truncated', 'aspect', 'mirrored', 'angleLabel', 'events', 'createdAt'])
+        && d.keys().hasAll(['version', 'fps', 'frameCount', 'chunkCount', 'durationMs',
+          'aspect', 'mirrored', 'events', 'createdAt'])
+        && d.version == 1
+        && d.fps is int && d.fps >= 1 && d.fps <= 10
+        && d.frameCount is int && d.frameCount >= 0 && d.frameCount <= 6000
+        && d.chunkCount is int && d.chunkCount >= 1 && d.chunkCount <= 20
+        && d.durationMs is int && d.durationMs >= 0 && d.durationMs <= 4 * 60 * 60 * 1000
+        && (!('truncated' in d) || d.truncated is bool)
+        && d.aspect is number && d.aspect >= 0.2 && d.aspect <= 5
+        && d.mirrored is bool
+        && optionalText(d, 'angleLabel', 60)
+        // Entry shapes can't be checked one by one in rules; the dashboard
+        // coerces each event and drops bad ones.
+        && d.events is list && d.events.size() <= 200
+        && d.createdAt == request.time;
+    }
+
+    function validReplayChunk(docId, d) {
+      return d.keys().hasOnly(['index', 'firstFrame', 'frames', 'data'])
+        && d.keys().hasAll(['index', 'firstFrame', 'frames', 'data'])
+        && d.index is int && d.index >= 0 && d.index <= 19
+        && docId == (d.index < 10 ? 'c00' : 'c0') + string(d.index)
+        && d.frames is int && d.frames >= 1 && d.frames <= 300
+        && d.firstFrame == d.index * 300
+        && d.data is bytes && d.data.size() == d.frames * 171;
     }
 
     // Rep/set counts: same cap as ExerciseSession.maxCount in the app.

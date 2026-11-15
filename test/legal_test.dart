@@ -18,6 +18,25 @@ void main() {
       });
     }
 
+    test('the privacy policy describes the movement replay', () async {
+      final policy = LegalInfo.fill(
+        await rootBundle.loadString(LegalInfo.privacyAsset),
+      );
+      // Still true with replays: no images or video are ever saved.
+      expect(policy, contains('Video and images are never recorded'));
+      expect(policy, contains('Movement replay'));
+      expect(policy, contains('33 points'));
+      expect(policy, contains('Save movement replays for my therapist'));
+      final terms = await rootBundle.loadString(LegalInfo.termsAsset);
+      expect(terms, contains('movement replay'));
+    });
+
+    test('version is the movement-replay revision (forces re-consent)', () {
+      // Bumped when the replay was added to the documents; the dashboard's
+      // LEGAL_CONSENT_VERSION must match.
+      expect(LegalInfo.version, '2026-11-15');
+    });
+
     test('fill is a single pass and leaves unknown tokens visible', () {
       // A token's value is inserted as plain text: braces around it are not
       // expanded again, and an unknown token stays so typos are noticed.

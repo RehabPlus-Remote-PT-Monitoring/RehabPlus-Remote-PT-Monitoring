@@ -8,6 +8,7 @@ import 'package:rehabplus/models/session.dart';
 import 'package:rehabplus/screens/edit_profile_screen.dart' show ProfileData;
 import 'package:rehabplus/services/app_provider.dart';
 import 'package:rehabplus/services/notification_service.dart';
+import 'package:rehabplus/services/replay_recorder.dart';
 import 'package:rehabplus/services/profile_service.dart';
 import 'package:rehabplus/services/session_storage.dart';
 
@@ -15,6 +16,10 @@ import 'package:rehabplus/services/session_storage.dart';
 class FakeStorage extends SessionStorage {
   final List<Completer<List<ExerciseSession>>> fetches = [];
   final List<ExerciseSession> saved = [];
+
+  /// Every write in call order: 'session:ID' / 'replay:ID'.
+  final List<String> writes = [];
+  Object? saveError;
 
   @override
   Future<List<ExerciseSession>> fetchSessions() {
@@ -24,7 +29,15 @@ class FakeStorage extends SessionStorage {
   }
 
   @override
-  Future<void> saveSession(ExerciseSession session) async => saved.add(session);
+  Future<void> saveSession(ExerciseSession session) async {
+    if (saveError != null) throw saveError!;
+    saved.add(session);
+    writes.add('session:${session.id}');
+  }
+
+  @override
+  void saveReplay(String sessionId, ReplayPayload payload) =>
+      writes.add('replay:$sessionId');
 }
 
 class FakeProfiles extends ProfileService {
@@ -126,6 +139,25 @@ void main() {
     expect(provider.sessionHistory.map((s) => s.id), ['fresh', 'older']);
     expect(storage.saved.single.id, 'fresh');
     expect(notifications.completed, 1);
+  });
+
+  test('a replay is written after its session, in its own call', () async {
+    final recorder = ReplayRecorder()..addFrame(0, const [], null);
+    final replay = recorder.encode(aspect: 0.75, mirrored: true)!;
+    await provider.recordCompletedSession(_session('r', 2), replay: replay);
+    await provider.recordCompletedSession(_session('n', 3));
+    expect(storage.writes, ['session:r', 'replay:r', 'session:n']);
+  });
+
+  test('no replay is written when the session could not be saved', () async {
+    final recorder = ReplayRecorder()..addFrame(0, const [], null);
+    final replay = recorder.encode(aspect: 0.75, mirrored: true)!;
+    storage.saveError = ArgumentError('invalid');
+    await expectLater(
+      provider.recordCompletedSession(_session('bad', 1), replay: replay),
+      throwsArgumentError,
+    );
+    expect(storage.writes, isEmpty);
   });
 
   test('recording a session does not re-read the whole history', () async {

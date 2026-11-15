@@ -628,3 +628,89 @@ describe('clinical safeguards: clinical profile and physician clearances are das
     await assertSucceeds(setDoc(doc(as('thA'), 'patients/p1/prescriptions/rx'), { exerciseType: 'kneeExtension', targetReps: 10, active: true }));
   });
 });
+
+describe('movement replay: pose points saved with a session, append-only', () => {
+  const FRAME = 171;
+  const meta = (over = {}) => ({
+    version: 1, fps: 10, frameCount: 2, chunkCount: 1, durationMs: 100, truncated: false,
+    aspect: 0.5625, mirrored: true, angleLabel: 'Knee angle',
+    events: [{ t: 50, kind: 'counted', note: '' }], createdAt: serverTimestamp(), ...over,
+  });
+  const chunk = (index = 0, frames = 2, over = {}) => ({
+    index, firstFrame: index * 300, frames, data: Bytes.fromUint8Array(new Uint8Array(frames * FRAME)), ...over,
+  });
+  const fullSession = () => ({ ...session(), hasReplay: true });
+
+  // The exact batch the app commits: session + meta + chunks.
+  function saveWithReplay(db, id, { m = meta(), chunks = [chunk()] } = {}) {
+    const b = writeBatch(db).set(doc(db, `patients/p1/sessions/${id}`), fullSession())
+      .set(doc(db, `patients/p1/sessions/${id}/replay/meta`), m);
+    chunks.forEach((c) => b.set(doc(db, `patients/p1/sessions/${id}/replay/c${String(c.index).padStart(3, '0')}`), c));
+    return b.commit();
+  }
+
+  test('the patient saves a session with its replay in one batch', async () => {
+    await assertSucceeds(saveWithReplay(as('p1'), 'r1'));
+    await assertSucceeds(saveWithReplay(as('p1'), 'r2', {
+      m: meta({ frameCount: 302, chunkCount: 2 }), chunks: [chunk(0, 300), chunk(1, 2)],
+    }));
+  });
+
+  test('the app\'s order: session first, replay in a second batch', async () => {
+    const db = as('p1');
+    await assertSucceeds(setDoc(doc(db, 'patients/p1/sessions/two'), fullSession()));
+    await assertSucceeds(writeBatch(db)
+      .set(doc(db, 'patients/p1/sessions/two/replay/meta'), meta())
+      .set(doc(db, 'patients/p1/sessions/two/replay/c000'), chunk())
+      .commit());
+  });
+
+  test('care team and the patient can read it; others cannot', async () => {
+    await saveWithReplay(as('p1'), 'r1');
+    for (const uid of ['p1', 'thA', 'adm']) await assertSucceeds(getDoc(doc(as(uid), 'patients/p1/sessions/r1/replay/c000')));
+    for (const uid of ['p2', 'thB', 'desk', 'stranger']) await assertFails(getDoc(doc(as(uid), 'patients/p1/sessions/r1/replay/meta')));
+  });
+
+  test('append-only: no edits or deletes, even by the patient', async () => {
+    await saveWithReplay(as('p1'), 'r1');
+    const db = as('p1');
+    await assertFails(updateDoc(doc(db, 'patients/p1/sessions/r1/replay/meta'), { mirrored: false }));
+    await assertFails(deleteDoc(doc(db, 'patients/p1/sessions/r1/replay/c000')));
+    await assertFails(setDoc(doc(db, 'patients/p1/sessions/r1/replay/c000'), chunk()));
+  });
+
+  test('a replay needs its session, and only for your own sessions', async () => {
+    await assertFails(setDoc(doc(as('p1'), 'patients/p1/sessions/nosuch/replay/meta'), meta()));
+    await assertFails(saveWithReplay(as('p2'), 'r1'));
+    await assertFails(setDoc(doc(as('thA'), 'patients/p1/sessions/s1/replay/meta'), meta()));
+  });
+
+  test('bad shapes are refused', async () => {
+    const bad = [
+      { m: meta({ version: 2 }) },
+      { m: meta({ fps: 30 }) },
+      { m: meta({ chunkCount: 21 }) },
+      { m: meta({ events: Array.from({ length: 201 }, () => ({})) }) },
+      { m: meta({ createdAt: Timestamp.fromMillis(Date.now() - 60_000) }) },
+      { m: meta({ video: 'x' }) },
+      { chunks: [chunk(0, 2, { data: Bytes.fromUint8Array(new Uint8Array(100)) })] },
+      { chunks: [chunk(0, 301)] },
+      { chunks: [chunk(0, 2, { firstFrame: 5 })] },
+      { chunks: [chunk(0, 2, { data: 'not bytes' })] },
+    ];
+    for (const [i, c] of bad.entries()) await assertFails(saveWithReplay(as('p1'), `bad${i}`, c));
+    // Doc id must match its index, and only c000-c019 exist.
+    const db = as('p1');
+    await assertFails(writeBatch(db).set(doc(db, 'patients/p1/sessions/x1'), fullSession())
+      .set(doc(db, 'patients/p1/sessions/x1/replay/c001'), chunk(0)).commit());
+    await assertFails(writeBatch(db).set(doc(db, 'patients/p1/sessions/x2'), fullSession())
+      .set(doc(db, 'patients/p1/sessions/x2/replay/c020'), chunk(20)).commit());
+    await assertFails(writeBatch(db).set(doc(db, 'patients/p1/sessions/x3'), fullSession())
+      .set(doc(db, 'patients/p1/sessions/x3/replay/other'), chunk(0)).commit());
+  });
+
+  test('hasReplay must be a bool; sessions without it still save', async () => {
+    await assertFails(setDoc(doc(as('p1'), 'patients/p1/sessions/h1'), { ...session(), hasReplay: 'yes' }));
+    await assertSucceeds(setDoc(doc(as('p1'), 'patients/p1/sessions/h2'), session()));
+  });
+});

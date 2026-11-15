@@ -13,6 +13,7 @@ void main() {
     expect(s.countdownSeconds, 3);
     expect(s.useBackCamera, isFalse);
     expect(s.showSkeleton, isTrue);
+    expect(s.saveReplays, isTrue); // movement replays default on
     expect(s.reminderEnabled, isFalse);
     expect(s.reminderMinutes, 18 * 60);
     expect(s.textScale, 1.0);
@@ -78,6 +79,20 @@ void main() {
     expect(s.reminderMinutes, AppSettings.defaultReminderMinutes);
     expect(s.textScale, AppSettings.defaultTextScale);
     expect(s.useBackCamera, isTrue); // valid values are still loaded
+  });
+
+  test('the movement replay switch is saved and reloaded', () async {
+    SharedPreferences.setMockInitialValues({});
+    final s = AppSettings.I;
+    await s.load();
+    await s.setSaveReplays(false);
+    s.saveReplays = true;
+    await s.load();
+    expect(s.saveReplays, isFalse);
+
+    SharedPreferences.setMockInitialValues({'s_saveReplays': 'no'});
+    await s.load();
+    expect(s.saveReplays, AppSettings.defaultSaveReplays);
   });
 
   test('a negative reminder time falls back to the default', () async {

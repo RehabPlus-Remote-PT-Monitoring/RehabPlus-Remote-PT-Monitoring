@@ -60,6 +60,11 @@ class ExerciseSession {
   /// True when the patient stopped before reaching the target reps.
   final bool endedEarly;
 
+  /// True when a movement replay (pose points, no video) was saved with this
+  /// session under replay/ (see lib/services/replay_recorder.dart). Written
+  /// only when true, so sessions without one look exactly as before.
+  final bool hasReplay;
+
   ExerciseSession({
     required this.id,
     required this.exerciseId,
@@ -78,6 +83,7 @@ class ExerciseSession {
     this.painNote,
     this.outsideSchedule = false,
     this.endedEarly = false,
+    this.hasReplay = false,
   });
 
   double get overallCompliance {
@@ -103,6 +109,7 @@ class ExerciseSession {
     'painNote': painNote,
     'outsideSchedule': outsideSchedule,
     'endedEarly': endedEarly,
+    if (hasReplay) 'hasReplay': true,
   };
 
   /// Parses the [toJson] shape. Tolerates bad optional fields like
@@ -233,6 +240,7 @@ class ExerciseSession {
       painNote: r.string('painNote', maxLength: maxPainNoteLength),
       outsideSchedule: r.boolean('outsideSchedule'),
       endedEarly: r.boolean('endedEarly'),
+      hasReplay: r.boolean('hasReplay'),
     );
   }
 

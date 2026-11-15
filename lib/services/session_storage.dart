@@ -5,6 +5,8 @@ import '../core/background.dart';
 import '../core/diagnostic_logger.dart';
 import '../models/session.dart';
 import 'firestore_diagnostics.dart';
+import 'replay_recorder.dart';
+import 'replay_storage.dart';
 
 /// Stores sessions in Firestore at patients/{uid}/sessions/{sessionId}.
 ///
@@ -18,6 +20,9 @@ import 'firestore_diagnostics.dart';
 ///   "Session queued" {id, exerciseId, reps, endedEarly}
 ///   "Session synced / sync failed" {id, code, ms}
 ///   "Session invalid; not saved" {id, fields}
+///   "Replay queued" {id, chunks, bytes}; "Replay synced / sync failed"
+///   {id, chunks, code, ms}; "Replay invalid; not saved" {id, fields};
+///   "Replay not saved" {id, code}; "Replay skipped: signed out" {id}
 class SessionStorage {
   final DiagnosticLogger _logger;
   FirebaseFirestore get _db => FirebaseFirestore.instance;
@@ -154,5 +159,64 @@ class SessionStorage {
       'reps': session.completedReps,
       'endedEarly': session.endedEarly,
     });
+  }
+
+  /// Writes the movement replay of the session [sessionId] (already saved
+  /// with [saveSession]) to patients/{uid}/sessions/{sessionId}/replay/.
+  ///
+  /// A SEPARATE batch, issued after the session write: the rules only accept
+  /// replay docs once their session exists (existsAfter), and a refused or
+  /// failed replay must never cost the patient the session itself. Firestore
+  /// sends a client's writes in order, also from the offline queue, so the
+  /// session always reaches the server first.
+  ///
+  /// Never throws: every problem is logged ("Replay ... sync failed" with the
+  /// Firebase code when the server refuses it) and the dashboard then shows
+  /// "No replay available" for that session.
+  void saveReplay(String sessionId, ReplayPayload payload) {
+    try {
+      final uid = FirebaseAuth.instance.currentUser?.uid;
+      final col = _sessionsOf(uid);
+      if (col == null) {
+        _logger.warn('SessionStorage', 'Replay skipped: signed out', {
+          'id': sessionId,
+        });
+        return;
+      }
+      final problems = replayProblems(payload);
+      if (problems.isNotEmpty) {
+        _logger.error('SessionStorage', 'Replay invalid; not saved', {
+          'id': sessionId,
+          'fields': problems,
+        });
+        return;
+      }
+
+      final replayCol = col.doc(sessionId).collection('replay');
+      final batch = _db.batch();
+      for (final (docId, data) in replayWrites(payload)) {
+        batch.set(replayCol.doc(docId), data);
+      }
+      // Not awaited, like the session: the cache is the offline queue.
+      logUnawaitedWrite(
+        batch.commit(),
+        tag: 'SessionStorage',
+        operation: 'Replay',
+        data: {'uid': uid, 'id': sessionId, 'chunks': payload.chunks.length},
+      );
+      _logger.info('SessionStorage', 'Replay queued', {
+        'id': sessionId,
+        'chunks': payload.chunks.length,
+        'bytes': payload.byteCount,
+      });
+    } catch (e, st) {
+      _logger.error(
+        'SessionStorage',
+        'Replay not saved',
+        {'id': sessionId, ...firebaseErrorData(e)},
+        e,
+        st,
+      );
+    }
   }
 }
