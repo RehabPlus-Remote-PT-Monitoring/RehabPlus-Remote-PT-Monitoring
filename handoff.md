@@ -197,7 +197,7 @@ The group repo (`paulirichmond/...`) is behind on both branches; push there only
 
 0. **Chat actions (reply, edit, copy, pin, unsend): built on dashboard, Android and iPhone; rules NOT deployed yet.**
    - Design (the contract every part follows): `docs/superpowers/specs/2026-11-13-chat-actions-design.md`; plan in `docs/superpowers/plans/`.
-   - Done: rules + emulator tests (this repo), dashboard on `web/messaging` (`31f018c`), iPhone app on `iphone-testing` (`54ed5b8`), Android app on `camera/monitoring` (ported onto this branch's simpler messages screen; no older-pages paging or share-a-session here yet).
+   - Done: rules + emulator tests (this repo), dashboard on `web/messaging` (`31f018c`), iPhone app on `iphone-testing` (`54ed5b8`), Android app on `camera/monitoring` (ported onto this branch's simpler messages screen; no older-pages paging here). "Share a session" in the therapist chat was ported from iPhone on 2026-11-15 (same text and sheet on both platforms).
    - App UI: tap (or long-press) a bubble to show Reply and "⋯" beside it; "⋯" = Copy, Pin/Unpin, Edit, Unsend. Unsent shows "You deleted a message" / "Message deleted". No edit window in the app (the dashboard keeps 15 minutes).
    - Dropped from the first design: the patient-shared session card (sessions are shared as text). The earlier uncommitted app work for it is on branch `backup/camera-monitoring-chat-actions-wip`.
    - Next: (e) ASK the user before `firebase deploy --only firestore:rules`, (f) new APK + IPA (bump the version), Releases entry.

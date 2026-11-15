@@ -15,10 +15,12 @@ import '../models/chat.dart';
 import '../services/app_provider.dart';
 import '../services/chat_actions.dart';
 import '../services/chat_service.dart';
+import '../services/chat_session_share.dart';
 import '../services/progress_stats.dart' show CalendarDays;
 import '../core/responsive.dart';
 import '../core/tab_bar_clearance.dart';
 import '../widgets/chat_action_widgets.dart';
+import '../widgets/chat_session_share_sheet.dart';
 
 const Color _primaryTeal = Color(0xFF23A8AA);
 const String _tag = 'Messages';
@@ -604,6 +606,22 @@ class _ChatDetailScreenState extends State<ChatDetailScreen> {
       _saveEdit(editing, text);
       return;
     }
+    if (_deliver(text)) _textController.clear();
+  }
+
+  /// Sends [text] (already trimmed, not empty) the one way every message
+  /// goes, typed or a shared session, so the thread preview and unread
+  /// counter are updated identically. A reply in progress is attached and
+  /// then cleared. Returns false (after telling the patient) if it wasn't
+  /// sent.
+  bool _deliver(String text) {
+    if (text.length > _maxMessageLength) {
+      // Possible with many emoji (each counts as 2+ units): the server
+      // would reject it, so say so instead of failing silently.
+      _logger.warn(_tag, 'Message too long', {'length': text.length});
+      _snack('That message is too long. Please shorten it.');
+      return false;
+    }
     final replyTo = _currentReplyTarget();
     if (_replyingTo != null && replyTo == null) {
       // Deleted by its author while the patient was typing; the dashboard
@@ -613,13 +631,13 @@ class _ChatDetailScreenState extends State<ChatDetailScreen> {
       });
       setState(() => _replyingTo = null);
       _snack('The message you replied to was deleted.');
-      return;
+      return false;
     }
     try {
       // Not awaited: Firestore's offline cache queues it. ChatService logs
       // "Message queued" with the length (never the text) and the sync
-      // result. The text is cleared at once, so a double tap can't send it
-      // twice.
+      // result. The caller clears the box at once, so a double tap can't
+      // send it twice.
       _chat.send(widget.thread, text, replyTo: replyTo);
     } catch (e, st) {
       _logger.error(
@@ -630,10 +648,28 @@ class _ChatDetailScreenState extends State<ChatDetailScreen> {
         st,
       );
       _snack('Could not send. Please sign in again.');
-      return;
+      return false;
     }
-    _textController.clear();
     if (_replyingTo != null) setState(() => _replyingTo = null);
+    return true;
+  }
+
+  /// Opens the recent-sessions sheet and sends the chosen session's summary
+  /// as an ordinary text message (no new message fields, so no rules or
+  /// dashboard change). Whatever the patient had typed stays in the box.
+  Future<void> _shareSession() async {
+    final history = context.read<AppProvider>().sessionHistory;
+    _logger.info(_tag, 'Share session opened', {'available': history.length});
+    final picked = await showChatSessionShareSheet(context, history);
+    if (picked == null || !mounted) return;
+    final text = sessionShareText(picked);
+    if (_deliver(text)) {
+      _logger.info(_tag, 'Session shared', {
+        'thread': widget.thread.name,
+        'exercise': picked.exerciseId,
+        'length': text.length,
+      });
+    }
   }
 
   /// The current copy of the message being replied to, or null when there
@@ -1116,6 +1152,17 @@ class _ChatDetailScreenState extends State<ChatDetailScreen> {
                   top: false,
                   child: Row(
                     children: [
+                      // Sessions are what the therapist reviews; the clinic
+                      // desk has no use for them.
+                      if (widget.thread == ChatThread.therapist)
+                        IconButton(
+                          tooltip: 'Share a session',
+                          onPressed: _shareSession,
+                          icon: const Icon(
+                            Icons.insights_outlined,
+                            color: _primaryTeal,
+                          ),
+                        ),
                       Expanded(
                         child: Container(
                           padding: const EdgeInsets.symmetric(horizontal: 12),
