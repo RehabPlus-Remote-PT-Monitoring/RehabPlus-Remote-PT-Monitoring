@@ -38,7 +38,6 @@ return [
      * 'image' is a file in public/assets/images/stories/. Remove an entry once its post is made from the dashboard.
      */
     'featured_stories' => [
-        ['title' => 'Pilates schedule', 'caption' => 'Group classes for Tuesday, November 17.', 'image' => 'assets/images/stories/pilates-schedule-tuesday.jpg'],
         ['title' => 'Private class schedule', 'caption' => 'Clinical Pilates private classes for Wednesday, November 11.', 'image' => 'assets/images/stories/pilates-schedule-wednesday.jpg'],
     ],
 

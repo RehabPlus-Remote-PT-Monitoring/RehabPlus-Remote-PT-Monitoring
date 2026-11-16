@@ -34,7 +34,6 @@ class TodayStoriesTest extends TestCase
         $this->get('/')->assertOk()
             ->assertSee('data-stories-open', false)
             ->assertSee('Today at Rehab+')
-            ->assertSee('Pilates schedule')
             ->assertSee('Private class schedule');
     }
 
@@ -42,6 +41,7 @@ class TodayStoriesTest extends TestCase
     {
         // Featured schedules only: the logo still opens the viewer, but no ring.
         $this->get('/')->assertOk()->assertSee('data-stories-open', false)->assertDontSee('home-hero-logo-btn is-new', false);
+        $this->assertCount(1, $this->storiesOnPage());
 
         // A picture posted from the dashboard: the ring turns. (A real post clears the cache itself; the test seeds it directly, so clear it here.)
         $this->docs['announcements/posted'] = ['title' => 'Today: workout', 'body' => 'x', 'story' => true, 'imageUrl' => 'data:image/jpeg;base64,'.base64_encode('x'), 'postedAt' => CarbonImmutable::now()];

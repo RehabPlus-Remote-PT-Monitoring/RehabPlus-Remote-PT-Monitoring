@@ -20,7 +20,7 @@
             </a>
 
             <nav class="public-links" aria-label="Page sections">
-                <a href="{{ route('landing') }}#visit" data-section="visit">Visit us</a>
+                <a href="{{ route('landing') }}#overview" data-section="overview">Overview</a>
                 <a href="{{ route('landing') }}#announcements" data-section="announcements">Announcements</a>
                 <a href="{{ route('landing') }}#patients" data-section="patients" @if (request()->routeIs('remote-monitoring')) class="is-active" aria-current="page" @endif>Remote Monitoring</a>
                 <a href="{{ route('landing') }}#classes" data-section="classes">Classes</a>

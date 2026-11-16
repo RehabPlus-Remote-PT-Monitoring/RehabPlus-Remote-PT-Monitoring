@@ -67,8 +67,8 @@
 <section class="visit-card shadow-sm mb-4" aria-labelledby="visit-heading" data-visit>
     <div class="visit-head">
         <div>
-            <h2 class="visit-title" id="visit-heading">Visit us</h2>
-            <p class="visit-sub">Walk in during clinic hours, or send us a message first for inquiries and appointments.</p>
+            <h2 class="visit-title" id="visit-heading">Visit or Contact Us</h2>
+            <p class="visit-sub">Walk in during clinic hours, or message us for inquiries and appointments.</p>
         </div>
     </div>
 
@@ -131,49 +131,4 @@
         </article>
     </div>
 
-    {{-- Before you come: the mascot points at the list (the clinic's FAQ) --}}
-    <div class="visit-tips">
-        <div class="visit-mascot" aria-hidden="true">
-            <svg viewBox="0 0 200 200" xmlns="http://www.w3.org/2000/svg" role="img">
-                <ellipse cx="100" cy="190" rx="58" ry="7" fill="#0f172a" opacity=".12"/>
-                <!-- legs -->
-                <rect x="72" y="136" width="22" height="50" rx="11" fill="#115e59"/>
-                <rect x="106" y="136" width="22" height="50" rx="11" fill="#115e59"/>
-                <ellipse cx="83" cy="188" rx="14" ry="7" fill="#0f172a"/>
-                <ellipse cx="117" cy="188" rx="14" ry="7" fill="#0f172a"/>
-                <!-- raised arm, reaching toward the list -->
-                <path d="M140 108 Q162 96 182 86" fill="none" stroke="#14b8a6" stroke-width="18" stroke-linecap="round"/>
-                <circle cx="186" cy="84" r="10" fill="#fcd9b8"/>
-                <!-- hanging arm -->
-                <path d="M56 108 L56 150" fill="none" stroke="#14b8a6" stroke-width="18" stroke-linecap="round"/>
-                <circle cx="56" cy="160" r="9" fill="#fcd9b8"/>
-                <!-- torso: a teal polo with a white collar and a small clinic cross -->
-                <rect x="60" y="96" width="80" height="62" rx="24" fill="#14b8a6"/>
-                <path d="M88 96 L100 110 L112 96 Z" fill="#ffffff"/>
-                <rect x="98" y="122" width="4" height="14" rx="2" fill="#ffffff"/>
-                <rect x="95" y="125" width="10" height="4" rx="2" fill="#ffffff"/>
-                <!-- neck and head -->
-                <rect x="91" y="80" width="18" height="20" rx="6" fill="#fcd9b8"/>
-                <circle cx="100" cy="58" r="34" fill="#fcd9b8"/>
-                <!-- hair -->
-                <path d="M66 54 Q66 24 100 23 Q134 24 134 54 Q124 40 100 40 Q76 40 66 54 Z" fill="#0f172a"/>
-                <!-- face -->
-                <circle cx="88" cy="60" r="4" fill="#0f172a"/>
-                <circle cx="112" cy="60" r="4" fill="#0f172a"/>
-                <circle cx="79" cy="70" r="5" fill="#fca5a5" opacity=".6"/>
-                <circle cx="121" cy="70" r="5" fill="#fca5a5" opacity=".6"/>
-                <path d="M90 72 Q100 81 110 72" fill="none" stroke="#0f172a" stroke-width="3.5" stroke-linecap="round"/>
-            </svg>
-            
-        </div>
-        <div class="visit-bubble">
-            <p class="visit-tips-title">Before you come</p>
-            <ul>
-                <li><i class="bi bi-check-circle-fill" aria-hidden="true"></i><span>A valid ID.</span></li>
-                <li><i class="bi bi-check-circle-fill" aria-hidden="true"></i><span>Any medical records, and X-ray or MRI results if you have them.</span></li>
-                <li><i class="bi bi-check-circle-fill" aria-hidden="true"></i><span>A list of your current medications and any allergies.</span></li>
-                <li><i class="bi bi-check-circle-fill" aria-hidden="true"></i><span>Comfortable clothes you can move in.</span></li>
-            </ul>
-        </div>
-    </div>
 </section>

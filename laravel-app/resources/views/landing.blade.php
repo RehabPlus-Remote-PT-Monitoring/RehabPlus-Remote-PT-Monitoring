@@ -87,7 +87,7 @@
             .landing-first #visit .visit-card { margin-bottom: 0 !important; }
         }
     </style>
-    <div class="landing-first">
+    <div class="landing-first" id="overview">
         @include('partials.clinic-hero')
 
         <div id="visit">
