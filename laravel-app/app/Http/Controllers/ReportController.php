@@ -22,7 +22,14 @@ class ReportController extends Controller
 
     public function index(Request $request): View
     {
-        return view('reports.index', $this->reports->build($request->user(), $request));
+        $user = $request->user();
+        $selected = $request->queryText('patient');
+
+        return view('reports.index', $this->reports->build($user, $request) + [
+            'patientOptions' => $this->reports->patientOptions($user),
+            'selectedPatient' => $selected,
+            'patientStatus' => $selected !== '' ? $this->reports->patientStatus($user, $selected) : null,
+        ]);
     }
 
     public function csv(Request $request): StreamedResponse

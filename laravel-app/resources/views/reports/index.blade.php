@@ -108,6 +108,102 @@
         </nav>
     @endif
 
+    {{-- Patient status: choose one patient to see how they are doing --}}
+    <section id="patient-status" class="mb-5">
+        <div class="card border-0 shadow-sm">
+            <div class="card-header"><h3 class="h6 mb-0">Patient status</h3></div>
+            <div class="card-body">
+                <form method="GET" action="{{ route('analytics') }}#patient-status" class="row g-2 align-items-end mb-4">
+                    <div class="col-md-8">
+                        <label for="patient" class="form-label small fw-semibold">Choose a patient</label>
+                        <select id="patient" name="patient" class="form-select" required>
+                            <option value="" disabled @selected($selectedPatient === '')>Choose a patient</option>
+                            @foreach ($patientOptions as $option)
+                                <option value="{{ $option['uid'] }}" @selected($selectedPatient === $option['uid'])>
+                                    {{ $option['name'] }}{{ $option['condition'] ? ' · '.$option['condition'] : '' }}
+                                </option>
+                            @endforeach
+                        </select>
+                    </div>
+                    <div class="col-md-4">
+                        <button type="submit" class="btn btn-primary w-100"><i class="bi bi-person-lines-fill me-1"></i>Show status</button>
+                    </div>
+                </form>
+
+                @if ($patientStatus)
+                    @php($ps = $patientStatus)
+                    @php($stats = $ps['stats'])
+                    @php($tz = config('app.timezone'))
+                    <div class="d-flex justify-content-between align-items-start flex-wrap gap-2 mb-3">
+                        <div>
+                            <p class="fw-semibold fs-5 mb-0">{{ $ps['patient']['name'] }}</p>
+                            <p class="small text-muted mb-0">
+                                {{ $ps['patient']['condition'] ?: 'No condition recorded' }} · Therapist: {{ $ps['patient']['therapistName'] ?: 'Unassigned' }}
+                            </p>
+                        </div>
+                        <a href="{{ route('patients.show', $ps['patient']['uid']) }}" class="btn btn-outline-primary btn-sm"><i class="bi bi-box-arrow-up-right me-1"></i>Open full profile</a>
+                    </div>
+
+                    <div class="row g-3">
+                        <div class="col-6 col-md-4 col-xl-3">
+                            <div class="border rounded-3 p-3 h-100">
+                                <p class="small text-uppercase text-muted fw-semibold mb-1">Adherence this week</p>
+                                <p class="fs-4 fw-bold mb-0">{{ $ps['adherence'] === null ? '—' : $ps['adherence'].'%' }}</p>
+                                <p class="small text-muted mb-0">Sessions done against the plan</p>
+                            </div>
+                        </div>
+                        <div class="col-6 col-md-4 col-xl-3">
+                            <div class="border rounded-3 p-3 h-100">
+                                <p class="small text-uppercase text-muted fw-semibold mb-1">Movement accuracy</p>
+                                <p class="fs-4 fw-bold mb-0">{{ $ps['sessionCount'] ? $stats['accuracy'].'%' : '—' }}</p>
+                                <p class="small text-muted mb-0">Average over {{ $ps['sessionCount'] }} {{ Str::plural('session', $ps['sessionCount']) }}</p>
+                            </div>
+                        </div>
+                        <div class="col-6 col-md-4 col-xl-3">
+                            <div class="border rounded-3 p-3 h-100">
+                                <p class="small text-uppercase text-muted fw-semibold mb-1">Average pain</p>
+                                <p class="fs-4 fw-bold mb-0">{{ $ps['sessionCount'] ? $stats['avgPain'].'/10' : '—' }}</p>
+                                <p class="small text-muted mb-0">Reported after each session</p>
+                            </div>
+                        </div>
+                        <div class="col-6 col-md-4 col-xl-3">
+                            <div class="border rounded-3 p-3 h-100">
+                                <p class="small text-uppercase text-muted fw-semibold mb-1">Sessions completed</p>
+                                <p class="fs-4 fw-bold mb-0">{{ $stats['completed'] }}</p>
+                                <p class="small text-muted mb-0">{{ $stats['endedEarly'] }} ended early · {{ $stats['outsideSchedule'] }} outside the schedule</p>
+                            </div>
+                        </div>
+                        <div class="col-6 col-md-4 col-xl-3">
+                            <div class="border rounded-3 p-3 h-100">
+                                <p class="small text-uppercase text-muted fw-semibold mb-1">Last session</p>
+                                <p class="fs-6 fw-bold mb-0">{{ $stats['lastSessionAt'] ? $stats['lastSessionAt']->setTimezone($tz)->diffForHumans() : 'None yet' }}</p>
+                                <p class="small text-muted mb-0">{{ $stats['lastSessionAt'] ? $stats['lastSessionAt']->setTimezone($tz)->format('M j, Y') : '' }}</p>
+                            </div>
+                        </div>
+                        <div class="col-6 col-md-4 col-xl-3">
+                            <div class="border rounded-3 p-3 h-100">
+                                <p class="small text-uppercase text-muted fw-semibold mb-1">Goals achieved</p>
+                                <p class="fs-4 fw-bold mb-0">{{ $ps['goalAchievement'] === null ? '—' : $ps['goalAchievement'].'%' }}</p>
+                                <p class="small text-muted mb-0">Of the goals not discontinued</p>
+                            </div>
+                        </div>
+                        <div class="col-6 col-md-4 col-xl-3">
+                            <div class="border rounded-3 p-3 h-100">
+                                <p class="small text-uppercase text-muted fw-semibold mb-1">Active exercises</p>
+                                <p class="fs-4 fw-bold mb-0">{{ $ps['activeExercises'] }}</p>
+                                <p class="small text-muted mb-0">Currently assigned</p>
+                            </div>
+                        </div>
+                    </div>
+                @elseif ($selectedPatient !== '')
+                    <p class="text-muted mb-0">That patient isn't on your list, so their status isn't shown.</p>
+                @else
+                    <p class="text-muted mb-0">Pick a patient to see their adherence, accuracy, pain, sessions and goals.</p>
+                @endif
+            </div>
+        </div>
+    </section>
+
     {{-- Recovery --}}
     <section id="recovery" class="mb-5">
         <h2 class="h5 fw-bold mb-3">Recovery</h2>

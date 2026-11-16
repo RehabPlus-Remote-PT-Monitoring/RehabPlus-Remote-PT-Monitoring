@@ -12,6 +12,7 @@ use App\Services\Firebase\FirebaseTransport;
 use App\Services\Patient\ClinicalRecordService;
 use App\Services\Patient\PatientProgress;
 use App\Services\Patient\PatientService;
+use App\Services\Patient\PrescriptionService;
 use Carbon\CarbonImmutable;
 use Illuminate\Http\Request;
 use Illuminate\Support\Collection;
@@ -42,7 +43,40 @@ class ReportService
         private PatientStatisticsService $patientStatistics,
         private FirebaseTransport $firebase,
         private UserService $users,
+        private PrescriptionService $prescriptions,
     ) {
+    }
+
+    /** The active patients this user can choose in the "Patient status" picker. */
+    public function patientOptions(StaffUser $user): array
+    {
+        return $this->patients->visible($user);
+    }
+
+    /**
+     * One patient's status for the "Patient status" card: adherence this week, accuracy and pain over
+     * their sessions, goal achievement, and how many exercises are active. Null when the user can't see them.
+     */
+    public function patientStatus(StaffUser $user, string $uid): ?array
+    {
+        $patient = $this->patients->find($user, $uid);
+        if ($patient === null) {
+            return null;
+        }
+
+        $sessions = $this->progress->sessions($uid, 200);
+        $prescriptions = $this->prescriptions->forPatient($uid);
+        $goals = $this->records->list(ClinicalRecordService::GOALS, [$patient]);
+        $adherence = PatientProgress::adherence($sessions, $prescriptions);
+
+        return [
+            'patient' => $patient,
+            'sessionCount' => count($sessions),
+            'stats' => PatientProgress::stats($sessions),
+            'adherence' => $adherence['overall'],
+            'goalAchievement' => ClinicalRecordService::goalAchievement($goals),
+            'activeExercises' => count(array_filter($prescriptions, fn (array $rx) => $rx['active'])),
+        ];
     }
 
     /** Which sections this user gets. */
