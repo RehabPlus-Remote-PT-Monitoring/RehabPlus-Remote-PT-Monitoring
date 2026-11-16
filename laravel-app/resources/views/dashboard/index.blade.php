@@ -12,7 +12,7 @@
             @if (auth()->user()->isAdmin())
                 <a href="{{ route('announcements.index') }}" class="btn btn-outline-primary d-flex align-items-center gap-2">
                     <i class="bi bi-megaphone"></i>
-                    Post announcement
+                    Post
                 </a>
             @endif
             @if (auth()->user()->isAdmin())

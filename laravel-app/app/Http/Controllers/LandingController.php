@@ -22,6 +22,30 @@ class LandingController extends Controller
             'clinic' => config('clinic'),
             'staff' => $this->directory->board(),
             'announcements' => $this->announcements->current(),
+            'stories' => $this->stories(),
         ]);
+    }
+
+    /**
+     * The "Today at Rehab+" pictures: the posts marked as stories first (newest first), then the featured
+     * pictures from config/clinic.php.
+     *
+     * @return array<int, array{title: string, caption: string, image: string}>
+     */
+    private function stories(): array
+    {
+        $posted = array_map(fn (array $story) => [
+            'title' => $story['title'],
+            'caption' => $story['body'],
+            'image' => $story['imageUrl'],
+        ], $this->announcements->stories());
+
+        $featured = array_map(fn (array $story) => [
+            'title' => $story['title'],
+            'caption' => $story['caption'],
+            'image' => asset($story['image']),
+        ], config('clinic.featured_stories', []));
+
+        return array_values(array_merge($posted, $featured));
     }
 }

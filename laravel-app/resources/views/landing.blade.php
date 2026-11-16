@@ -79,7 +79,8 @@
     <style>
         @media (min-width: 768px) {
             .landing-first { min-height: calc(100svh - 7rem); display: flex; flex-direction: column; }
-            .landing-first .home-hero { flex: 1 1 auto; min-height: 320px; margin-bottom: 1rem; }
+            /* A tall hero, leaving room at the bottom of the first screen for the "Today at Rehab+" heading. */
+            .landing-first .home-hero { flex: 0 0 auto; height: calc(100svh - 31rem); min-height: 380px; margin-bottom: 1rem; }
             .landing-first #visit { flex: 0 0 auto; }
             .landing-first #visit .visit-card { margin-bottom: 0 !important; }
         }
@@ -88,11 +89,14 @@
         @include('partials.clinic-hero')
 
         <div id="visit">
+            @include('partials.stories')
             @include('partials.clinic-info')
         </div>
     </div>
 
     @include('partials.announcements', ['announcements' => $announcements])
+
+    @include('partials.health-services')
 
     @include('partials.for-patients')
 

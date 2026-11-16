@@ -114,9 +114,11 @@ class AnnouncementService
 
         $this->db->commit([$this->db->createWrite(self::COLLECTION."/{$id}", [
             'title' => $data['title'],
-            'body' => $data['body'],
+            'body' => (string) ($data['body'] ?? ''),
             'imageUrl' => $data['imageUrl'] ?? null,
             'showUntil' => $data['show_until'] ?? null,
+            // A story is a picture shown in the "Today at Rehab+" row on the welcome page.
+            'story' => (bool) ($data['story'] ?? false),
             'postedById' => $by->id,
             'postedByName' => $by->name,
         ], serverTimestamps: ['postedAt'])]);
@@ -176,6 +178,24 @@ class AnnouncementService
             'postedByName' => (string) ($doc['postedByName'] ?? ''),
             'showUntil' => $doc['showUntil'] ?? null,
             'archived' => (bool) ($doc['archived'] ?? false),
+            'story' => (bool) ($doc['story'] ?? false),
         ];
+    }
+
+    /**
+     * The posts marked as stories that are still shown: picture posts, not archived, and not past their
+     * "show until" date. Shown in the "Today at Rehab+" row on the welcome page.
+     */
+    public function stories(): array
+    {
+        $today = now()->toDateString();
+        $shown = array_filter($this->recentDocs(), fn (array $doc) => ($doc['story'] ?? false) === true
+            && ! ($doc['archived'] ?? false)
+            && (empty($doc['showUntil']) || $doc['showUntil'] >= $today)
+            && is_string($doc['imageUrl'] ?? null));
+
+        $presented = array_map(fn (array $doc) => $this->present($doc), $shown);
+
+        return array_values(array_filter($presented, fn (array $story) => $story['imageUrl'] !== ''));
     }
 }

@@ -51,6 +51,27 @@ class VisitUsTest extends TestCase
             ->assertSee('Closed now');
     }
 
+    public function test_the_visit_card_has_the_before_you_come_mascot_and_no_embedded_map(): void
+    {
+        $this->get('/')->assertOk()
+            ->assertSee('Before you come')
+            ->assertSee('visit-mascot', false)
+            ->assertDontSee('output=embed', false)
+            ->assertDontSee('data-visit-map', false);
+    }
+
+    public function test_the_health_services_section_points_to_the_clinics_services(): void
+    {
+        $this->get('/')->assertOk()
+            ->assertSee('Health services for your recovery')
+            ->assertSee('Physical therapy')
+            ->assertSee('Pilatherapy')
+            ->assertSee('Clinical Pilates, one-on-one')
+            ->assertSee('Remote monitoring')
+            ->assertSee('href="http://localhost#packages"', false)
+            ->assertSee('href="http://localhost/remote-monitoring"', false);
+    }
+
     public function test_the_landing_page_has_the_reading_progress_and_the_heartbeat_under_the_nav(): void
     {
         $this->get('/')->assertOk()

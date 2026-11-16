@@ -57,6 +57,53 @@
         </div>
     </form>
 
+    {{-- Today at Rehab+: a picture the clinic shares today, shown under Visit us on the welcome page --}}
+    <h2 class="section-title">Today at Rehab+</h2>
+    <p class="text-muted small mb-3">Post a schedule or a picture from today, such as a patient or a workout session. It shows in the "Today at Rehab+" row on the welcome page.</p>
+    <form method="POST" action="{{ route('announcements.store') }}" enctype="multipart/form-data" class="card shadow-sm border-0 mb-4" style="max-width: 800px;">
+        @csrf
+        <input type="hidden" name="story" value="1">
+
+        <div class="card-body p-4">
+            <div class="row g-3">
+                <div class="col-12">
+                    <label for="story_title" class="form-label small fw-semibold">Title</label>
+                    <input id="story_title" type="text" name="title" class="form-control @error('title') is-invalid @enderror" value="{{ old('title') }}" required minlength="3" maxlength="120" placeholder="e.g. Pilates schedule, Tuesday Nov 17">
+                    @error('title')
+                        <div class="invalid-feedback">{{ $message }}</div>
+                    @enderror
+                </div>
+                <div class="col-12">
+                    <label for="story_body" class="form-label small fw-semibold">Caption (optional)</label>
+                    <textarea id="story_body" name="body" rows="2" class="form-control @error('body') is-invalid @enderror" maxlength="1000" placeholder="A line about the picture.">{{ old('body') }}</textarea>
+                    @error('body')
+                        <div class="invalid-feedback">{{ $message }}</div>
+                    @enderror
+                </div>
+                <div class="col-md-6">
+                    <label for="story_image" class="form-label small fw-semibold">Picture (required)</label>
+                    <input id="story_image" type="file" name="image" accept="image/jpeg,image/png,image/webp" required class="form-control @error('image') is-invalid @enderror">
+                    @error('image')
+                        <div class="invalid-feedback">{{ $message }}</div>
+                    @enderror
+                    <div class="form-text">JPG, PNG or WebP, up to 2 MB. Large pictures are resized automatically.</div>
+                </div>
+                <div class="col-md-6">
+                    <label for="story_show_until" class="form-label small fw-semibold">Show until (optional)</label>
+                    <div class="input-group"><input id="story_show_until" type="date" name="show_until" class="form-control @error('show_until') is-invalid @enderror" value="{{ old('show_until') }}" min="{{ now()->toDateString() }}"><button type="button" class="btn btn-primary field-picker-button" data-date-open aria-label="Open calendar" title="Open calendar"><i class="bi bi-calendar3" aria-hidden="true"></i></button></div>
+                    @error('show_until')
+                        <div class="invalid-feedback">{{ $message }}</div>
+                    @enderror
+                    <div class="form-text">Leave empty to keep it up until it is removed.</div>
+                </div>
+            </div>
+        </div>
+
+        <div class="card-footer bg-transparent text-end">
+            <button type="submit" class="btn btn-primary px-4"><i class="bi bi-image me-1"></i>Post to Today at Rehab+</button>
+        </div>
+    </form>
+
     <h2 class="section-title">Currently showing</h2>
     @if ($announcements === [])
         <div class="card shadow-sm border-0 text-center text-muted py-5 mb-4">No announcements yet.</div>

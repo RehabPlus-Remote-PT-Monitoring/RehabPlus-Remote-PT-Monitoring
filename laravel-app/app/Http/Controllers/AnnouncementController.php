@@ -26,16 +26,22 @@ class AnnouncementController extends Controller
     {
         abort_unless($request->user()->isAdmin(), 403);
 
+        $story = $request->boolean('story');
+
         $data = $request->validate([
             'title' => 'required|string|min:3|max:120',
-            'body' => 'required|string|min:3|max:1000',
+            // A story can go up with just a picture and a title; an announcement needs its details.
+            'body' => [\Illuminate\Validation\Rule::requiredIf(! $story), 'nullable', 'string', 'min:3', 'max:1000'],
             'show_until' => 'nullable|date_format:Y-m-d|after_or_equal:today',
-            'image' => ['nullable', 'file', 'mimetypes:image/jpeg,image/png,image/webp', 'max:2048'],
+            // A story is a picture, so it needs one.
+            'image' => [\Illuminate\Validation\Rule::requiredIf($story), 'nullable', 'file', 'mimetypes:image/jpeg,image/png,image/webp', 'max:2048'],
         ], [
             'show_until.after_or_equal' => 'Choose today or a later date.',
+            'image.required' => 'A story needs a picture.',
             'image.mimetypes' => 'Choose a JPG, PNG or WebP picture.',
             'image.max' => 'The picture must be 2 MB or smaller.',
         ]);
+        $data['story'] = $story;
 
         if ($request->hasFile('image')) {
             $data['imageUrl'] = $this->announcements->imageDataUrl($request->file('image'));
