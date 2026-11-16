@@ -64,7 +64,9 @@
                 placeIndicator(id !== lastActive);
                 lastActive = id;
             });
-            observer.observe(links, { subtree: true, attributes: true, attributeFilter: ['class'] });
+            // Watch only the links themselves. Watching the whole list would also see the indicator's own class
+            // changes, which set it off again and loop forever (the page freezes).
+            links.querySelectorAll('a').forEach((link) => observer.observe(link, { attributes: true, attributeFilter: ['class'] }));
 
             window.addEventListener('scroll', updateProgress, { passive: true });
             window.addEventListener('resize', () => { updateProgress(); placeIndicator(false); });
