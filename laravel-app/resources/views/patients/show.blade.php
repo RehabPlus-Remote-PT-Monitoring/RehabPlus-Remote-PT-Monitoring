@@ -13,80 +13,8 @@
             return "{$days}, {$hours}";
         };
     @endphp
+    @include('patients.partials.profile-header')
 
-    <div class="mb-3">
-        <a href="{{ route('patients.index') }}" class="back-link text-decoration-none small"><i class="bi bi-arrow-left me-1"></i>All patients</a>
-    </div>
-
-    <div class="d-flex justify-content-between align-items-start flex-wrap gap-3 mb-4">
-        <div>
-            <p class="page-title mb-1">
-                {{ $patient['name'] }}
-                @if ($patient['archived'])
-                    <span class="badge bg-secondary align-middle ms-2" style="font-size:.8rem;">Archived</span>
-                @endif
-            </p>
-            <p class="page-subtitle mb-1">{{ $patient['condition'] }} · <strong>Therapist:</strong> {{ $patient['therapistName'] ?: 'Unassigned' }}</p>
-            <p class="text-muted small mb-0"><i class="bi bi-geo-alt me-1"></i>{{ $patient['address'] ?: 'No address recorded' }}</p>
-            <p class="text-muted small mb-0">
-                <i class="bi bi-envelope me-1"></i>{{ $patient['email'] ?: '—' }}
-                <span class="ms-3"><i class="bi bi-telephone me-1"></i>{{ $patient['phone'] ?: '—' }}</span>
-                <span class="ms-3"><i class="bi bi-calendar3 me-1" title="Date of birth" aria-label="Date of birth"></i>{{ $patient['dob'] ?: '—' }}@if ($patient['age'] !== null) <span>({{ $patient['age'] }} years old)</span>@endif</span>
-                <span class="ms-3"><i class="bi bi-calendar-plus me-1" title="Added" aria-label="Added"></i>{{ $patient['createdAt']?->setTimezone($tz)->format('M j, Y') ?? '—' }}</span>
-            </p>
-            {{-- Body details the patient can also edit in the app (see API_CONTRACT.md) --}}
-            <p class="text-muted small mb-0">
-                <i class="bi bi-person me-1" title="Gender" aria-label="Gender"></i>{{ $patient['gender'] ?: 'Not set' }}
-                <span class="ms-3"><i class="bi bi-speedometer2 me-1" title="Weight" aria-label="Weight"></i>{{ $patient['weightKg'] !== null ? $patient['weightKg'].' kg' : 'Not set' }}</span>
-                <span class="ms-3"><i class="bi bi-rulers me-1" title="Height" aria-label="Height"></i>{{ $patient['heightCm'] !== null ? $patient['heightCm'].' cm' : 'Not set' }}</span>
-            </p>
-            {{-- Terms / Privacy Policy consent the patient gave in the app (read-only, see ConsentService) --}}
-            <p class="consent-status mt-1 mb-0" data-consent="{{ $consent['status'] }}">
-                @switch($consent['status'])
-                    @case(\App\Services\Patient\ConsentService::CURRENT)
-                    @case(\App\Services\Patient\ConsentService::OUTDATED)
-                        <i class="bi bi-shield-check me-1"></i>Accepted terms v{{ $consent['version'] }}
-                        on {{ $consent['acceptedAt']?->setTimezone($tz)->format('M j, Y') ?? 'an unknown date' }}
-                        @foreach ($consent['flags'] as $flagLabel => $flagGiven)
-                            <span class="consent-flag {{ $flagGiven ? '' : 'consent-flag-missing' }} ms-2" title="{{ $flagLabel }}: {{ $flagGiven ? 'agreed' : 'not agreed' }}"><i class="bi {{ $flagGiven ? 'bi-check-lg' : 'bi-x-lg' }}"></i>{{ $flagLabel }}</span>
-                        @endforeach
-                        @if ($consent['status'] === \App\Services\Patient\ConsentService::OUTDATED)
-                            <span class="consent-outdated d-block mt-1"><i class="bi bi-exclamation-circle me-1"></i>This is an older version (current is v{{ $consent['currentVersion'] }}). The patient will be asked to accept the new terms next time they open the app.</span>
-                        @endif
-                        @break
-                    @case(\App\Services\Patient\ConsentService::NONE)
-                        <i class="bi bi-shield me-1"></i>Not yet accepted (the patient hasn't signed in to the app yet)
-                        @break
-                    @default
-                        <i class="bi bi-shield-exclamation me-1"></i>Consent status unavailable. Reload the page to try again.
-                @endswitch
-            </p>
-        </div>
-        <div class="d-flex flex-wrap gap-2">
-            @if ($canMessage && ! $patient['archived'])
-                <a href="{{ route('messages.show', $patient['uid']) }}" class="btn btn-outline-primary"><i class="bi bi-chat-dots me-1"></i>Message</a>
-            @endif
-            @if ($isAdmin)
-                <a href="{{ route('patients.edit', $patient['uid']) }}" class="btn btn-outline-secondary"><i class="bi bi-pencil me-1"></i>Edit</a>
-                @if ($patient['archived'])
-                    <form method="POST" action="{{ route('patients.restore', $patient['uid']) }}" data-confirm="Restore {{ $patient['name'] }}? Their app login is enabled again and they show up in the patient list.">@csrf
-                        <button class="btn btn-outline-success"><i class="bi bi-arrow-counterclockwise me-1"></i>Restore</button>
-                    </form>
-                @else
-                    <form method="POST" action="{{ route('patients.password', $patient['uid']) }}" data-confirm="Reset the app password for {{ $patient['name'] }}? Make sure it is really the patient contacting you. Their current password stops working straight away.">@csrf
-                        <button class="btn btn-outline-primary"><i class="bi bi-key me-1"></i>Reset password</button>
-                    </form>
-                    <form method="POST" action="{{ route('patients.archive', $patient['uid']) }}" data-confirm="Archive {{ $patient['name'] }}? Their app login is disabled; their records are kept and you can restore them later." data-confirm-danger>@csrf
-                        <button class="btn btn-outline-danger"><i class="bi bi-archive me-1"></i>Archive</button>
-                    </form>
-                @endif
-            @endif
-        </div>
-    </div>
-
-    @include('partials.flash')
-
-    @include('patients.temporary-password')
 
     <div class="row g-4 mb-4">
         <div class="col-md-6">

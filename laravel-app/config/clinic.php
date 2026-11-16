@@ -17,9 +17,13 @@ return [
     /* The footer line, after the copyright symbol and year. */
     'copyright' => 'Rehab+ Physiotherapy & Pilates',
 
+    /*
+     * Opening hours. 'days' and 'hours' are the text shown; 'open_days' are ISO weekdays (1 = Monday, 7 = Sunday)
+     * and 'from' / 'to' are 24-hour times, used to show whether the clinic is open right now (Philippine time).
+     */
     'schedule' => [
-        ['days' => 'Monday to Saturday', 'hours' => '9:00am – 6:00pm'],
-        ['days' => 'Sunday', 'hours' => '9:00am – 4:00pm'],
+        ['days' => 'Monday to Saturday', 'hours' => '9:00am – 6:00pm', 'open_days' => [1, 2, 3, 4, 5, 6], 'from' => '09:00', 'to' => '18:00'],
+        ['days' => 'Sunday', 'hours' => '9:00am – 4:00pm', 'open_days' => [7], 'from' => '09:00', 'to' => '16:00'],
     ],
 
     /*

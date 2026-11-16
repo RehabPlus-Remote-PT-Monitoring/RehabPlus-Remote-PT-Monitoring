@@ -8,6 +8,7 @@ use App\Services\Firebase\FirebaseTransport;
 use App\Services\Patient\ClearanceGate;
 use App\Services\Patient\ClearanceService;
 use App\Services\Patient\ClinicalProfileService;
+use App\Services\Patient\PatientAvatarService;
 use App\Services\Patient\ClinicalRecordService;
 use App\Services\Patient\ConsentService;
 use App\Services\Patient\PatientProgress;
@@ -36,6 +37,7 @@ class PatientController extends Controller
         private ClinicalProfileService $profiles,
         private ClearanceService $clearances,
         private UserService $users,
+        private PatientAvatarService $avatars,
         private FirebaseTransport $firebase,
     ) {
     }
@@ -59,6 +61,8 @@ class PatientController extends Controller
             'canManage' => $this->patients->canManage($user, $patient),
             'isAdmin' => $user->isAdmin(),
             'clinical' => $user->isClinician(),
+            // The app's picture if the patient set one, otherwise the default silhouette for their gender.
+            'avatarUrl' => $this->avatars->urlFor($uid, $patient['gender'] ?? null),
         ];
 
         if ($data['clinical']) {

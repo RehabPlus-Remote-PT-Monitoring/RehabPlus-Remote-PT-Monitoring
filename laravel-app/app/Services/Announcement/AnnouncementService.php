@@ -3,9 +3,11 @@
 namespace App\Services\Announcement;
 
 use App\Auth\StaffUser;
+use App\Services\Firebase\FirebaseException;
 use App\Services\Firebase\FirestoreClient;
 use App\Services\User\StaffDirectory;
 use Illuminate\Http\UploadedFile;
+use Illuminate\Support\Facades\Cache;
 use Illuminate\Validation\ValidationException;
 
 /**
@@ -16,6 +18,17 @@ use Illuminate\Validation\ValidationException;
 class AnnouncementService
 {
     private const COLLECTION = 'announcements';
+
+    /**
+     * The newest announcements are cached briefly, so each visit to the welcome page doesn't wait on
+     * Firestore. Posting, archiving and deleting clear it at once; "show until" is still checked on every load.
+     */
+    private const RECENT_CACHE_KEY = 'announcements-recent';
+
+    private const RECENT_CACHE_SECONDS = 300;
+
+    /** The last announcements read successfully. Shown if Firestore is slow or down, so the welcome page doesn't wait on it. */
+    private const LAST_GOOD_KEY = 'announcements-last-good';
 
     private const LIST_LIMIT = 20;
 
@@ -35,7 +48,7 @@ class AnnouncementService
     public function current(): array
     {
         $today = now()->toDateString();
-        $docs = $this->db->query('', self::COLLECTION, orderBy: ['postedAt', 'DESCENDING'], limit: self::LIST_LIMIT);
+        $docs = $this->recentDocs();
 
         $shown = array_filter($docs, fn (array $doc) => ! ($doc['archived'] ?? false)
             && (empty($doc['showUntil']) || $doc['showUntil'] >= $today));
@@ -56,6 +69,35 @@ class AnnouncementService
         return $docs;
     }
 
+    /**
+     * The newest raw announcement documents, cached for five minutes (see RECENT_CACHE_KEY). If Firestore
+     * fails, the last announcements read successfully are used instead of an error.
+     */
+    private function recentDocs(): array
+    {
+        try {
+            $docs = Cache::remember(self::RECENT_CACHE_KEY, self::RECENT_CACHE_SECONDS, fn () => $this->db->query(
+                '',
+                self::COLLECTION,
+                orderBy: ['postedAt', 'DESCENDING'],
+                limit: self::LIST_LIMIT,
+            ));
+        } catch (FirebaseException) {
+            return Cache::get(self::LAST_GOOD_KEY, []);
+        }
+
+        Cache::forever(self::LAST_GOOD_KEY, $docs);
+
+        return $docs;
+    }
+
+    /** Writes clear both copies, so a deleted or archived announcement can't come back during an outage. */
+    private function forgetRecent(): void
+    {
+        Cache::forget(self::RECENT_CACHE_KEY);
+        Cache::forget(self::LAST_GOOD_KEY);
+    }
+
     public function setArchived(string $id, bool $archived): void
     {
         $change = $archived
@@ -63,6 +105,7 @@ class AnnouncementService
             : ['archived' => false, 'archivedAt' => null];
 
         $this->db->commit([$this->db->mergeWrite(self::COLLECTION."/{$id}", $change, serverTimestamps: $archived ? ['archivedAt'] : [])]);
+        $this->forgetRecent();
     }
 
     public function create(array $data, StaffUser $by): string
@@ -77,6 +120,7 @@ class AnnouncementService
             'postedById' => $by->id,
             'postedByName' => $by->name,
         ], serverTimestamps: ['postedAt'])]);
+        $this->forgetRecent();
 
         return $id;
     }
@@ -84,6 +128,7 @@ class AnnouncementService
     public function delete(string $id): void
     {
         $this->db->delete(self::COLLECTION."/{$id}");
+        $this->forgetRecent();
     }
 
     /**
