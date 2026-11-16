@@ -96,7 +96,7 @@
 
             <form method="POST" action="{{ route('logout') }}">
                 @csrf
-                <button type="submit" class="btn btn-outline-secondary rounded-pill px-3 logout-btn" aria-label="Logout">
+                <button type="submit" class="btn btn-outline-danger rounded-pill px-3 logout-btn" aria-label="Logout">
                     <i class="bi bi-box-arrow-right"></i>
                     <span class="logout-label">Logout</span>
                 </button>
