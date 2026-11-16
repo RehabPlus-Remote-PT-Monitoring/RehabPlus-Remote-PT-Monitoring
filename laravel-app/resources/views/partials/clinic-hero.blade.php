@@ -4,7 +4,15 @@
     <div class="home-hero-shade" aria-hidden="true"></div>
 
     <div class="home-hero-content">
-        <img src="{{ asset('assets/images/rehab-logo.jpg') }}" alt="{{ $clinic['name'] }} logo" class="home-hero-logo">
+        @if (! empty($stories))
+            {{-- With pictures from today, the logo gets a ring and opens them, like a story ring on social media. --}}
+            @php($hasNewStories = collect($stories)->contains('posted', true))
+            <button type="button" class="home-hero-logo-btn{{ $hasNewStories ? ' is-new' : '' }}" data-stories-open="0" title="Today at Rehab+" aria-label="Today at Rehab+: open the latest pictures">
+                <img src="{{ asset('assets/images/rehab-logo.jpg') }}" alt="{{ $clinic['name'] }} logo" class="home-hero-logo">
+            </button>
+        @else
+            <img src="{{ asset('assets/images/rehab-logo.jpg') }}" alt="{{ $clinic['name'] }} logo" class="home-hero-logo">
+        @endif
         <p class="home-hero-eyebrow">{{ $clinic['subtitle'] }}</p>
         <h1 class="home-hero-title">{{ $clinic['name'] }}</h1>
 

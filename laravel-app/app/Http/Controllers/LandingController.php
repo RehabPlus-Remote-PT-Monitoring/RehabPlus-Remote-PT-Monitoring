@@ -38,6 +38,8 @@ class LandingController extends Controller
             'title' => $story['title'],
             'caption' => $story['body'],
             'image' => $story['imageUrl'],
+            // Posted from the dashboard today: these make the logo's ring turn.
+            'posted' => true,
         ], $this->announcements->stories());
 
         $featured = array_map(fn (array $story) => [

@@ -1,56 +1,53 @@
-{{-- "Today at Rehab+": pictures the clinic shares today (schedules, a moment from a session). Sits under Visit us, in the same width and style. Needs $stories from LandingController. --}}
+{{-- "Today at Rehab+": the viewer for pictures the clinic shares today. It opens from the logo's ring in the hero, so nothing is shown in the page itself. Needs $stories from LandingController. --}}
 @if (! empty($stories))
     <style>
-        .today-card { background: var(--card, #fff); border: 1px solid var(--border); border-radius: 1.25rem; padding: 1.5rem; }
-        .today-head { margin-bottom: 1.1rem; }
-        .today-title { margin: 0 0 .2rem; font-size: 1.5rem; font-weight: 800; letter-spacing: -.01em; }
-        .today-sub { margin: 0; color: var(--muted, #64748b); font-size: .95rem; }
-        .today-row { display: flex; gap: 1rem; overflow-x: auto; padding: .25rem .1rem .6rem; scroll-snap-type: x proximity; }
-        .today-row::-webkit-scrollbar { height: 6px; }
-        .today-tile { flex: 0 0 auto; max-width: 220px; display: flex; flex-direction: column; gap: .5rem; padding: 0; background: none; border: 0; cursor: pointer; text-align: left; color: var(--text, #0f172a); scroll-snap-align: start; }
-        /* The whole picture is shown, never cropped: the frame takes the picture's own proportions. */
-        .today-frame { display: flex; align-items: center; justify-content: center; height: 220px; padding: .4rem; border-radius: 1rem; overflow: hidden; border: 1px solid var(--border); background: #f8fafc; box-shadow: 0 6px 16px rgba(15, 23, 42, .08); transition: transform .2s ease, box-shadow .2s ease; }
-        .today-frame img { display: block; height: 100%; width: auto; max-width: 100%; object-fit: contain; border-radius: .6rem; }
-        .today-tile:hover .today-frame, .today-tile:focus-visible .today-frame { transform: translateY(-3px); box-shadow: 0 12px 26px rgba(15, 23, 42, .14); }
-        .today-tile:focus-visible { outline: 3px solid #5eead4; outline-offset: 4px; border-radius: 1rem; }
-        .today-name { font-size: .9rem; font-weight: 700; line-height: 1.25; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-        .today-dialog { width: min(640px, 94vw); border: 0; border-radius: 1.1rem; padding: 0; overflow: hidden; box-shadow: 0 30px 60px rgba(15, 23, 42, .35); }
-        .today-dialog::backdrop { background: rgba(15, 23, 42, .6); }
-        .today-dialog-wrap { position: relative; }
-        .today-dialog img { display: block; width: 100%; max-height: 72vh; object-fit: contain; background: #f8fafc; }
-        .today-dialog-body { padding: 1rem 1.25rem 1.25rem; }
-        .today-dialog-title { margin: 0 0 .2rem; font-weight: 800; }
-        .today-dialog-caption { margin: 0; color: var(--muted, #64748b); }
-        .today-close { position: absolute; top: .6rem; right: .6rem; width: 2.2rem; height: 2.2rem; border-radius: 50%; border: 0; background: rgba(15, 23, 42, .65); color: #fff; font-size: 1.2rem; line-height: 1; cursor: pointer; }
-        @media (prefers-reduced-motion: reduce) { .today-frame { transition: none; } .today-tile:hover .today-frame { transform: none; } }
+        /* The logo's ring: the same look as a story ring, shown only when there are pictures for today. */
+        /* A ring that turns slowly around the logo. The gradient sits behind the logo and rotates. */
+        /* The logo is a square button, so the ring is a true circle. The logo's own bottom margin moves to the button. */
+        .home-hero-logo-btn { position: relative; isolation: isolate; display: block; width: 104px; height: 104px; margin: 0 auto 1.25rem; padding: 0; border: 0; border-radius: 50%; background: none; cursor: pointer; transition: transform .2s ease; }
+        .home-hero-logo-btn .home-hero-logo { display: block; width: 100%; height: 100%; margin: 0; }
+        .home-hero-logo-btn:hover, .home-hero-logo-btn:focus-visible { transform: scale(1.04); }
+        .home-hero-logo-btn:focus-visible { outline: 3px solid #fff; outline-offset: 6px; }
+        /* The ring turns slowly around the logo, only when there are pictures posted today. */
+        .home-hero-logo-btn.is-new::before { content: ''; position: absolute; inset: -6px; border-radius: 50%; background: conic-gradient(#5eead4, #14b8a6, #0f766e, #99f6e4, #5eead4); z-index: -1; animation: today-ring-spin 4s linear infinite; }
+        @keyframes today-ring-spin { to { transform: rotate(360deg); } }
+
+        .today-dialog { width: min(680px, 94vw); max-height: 92vh; border: 0; border-radius: 1.1rem; padding: 0; overflow: hidden; box-shadow: 0 30px 60px rgba(15, 23, 42, .4); background: #fff; color: #0f172a; }
+        .today-dialog::backdrop { background: rgba(15, 23, 42, .7); }
+        .today-dialog-wrap { position: relative; display: flex; flex-direction: column; }
+        .today-stage { position: relative; background: #0f172a; display: flex; align-items: center; justify-content: center; min-height: 300px; }
+        .today-stage img { display: block; max-width: 100%; max-height: 66vh; width: auto; height: auto; object-fit: contain; }
+        .today-nav { position: absolute; top: 50%; transform: translateY(-50%); width: 2.6rem; height: 2.6rem; border-radius: 50%; border: 0; background: rgba(255, 255, 255, .85); color: #0f172a; font-size: 1.5rem; line-height: 1; cursor: pointer; box-shadow: 0 4px 12px rgba(0, 0, 0, .25); }
+        .today-nav:disabled { opacity: .35; cursor: default; }
+        .today-prev { left: .6rem; }
+        .today-next { right: .6rem; }
+        .today-close { position: absolute; top: .6rem; right: .6rem; z-index: 2; width: 2.2rem; height: 2.2rem; border-radius: 50%; border: 0; background: rgba(15, 23, 42, .7); color: #fff; font-size: 1.2rem; line-height: 1; cursor: pointer; }
+        .today-body { padding: 1rem 1.25rem 1.25rem; }
+        .today-kicker { margin: 0 0 .15rem; font-size: .72rem; font-weight: 800; letter-spacing: .09em; text-transform: uppercase; color: #0f766e; }
+        .today-title { margin: 0 0 .25rem; font-weight: 800; font-size: 1.1rem; }
+        .today-caption { margin: 0; color: #64748b; }
+        .today-count { margin: .6rem 0 0; font-size: .8rem; color: #94a3b8; }
+        @media (prefers-reduced-motion: reduce) { .home-hero-logo-btn, .home-hero-logo-btn.is-new::before { transition: none; animation: none; } .home-hero-logo-btn:hover { transform: none; } }
     </style>
 
-    <section class="today-card shadow-sm mb-4" aria-labelledby="today-title" data-stories>
-        <div class="today-head">
-            <h2 id="today-title" class="today-title">Today at Rehab+</h2>
-            <p class="today-sub">Schedules and moments from the clinic today.</p>
-        </div>
-
-        <div class="today-row">
-            @foreach ($stories as $i => $story)
-                <button type="button" class="today-tile" data-story-open="{{ $i }}" aria-label="Open {{ $story['title'] }}">
-                    <span class="today-frame"><img src="{{ $story['image'] }}" alt="" loading="lazy"></span>
-                    <span class="today-name">{{ $story['title'] }}</span>
-                </button>
-            @endforeach
-        </div>
-
-        <dialog class="today-dialog" data-story-dialog aria-labelledby="today-dialog-title">
+    <div class="today-dialog-root" data-stories>
+        <dialog class="today-dialog" data-story-dialog aria-label="Today at Rehab+">
             <div class="today-dialog-wrap">
                 <form method="dialog"><button class="today-close" aria-label="Close">&times;</button></form>
-                <img src="" alt="" data-story-image>
-                <div class="today-dialog-body">
-                    <p class="today-dialog-title" id="today-dialog-title" data-story-title></p>
-                    <p class="today-dialog-caption" data-story-caption></p>
+                <div class="today-stage">
+                    <button type="button" class="today-nav today-prev" data-story-prev aria-label="Previous picture">&lsaquo;</button>
+                    <img src="" alt="" data-story-image>
+                    <button type="button" class="today-nav today-next" data-story-next aria-label="Next picture">&rsaquo;</button>
+                </div>
+                <div class="today-body">
+                    <p class="today-kicker">Today at Rehab+</p>
+                    <p class="today-title" data-story-title></p>
+                    <p class="today-caption" data-story-caption></p>
+                    <p class="today-count" data-story-count></p>
                 </div>
             </div>
         </dialog>
-    </section>
+    </div>
 
     <script type="application/json" id="stories-data">@json($stories)</script>
     <script nonce="{{ Vite::cspNonce() }}">
@@ -62,17 +59,37 @@
             var image = dialog.querySelector('[data-story-image]');
             var title = dialog.querySelector('[data-story-title]');
             var caption = dialog.querySelector('[data-story-caption]');
+            var count = dialog.querySelector('[data-story-count]');
+            var prev = dialog.querySelector('[data-story-prev]');
+            var next = dialog.querySelector('[data-story-next]');
+            var current = 0;
 
-            root.querySelectorAll('[data-story-open]').forEach(function (button) {
+            function show(index) {
+                if (index < 0 || index >= stories.length) return;
+                current = index;
+                var story = stories[current];
+                image.src = story.image;
+                image.alt = story.title;
+                title.textContent = story.title;
+                caption.textContent = story.caption || '';
+                count.textContent = (current + 1) + ' of ' + stories.length;
+                prev.disabled = current === 0;
+                next.disabled = current === stories.length - 1;
+            }
+
+            document.querySelectorAll('[data-stories-open]').forEach(function (button) {
                 button.addEventListener('click', function () {
-                    var story = stories[Number(button.getAttribute('data-story-open'))];
-                    if (!story) return;
-                    image.src = story.image;
-                    image.alt = story.title;
-                    title.textContent = story.title;
-                    caption.textContent = story.caption || '';
+                    show(0);
                     dialog.showModal();
                 });
+            });
+
+            prev.addEventListener('click', function () { show(current - 1); });
+            next.addEventListener('click', function () { show(current + 1); });
+
+            dialog.addEventListener('keydown', function (event) {
+                if (event.key === 'ArrowLeft') show(current - 1);
+                if (event.key === 'ArrowRight') show(current + 1);
             });
 
             // A click on the backdrop (outside the picture) closes the viewer.

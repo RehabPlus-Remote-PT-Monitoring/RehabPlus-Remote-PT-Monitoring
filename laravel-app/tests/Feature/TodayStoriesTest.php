@@ -29,13 +29,33 @@ class TodayStoriesTest extends TestCase
         return json_decode(html_entity_decode($match[1] ?? '[]'), true) ?: [];
     }
 
-    public function test_the_featured_schedules_show_under_the_logo(): void
+    public function test_the_logo_has_the_ring_and_the_featured_schedules_are_in_the_viewer(): void
     {
         $this->get('/')->assertOk()
+            ->assertSee('data-stories-open', false)
             ->assertSee('Today at Rehab+')
             ->assertSee('Pilates schedule')
-            ->assertSee('Private class schedule')
-            ->assertSee('assets/images/stories/pilates-schedule-tuesday.jpg', false);
+            ->assertSee('Private class schedule');
+    }
+
+    public function test_the_ring_turns_only_when_a_picture_was_posted_today(): void
+    {
+        // Featured schedules only: the logo still opens the viewer, but no ring.
+        $this->get('/')->assertOk()->assertSee('data-stories-open', false)->assertDontSee('home-hero-logo-btn is-new', false);
+
+        // A picture posted from the dashboard: the ring turns. (A real post clears the cache itself; the test seeds it directly, so clear it here.)
+        $this->docs['announcements/posted'] = ['title' => 'Today: workout', 'body' => 'x', 'story' => true, 'imageUrl' => 'data:image/jpeg;base64,'.base64_encode('x'), 'postedAt' => CarbonImmutable::now()];
+        \Illuminate\Support\Facades\Cache::flush();
+
+        $this->get('/')->assertOk()->assertSee('home-hero-logo-btn is-new', false);
+    }
+
+    public function test_without_pictures_the_logo_has_no_ring(): void
+    {
+        $this->docs['announcements/none'] = ['title' => 'Holiday notice', 'body' => 'x', 'story' => false, 'postedAt' => CarbonImmutable::now()];
+        config(['clinic.featured_stories' => []]);
+
+        $this->get('/')->assertOk()->assertDontSee('data-stories-open', false);
     }
 
     public function test_an_administrator_posts_a_story_with_its_picture(): void

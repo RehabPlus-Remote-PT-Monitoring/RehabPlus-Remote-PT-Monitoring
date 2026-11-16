@@ -82,6 +82,8 @@
             /* A tall hero, leaving room at the bottom of the first screen for the "Today at Rehab+" heading. */
             .landing-first .home-hero { flex: 0 0 auto; height: calc(100svh - 31rem); min-height: 380px; margin-bottom: 1rem; }
             .landing-first #visit { flex: 0 0 auto; }
+            /* The logo is a little larger on the welcome page. */
+            .landing-first .home-hero-logo { width: 104px; height: 104px; }
             .landing-first #visit .visit-card { margin-bottom: 0 !important; }
         }
     </style>
