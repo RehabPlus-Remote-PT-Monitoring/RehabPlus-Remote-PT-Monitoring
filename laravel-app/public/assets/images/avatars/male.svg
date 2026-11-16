@@ -1,11 +1,12 @@
 <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 200 200" role="img" aria-label="Profile picture, male">
   <rect width="200" height="200" fill="#ffffff"/>
-  <!-- neck -->
-  <rect x="86" y="104" width="28" height="30" rx="8" fill="#9ca3af"/>
-  <!-- shoulders -->
-  <path d="M26 200 C26 150 52 128 100 128 C148 128 174 150 174 200 Z" fill="#9ca3af"/>
-  <!-- head -->
-  <ellipse cx="100" cy="82" rx="36" ry="40" fill="#9ca3af"/>
-  <!-- short hair, swept to one side -->
-  <path d="M63 74 C59 50 74 38 100 38 C126 38 141 50 137 74 C131 62 121 56 104 54 C92 58 74 60 63 74 Z" fill="#6b7280"/>
+  <!-- ears -->
+  <ellipse cx="58" cy="86" rx="7" ry="13" fill="#cfd2d6"/>
+  <ellipse cx="142" cy="86" rx="7" ry="13" fill="#cfd2d6"/>
+  <!-- neck, thick enough to match a man's shoulders -->
+  <rect x="82" y="108" width="36" height="40" rx="8" fill="#cfd2d6"/>
+  <!-- shoulders: wide and cut flat at the bottom edge -->
+  <path d="M8 200 C8 166 32 148 70 140 L86 136 L114 136 L130 140 C168 148 192 166 192 200 Z" fill="#cfd2d6"/>
+  <!-- head: a broad top and a squarer jaw -->
+  <path d="M60 44 C60 26 78 16 100 16 C122 16 140 26 140 44 L141 92 C141 110 124 122 100 122 C76 122 59 110 59 92 Z" fill="#cfd2d6"/>
 </svg>
