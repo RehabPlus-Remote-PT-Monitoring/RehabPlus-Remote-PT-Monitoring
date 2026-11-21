@@ -96,7 +96,11 @@
         </div>
     </div>
 
-    @include('partials.announcements', ['announcements' => $announcements])
+    @php
+        // Stories ("Today at Rehab+") only show in the logo ring above, not in the announcements section.
+        $publicAnnouncements = array_values(array_filter($announcements, fn (array $a) => ! ($a['story'] ?? false)));
+    @endphp
+    @include('partials.announcements', ['announcements' => $publicAnnouncements])
 
     @include('partials.health-services')
 

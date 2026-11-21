@@ -6,6 +6,7 @@
     <div class="mb-3">
         <a href="{{ route('dashboard') }}" class="back-link text-decoration-none small"><i class="bi bi-arrow-left me-1"></i>Back to dashboard</a>
         <p class="page-title mb-1 mt-1">Announcements</p>
+        <p class="text-muted small mb-3">Post clinic updates, closures, or important notices for patients and staff.</p>
     </div>
 
     @include('partials.flash')
@@ -58,7 +59,7 @@
     </form>
 
     {{-- Today at Rehab+: a picture the clinic shares today, shown under Visit us on the welcome page --}}
-    <h2 class="section-title">Today at Rehab+</h2>
+    <h2 class="page-title">Today at Rehab+</h2>
     <p class="text-muted small mb-3">Post a schedule or a picture from today, such as a patient or a workout session. It shows in the "Today at Rehab+" row on the welcome page.</p>
     <form method="POST" action="{{ route('announcements.store') }}" enctype="multipart/form-data" class="card shadow-sm border-0 mb-4" style="max-width: 800px;">
         @csrf
@@ -104,13 +105,19 @@
         </div>
     </form>
 
-    <h2 class="section-title">Currently showing</h2>
-    @if ($announcements === [])
+    @php
+        $regularAnnouncements = array_values(array_filter($announcements, fn (array $a) => ! ($a['story'] ?? false)));
+        $storyAnnouncements = array_values(array_filter($announcements, fn (array $a) => ($a['story'] ?? false)));
+    @endphp
+
+    <h2 class="page-title">Currently showing</h2>
+    <h2 class="section-title">Announcement</h2>
+    @if ($regularAnnouncements === [])
         <div class="card shadow-sm border-0 text-center text-muted py-5 mb-4">No announcements yet.</div>
     @else
         <div class="row g-3 mb-4">
-            @foreach ($announcements as $announcement)
-                @if ($announcement['archived'] && ($loop->first || ! $announcements[$loop->index - 1]['archived']))
+            @foreach ($regularAnnouncements as $announcement)
+                @if ($announcement['archived'] && ($loop->first || ! $regularAnnouncements[$loop->index - 1]['archived']))
                     <div class="col-12 small fw-semibold text-muted text-uppercase mt-2">Archived</div>
                 @endif
                 <div class="col-12">
@@ -152,6 +159,69 @@
                                 </form>
                             @endif
                             <form method="POST" action="{{ route('announcements.destroy', $announcement['id']) }}" data-confirm="Delete this announcement permanently? This can't be undone." data-confirm-danger>
+                                @csrf
+                                @method('DELETE')
+                                <button type="submit" class="btn btn-sm btn-outline-danger"><i class="bi bi-trash me-1"></i>Delete</button>
+                            </form>
+                        </div>
+                    </div>
+                </div>
+            @endforeach
+        </div>
+    @endif
+
+    {{-- Today at Rehab+ stories --}}
+    <h2 class="section-title mt-5">Today at Rehab+</h2>
+    <p class="text-muted small mb-3">Picture posts shared today. They appear in the "Today at Rehab+" ring on the welcome page.</p>
+    @if ($storyAnnouncements === [])
+        <div class="card shadow-sm border-0 text-center text-muted py-5 mb-4">No stories posted today.</div>
+    @else
+        <div class="row g-3 mb-4">
+            @foreach ($storyAnnouncements as $announcement)
+                @if ($announcement['archived'] && ($loop->first || ! $storyAnnouncements[$loop->index - 1]['archived']))
+                    <div class="col-12 small fw-semibold text-muted text-uppercase mt-2">Archived</div>
+                @endif
+                <div class="col-12">
+                    <div @class([
+                        'card shadow-sm border-0 p-3 d-flex flex-row flex-wrap align-items-start gap-3',
+                        'announcement-archived' => $announcement['archived'],
+                    ])>
+                        @if ($announcement['imageUrl'] !== '')
+                            <img src="{{ $announcement['imageUrl'] }}" alt="{{ $announcement['title'] }}" class="announcement-thumb">
+                        @endif
+                        <div class="flex-grow-1 min-w-0">
+                            <p class="announcement-title mb-1">
+                                {{ $announcement['title'] }}
+                                @if ($announcement['archived'])
+                                    <span class="badge bg-secondary ms-1 align-middle">Archived</span>
+                                @endif
+                            </p>
+                            <p class="small text-muted mb-1">
+                                @if ($announcement['postedAt'])
+                                    {{ $announcement['postedAt']->setTimezone(config('app.timezone'))->format('M j, Y') }} ·
+                                @endif
+                                {{ $announcement['postedByName'] ?: 'Staff' }}
+                                @if ($announcement['showUntil'])
+                                    · Until {{ \Carbon\CarbonImmutable::parse($announcement['showUntil'])->format('M j, Y') }}
+                                @endif
+                            </p>
+                            @if ($announcement['body'] !== '')
+                                <p class="announcement-body mb-0">{{ $announcement['body'] }}</p>
+                            @endif
+                        </div>
+                        <div class="d-flex gap-2 flex-shrink-0">
+                            @if ($announcement['archived'])
+                                <form method="POST" action="{{ route('announcements.restore', $announcement['id']) }}" data-confirm="Restore this story? It will show on the welcome page again.">
+                                    @csrf
+                                    <button type="submit" class="btn btn-sm btn-outline-success"><i class="bi bi-arrow-counterclockwise me-1"></i>Restore</button>
+                                </form>
+                            @else
+                                <form method="POST" action="{{ route('announcements.archive', $announcement['id']) }}" data-confirm="Archive this story? It will no longer show on the welcome page. You can restore it later.">
+                                    @csrf
+                                    <button type="submit" class="btn btn-sm btn-outline-secondary"><i class="bi bi-archive me-1"></i>Archive</button>
+                                </form>
+                            @endif
+                            <form method="POST" action="{{ route('announcements.destroy', $announcement['id']) }}" data-confirm="Delete this story permanently? This can't be undone." data-confirm-danger>
                                 @csrf
                                 @method('DELETE')
                                 <button type="submit" class="btn btn-sm btn-outline-danger"><i class="bi bi-trash me-1"></i>Delete</button>
