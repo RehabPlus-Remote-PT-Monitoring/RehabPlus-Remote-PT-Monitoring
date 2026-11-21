@@ -1,0 +1,9 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 200 200" role="img" aria-label="Default profile picture">
+  <rect width="200" height="200" fill="#ffffff"/>
+  <!-- neck -->
+  <rect x="88" y="104" width="24" height="30" rx="8" fill="#9ca3af"/>
+  <!-- shoulders -->
+  <path d="M30 200 C30 150 56 128 100 128 C144 128 170 150 170 200 Z" fill="#9ca3af"/>
+  <!-- head -->
+  <ellipse cx="100" cy="82" rx="36" ry="40" fill="#9ca3af"/>
+</svg>

@@ -1,0 +1,12 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 200 200" role="img" aria-label="Profile picture, male">
+  <rect width="200" height="200" fill="#ffffff"/>
+  <!-- ears -->
+  <ellipse cx="58" cy="86" rx="7" ry="13" fill="#cfd2d6"/>
+  <ellipse cx="142" cy="86" rx="7" ry="13" fill="#cfd2d6"/>
+  <!-- neck, thick enough to match a man's shoulders -->
+  <rect x="82" y="108" width="36" height="40" rx="8" fill="#cfd2d6"/>
+  <!-- shoulders: wide and cut flat at the bottom edge -->
+  <path d="M8 200 C8 166 32 148 70 140 L86 136 L114 136 L130 140 C168 148 192 166 192 200 Z" fill="#cfd2d6"/>
+  <!-- head: a broad top and a squarer jaw -->
+  <path d="M60 44 C60 26 78 16 100 16 C122 16 140 26 140 44 L141 92 C141 110 124 122 100 122 C76 122 59 110 59 92 Z" fill="#cfd2d6"/>
+</svg>
